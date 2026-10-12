@@ -58,7 +58,7 @@ _THRESHOLDS = {
 _MODELS = (
     C.PoseModel(1, "MoveNet Lightning", "singlepose float16 v4 (TFLite, 192x192)", 17),
 )
-MIN_SAMPLE_CNT = 10                  # TP-12 표본(사진) 최소 장수. 시드의 analysis_run.min_sample_cnt 기본값과 같다
+MIN_SAMPLE_CNT = 5                   # TP-12 표본(사진) 최소 장수. 시드의 analysis_run.min_sample_cnt 기본값과 같다
 _FLAGGED_AT = (1, 4, 7, 9, 12, 15, 18)   # 판별 가능한 사진 20장 중 허리 굽힘으로 판별된 7장의 자리 (35%). 7번째 자리가 대표 사진(8번)
 _STILL_EXTS = (".jpg", ".jpeg", ".png")
 _TABLE_C_ROW_A8 = (8, 8, 8, 9, 10, 10, 10, 10, 10, 11, 11, 11)   # REBA 표 C에서 점수 A = 8인 줄
@@ -600,7 +600,7 @@ class StubService:
                 on_progress(C.Progress(h.run_id, stage, int(total * pct / 100), total, float(pct), eta_s=max(0.0, (100 - pct) / 10)))
             with self._lock:
                 ids = self._running[h.run_id]["ids"]
-                invalid = 1 if total >= MIN_SAMPLE_CNT else 0       # 스텁: 사진이 충분히 많으면 한 장은 판별 불가로 흉내 낸다
+                invalid = 1 if total > MIN_SAMPLE_CNT else 0        # 스텁: 최소 장수보다 많으면 한 장은 판별 불가로 흉내 낸다 (딱 최소 장수면 모두 판별 가능)
                 self._runs[h.unit_task_id] = dict(run_id=h.run_id, model=h.model_id, key_still=ids[0],
                                                   status=C.RunStatus.DONE, still_cnt=total, valid_cnt=total - invalid)
                 self._recalc(h.unit_task_id, "시스템")

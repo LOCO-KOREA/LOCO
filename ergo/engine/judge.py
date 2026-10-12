@@ -16,7 +16,7 @@ from .. import contracts as C
 def judge_criteria(period_type: C.PeriodType, inputs: C.TaskInputs,
                    repetitions: Sequence[C.RepetitionInput], lift_positions: Sequence[C.LiftPositionInput],
                    shares: Sequence[C.PostureShare], valid_still_cnt: int = 0,
-                   min_sample_cnt: int = 10) -> Mapping[int, C.Judgment]:
+                   min_sample_cnt: int = 5) -> Mapping[int, C.Judgment]:
     """입력값과 자세 비율 → 호 번호(1~11)별 판정 초안과 근거.
 
     판정 상태: 해당 · 비해당 · 사람 확인 · 입력 필요. 호마다 근거와 출처(고시 제3조 제N호 · 각도 출처)를 함께 만든다.

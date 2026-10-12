@@ -549,7 +549,7 @@
 | error_cd | TEXT | 예 |  |  | 실패 코드 |
 | jitter_deg | REAL | 아니오 | 5 |  | 확신도 흔들기 폭 (TP-01) |
 | conf_min | REAL | 아니오 | 0.5 |  | 관절 신뢰도 하한 (TP-02) |
-| min_sample_cnt | INTEGER | 아니오 | 10 |  | 표본(사진) 최소 장수 (TP-12) |
+| min_sample_cnt | INTEGER | 아니오 | 5 |  | 표본(사진) 최소 장수 (TP-12) |
 
 #### T15. still_angle (사진별 각도)
 
@@ -1303,7 +1303,7 @@ CREATE TABLE analysis_run (
   error_cd          TEXT,
   jitter_deg        REAL    NOT NULL DEFAULT 5   CHECK (jitter_deg >= 0),
   conf_min          REAL    NOT NULL DEFAULT 0.5 CHECK (conf_min BETWEEN 0 AND 1),
-  min_sample_cnt    INTEGER NOT NULL DEFAULT 10  CHECK (min_sample_cnt >= 1),
+  min_sample_cnt    INTEGER NOT NULL DEFAULT 5   CHECK (min_sample_cnt >= 1),
   CHECK (is_current_yn = 0 OR status_cd = 'DONE'),
   CHECK (status_cd = 'RUNNING' OR finished_at IS NOT NULL),
   CHECK (still_valid_cnt IS NULL OR still_total_cnt IS NULL OR still_valid_cnt <= still_total_cnt)

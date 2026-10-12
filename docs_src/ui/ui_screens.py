@@ -387,7 +387,7 @@ screen(id="S04", name="사진 올리기", tab="사진", fids=["F03-01", "F03-02"
             "회전 정보(EXIF)가 있으면 바로 세워 분석한다는 표시 (F03-01 규칙 2). 원본은 복사하지 않는다"),
            (3, "이 단위작업의 사진", "표", "list_stills(unit_task_id) → StillInfo.still_no, StillInfo.file_name, StillInfo.consent_yn. "
                "'빼기' → detach_still(still_id, actor). 지금 결과에 쓴 사진 수는 TaskResult.still_cnt",
-            "사진이 옮겨졌으면 '위치를 다시 고르기' (E-STILL-004). 사진이 10장(TP-12)보다 적으면 노란 배지 W-STILL-002 (EX-02). 뺀 사진은 목록에서 사라지고 이미 나온 결과는 그대로"),
+            "사진이 옮겨졌으면 '위치를 다시 고르기' (E-STILL-004). 사진이 5장(TP-12)보다 적으면 노란 배지 W-STILL-002 (EX-02). 뺀 사진은 목록에서 사라지고 이미 나온 결과는 그대로"),
            (4, "촬영 안내 4줄", "안내", "고정 문구", "F03-02, AC-08"),
            (5, "촬영 동의", "체크", "고른 사진을 붙일 때 attach_still(unit_task_id, path, consent, actor), 붙인 뒤에는 confirm_consent(still_id, actor)",
             "체크 전에는 '분석 시작'이 꺼져 있다 (AC-09, E-STILL-003). 확인 시각을 남긴다"),
@@ -490,7 +490,7 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
            (3, "사진 고르기", "◀ ▶ + 버튼", "get_still_preview(run_id, still_id)로 미리 보고, '이 사진을 대표 사진으로' → set_key_still(unit_task_id, still_id, actor)",
             "바꾸면 REBA를 다시 계산하고 수정 이력에 남긴다 (AC-20)"),
            (4, "분석 정보", "정보 줄", "RunHandle.model_id → PoseModel.model_name, TaskResult.still_cnt, TaskResult.valid_still_cnt, TaskResult.invalid_ratio, TaskResult.notices",
-            "판별 불가 비율이 20%(TP-03)를 넘으면 노란 표시. 판별 가능한 사진이 10장(TP-12)보다 적으면 W-STILL-002를 보이고 자세 비율로 정하는 호는 '사람 확인'. 다리 잘림은 W-ANALYSIS-003"),
+            "판별 불가 비율이 20%(TP-03)를 넘으면 노란 표시. 판별 가능한 사진이 5장(TP-12)보다 적으면 W-STILL-002를 보이고 자세 비율로 정하는 호는 '사람 확인'. 다리 잘림은 W-ANALYSIS-003"),
            (5, "REBA 카드", "점수 + 단계", "TaskResult.reba → RebaScore.neck_score, RebaScore.trunk_score, RebaScore.legs_score, RebaScore.table_a_score, "
                "RebaScore.load_score, RebaScore.upper_arm_score, RebaScore.lower_arm_score, RebaScore.wrist_score, RebaScore.table_b_score, "
                "RebaScore.coupling_score, RebaScore.table_c_score, RebaScore.activity_score, RebaScore.reba_score, RebaScore.risk_level_cd, "

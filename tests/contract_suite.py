@@ -30,7 +30,7 @@ from ergo import contracts as C
 from ergo.contracts import ErgoError
 
 SURVEY, TASK, TASK_SHORT, TASK_EMPTY, STILL = 1, 10, 12, 11, 100
-MIN_SAMPLE = 10                          # TP-12
+MIN_SAMPLE = 5                           # TP-12
 BY = "홍길동"
 S = C.JudgmentStatus
 
@@ -369,6 +369,20 @@ class ServiceContractTests:
         self.assertEqual(j4.computed_status_cd, S.NEEDS_REVIEW)
         self.assertEqual(j4.review_reason_cd, C.ReviewReason.SMALL_SAMPLE)
         self.assertTrue(any(n.code == "W-STILL-002" for n in res.notices))
+
+    def test_AC37_exactly_the_minimum_number_of_valid_stills_is_enough(self):
+        """AC-37 경계: 판별 가능한 사진이 딱 TP-12장이면 '표본이 적다'로 보지 않는다 (SMALL_SAMPLE도 알림도 없다)."""
+        t = self.svc.create_unit_task(SURVEY, C.UnitTaskCreate("최소 표본 작업", 1, C.PeriodType.ONGOING))
+        tid = t.unit_task_id
+        self.svc.save_task_inputs(tid, C.TaskInputs(daily_work_h=6.0, unsupported_posture_yn=True), BY)
+        for i in range(MIN_SAMPLE):
+            self.svc.attach_still(tid, Path(f"D:/사진/최소{i}.jpg"), True, BY)
+        _, events = self.run_analysis(self.svc, tid)
+        self.assertEqual(events[-1].stage, C.Stage.DONE)
+        res = self.svc.get_task_result(tid)
+        self.assertEqual(res.valid_still_cnt, MIN_SAMPLE)
+        self.assertNotEqual(self.judgment(res, 4).review_reason_cd, C.ReviewReason.SMALL_SAMPLE)
+        self.assertFalse(any(n.code == "W-STILL-002" for n in res.notices))
 
     def test_still_results_agree_with_the_posture_shares(self):
         """자세 비율 = 그 자세로 판별된 사진 수 ÷ 판별 가능한 사진 수 (표본 비율, BR-05)."""

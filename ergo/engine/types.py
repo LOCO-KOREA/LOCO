@@ -22,7 +22,7 @@ class EngineParams:
     """분석 한 번에 쓴 기술 파라미터 (기능정의서 8절 TP). analysis_run 컬럼의 기본값과 같다."""
     conf_min: float = 0.5            # TP-02 관절 신뢰도 하한 (MoveNet은 가려진 점의 점수가 낮다. 재연 사진으로 정함)
     jitter_deg: float = 5.0          # TP-01 확신도에서 각도를 흔드는 폭
-    min_sample_cnt: int = 10         # TP-12 표본(사진) 최소 장수. 판별 가능한 사진이 이보다 적으면 자세 비율 판정은 '사람 확인'
+    min_sample_cnt: int = 5         # TP-12 표본(사진) 최소 장수. 판별 가능한 사진이 이보다 적으면 자세 비율 판정은 '사람 확인'
 
 
 @dataclass(frozen=True)
