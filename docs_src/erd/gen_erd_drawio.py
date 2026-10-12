@@ -31,18 +31,20 @@ db = sqlite3.connect(":memory:")
 db.executescript(paths.SCHEMA_FILE.read_text(encoding="utf-8"))
 TABLES = [r[0] for r in db.execute(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY rowid")]
-COLS, PK, FK, UNIQUE1 = {}, {}, {}, {}
+COLS, PK, FK, UKEYS = {}, {}, {}, {}
 for t in TABLES:
     info = db.execute(f"PRAGMA table_xinfo({t})").fetchall()          # cid, name, type, notnull, dflt, pk, hidden
     COLS[t] = [(r[1], r[2], bool(r[3]), r[5]) for r in info]
     PK[t] = [r[1] for r in sorted(info, key=lambda r: r[5]) if r[5] > 0]
-    FK[t] = [(r[3], r[2], r[4]) for r in db.execute(f"PRAGMA foreign_key_list({t})")]  # from, parent, to
-    UNIQUE1[t] = set()
+    # 외래키는 id별로 묶는다: 복합 외래키 (run_id, key_still_id)는 칸이 둘이어도 관계는 하나다
+    groups = {}
+    for fid, seq, parent, fcol, pcol, *_ in db.execute(f"PRAGMA foreign_key_list({t})"):
+        groups.setdefault(fid, []).append((seq, fcol, parent, pcol))
+    FK[t] = [(sorted(g)[0][2], [(s[1], s[3]) for s in sorted(g)]) for g in groups.values()]   # (부모, [(자식 칸, 부모 칸)…])
+    UKEYS[t] = [set(PK[t])] if PK[t] else []                          # 이 칸들이 모두 들어간 FK는 자식이 부모당 하나뿐
     for _, iname, uniq, origin, partial in db.execute(f"PRAGMA index_list({t})"):
         if uniq and not partial:
-            icols = [r[2] for r in db.execute(f"PRAGMA index_info({iname})")]
-            if len(icols) == 1:
-                UNIQUE1[t].add(icols[0])
+            UKEYS[t].append({r[2] for r in db.execute(f"PRAGMA index_info({iname})")})
 
 # 한글 이름: gen_doc.py의 설명 사전 D (문서와 같은 이름을 쓴다)
 src = (HERE / "gen_doc.py").read_text(encoding="utf-8")
@@ -54,26 +56,30 @@ AREA = {   # ERD 5.1 주제 영역
     "기준 정보": ["criterion", "threshold_default", "pose_model"],
     "조사": ["survey", "survey_reason", "participant", "survey_threshold"],
     "작업과 입력": ["unit_task", "task_input", "repetition_input", "lift_position_input", "reba_input"],
-    "영상과 분석": ["video", "analysis_run", "frame_angle", "reba_result", "key_frame_image"],
+    "사진과 분석": ["still", "analysis_run", "still_angle", "reba_result", "key_still_image"],
     "판정과 경고": ["judgment", "judgment_basis", "warning", "ai_text"],
     "이력과 설정": ["edit_log", "export_log", "app_setting", "schema_version"],
 }
 COLOR = {"기준 정보": ("#E8EEF5", "#5D6B78"), "조사": ("#FDEBD9", "#C2571A"), "작업과 입력": ("#E3F1E3", "#3F7F3F"),
-         "영상과 분석": ("#E9E7F8", "#5550A0"), "판정과 경고": ("#FBE3E3", "#A83A3A"), "이력과 설정": ("#EEEEEE", "#6E6E6E")}
+         "사진과 분석": ("#E9E7F8", "#5550A0"), "판정과 경고": ("#FBE3E3", "#A83A3A"), "이력과 설정": ("#EEEEEE", "#6E6E6E")}
 AREA_OF = {t: a for a, ts in AREA.items() for t in ts}
 assert set(AREA_OF) == set(TABLES)
 
 # ---------------------------------------------------------------- 관계 (스키마에서 계산)
 REL = []
 for child in TABLES:
-    for fcol, parent, pcol in FK[child]:
-        notnull = next(c[2] for c in COLS[child] if c[0] == fcol) or fcol in PK[child]
+    for parent, pairs in FK[child]:
+        fcols = [f for f, _ in pairs]
+        # 선을 꽂을 칸: 복합 외래키는 다른 관계와 겹치지 않는 칸(기본키가 아닌 칸)이 있으면 그 칸
+        fcol, pcol = next(((f, p) for f, p in pairs if f not in PK[child]), pairs[-1])
+        notnull = all(next(c[2] for c in COLS[child] if c[0] == f) or f in PK[child] for f in fcols)
         REL.append({
-            "parent": parent, "child": child, "fcol": fcol, "pcol": pcol,
-            "identifying": fcol in PK[child],
-            "one": PK[child] == [fcol] or fcol in UNIQUE1[child],
+            "parent": parent, "child": child, "fcol": fcol, "pcol": pcol, "fcols": fcols,
+            "identifying": all(f in PK[child] for f in fcols),
+            "one": any(k <= set(fcols) for k in UKEYS[child] if k),
             "parent_optional": not notnull,
         })
+assert len({(r["parent"], r["child"]) for r in REL}) == len(REL), "같은 부모·자식 사이에 외래키가 둘 이상 — 관계 이름 표(LABEL)가 구분하지 못한다"
 
 
 def markers(r):
@@ -92,16 +98,17 @@ LABEL = {
     ("survey", "survey_threshold"): "적용", ("survey", "survey_reason"): "수시 사유", ("survey", "participant"): "참여",
     ("survey", "unit_task"): "포함", ("unit_task", "task_input"): "작업 정보", ("unit_task", "repetition_input"): "부위별 반복",
     ("unit_task", "lift_position_input"): "위치별 들기", ("unit_task", "reba_input"): "REBA 사람 입력",
-    ("unit_task", "video"): "영상", ("unit_task", "analysis_run"): "분석", ("video", "analysis_run"): "분석 대상",
-    ("pose_model", "analysis_run"): "사용 모델", ("analysis_run", "frame_angle"): "프레임별 각도",
-    ("analysis_run", "reba_result"): "REBA 결과", ("reba_result", "key_frame_image"): "대표 장면",
+    ("unit_task", "still"): "사진", ("unit_task", "analysis_run"): "분석", ("still", "still_angle"): "분석한 사진",
+    ("pose_model", "analysis_run"): "사용 모델", ("analysis_run", "still_angle"): "사진별 각도",
+    ("analysis_run", "reba_result"): "REBA 결과", ("still_angle", "reba_result"): "대표 사진 선택",
+    ("reba_result", "key_still_image"): "보관", ("still", "key_still_image"): "원본 사진",
     ("unit_task", "judgment"): "호마다 판정", ("criterion", "judgment"): "기준", ("analysis_run", "judgment"): "근거 분석",
     ("judgment", "judgment_basis"): "근거 값", ("unit_task", "warning"): "경고", ("criterion", "warning"): "기준",
     ("judgment", "warning"): "근거 판정", ("warning", "ai_text"): "조언 문장", ("survey", "ai_text"): "요약 문장",
     ("survey", "edit_log"): "수정 이력", ("survey", "export_log"): "엑셀 기록",
 }
 assert {(r["parent"], r["child"]) for r in REL} == set(LABEL), {(r["parent"], r["child"]) for r in REL} ^ set(LABEL)
-LABEL_POS = {("unit_task", "warning"): 0.55}   # 선이 겹치는 곳에서 이름이 겹치지 않게 (−1 부모 쪽 … 1 자식 쪽)
+LABEL_POS = {("unit_task", "warning"): 0.55, ("still", "key_still_image"): 0.5}   # 선이 겹치는 곳에서 이름이 겹치지 않게 (−1 부모 쪽 … 1 자식 쪽)
 
 # 문서 5.5절 관계 정의 표의 카디널리티가 스키마와 같은지 대조한다
 tpl = (HERE / "erd_template.md").read_text(encoding="utf-8")
@@ -156,7 +163,7 @@ class Page:
                  f'fillColor={"#F4F4F4" if stub else fill};strokeColor={stroke};fontSize=13;'
                  f'{"dashed=1;" if stub else ""}swimlaneFillColor=#FFFFFF;" vertex="1" parent="1">'
                  f'<mxGeometry x="{x}" y="{y}" width="{W}" height="{h}" as="geometry"/></mxCell>')
-        fk_cols = {f[0] for f in FK[t]}
+        fk_cols = {f for _, pairs in FK[t] for f, _ in pairs}
         for i, (name, typ, notnull, pkpos) in enumerate(cols):
             rid = f"{tid}_{name}"
             key = "PK, FK" if pkpos and name in fk_cols else "PK" if pkpos else "FK" if name in fk_cols else ""
@@ -311,13 +318,13 @@ for a, b, label in (("ext", "con", "외부/개념 사상 = 뷰 → 논리적 독
 P0.text(40, 10, 1300, 30, P0.title, size=18, bold=True)
 
 # ---------------------------------------------------------------- 1쪽: 개념 ERD
-P1 = Page("c", "1 개념 ERD", "개념 ERD · 엔티티 25개와 관계 28개 (주제 영역별 색)")
+P1 = Page("c", "1 개념 ERD", f"개념 ERD · 엔티티 {len(TABLES)}개와 관계 {len(REL)}개 (주제 영역별 색)")
 CONCEPT = {
     "survey": (800, 210), "survey_reason": (560, 70), "participant": (800, 70), "edit_log": (1040, 70),
     "export_log": (1280, 70), "survey_threshold": (300, 210), "threshold_default": (300, 900),
     "criterion": (800, 900), "unit_task": (800, 430), "task_input": (500, 300), "repetition_input": (500, 390),
-    "lift_position_input": (500, 480), "reba_input": (500, 570), "video": (1060, 330), "analysis_run": (1060, 470),
-    "pose_model": (1270, 330), "frame_angle": (1060, 600), "reba_result": (1320, 600), "key_frame_image": (1560, 600),
+    "lift_position_input": (500, 480), "reba_input": (500, 570), "still": (1060, 330), "analysis_run": (1050, 540),
+    "pose_model": (1270, 330), "still_angle": (1030, 420), "reba_result": (1330, 600), "key_still_image": (1560, 610),
     "judgment": (800, 700), "judgment_basis": (520, 700), "warning": (1060, 760), "ai_text": (1520, 210),
     "app_setting": (1320, 900), "schema_version": (1560, 900),
 }
@@ -337,17 +344,24 @@ P1.text(210, 1040, 1300, 24, LEGEND, size=12, color="#3D4B59")
 # ---------------------------------------------------------------- 2~4쪽: 논리·물리 ERD (컬럼 전체)
 COLX = {"A": 40, "B": 480, "C": 920, "D": 1360}
 TOP = 70
+
+
+def _h(t):
+    """논리 ERD 표 상자의 높이 (머리 + 컬럼 수 × 행)"""
+    return HEAD + len(COLS[t]) * ROW
+
+
 LOGICAL = [
     ("l2", "2 조사·작업과 입력", "논리·물리 ERD ① 기준 정보 · 조사 · 작업과 입력 (컬럼 전체)", [
         ("criterion", "A", 0), ("threshold_default", "A", 222), ("survey_threshold", "A", 422),
         ("survey", "B", 0), ("survey_reason", "B", 332), ("participant", "B", 466),
         ("unit_task", "C", 0), ("repetition_input", "C", 288), ("lift_position_input", "C", 444),
         ("task_input", "D", 0), ("reba_input", "D", 596)], set()),
-    ("l3", "3 영상과 분석", "논리·물리 ERD ② 영상과 분석 (컬럼 전체)", [
+    ("l3", "3 사진과 분석", "논리·물리 ERD ② 사진과 분석 (컬럼 전체)", [
         ("unit_task", "A", 0), ("pose_model", "A", 140),
-        ("video", "B", 0), ("analysis_run", "B", 376),
-        ("frame_angle", "C", 0), ("reba_result", "C", 530),
-        ("key_frame_image", "D", 530)], {"unit_task"}),
+        ("analysis_run", "B", 0), ("still", "B", _h("analysis_run") + 40),
+        ("key_still_image", "B", _h("analysis_run") + 40 + _h("still") + 40),
+        ("still_angle", "C", 0), ("reba_result", "C", 530)], {"unit_task"}),
     ("l4", "4 판정·경고·이력", "논리·물리 ERD ③ 판정과 경고 · 이력과 설정 (컬럼 전체)", [
         ("unit_task", "A", 0), ("criterion", "A", 112), ("analysis_run", "A", 224),
         ("judgment", "B", 0), ("warning", "B", 420), ("survey", "B", 690),
@@ -385,14 +399,14 @@ if problems:
 if MISMATCH:
     print("\n".join(MISMATCH))
     raise SystemExit(f"5.5절 관계 정의와 스키마가 다름 {len(MISMATCH)}개")
-print("5.5절 관계 정의 ↔ 스키마: 28개 모두 같음")
+print(f"5.5절 관계 정의 ↔ 스키마: {len(REL)}개 모두 같음")
 
 # ---------------------------------------------------------------- 저장과 그리기
 mxfile = ('<mxfile host="ergo-gen" modified="2026-10-12" agent="gen_erd_drawio.py" version="24.0.0">' +
           "".join(f'<diagram id="{pg.pid}" name="{pg.name}">{pg.model()}</diagram>' for pg in PAGES) + "</mxfile>")
 paths.write_text(OUT_DRAWIO, mxfile)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-FILES = {"s": "ERD_0_3단계_스키마.png", "c": "ERD_1_개념.png", "l2": "ERD_2_조사_작업.png", "l3": "ERD_3_영상_분석.png", "l4": "ERD_4_판정_이력.png"}
+FILES = {"s": "ERD_0_3단계_스키마.png", "c": "ERD_1_개념.png", "l2": "ERD_2_조사_작업.png", "l3": "ERD_3_사진_분석.png", "l4": "ERD_4_판정_이력.png"}
 for pg in PAGES:
     w, h = pg.bounds()
     out = OUT_DIR / FILES[pg.pid]

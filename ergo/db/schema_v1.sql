@@ -14,7 +14,7 @@ CREATE TABLE criterion (
   legal_text     TEXT    NOT NULL,
   source_ref     TEXT    NOT NULL,
   note_ref       TEXT,
-  basis_type_cd  TEXT    NOT NULL CHECK (basis_type_cd IN ('VIDEO','INPUT','MIXED'))
+  basis_type_cd  TEXT    NOT NULL CHECK (basis_type_cd IN ('POSE','INPUT','MIXED'))
 ) STRICT;
 
 CREATE TABLE threshold_default (
@@ -22,7 +22,7 @@ CREATE TABLE threshold_default (
                    ('NECK_FLEX','WAIST_FLEX','WAIST_EXT','NECK_TWIST','WAIST_TWIST','UPPER_ARM_RAISE')),
   criterion_no   INTEGER NOT NULL REFERENCES criterion(criterion_no),
   value_deg      REAL    NOT NULL CHECK (value_deg > 0 AND value_deg < 180),
-  measure_cd     TEXT    NOT NULL CHECK (measure_cd IN ('VIDEO','INVESTIGATOR')),
+  measure_cd     TEXT    NOT NULL CHECK (measure_cd IN ('POSE','INVESTIGATOR')),
   source_ref     TEXT    NOT NULL
 ) STRICT, WITHOUT ROWID;
 
@@ -155,52 +155,50 @@ CREATE TABLE reba_input (
 ) STRICT;
 
 -- ---------------------------------------------------------------------
--- D. 영상과 분석
+-- D. 사진과 분석  (MVP의 분석 입력은 사진이다. 기능정의서 D-MVP-01)
 -- ---------------------------------------------------------------------
-CREATE TABLE video (
-  video_id       INTEGER PRIMARY KEY,
+CREATE TABLE still (
+  still_id       INTEGER PRIMARY KEY,
   unit_task_id   INTEGER NOT NULL REFERENCES unit_task(unit_task_id) ON DELETE CASCADE,
-  file_path      TEXT    NOT NULL,
+  still_no       INTEGER NOT NULL CHECK (still_no >= 1),          -- 단위작업 안의 순번 (뺀 사진의 번호는 다시 쓰지 않음)
+  file_path      TEXT    NOT NULL,                                -- 원본은 복사하지 않고 위치만 저장한다 (BR-22)
   file_name      TEXT    NOT NULL,
-  duration_s     REAL    NOT NULL CHECK (duration_s > 0),
-  fps            REAL    NOT NULL CHECK (fps > 0),
-  frame_cnt      INTEGER NOT NULL CHECK (frame_cnt > 0),
   width_px       INTEGER NOT NULL CHECK (width_px > 0),
   height_px      INTEGER NOT NULL CHECK (height_px > 0),
   rotation_deg   INTEGER NOT NULL DEFAULT 0 CHECK (rotation_deg IN (0,90,180,270)),
   consent_yn     INTEGER NOT NULL DEFAULT 0 CHECK (consent_yn IN (0,1)),
   consent_at     TEXT    CHECK (consent_at IS NULL OR datetime(consent_at) IS NOT NULL),
+  removed_yn     INTEGER NOT NULL DEFAULT 0 CHECK (removed_yn IN (0,1)),   -- 1 = 표본에서 뺌. 분석에 쓴 사진은 지우지 않는다
   registered_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
+  UNIQUE (unit_task_id, still_no),
   CHECK ((consent_yn = 1) = (consent_at IS NOT NULL))
 ) STRICT;
 
 CREATE TABLE analysis_run (
   run_id            INTEGER PRIMARY KEY,
   unit_task_id      INTEGER NOT NULL REFERENCES unit_task(unit_task_id) ON DELETE CASCADE,
-  video_id          INTEGER NOT NULL REFERENCES video(video_id),
   model_id          INTEGER NOT NULL REFERENCES pose_model(model_id),
   status_cd         TEXT    NOT NULL CHECK (status_cd IN ('RUNNING','DONE','FAILED','CANCELED')),
   is_current_yn     INTEGER NOT NULL DEFAULT 0 CHECK (is_current_yn IN (0,1)),
   started_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime')),
   finished_at       TEXT,
   processing_s      REAL    CHECK (processing_s >= 0),
-  frame_total_cnt   INTEGER CHECK (frame_total_cnt >= 0),
-  frame_valid_cnt   INTEGER CHECK (frame_valid_cnt >= 0),
+  still_total_cnt   INTEGER CHECK (still_total_cnt >= 0),
+  still_valid_cnt   INTEGER CHECK (still_valid_cnt >= 0),
   invalid_ratio     REAL    CHECK (invalid_ratio BETWEEN 0 AND 1),
-  multi_person_yn   INTEGER NOT NULL DEFAULT 0 CHECK (multi_person_yn IN (0,1)),
   legs_cut_yn       INTEGER NOT NULL DEFAULT 0 CHECK (legs_cut_yn IN (0,1)),
   error_cd          TEXT,
   jitter_deg        REAL    NOT NULL DEFAULT 5   CHECK (jitter_deg >= 0),
   conf_min          REAL    NOT NULL DEFAULT 0.5 CHECK (conf_min BETWEEN 0 AND 1),
-  smoothing_frames  INTEGER NOT NULL DEFAULT 5   CHECK (smoothing_frames >= 1),
+  min_sample_cnt    INTEGER NOT NULL DEFAULT 10  CHECK (min_sample_cnt >= 1),
   CHECK (is_current_yn = 0 OR status_cd = 'DONE'),
   CHECK (status_cd = 'RUNNING' OR finished_at IS NOT NULL),
-  CHECK (frame_valid_cnt IS NULL OR frame_total_cnt IS NULL OR frame_valid_cnt <= frame_total_cnt)
+  CHECK (still_valid_cnt IS NULL OR still_total_cnt IS NULL OR still_valid_cnt <= still_total_cnt)
 ) STRICT;
 
-CREATE TABLE frame_angle (
+CREATE TABLE still_angle (
   run_id                   INTEGER NOT NULL REFERENCES analysis_run(run_id) ON DELETE CASCADE,
-  frame_no                 INTEGER NOT NULL CHECK (frame_no >= 0),
+  still_id                 INTEGER NOT NULL REFERENCES still(still_id),
   valid_yn                 INTEGER NOT NULL CHECK (valid_yn IN (0,1)),
   trunk_tilt_deg           REAL    CHECK (trunk_tilt_deg      BETWEEN -180 AND 180),
   neck_tilt_vert_deg       REAL    CHECK (neck_tilt_vert_deg  BETWEEN -180 AND 180),
@@ -219,13 +217,13 @@ CREATE TABLE frame_angle (
   squat_yn                 INTEGER CHECK (squat_yn IN (0,1)),
   kneeling_yn              INTEGER CHECK (kneeling_yn IN (0,1)),
   knee_on_floor_yn         INTEGER CHECK (knee_on_floor_yn IN (0,1)),
-  PRIMARY KEY (run_id, frame_no)
+  PRIMARY KEY (run_id, still_id)
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE reba_result (
   run_id           INTEGER PRIMARY KEY REFERENCES analysis_run(run_id) ON DELETE CASCADE,
-  key_frame_no     INTEGER NOT NULL CHECK (key_frame_no >= 0),
-  key_frame_by_cd  TEXT    NOT NULL DEFAULT 'AUTO' CHECK (key_frame_by_cd IN ('AUTO','INVESTIGATOR')),
+  key_still_id     INTEGER NOT NULL,
+  key_still_by_cd  TEXT    NOT NULL DEFAULT 'AUTO' CHECK (key_still_by_cd IN ('AUTO','INVESTIGATOR')),
   side_cd          TEXT    NOT NULL CHECK (side_cd IN ('L','R')),
   neck_score       INTEGER NOT NULL CHECK (neck_score      BETWEEN 1 AND 3),
   trunk_score      INTEGER NOT NULL CHECK (trunk_score     BETWEEN 1 AND 5),
@@ -244,6 +242,7 @@ CREATE TABLE reba_result (
   reba_score       INTEGER NOT NULL CHECK (reba_score      BETWEEN 1 AND 15),
   risk_level_cd    TEXT    NOT NULL CHECK (risk_level_cd IN ('NEGLIGIBLE','LOW','MEDIUM','HIGH','VERY_HIGH')),
   provisional_yn   INTEGER NOT NULL CHECK (provisional_yn IN (0,1)),
+  FOREIGN KEY (run_id, key_still_id) REFERENCES still_angle(run_id, still_id),   -- 대표 사진은 그 분석에 쓴 사진
   CHECK (score_a    = table_a_score + load_score),
   CHECK (score_b    = table_b_score + coupling_score),
   CHECK (reba_score = table_c_score + activity_score),
@@ -254,9 +253,9 @@ CREATE TABLE reba_result (
                               ELSE 'VERY_HIGH' END)
 ) STRICT;
 
-CREATE TABLE key_frame_image (
+CREATE TABLE key_still_image (
   run_id      INTEGER PRIMARY KEY REFERENCES reba_result(run_id) ON DELETE CASCADE,
-  frame_no    INTEGER NOT NULL CHECK (frame_no >= 0),
+  still_id    INTEGER NOT NULL REFERENCES still(still_id),
   image_jpeg  BLOB    NOT NULL CHECK (length(image_jpeg) > 0),
   masked_yn   INTEGER NOT NULL CHECK (masked_yn = 1),
   created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
@@ -273,7 +272,7 @@ CREATE TABLE judgment (
   computed_status_cd   TEXT    NOT NULL CHECK (computed_status_cd IN
                          ('APPLICABLE','NOT_APPLICABLE','NEEDS_REVIEW','NEEDS_INPUT')),
   review_reason_cd     TEXT    CHECK (review_reason_cd IN
-                         ('JITTER','INVALID_FRAMES','INTERPRETATION','MULTI_PERSON','LEGS_CUT','KNEE_ON_FLOOR')),
+                         ('JITTER','INVALID_STILLS','INTERPRETATION','LEGS_CUT','KNEE_ON_FLOOR','SMALL_SAMPLE')),
   exclusion_cd         TEXT    CHECK (exclusion_cd IN ('SHORT_TERM','INTERMITTENT')),
   final_status_cd      TEXT    CHECK (final_status_cd IN ('APPLICABLE','NOT_APPLICABLE')),
   confirmed_yn         INTEGER NOT NULL DEFAULT 0 CHECK (confirmed_yn IN (0,1)),
@@ -344,7 +343,7 @@ CREATE TABLE edit_log (
   log_id        INTEGER PRIMARY KEY,
   survey_id     INTEGER NOT NULL REFERENCES survey(survey_id) ON DELETE CASCADE,
   unit_task_id  INTEGER,   -- 외래키를 걸지 않음: 단위작업을 지워도 이력은 남긴다
-  target_cd     TEXT    NOT NULL CHECK (target_cd IN ('SURVEY','TASK_INPUT','REBA_INPUT','THRESHOLD','KEY_FRAME','JUDGMENT')),
+  target_cd     TEXT    NOT NULL CHECK (target_cd IN ('SURVEY','TASK_INPUT','REBA_INPUT','THRESHOLD','KEY_STILL','JUDGMENT')),
   target_key    TEXT    NOT NULL,
   action_cd     TEXT    NOT NULL CHECK (action_cd IN ('SET','CHANGE','CONFIRM','UNCONFIRM','RESET')),
   old_value     TEXT,
@@ -379,10 +378,10 @@ CREATE TABLE schema_version (
 -- 인덱스 (외래키 열 + 조회 경로). 복합 UNIQUE의 첫 열은 별도 인덱스가 필요 없다.
 -- ---------------------------------------------------------------------
 CREATE INDEX ix_participant_survey  ON participant(survey_id);
-CREATE INDEX ix_video_task          ON video(unit_task_id);
+CREATE INDEX ix_still_task          ON still(unit_task_id);
 CREATE INDEX ix_run_task            ON analysis_run(unit_task_id);
-CREATE INDEX ix_run_video           ON analysis_run(video_id);
 CREATE INDEX ix_run_model           ON analysis_run(model_id);
+CREATE INDEX ix_angle_still         ON still_angle(still_id);
 CREATE UNIQUE INDEX ux_run_current  ON analysis_run(unit_task_id) WHERE is_current_yn = 1;
 CREATE INDEX ix_judgment_run        ON judgment(run_id);
 CREATE INDEX ix_judgment_criterion  ON judgment(criterion_no);
@@ -400,13 +399,18 @@ CREATE TRIGGER trg_survey_reason_occasional BEFORE INSERT ON survey_reason
 WHEN (SELECT survey_type_cd FROM survey WHERE survey_id = NEW.survey_id) IS NOT 'OCCASIONAL'
 BEGIN SELECT RAISE(ABORT, 'survey_reason: 수시조사에만 사유를 넣을 수 있습니다'); END;
 
-CREATE TRIGGER trg_run_same_task BEFORE INSERT ON analysis_run
-WHEN (SELECT unit_task_id FROM video WHERE video_id = NEW.video_id) IS NOT NEW.unit_task_id
-BEGIN SELECT RAISE(ABORT, 'analysis_run: 다른 단위작업의 영상입니다'); END;
+CREATE TRIGGER trg_run_has_stills BEFORE INSERT ON analysis_run
+WHEN NOT EXISTS (SELECT 1 FROM still WHERE unit_task_id = NEW.unit_task_id AND removed_yn = 0)
+BEGIN SELECT RAISE(ABORT, 'analysis_run: 분석할 사진이 없습니다'); END;
 
 CREATE TRIGGER trg_run_consent BEFORE INSERT ON analysis_run
-WHEN (SELECT consent_yn FROM video WHERE video_id = NEW.video_id) IS NOT 1
+WHEN EXISTS (SELECT 1 FROM still WHERE unit_task_id = NEW.unit_task_id AND removed_yn = 0 AND consent_yn = 0)
 BEGIN SELECT RAISE(ABORT, 'analysis_run: 촬영 동의 확인 전에는 분석할 수 없습니다'); END;
+
+CREATE TRIGGER trg_angle_same_task BEFORE INSERT ON still_angle
+WHEN (SELECT unit_task_id FROM still WHERE still_id = NEW.still_id)
+     IS NOT (SELECT unit_task_id FROM analysis_run WHERE run_id = NEW.run_id)
+BEGIN SELECT RAISE(ABORT, 'still_angle: 다른 단위작업의 사진입니다'); END;
 
 CREATE TRIGGER trg_judgment_run_task_ins BEFORE INSERT ON judgment
 WHEN NEW.run_id IS NOT NULL
@@ -452,8 +456,9 @@ FROM survey s;
 -- S06 분석 결과 · 엑셀 '작업별 결과'
 CREATE VIEW v_task_result AS
 SELECT t.unit_task_id, t.survey_id, t.task_name, t.period_type_cd, i.daily_work_h,
-       r.run_id, r.status_cd AS run_status_cd, r.invalid_ratio, m.model_name, m.model_version,
-       rb.reba_score, rb.risk_level_cd, rb.key_frame_no, rb.provisional_yn,
+       r.run_id, r.status_cd AS run_status_cd, r.still_total_cnt, r.still_valid_cnt, r.invalid_ratio,
+       m.model_name, m.model_version,
+       rb.reba_score, rb.risk_level_cd, rb.key_still_id, rb.provisional_yn,
        (SELECT COUNT(*) FROM warning w WHERE w.unit_task_id = t.unit_task_id AND w.cleared_at IS NULL) AS open_warning_cnt
 FROM unit_task t
 LEFT JOIN task_input   i  ON i.unit_task_id = t.unit_task_id
@@ -518,11 +523,11 @@ SELECT survey_id, unit_task_id, logged_at, actor_name, target_cd, target_key, ac
        old_value, new_value, reason_text
 FROM edit_log;
 
--- 검증용: 저장된 프레임별 각도로 자세 비율과 하루 노출 시간을 다시 계산한다.
+-- 검증용: 저장된 사진별 각도로 자세 비율과 하루 노출 시간을 다시 계산한다.
 -- 앱의 판정에는 쓰지 않고, 분석 엔진의 결과와 대조하는 데만 쓴다.
 CREATE VIEW v_posture_exposure_check AS
 SELECT r.run_id, r.unit_task_id, t.survey_id, i.daily_work_h,
-       SUM(f.valid_yn) AS valid_frame_cnt,
+       SUM(f.valid_yn) AS valid_still_cnt,
        AVG(CASE WHEN f.valid_yn = 1 THEN (f.trunk_tilt_deg >= wf.value_deg AND COALESCE(f.knee_on_floor_yn, 0) = 0) END) AS waist_flex_ratio,
        AVG(CASE WHEN f.valid_yn = 1 THEN (f.trunk_tilt_deg <= -we.value_deg) END)                                    AS waist_ext_ratio,
        AVG(CASE WHEN f.valid_yn = 1 THEN (f.neck_tilt_vert_deg >= nf.value_deg) END)                                 AS neck_flex_ratio,
@@ -534,7 +539,7 @@ SELECT r.run_id, r.unit_task_id, t.survey_id, i.daily_work_h,
        AVG(CASE WHEN f.valid_yn = 1 THEN (f.trunk_tilt_deg >= wf.value_deg AND COALESCE(f.knee_on_floor_yn, 0) = 0) END) * i.daily_work_h AS waist_flex_h
 FROM analysis_run r
 JOIN unit_task t   ON t.unit_task_id = r.unit_task_id
-JOIN frame_angle f ON f.run_id = r.run_id
+JOIN still_angle f ON f.run_id = r.run_id
 LEFT JOIN task_input i ON i.unit_task_id = r.unit_task_id
 JOIN v_effective_threshold wf ON wf.survey_id = t.survey_id AND wf.threshold_cd = 'WAIST_FLEX'
 JOIN v_effective_threshold we ON we.survey_id = t.survey_id AND we.threshold_cd = 'WAIST_EXT'

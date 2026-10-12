@@ -15,10 +15,12 @@ from .. import contracts as C
 
 def judge_criteria(period_type: C.PeriodType, inputs: C.TaskInputs,
                    repetitions: Sequence[C.RepetitionInput], lift_positions: Sequence[C.LiftPositionInput],
-                   shares: Sequence[C.PostureShare]) -> Mapping[int, C.Judgment]:
+                   shares: Sequence[C.PostureShare], valid_still_cnt: int = 0,
+                   min_sample_cnt: int = 10) -> Mapping[int, C.Judgment]:
     """입력값과 자세 비율 → 호 번호(1~11)별 판정 초안과 근거.
 
     판정 상태: 해당 · 비해당 · 사람 확인 · 입력 필요. 호마다 근거와 출처(고시 제3조 제N호 · 각도 출처)를 함께 만든다.
+    자세 비율을 쓰는 3·4·5호는 판별 가능한 사진이 min_sample_cnt(TP-12)보다 적으면 '사람 확인'(SMALL_SAMPLE)이다.
     수용 기준: AC-21 (KOSHA 지침 부록 1의 판단 예시 11개와 같다), AC-22 (30kg ÷ 2명 = 15kg → 8호 비해당),
     AC-23 (4호 전제가 '아니오'면 노출 3시간이어도 비해당).
     """

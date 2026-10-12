@@ -7,12 +7,12 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 번호 | ERGO-API-001 |
-| 버전 | v0.2 (초안), 계약 버전 `CONTRACT_VERSION = "0.2"` |
+| 버전 | v0.3 (초안), 계약 버전 `CONTRACT_VERSION = "0.3"` |
 | 작성일 | 2026-10-12 |
 | 작성 | 한정욱 (총괄) |
 | 검토 | 김나리 · 유서하 · 정혁 |
 | 상태 | 초안. 10/14 설계 1차에서 검토, 10/15 확정 |
-| 상위 문서 | 기능정의서 v0.3 (ERGO-FD-001), 화면설계서 v0.1 (ERGO-UI-001), ERD · 데이터 설계서 v0.1 (ERGO-DD-001) |
+| 상위 문서 | 기능정의서 v0.4 (ERGO-FD-001), 화면설계서 v0.2 (ERGO-UI-001), ERD · 데이터 설계서 v0.2 (ERGO-DD-001) |
 | 다음 문서 | 일정서 (ERGO-SCH-001) |
 | 멘토 WBS | 3.3 API / Data 계약 (10/14 ~ 10/15, 산출물 api-data-design.md)의 '요청·응답, 모듈 경계' 부분. '저장 데이터' 부분은 ERD |
 
@@ -21,7 +21,8 @@
 | 버전 | 날짜 | 바뀐 내용 |
 |---|---|---|
 | v0.1 | 2026-10-12 | 초안. 서비스 함수 39개, 엔진 함수 8개, GPT 계약, 엑셀 파일 계약, 오류 코드 21개. 계약 코드(contracts.py)를 실행하고 ERD와 대조함 (10절) |
-| v0.2 | 2026-10-12 | 화면설계서를 쓰며 찾은 빈 곳: 화면이 저장된 값을 다시 읽을 함수가 없었음. `get_task_inputs`, `get_reba_inputs`, `list_videos`, `get_posture_timeline` 추가 (DTO 3개 추가, 기존 함수는 그대로). 오류 코드 E-INPUT-003 추가. 계약 코드에 오류 코드 목록(`ERROR_CODES`)을 넣고 8절 표와 자동으로 대조함. 계약 버전 0.2. 지금 서비스 함수 {{N_FUNC}}개, 엔진 함수 {{N_ENGINE}}개, 오류 코드 {{N_ERR}}개 |
+| v0.2 | 2026-10-12 | 화면설계서를 쓰며 찾은 빈 곳: 화면이 저장된 값을 다시 읽을 함수가 없었음. `get_task_inputs`, `get_reba_inputs`, `list_videos`, `get_posture_timeline` 추가 (DTO 3개 추가, 기존 함수는 그대로). 오류 코드 E-INPUT-003 추가. 계약 코드에 오류 코드 목록(`ERROR_CODES`)을 넣고 8절 표와 자동으로 대조함. 계약 버전 0.2. 지금 서비스 함수 43개, 엔진 함수 8개, 오류 코드 22개 |
+| v0.3 | 2026-10-12 | MVP의 분석 입력을 사진(스틸샷)으로, 관절 모델을 MoveNet Lightning으로 정함 (기능정의서 v0.4 D-MVP-01 · D-MODEL-01). `inspect_video` · `list_videos` · `attach_video` · `get_frame_preview` · `get_posture_timeline` · `set_key_frame`을 `inspect_still` · `list_stills` · `attach_still` · `get_still_preview` · `get_still_results` · `set_key_still`로 바꾸고 `detach_still`을 더함. `start_analysis`는 단위작업의 사진 전체를 분석한다 (`video_id` 없음). 진행률과 결과의 프레임 단위를 사진 단위로 바꾸고 `PostureTimeline` · `PostureSegment`를 `StillResult`로 바꿈. 오류 코드 E-VIDEO-xxx를 E-STILL-xxx로 바꾸고 '여러 사람' 알림 코드를 뺌(한 사람만 내는 모델이라 사람 수를 알 수 없음). 검토 사유 `SMALL_SAMPLE`을 더하고 `MULTI_PERSON`을 뺌. 계약 버전 0.3. 지금 서비스 함수 44개, 엔진 함수 8개, 오류 코드 21개 |
 
 ---
 
@@ -79,7 +80,7 @@ flowchart LR
 | ③ | 확정 해제 (`unconfirm_judgment`) | JUDGMENT · UNCONFIRM | 필수 |
 | ④ | 각도 기준 변경 (`set_threshold`) | THRESHOLD · CHANGE | 필수 (BR-06, AC-34) |
 | ⑤ | 각도 기준 되돌리기 (`reset_threshold`) | THRESHOLD · RESET | 없음 |
-| ⑥ | 대표 장면 변경 (`set_key_frame`) | KEY_FRAME · SET | 없음 (AC-20) |
+| ⑥ | 대표 사진 변경 (`set_key_still`) | KEY_STILL · SET | 없음 (AC-20) |
 | ⑦ | 확정된 호가 있는 단위작업에서 입력값이 바뀜 (`save_*`, `update_unit_task`) | TASK_INPUT 또는 REBA_INPUT · SET. 바뀐 칸마다 한 줄 | 없음 |
 | ⑧ | ④·⑤·⑦ 때문에 확정이 풀림 (자동) | JUDGMENT · UNCONFIRM | 앱이 채움: "입력값 변경으로 확정 해제" 또는 "각도 기준 변경으로 확정 해제" (3.2절 규칙 3) |
 | ⑨ | 조사 확정 (`confirm_survey`) | SURVEY · CONFIRM | 없음 |
@@ -90,10 +91,10 @@ flowchart LR
 
 ### 2.2 다시 계산과 확정 해제
 
-- 입력값, 각도 기준, 작업 기간 구분이 바뀌면 그 값을 쓰는 호를 저장된 프레임별 각도로 바로 다시 판정한다 (F05-04). 영상을 다시 분석하지 않는다.
+- 입력값, 각도 기준, 작업 기간 구분이 바뀌면 그 값을 쓰는 호를 저장된 사진별 각도로 바로 다시 판정한다 (F05-04). 사진을 다시 분석하지 않는다.
 - 어떤 값이 어느 호에 쓰이는지는 기능정의서 F02-02 표의 '쓰는 곳' 열을 따른다. 작업 기간 구분은 11개 호 전부 (F05-01 규칙 1), 각도 기준은 F07-02 표 (목·허리 기준은 4호, 팔꿈치 들기는 3호).
 - 그 호가 확정돼 있었으면 결과가 같아도 확정을 푼다 (3.2절 규칙 3, OI-11 기본안). 규칙 ⑧로 남긴다.
-- REBA 사람 입력과 대표 장면은 REBA만 다시 계산한다. REBA는 판정에 쓰지 않으므로 확정이 풀리지 않는다 (BR-15).
+- REBA 사람 입력과 대표 사진은 REBA만 다시 계산한다. REBA는 판정에 쓰지 않으므로 확정이 풀리지 않는다 (BR-15).
 - 결과는 `RecalcResult`로 돌려준다: 바뀐 호(전·후 상태), 풀린 확정, 새로 뜬 경고와 사라진 경고.
 
 ---
@@ -108,8 +109,8 @@ flowchart LR
 | UnitTaskCreate, UnitTask | 단위작업 | unit_task |
 | TaskInputBundle | 작업 정보 화면 채우기 | task_input, repetition_input, lift_position_input |
 | TaskInputs, RepetitionInput, LiftPositionInput, RebaInputs | 작업 정보 입력 | task_input, repetition_input, lift_position_input, reba_input |
-| VideoInfo, RunHandle, Progress | 영상, 분석 진행 | video, analysis_run |
-| PostureTimeline, PostureSegment | 분석 결과의 자세 시간 막대 | frame_angle과 v_effective_threshold로 계산 (저장하지 않음) |
+| StillInfo, RunHandle, Progress | 사진, 분석 진행 | still, analysis_run |
+| StillResult | 분석 결과의 사진 목록 (사진마다 해당 자세·REBA) | still_angle과 v_effective_threshold로 계산 (저장하지 않음) |
 | TaskResult, RebaScore, PostureShare, Judgment, JudgmentBasis, WarningItem | 분석 결과, 판정 | v_task_result, reba_result, judgment, judgment_basis, warning |
 | RecalcResult, JudgmentChange, ConfirmAllResult | 다시 계산, 확정 | judgment, warning |
 | Threshold | 각도 기준 | v_effective_threshold |
@@ -138,7 +139,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | `create_unit_task(survey_id, data)` → UnitTask | F02-01 | S03 | 단위작업을 만들고 11개 호 판정 행을 '입력 필요'로 만든다 | E-INPUT-001, E-INPUT-002, E-INPUT-003 | — |
 | `update_unit_task(id, data, actor)` → RecalcResult | F02-01 | S03 | 작업 기간 구분이 바뀌면 11개 호를 다시 판정 (BR-02) | E-INPUT-001 | ⑦ ⑧ |
-| `delete_unit_task(id, actor)` | F02-01 | S03 | 단위작업과 영상·분석·판정을 지운다 | — | 이력은 남음 (ERD 9절 P8) |
+| `delete_unit_task(id, actor)` | F02-01 | S03 | 단위작업과 사진 기록·분석·판정을 지운다 | — | 이력은 남음 (ERD 9절 P8) |
 | `save_task_inputs(id, inputs, actor)` → RecalcResult | F02-02, F05-04 | S03, S07 | 입력값을 저장하고 그 값을 쓰는 호를 다시 판정 (2.2절) | E-INPUT-001 | ⑦ ⑧ |
 | `save_repetition_inputs(id, items, actor)` → RecalcResult | F02-02 | S03 | 2호 부위별 반복 시간 (보낸 목록으로 통째로 교체) | E-INPUT-001 | ⑦ ⑧ |
 | `save_lift_position_inputs(id, items, actor)` → RecalcResult | F02-02 | S03 | 9호 위치별 횟수와 무게 (통째로 교체) | E-INPUT-001 | ⑦ ⑧ |
@@ -146,44 +147,50 @@ flowchart LR
 | `get_task_inputs(id)` → TaskInputBundle | F02-02 | S03 | 저장된 입력값을 읽는다. 넣지 않은 칸은 None | E-NOTFOUND-001 | — |
 | `get_reba_inputs(id)` → RebaInputs | F04-06 | S06 | 저장된 REBA 사람 입력을 읽는다 | E-NOTFOUND-001 | — |
 
-### 4.3 영상과 분석
+### 4.3 사진과 분석
+
+한 단위작업의 사진 여러 장이 표본이다. 분석은 단위작업의 사진 전체를 한 번에 한다 (기능정의서 D-MVP-01, BR-05).
 
 | 함수 | 기능 | 화면 | 하는 일 | 오류·알림 | 이력 |
 |---|---|---|---|---|---|
-| `inspect_video(path)` → VideoInfo | F03-01 | S04 | 파일을 열어 길이·프레임·회전 정보를 읽는다. 저장하지 않는다 | E-VIDEO-001, W-VIDEO-002 (notices) | — |
-| `list_videos(id)` → VideoInfo 목록 | F03-01, F03-03 | S04 | 단위작업에 붙인 영상과 동의 상태. 지금 결과에 쓴 영상은 `TaskResult.run.video_id`로 안다 | — | — |
-| `attach_video(id, path, consent, actor)` → VideoInfo | F03-01, F03-03 | S04 | 영상 위치를 단위작업에 붙인다. 원본은 복사하지 않는다 | E-VIDEO-001 | — |
-| `confirm_consent(video_id, actor)` → VideoInfo | F03-03 | S04 | 촬영 동의를 확인하고 시각을 남긴다 | — | — |
-| `start_analysis(id, video_id, on_progress)` → RunHandle | F03-04 | S05 | 분석을 백그라운드로 시작하고 바로 돌아온다. 진행은 콜백으로 | E-VIDEO-003, E-VIDEO-004, E-ANALYSIS-004 | — |
+| `inspect_still(path)` → StillInfo | F03-01 | S04 | 파일을 열어 크기와 회전 정보를 읽는다. 저장하지 않는다 | E-STILL-001 | — |
+| `list_stills(id)` → StillInfo 목록 | F03-01, F03-03 | S04 | 단위작업에 붙인 사진(뺀 것은 제외)과 동의 상태, 사진 순번 | — | — |
+| `attach_still(id, path, consent, actor)` → StillInfo | F03-01, F03-03 | S04 | 사진 위치를 단위작업에 붙인다. 원본은 복사하지 않는다. 사진이 TP-12보다 적으면 알림을 준다 | E-STILL-001, W-STILL-002 (notices) | — |
+| `detach_still(still_id, actor)` | F03-01 | S04 | 사진을 표본에서 뺀다. 이미 나온 결과는 그대로 둔다 (다시 분석하면 반영) | E-NOTFOUND-001 | — |
+| `confirm_consent(still_id, actor)` → StillInfo | F03-03 | S04 | 촬영 동의를 확인하고 시각을 남긴다 | — | — |
+| `start_analysis(id, on_progress)` → RunHandle | F03-04 | S05 | 단위작업의 사진 전체를 백그라운드로 분석하기 시작하고 바로 돌아온다. 진행은 콜백으로 | E-INPUT-002 (사진 없음), E-STILL-003, E-ANALYSIS-004 | — |
 | `cancel_analysis(run_id)` | F03-04 | S05 | 멈추고 결과를 저장하지 않는다 (CANCELED) | — | — |
 
 **진행률 콜백** (`Progress`)
 
 | 단계 (stage) | 뜻 | percent |
 |---|---|---|
-| DECODE | 영상을 여는 중 | 0 ~ 5 |
-| KEYPOINT | 관절 추출과 얼굴 모자이크 | 5 ~ 85 (처리한 프레임 비율) |
+| DECODE | 사진을 여는 중 (회전 정보를 적용해 똑바로 세움) | 0 ~ 5 |
+| KEYPOINT | 관절 추출과 얼굴 모자이크 | 5 ~ 85 (처리한 사진 비율) |
 | ANGLE | 각도 계산 | 85 ~ 90 |
 | JUDGE | 자세 판별, 판정, REBA | 90 ~ 97 |
 | SAVE | 한 트랜잭션으로 저장 | 97 ~ 100 |
 | DONE · FAILED · CANCELED | 끝 | 100 |
 
 - 콜백은 분석 스레드에서 불린다. 화면은 받은 값을 자기 스레드로 넘겨서 그린다.
-- 콜백은 프레임마다가 아니라 0.2초에 한 번 정도로 부른다.
+- 콜백은 사진마다가 아니라 0.2초에 한 번 정도로 부른다. 사진 몇 십 장은 몇 초면 끝나므로 진행 막대는 단순해도 된다.
 - 분석이 끝나면 이전 '현재' 분석을 내리고 새 분석을 '현재'로 올린다 (ERD ux_run_current).
 - **분석 중에 생긴 문제는 예외로 던지지 않는다.** `start_analysis`는 이미 돌아왔기 때문이다.
   - 실패: 마지막 Progress가 `stage = FAILED`이고 `error_code`에 E-ANALYSIS-001 또는 E-ANALYSIS-009. analysis_run.error_cd에도 남긴다.
   - 취소: 마지막 Progress가 `stage = CANCELED` (I-ANALYSIS-005). 결과는 저장하지 않는다.
-  - 여러 사람, 다리 잘림: 분석은 끝내고 `TaskResult.notices`에 W-ANALYSIS-002, W-ANALYSIS-003. 해당 호는 '사람 확인' (EX-05, EX-06).
+  - 사람을 못 찾은 사진은 판별 불가로 두고 표본에서 뺀다. 모든 사진이 판별 불가면 FAILED (E-ANALYSIS-001).
+  - 다리 잘림: 분석은 끝내고 `TaskResult.notices`에 W-ANALYSIS-003. 해당 호는 '사람 확인' (EX-06).
+  - 표본이 적음: 판별 가능한 사진이 TP-12보다 적으면 `TaskResult.notices`에 W-STILL-002, 자세 비율로 정하는 호는 '사람 확인' (SMALL_SAMPLE).
+  - 여러 사람: MoveNet 한 사람 모델은 사람 수를 세지 못한다. 촬영 안내로 막고 화면의 관절 겹쳐 보기로 사람이 확인한다 (EX-05).
 
 ### 4.4 결과와 판정
 
 | 함수 | 기능 | 화면 | 하는 일 | 오류 | 이력 |
 |---|---|---|---|---|---|
-| `get_task_result(id)` → TaskResult | F04-05 ~ F05-03 | S06 | 현재 분석의 REBA, 자세 비율, 판정 11개, 경고, 대표 장면 (얼굴 가림) | E-NOTFOUND-001 | — |
-| `get_frame_preview(run_id, frame_no)` → JPEG | F04-07 | S06 | 원본 영상에서 그 프레임을 읽어 얼굴을 가려 돌려준다. 저장하지 않는다 | E-VIDEO-004 | — |
-| `get_posture_timeline(id)` → PostureTimeline | F04-04, F04-05, F04-07 | S06 | 현재 분석의 프레임별 자세를 구간으로 묶는다. 저장된 각도와 지금 각도 기준으로 계산하고 저장하지 않는다 | E-NOTFOUND-001 | — |
-| `set_key_frame(id, frame_no, actor)` → TaskResult | F04-07 | S06 | 대표 장면을 바꾸고 REBA를 다시 계산 | E-INPUT-001 | ⑥ |
+| `get_task_result(id)` → TaskResult | F04-05 ~ F05-03 | S06 | 현재 분석의 REBA, 자세 비율(표본 비율), 판정 11개, 경고, 대표 사진 (얼굴 가림) | E-NOTFOUND-001 | — |
+| `get_still_preview(run_id, still_id)` → JPEG | F04-07 | S06 | 원본 사진을 읽어 얼굴을 가려 돌려준다. 저장하지 않는다 | E-STILL-004, E-NOTFOUND-001 | — |
+| `get_still_results(id)` → StillResult 목록 | F04-04, F04-05, F04-07 | S06 | 현재 분석의 사진별 결과(판별 가능 여부, 해당한 자세, REBA, 대표 여부). 저장된 각도와 지금 각도 기준으로 계산하고 저장하지 않는다 | E-NOTFOUND-001 | — |
+| `set_key_still(id, still_id, actor)` → TaskResult | F04-07 | S06 | 대표 사진을 바꾸고 REBA를 다시 계산 | E-NOTFOUND-001 | ⑥ |
 | `confirm_judgment(id, criterion_no, final_status, reason, actor)` → Judgment | F05-05 | S07 | 호 하나를 확정. 이미 확정된 호면 결과를 고친다 | E-CONFIRM-001, E-CONFIRM-002 | ① 또는 ② |
 | `confirm_all(id, actor)` → ConfirmAllResult | F05-05 | S07 | 해당·비해당 초안을 그대로 확정. 사람 확인과 입력 필요는 목록으로 돌려줌 | — | ① (호마다 한 줄) |
 | `unconfirm_judgment(id, criterion_no, reason, actor)` → Judgment | F05-05 | S07 | 확정을 푼다 | E-CONFIRM-002 | ③ |
@@ -223,13 +230,13 @@ flowchart LR
 
 | 함수 | 입력 → 출력 | 기능 | 시험 |
 |---|---|---|---|
-| `extract_keypoints(video_path, model, params, on_frame, cancel)` | 영상 → 프레임별 관절 17개와 신뢰도 (메모리에만) | F04-01 | 모델 두 개로 같은 영상 (AC-11) |
-| `mask_face(frame, keypoints, params)` | 프레임 → 얼굴 가린 프레임 | F04-02 | 150프레임 모두 가림 (AC-12) |
-| `compute_angles(keypoints, params)` | 관절 → 프레임별 각도 (ERD frame_angle 열과 같음) | F04-03 | 각도기 재연 영상 (AC-13) |
-| `classify_postures(angles, thresholds)` | 각도 + 각도 기준 → 프레임별 자세 판별 | F04-04 | AC-14, AC-15 |
-| `posture_shares(postures)` | 자세 판별 → 자세별 비율, 3호 합산 | F04-05 | AC-16, AC-17 |
-| `judge_criteria(inputs)` | 비율·하루 작업시간·입력값·각도 기준·흔들기 폭 → 11개 호 판정 초안과 근거 | F05-01, F05-02 | 지침 부록 1 예시 11개 (AC-21 ~ AC-24) |
-| `reba_for_frame(angles, reba_inputs)`, `pick_key_frame(scores)` | 각도 + 사람 입력 → REBA 단계별 점수, 대표 장면 | F04-06, F04-07 | 워크시트 8점 예시 (AC-18) |
+| `extract_keypoints(still_id, image_path, model_id, params)` | 사진 한 장 → 관절 17개와 신뢰도 (메모리에만). 모델은 MoveNet Lightning | F04-01 | 사진 한 장으로 관절 17개 (AC-11) |
+| `mask_face(image, keypoints, params)` | 사진 → 얼굴 가린 사진 | F04-02 | 사진 150장 모두 가림 (AC-12) |
+| `compute_angles(keypoints, params)` | 관절 → 사진별 각도 (ERD still_angle 열과 같음) | F04-03 | 각도기 재연 사진 (AC-13) |
+| `classify_postures(angles, thresholds)` | 각도 + 각도 기준 → 사진별 자세 판별 | F04-04 | AC-14, AC-15 |
+| `posture_shares(postures, daily_work_h)` | 자세 판별 → 자세별 표본 비율(해당 사진 ÷ 판별 가능 사진), 3호 합산 | F04-05 | AC-16, AC-17 |
+| `judge_criteria(inputs)` | 비율·표본 수·하루 작업시간·입력값·각도 기준·흔들기 폭 → 11개 호 판정 초안과 근거 | F05-01, F05-02 | 지침 부록 1 예시 11개 (AC-21 ~ AC-24) |
+| `reba_for_still(angles, reba_inputs)`, `pick_key_still(scores)` | 각도 + 사람 입력 → REBA 단계별 점수, 대표 사진 | F04-06, F04-07 | 워크시트 8점 예시 (AC-18) |
 
 엔진 결과는 ERD의 `v_posture_exposure_check` 뷰(SQL로 따로 계산)와 같아야 한다. 두 계산을 대조하는 것이 엔진 시험의 하나다.
 
@@ -290,7 +297,7 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 - 소수는 둘째 자리에서 반올림해 보낸다. 판정은 반올림 전 값으로 이미 끝났다 (F05-01 규칙 3).
 - 열린 경고가 없으면 GPT를 부르지 않는다. 기본 문구 "법 기준(고시 제3조)을 넘는 작업이 없습니다."를 쓰고 result_cd는 NO_WARNING.
 
-**보내지 않는 것**: 영상과 이미지, 사람·회사·부서·작업 이름, 파일 위치, 작업 내용 같은 자유 입력 글 (BR-21, OI-05). 어댑터는 `v_gpt_payload` 밖의 값을 읽지 않는다.
+**보내지 않는 것**: 사진과 이미지, 사람·회사·부서·작업 이름, 파일 위치, 작업 내용 같은 자유 입력 글 (BR-21, OI-05). 어댑터는 `v_gpt_payload` 밖의 값을 읽지 않는다.
 
 **기능정의서와 다른 점**: F06-02의 '보낼 수 있는 값'에 고시 원문은 없었다. 원문은 공개 법령이고 개인정보가 없으며, GPT가 "2시간", "25kg" 같은 법 기준 숫자를 문장에 쓸 때 숫자 검사(6.4절)를 통과하게 하려고 넣었다. 기능정의서 v0.2에 반영했다 (13절).
 
@@ -361,7 +368,7 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 | 시트 | 열 | 원본 (ERD 뷰) |
 |---|---|---|
 | 요약 | 조사 구분, 조사일, 조사자, 부서, 작업공정명, 작업명, 참여자, 다음 정기조사 예정일 / 단위작업, 해당 호, 초안 수, REBA, 위험 단계 / 보존 기간 안내, 증상설문조사 별도 필요 안내, 근거 법령, 요약 문장 ('AI 작성' 표시) | v_survey_list, v_excel_summary, participant, ai_text |
-| 작업별 결과 | 단위작업, 하루 작업시간, REBA, 위험 단계, 부위 점수 (목·몸통·다리·위팔·아래팔·손목), 대표 장면 (얼굴 가린 이미지), 3·4·5호 자세별 하루 노출 시간, 판별 불가 비율, 모델 | v_task_result, reba_result, judgment_basis, key_frame_image |
+| 작업별 결과 | 단위작업, 하루 작업시간, REBA, 위험 단계, 부위 점수 (목·몸통·다리·위팔·아래팔·손목), 대표 사진 (얼굴 가린 이미지), 3·4·5호 자세별 하루 노출 시간, 표본 수와 판별 불가 비율, 모델 | v_task_result, reba_result, judgment_basis, key_still_image |
 | 경고 기록 | 단위작업, 호, 경고 문구, 근거, 뜬 시각, 사라진 시각, 조언 문장, 문장 출처 (AI 작성 · 기본 문구) | v_warning_log, ai_text |
 | 판정 초안 | 단위작업, 호, 기준 이름, 상태, 초안·확정, 근거, 출처, 각도 기준 출처 (해설 · 조사자 변경과 사유), 사람 확인 사유, 확정자, 확정 시각, 사유 | v_judgment_sheet, judgment_basis |
 
@@ -373,7 +380,7 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 ### 7.3 로그
 
 - 위치: `%LOCALAPPDATA%\ergo-assist\logs\`, 날짜별 파일, 30일 보관
-- 남기는 것: 오류 코드, 처리 시간, 프레임 수
+- 남기는 것: 오류 코드, 처리 시간, 사진 수
 - **남기지 않는 것**: 이름, 파일 위치의 사용자 폴더 이름, GPT 키, GPT에 보낸 원문 (원문은 ai_text에만)
 
 ---
@@ -386,12 +393,11 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 | E-INPUT-002 | 필수 항목이 비어 있음 | 오류 | "{항목}을 입력해 주세요." | F01-01 |
 | E-INPUT-003 | 같은 이름의 단위작업이 이미 있음 | 오류 | "같은 이름의 단위작업이 이미 있습니다." | F02-01 |
 | E-NOTFOUND-001 | 없는 조사·단위작업 | 오류 | "찾을 수 없습니다. 목록을 새로 고쳐 주세요." | — |
-| E-VIDEO-001 | 영상을 열 수 없음 | 오류 | "이 파일을 열 수 없습니다. mp4나 mov 파일을 골라 주세요." | EX-01 |
-| W-VIDEO-002 | 영상이 짧음 | 알림 | "작업 한 사이클 이상 찍었는지 확인해 주세요." | EX-02 |
-| E-VIDEO-003 | 동의 확인 전 분석 | 오류 | "촬영 동의를 먼저 확인해 주세요." | F03-03 |
-| E-VIDEO-004 | 원본 영상이 옮겨짐 | 오류 | "영상을 찾을 수 없습니다. 위치를 다시 골라 주세요." | F01-02 |
+| E-STILL-001 | 사진을 열 수 없음 | 오류 | "이 파일을 열 수 없습니다. jpg나 png 파일을 골라 주세요." | EX-01 |
+| W-STILL-002 | 표본(사진)이 적음 | 알림 | "사진이 {N}장뿐입니다. 작업 중 여러 순간의 사진을 더 올려 주세요." | EX-02 |
+| E-STILL-003 | 동의 확인 전 분석 | 오류 | "촬영 동의를 먼저 확인해 주세요." | F03-03 |
+| E-STILL-004 | 원본 사진이 옮겨짐 | 오류 | "사진을 찾을 수 없습니다. 위치를 다시 골라 주세요." | F01-02 |
 | E-ANALYSIS-001 | 사람을 찾지 못함 | 오류 | "사람을 찾지 못했습니다. 전신이 보이게 옆에서 다시 찍어 주세요." | EX-04 |
-| W-ANALYSIS-002 | 여러 사람 | 알림 | "여러 사람이 보입니다. 분석한 사람이 맞는지 확인해 주세요." | EX-05 |
 | W-ANALYSIS-003 | 다리가 잘림 | 알림 | "다리가 보이지 않아 쪼그림·무릎 자세는 확인이 필요합니다." | EX-06 |
 | E-ANALYSIS-004 | 이미 분석 중 | 오류 | "다른 분석이 끝난 뒤 시작해 주세요." | F03-04 |
 | I-ANALYSIS-005 | 분석 취소됨 | 알림 | "분석을 취소했습니다." | EX-07 |
@@ -412,7 +418,7 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 
 ## 9. 주요 시나리오
 
-### 9.1 영상 분석에서 경고까지
+### 9.1 사진 분석에서 경고까지
 
 ```mermaid
 sequenceDiagram
@@ -420,16 +426,16 @@ sequenceDiagram
   participant S as 서비스 API
   participant E as 분석 엔진
   participant DB as 저장소
-  UI->>S: start_analysis(단위작업, 영상, on_progress)
-  S->>DB: 동의 확인, analysis_run 만들기 (RUNNING)
+  UI->>S: start_analysis(단위작업, on_progress)
+  S->>DB: 사진 있음·동의 확인, analysis_run 만들기 (RUNNING)
   S-->>UI: RunHandle
   loop 백그라운드, 0.2초마다
     S->>E: extract_keypoints, mask_face
     S-->>UI: Progress (KEYPOINT, %)
   end
   S->>E: compute_angles → classify_postures → posture_shares → judge_criteria → reba
-  E-->>S: 판정 초안 11개, REBA, 대표 장면
-  S->>DB: 한 트랜잭션: frame_angle, reba_result, key_frame_image, judgment, warning, 현재 분석 교체
+  E-->>S: 판정 초안 11개, REBA, 대표 사진
+  S->>DB: 한 트랜잭션: still_angle, reba_result, key_still_image, judgment, warning, 현재 분석 교체
   S-->>UI: Progress (DONE)
   UI->>S: get_task_result(단위작업)
   S-->>UI: TaskResult (경고 포함)
@@ -448,7 +454,7 @@ sequenceDiagram
   UI->>S: set_threshold(조사, WAIST_FLEX, 30, 사유, 조사자)
   S->>DB: survey_threshold 저장 + edit_log (THRESHOLD · CHANGE)
   loop 조사의 단위작업마다
-    S->>DB: 저장된 frame_angle 읽기
+    S->>DB: 저장된 still_angle 읽기
     S->>E: classify_postures → posture_shares → judge_criteria
     S->>DB: judgment 갱신 (4호가 확정돼 있었으면 결과가 같아도 풀고 이력에 남김, 2.2절), 경고 띄우기·지우기
   end
@@ -458,7 +464,7 @@ sequenceDiagram
 ### 9.3 엑셀 내보내기
 
 1. 화면이 `export_excel(조사, 경로, 조사자)`를 부른다.
-2. 서비스가 7.1절의 뷰를 읽어 시트 4개를 만들고, 대표 장면 이미지를 넣는다.
+2. 서비스가 7.1절의 뷰를 읽어 시트 4개를 만들고, 대표 사진 이미지를 넣는다.
 3. 원하면 DB 사본을 같은 폴더에 만든다.
 4. `export_log`에 남기고 ExportResult(파일 위치, 초안 칸 수)를 돌려준다.
 
@@ -475,7 +481,7 @@ sequenceDiagram
 | GPT 요청 | 보낸 JSON에 금지 필드가 없는지 | AC-30 |
 | GPT 응답 | 보내지 않은 숫자가 있으면 기본 문구, 10초를 넘기면 기본 문구 | AC-31, AC-32 |
 | 엑셀 | 시트 4개, '초안' 표시, 얼굴 가림, 책임 문구 | AC-29 |
-| DB 제약 | ERD 9절의 30개 시험을 그대로 다시 씀 | ERD 9절 |
+| DB 제약 | ERD 9절의 32개 시험을 그대로 다시 씀 | ERD 9절 |
 
 ### 10.1 계약 ↔ ERD 대조 결과 ({{CHECK_DATE}}, 자동 생성)
 
@@ -503,16 +509,16 @@ sequenceDiagram
 | F02-01 단위작업 | create_unit_task, update_unit_task, delete_unit_task | — |
 | F02-02 작업 정보 입력 | get_task_inputs, save_task_inputs, save_repetition_inputs, save_lift_position_inputs | judge_criteria |
 | F02-03 참여 근로자 | add_participant, remove_participant | — |
-| F03-01 영상 | inspect_video, attach_video, list_videos | — |
+| F03-01 사진 | inspect_still, attach_still, list_stills, detach_still | — |
 | F03-02 촬영 안내 | (화면만) | — |
 | F03-03 촬영 동의 | confirm_consent | — |
 | F03-04 분석 실행 | start_analysis, cancel_analysis | extract_keypoints |
-| F04-01 ~ F04-05 | get_task_result, get_posture_timeline | extract_keypoints, mask_face, compute_angles, classify_postures, posture_shares |
-| F04-06 REBA | get_reba_inputs, save_reba_inputs, get_task_result | reba_for_frame |
-| F04-07 대표 장면 | set_key_frame, get_frame_preview, get_posture_timeline | pick_key_frame, mask_face |
+| F04-01 ~ F04-05 | get_task_result, get_still_results | extract_keypoints, mask_face, compute_angles, classify_postures, posture_shares |
+| F04-06 REBA | get_reba_inputs, save_reba_inputs, get_task_result | reba_for_still |
+| F04-07 대표 사진 | set_key_still, get_still_preview, get_still_results | pick_key_still, mask_face |
 | F05-01, F05-02 판정·확신도 | get_task_result | judge_criteria |
 | F05-03 경고 | get_task_result | judge_criteria |
-| F05-04 다시 계산 | save_*, set_threshold, reset_threshold, set_key_frame | classify_postures, posture_shares, judge_criteria |
+| F05-04 다시 계산 | save_*, set_threshold, reset_threshold, set_key_still | classify_postures, posture_shares, judge_criteria |
 | F05-05 확정 | confirm_judgment, confirm_all, unconfirm_judgment, confirm_survey | — |
 | F05-06 수정 이력 | list_edit_log | — |
 | F06-01 엑셀 | export_excel | — |
@@ -520,7 +526,7 @@ sequenceDiagram
 | F07-01 모델 | list_models, save_settings | — |
 | F07-02 각도 기준 | get_thresholds, set_threshold, reset_threshold | — |
 | F07-03 GPT 설정 | get_settings, save_settings, set_gpt_api_key, delete_gpt_api_key | — |
-| F07-04 모델 비교 | (내부 도구) | extract_keypoints, compute_angles |
+| F07-04 모델 비교 | (MVP 이후. 모델이 확정되어 만들지 않음) | extract_keypoints, compute_angles |
 
 ---
 
@@ -528,7 +534,7 @@ sequenceDiagram
 
 | ID | 무엇 | 선택지 | 언제 |
 |---|---|---|---|
-| D-API-01 | 화면 도구 | PySide6 · Streamlit + Edge 앱 창 · Flet. 이 PC에서 확인한 것: Edge 앱 창은 실행기로 띄우고 창을 닫으면 서버까지 꺼짐 (주소창이 없는지는 눈으로 확인 안 함). Flet 1.0.3은 mediapipe 1.1.0, OpenCV와 한 환경에 설치됨. 계약은 화면 도구와 관계없음 | 10/14 |
+| D-API-01 | 화면 도구 | PySide6 · Streamlit + Edge 앱 창 · Flet. 이 PC에서 확인한 것: Edge 앱 창은 실행기로 띄우고 창을 닫으면 서버까지 꺼짐 (주소창이 없는지는 눈으로 확인 안 함). Flet 1.0.3은 mediapipe 1.1.0, OpenCV와 한 환경에 설치됨 (모델을 MoveNet으로 정해 Windows에서는 TensorFlow가 필요하므로 Flet과 한 환경에 설치되는지는 다시 확인해야 함). 계약은 화면 도구와 관계없음 | 10/14 |
 | D-API-02 | 엑셀 라이브러리 | openpyxl · XlsxWriter | 10/14 |
 | D-API-03 | GPT 모델과 비용 상한 | 설정값으로 두고 팀이 정함 | 10/15 |
 | D-API-04 | 키 보관 | keyring (Windows 자격 증명 관리자) 그대로 쓸지 | 10/15 |
@@ -544,10 +550,11 @@ API를 정하면서 앞 문서와 어긋난 곳을 찾아 같은 날 고쳤다.
 |---|---|---|
 | ERD (ERGO-DD-001) | `v_gpt_payload`에 survey_id, unit_task_id, survey_task_cnt 추가 | 보고서 요약은 조사 단위로 모아야 하는데, 뷰가 경고 단위라 조사로 거를 열이 없었음. 바꾼 뒤 ERD 시험 30개를 다시 돌림 (P4가 새 열을 확인. 열을 빼거나 셈을 틀리게 바꾸면 P4가 실패하는 것도 확인) |
 | ERD | ai_text.result_cd에 NO_WARNING 추가 | 열린 경고가 없을 때 GPT를 부르지 않은 것을 기록할 코드가 없었음 |
-| ERD | edit_log.action_cd의 뜻을 'SET = 사유 없이 입력·교체, CHANGE = 사유가 필요한 변경'으로 명확히 | DB는 CHANGE에 사유를 요구하는데, 대표 장면 변경(AC-20)과 입력값 변경은 사유를 받지 않음. 2.1절 |
+| ERD | edit_log.action_cd의 뜻을 'SET = 사유 없이 입력·교체, CHANGE = 사유가 필요한 변경'으로 명확히 | DB는 CHANGE에 사유를 요구하는데, 대표 사진 변경(AC-20)과 입력값 변경은 사유를 받지 않음. 2.1절 |
 | 기능정의서 (ERGO-FD-001) v0.2 | F06-02 '보낼 수 있는 값'에 고시 원문 추가 | 6.2절 |
+| 기능정의서 v0.4 · ERD v0.2 · 화면설계서 v0.2 · 일정서 v0.5 | 영상 대신 사진, MoveNet Lightning으로 같은 날 함께 바꿈 | D-MVP-01 · D-MODEL-01 (정욱 결정, 2026-10-12). 계약 v0.3의 함수와 DTO가 이 문서들과 같아야 함 |
 
-## 부록 A. 계약 코드 (contracts.py v0.2)
+## 부록 A. 계약 코드 (contracts.py v0.3)
 
 ```python
 {{CONTRACTS}}

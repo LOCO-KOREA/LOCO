@@ -15,10 +15,10 @@ OUT = paths.DOCS / "ERD_데이터설계서.md"
 D = {
  "criterion": ("부담작업 기준", "고시 제3조 1~11호 (기준 정보)", {
    "criterion_no": "호 번호 (1~11)", "short_name": "짧은 이름", "legal_text": "고시 원문",
-   "source_ref": "근거 조문", "note_ref": "해설 '주' 위치", "basis_type_cd": "판정 근거 종류: 영상·입력·혼합"}),
+   "source_ref": "근거 조문", "note_ref": "해설 '주' 위치", "basis_type_cd": "판정 근거 종류: 자세 측정·입력·혼합"}),
  "threshold_default": ("각도 기준 기본값", "해설의 각도 값 (F07-02, BR-06)", {
    "threshold_cd": "각도 기준 코드", "criterion_no": "적용 호", "value_deg": "기준 각도 (°)",
-   "measure_cd": "측정 방법: 영상·조사자 판단", "source_ref": "출처 (해설 호·주)"}),
+   "measure_cd": "측정 방법: 자세 측정·조사자 판단", "source_ref": "출처 (해설 호·주)"}),
  "pose_model": ("관절 모델", "분석에 쓸 수 있는 관절 모델 (F07-01)", {
    "model_id": "모델 식별자", "model_name": "모델 이름", "model_version": "버전", "keypoint_cnt": "관절 점 개수"}),
  "survey": ("조사", "유해요인조사 한 건 (F01-01)", {
@@ -52,26 +52,26 @@ D = {
    "unit_task_id": "단위작업", "body_part_cd": "부위", "repeat_h": "반복 시간 (시간/일)"}),
  "lift_position_input": ("위치별 들기", "9호 무릎 아래·어깨 위·팔 뻗음, 위치마다 1행", {
    "unit_task_id": "단위작업", "position_cd": "들기 위치", "lift_cnt_per_day": "하루 횟수", "weight_kg": "무게 (kg)"}),
- "reba_input": ("REBA 사람 입력", "영상으로 못 재는 REBA 항목. NULL은 '사람 확인' (F04-06)", {
+ "reba_input": ("REBA 사람 입력", "사진으로 못 재는 REBA 항목. NULL은 '사람 확인' (F04-06)", {
    "unit_task_id": "단위작업", "load_kg": "하중 (5단계)", "shock_yn": "충격·급격한 힘 (5단계)", "coupling_cd": "손잡이 (11단계)",
    "wrist_flex_cd": "손목 굽힘 0~15°·15° 초과 (9단계)", "wrist_twist_yn": "손목 꺾임·비틀림 (9a)",
    "neck_twist_side_yn": "목 비틀림·옆굽힘 (1a)", "trunk_twist_side_yn": "몸통 비틀림·옆굽힘 (2a)",
    "legs_support_cd": "다리 지지 (3단계)", "shoulder_raised_yn": "어깨 올림 (7a)", "arm_abducted_yn": "위팔 벌림 (7a)",
    "arm_supported_yn": "팔 받침·기댐 (7a)", "act_static_yn": "1분 넘는 정적 자세 (13단계)",
    "act_repeat_yn": "분당 4회 넘는 작은 반복 (13단계)", "act_rapid_yn": "급격한 큰 자세 변화 (13단계)", "updated_at": "고친 시각"}),
- "video": ("영상", "단위작업 영상. 원본은 복사하지 않고 위치만 저장 (F03-01, BR-22)", {
-   "video_id": "영상 식별자", "unit_task_id": "단위작업", "file_path": "원본 위치", "file_name": "파일 이름",
-   "duration_s": "길이 (초)", "fps": "초당 프레임", "frame_cnt": "프레임 수", "width_px": "가로 (픽셀)", "height_px": "세로 (픽셀)",
-   "rotation_deg": "회전 정보", "consent_yn": "촬영 동의 확인 (F03-03)", "consent_at": "동의 확인 시각", "registered_at": "등록 시각"}),
- "analysis_run": ("분석 실행", "영상 1개를 모델 1개로 분석한 한 번 (F03-04). 다시 분석하면 새 행", {
-   "run_id": "분석 식별자", "unit_task_id": "단위작업", "video_id": "분석한 영상", "model_id": "쓴 모델",
+ "still": ("사진", "단위작업의 사진 한 장 (스틸샷). 원본은 복사하지 않고 위치만 저장. 분석에 쓴 사진은 지우지 않고 뺀 것으로 표시 (F03-01, BR-22)", {
+   "still_id": "사진 식별자", "unit_task_id": "단위작업", "still_no": "단위작업 안의 순번 (1부터)", "file_path": "원본 위치",
+   "file_name": "파일 이름", "width_px": "가로 (픽셀)", "height_px": "세로 (픽셀)", "rotation_deg": "회전 정보 (EXIF)",
+   "consent_yn": "촬영 동의 확인 (F03-03)", "consent_at": "동의 확인 시각", "removed_yn": "표본에서 뺌", "registered_at": "등록 시각"}),
+ "analysis_run": ("분석 실행", "단위작업의 사진 전체를 모델 1개로 분석한 한 번 (F03-04). 다시 분석하면 새 행", {
+   "run_id": "분석 식별자", "unit_task_id": "단위작업", "model_id": "쓴 모델",
    "status_cd": "분석 상태 (3.1절)", "is_current_yn": "현재 결과 여부 (단위작업마다 1개)", "started_at": "시작 시각",
-   "finished_at": "끝난 시각", "processing_s": "분석 시간 (초)", "frame_total_cnt": "전체 프레임", "frame_valid_cnt": "판별 가능 프레임",
-   "invalid_ratio": "판별 불가 비율 (TP-03 비교)", "multi_person_yn": "여러 사람 (EX-05)", "legs_cut_yn": "다리 잘림 (EX-06)",
+   "finished_at": "끝난 시각", "processing_s": "분석 시간 (초)", "still_total_cnt": "분석한 사진 수 (표본 수)",
+   "still_valid_cnt": "판별 가능 사진 수", "invalid_ratio": "판별 불가 비율 (TP-03 비교)", "legs_cut_yn": "다리 잘림 (EX-06)",
    "error_cd": "실패 코드", "jitter_deg": "확신도 흔들기 폭 (TP-01)", "conf_min": "관절 신뢰도 하한 (TP-02)",
-   "smoothing_frames": "평활화 프레임 수 (TP-09)"}),
- "frame_angle": ("프레임별 각도", "프레임마다 각도와 자세 판별 결과 (F04-03, F04-04, OI-12). 관절 위치 원자료는 저장하지 않음", {
-   "run_id": "분석", "frame_no": "프레임 번호", "valid_yn": "판별 가능", "trunk_tilt_deg": "몸통 기울기 (수직 기준, 앞 +)",
+   "min_sample_cnt": "표본(사진) 최소 장수 (TP-12)"}),
+ "still_angle": ("사진별 각도", "사진마다 각도와 자세 판별 결과 (F04-03, F04-04, OI-12). 관절 위치 원자료는 저장하지 않음", {
+   "run_id": "분석", "still_id": "사진", "valid_yn": "판별 가능", "trunk_tilt_deg": "몸통 기울기 (수직 기준, 앞 +)",
    "neck_tilt_vert_deg": "목 기울기 (수직 기준, 4호)", "neck_flex_trunk_deg": "목 굽힘 (몸통 기준, REBA)",
    "upper_arm_raise_l_deg": "왼 위팔 들림 (수직 기준, 3호)", "upper_arm_raise_r_deg": "오른 위팔 들림 (수직 기준, 3호)",
    "upper_arm_flex_l_deg": "왼 위팔 굽힘 (몸통 기준, REBA)", "upper_arm_flex_r_deg": "오른 위팔 굽힘 (몸통 기준, REBA)",
@@ -79,17 +79,17 @@ D = {
    "knee_flex_r_deg": "오른 무릎 굽힘", "hand_above_head_yn": "손이 머리 위 (3호 a)", "elbow_above_shoulder_yn": "팔꿈치가 어깨 위 (3호 b)",
    "elbow_behind_trunk_yn": "팔꿈치가 몸통 뒤 (3호 d)", "squat_yn": "쪼그려 앉기 (5호 a)", "kneeling_yn": "무릎 굽힌 자세 (5호 b)",
    "knee_on_floor_yn": "무릎이 바닥에 닿음 (4호 제외, BR-08)"}),
- "reba_result": ("REBA 결과", "대표 장면의 REBA 단계별 점수 (F04-06, F04-07)", {
-   "run_id": "분석", "key_frame_no": "대표 장면 프레임", "key_frame_by_cd": "대표 장면을 고른 주체: 자동·조사자",
+ "reba_result": ("REBA 결과", "대표 사진의 REBA 단계별 점수 (F04-06, F04-07)", {
+   "run_id": "분석", "key_still_id": "대표 사진 (그 분석에 쓴 사진)", "key_still_by_cd": "대표 사진을 고른 주체: 자동·조사자",
    "side_cd": "쓴 쪽: 왼쪽·오른쪽 (TP-10)", "neck_score": "1단계 목", "trunk_score": "2단계 몸통", "legs_score": "3단계 다리",
    "table_a_score": "4단계 표 A", "load_score": "5단계 하중", "score_a": "6단계 점수 A", "upper_arm_score": "7단계 위팔",
    "lower_arm_score": "8단계 아래팔", "wrist_score": "9단계 손목", "table_b_score": "10단계 표 B", "coupling_score": "11단계 손잡이",
    "score_b": "12단계 점수 B", "table_c_score": "12단계 표 C", "activity_score": "13단계 활동", "reba_score": "REBA 점수 (1~15)",
    "risk_level_cd": "위험 단계", "provisional_yn": "임시 점수 (사람 입력 빈칸 있음)"}),
- "key_frame_image": ("대표 장면 이미지", "얼굴을 가린 대표 장면 (엑셀에 넣음, BR-22)", {
-   "run_id": "분석", "frame_no": "프레임 번호", "image_jpeg": "JPEG 이미지", "masked_yn": "얼굴 가림 (항상 1)", "created_at": "만든 시각"}),
+ "key_still_image": ("대표 사진 이미지", "얼굴을 가린 대표 사진 (엑셀에 넣음, BR-22)", {
+   "run_id": "분석", "still_id": "사진", "image_jpeg": "JPEG 이미지", "masked_yn": "얼굴 가림 (항상 1)", "created_at": "만든 시각"}),
  "judgment": ("판정", "단위작업 × 호마다 1행. 지금 값만 두고 바뀐 내역은 수정 이력에 (F05-01, F05-05)", {
-   "judgment_id": "판정 식별자", "unit_task_id": "단위작업", "criterion_no": "호", "run_id": "근거 분석 (영상 근거 호만)",
+   "judgment_id": "판정 식별자", "unit_task_id": "단위작업", "criterion_no": "호", "run_id": "근거 분석 (사진 근거 호만)",
    "computed_status_cd": "계산 결과 (3.2절)", "review_reason_cd": "사람 확인 사유", "exclusion_cd": "제외 사유: 단기간·간헐",
    "final_status_cd": "확정 결과", "confirmed_yn": "확정 여부", "confirmed_by": "확정한 사람", "confirmed_at": "확정 시각",
    "confirm_reason_text": "확정 사유", "basis_text": "근거 문장", "source_text": "출처 문장", "computed_at": "계산 시각"}),
@@ -164,19 +164,22 @@ for name, tbl, sql in c.execute("SELECT name, tbl_name, sql FROM sqlite_master W
     trg.append(f"| {name} | {when} | {msg} |")
 TRIGGERS = "| 트리거 | 언제 | 막는 것 (오류 문구) |\n|---|---|---|\n" + "\n".join(trg)
 
-# 용량 실측: 30초(900프레임) 분석 1건이 파일에서 차지하는 크기
+# 용량 실측: 사진 30장 분석 1건이 파일에서 차지하는 크기 (사진 기록 30행 + 사진별 각도 30행)
 tmp = Path(tempfile.gettempdir()) / "erd_size_probe.db"
 if tmp.exists(): tmp.unlink()
 f = sqlite3.connect(tmp); f.execute("PRAGMA foreign_keys = ON"); f.executescript(SCHEMA); f.executescript(SEED); f.commit()
 f.execute("VACUUM"); base = os.path.getsize(tmp)
 f.execute("INSERT INTO survey(survey_id,survey_type_cd,survey_date,investigator_name,dept_name,process_name,work_name) VALUES (1,'REGULAR','2026-10-23','a','b','c','d')")
 f.execute("INSERT INTO unit_task(unit_task_id,survey_id,task_name,worker_cnt,period_type_cd) VALUES (1,1,'t',1,'ONGOING')")
-f.execute("INSERT INTO video VALUES (1,1,'p','n',30,30,900,720,1280,0,1,'2026-10-23T10:00:00','2026-10-23T10:00:00')")
-f.execute("INSERT INTO analysis_run(run_id,unit_task_id,video_id,model_id,status_cd,is_current_yn,finished_at) VALUES (1,1,1,4,'DONE',1,'2026-10-23T10:01:00')")
+N_STILL = 30
+for n in range(N_STILL):
+    f.execute("INSERT INTO still(still_id,unit_task_id,still_no,file_path,file_name,width_px,height_px,consent_yn,consent_at)"
+              " VALUES (?,1,?,?,?,720,1280,1,'2026-10-23T10:00:00')", (n + 1, n + 1, f"D:/사진/작업_{n + 1:02d}.jpg", f"작업_{n + 1:02d}.jpg"))
+f.execute("INSERT INTO analysis_run(run_id,unit_task_id,model_id,status_cd,is_current_yn,finished_at) VALUES (1,1,1,'DONE',1,'2026-10-23T10:01:00')")
 import random
 random.seed(1)
-f.executemany("INSERT INTO frame_angle VALUES (" + ",".join("?" * 20) + ")",
-              [(1, n, 1) + tuple(round(random.uniform(0, 90), 3) for _ in range(11)) + (0, 0, 0, 0, 0, 0) for n in range(900)])
+f.executemany("INSERT INTO still_angle VALUES (" + ",".join("?" * 20) + ")",
+              [(1, n + 1, 1) + tuple(round(random.uniform(0, 90), 3) for _ in range(11)) + (0, 0, 0, 0, 0, 0) for n in range(N_STILL)])
 f.commit(); f.execute("VACUUM"); per_run = os.path.getsize(tmp) - base; f.close(); tmp.unlink()
 
 counts = TEST["objects"]
@@ -219,4 +222,4 @@ doc = (TEMPLATE
 left = re.findall(r"\{\{\w+\}\}", doc)
 paths.write_text(OUT, doc)
 print("tables", len(tables), "missing desc", missing_desc, "missing cols", col_missing, "placeholders left", left)
-print("per 900-frame run bytes", per_run, "→ doc", OUT, len(doc), "chars")
+print(f"per {N_STILL}-still run bytes", per_run, "→ doc", OUT, len(doc), "chars")

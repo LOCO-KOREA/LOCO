@@ -1,13 +1,15 @@
 """ServiceAPI의 가짜 구현 (스텁). 진짜 서비스가 나오기 전에 화면을 만들 수 있게 한다.
 
 - 값은 화면설계서의 예시와 같다: 2026-10-23 정기조사, 포장공정, '상자 들어 옮기기',
-  허리 굽힘 35% × 하루 6시간 = 2.10시간, REBA 9 (표 C 8 + 활동 1).
+  사진 21장 중 판별 가능 20장, 허리 굽힘 7장 = 35% × 하루 6시간 = 2.10시간, REBA 9 (표 C 8 + 활동 1).
 - 판정과 점수를 제대로 계산하지 않는다. 그래도 화면의 '다시 계산' 흐름을 볼 수 있도록 몇 가지만 흉내 낸다:
   1호 (키보드 시간), 4호 (허리 굽힘 비율 × 하루 작업시간), 8호 (무게 ÷ 인원), 9호 (위치별 횟수).
   나머지 호는 입력해도 바뀌지 않는다. 진짜 계산은 ergo/engine/ 에서 만든다.
 - 오류는 API 계약서 8절의 코드로 던진다. 진짜 서비스도 tests/contract_suite.py를 통과해야 한다.
 - 분석은 백그라운드 스레드에서 진행률을 0.2초마다 보낸다 (API 계약서 4.3절). 화면은 이 콜백을
   자기 스레드로 넘겨서 그려야 한다.
+- MVP의 분석 입력은 사진이다 (기능정의서 D-MVP-01). 한 단위작업의 사진 여러 장이 표본이고,
+  자세 비율 = 해당한 사진 수 ÷ 판별 가능한 사진 수다. 판별 가능한 사진이 TP-12보다 적으면 4호는 '사람 확인'이다.
 """
 from __future__ import annotations
 
@@ -46,20 +48,19 @@ _CRITERIA = {
 }
 # 각도 기준 기본값 (시드의 threshold_default와 같아야 한다 — tests/test_stub_contract.py가 대조한다)
 _THRESHOLDS = {
-    C.ThresholdCode.NECK_FLEX: (4, "VIDEO", 20.0, "해설 4호 주3"),
-    C.ThresholdCode.WAIST_FLEX: (4, "VIDEO", 20.0, "해설 4호 주3"),
-    C.ThresholdCode.WAIST_EXT: (4, "VIDEO", 20.0, "해설 4호 주3"),
+    C.ThresholdCode.NECK_FLEX: (4, "POSE", 20.0, "해설 4호 주3"),
+    C.ThresholdCode.WAIST_FLEX: (4, "POSE", 20.0, "해설 4호 주3"),
+    C.ThresholdCode.WAIST_EXT: (4, "POSE", 20.0, "해설 4호 주3"),
     C.ThresholdCode.NECK_TWIST: (4, "INVESTIGATOR", 5.0, "해설 4호 주4"),
     C.ThresholdCode.WAIST_TWIST: (4, "INVESTIGATOR", 20.0, "해설 4호 주4"),
-    C.ThresholdCode.UPPER_ARM_RAISE: (3, "VIDEO", 45.0, "해설 3호 주1"),
+    C.ThresholdCode.UPPER_ARM_RAISE: (3, "POSE", 45.0, "해설 3호 주1"),
 }
 _MODELS = (
-    C.PoseModel(1, "MoveNet Lightning", "pose2 sample", 17),
-    C.PoseModel(2, "MoveNet Thunder", "pose2 sample", 17),
-    C.PoseModel(3, "MediaPipe Pose Lite", "1.1.0", 33),
-    C.PoseModel(4, "MediaPipe Pose Full", "1.1.0", 33),
-    C.PoseModel(5, "MediaPipe Pose Heavy", "1.1.0", 33),
+    C.PoseModel(1, "MoveNet Lightning", "singlepose float16 v4 (TFLite, 192x192)", 17),
 )
+MIN_SAMPLE_CNT = 10                  # TP-12 표본(사진) 최소 장수. 시드의 analysis_run.min_sample_cnt 기본값과 같다
+_FLAGGED_AT = (1, 4, 7, 9, 12, 15, 18)   # 판별 가능한 사진 20장 중 허리 굽힘으로 판별된 7장의 자리 (35%). 7번째 자리가 대표 사진(8번)
+_STILL_EXTS = (".jpg", ".jpeg", ".png")
 _TABLE_C_ROW_A8 = (8, 8, 8, 9, 10, 10, 10, 10, 10, 11, 11, 11)   # REBA 표 C에서 점수 A = 8인 줄
 _SHARE_BY_THRESHOLD = ((20.0, 0.35), (30.0, 0.20), (999.0, 0.05))   # 허리 굽힘 기준을 올리면 비율이 줄어드는 것을 흉내 냄
 
@@ -78,7 +79,7 @@ class StubService:
         self._delay = progress_delay_s
         self._lock = threading.RLock()
         self._id = {k: itertools.count(v) for k, v in dict(
-            survey=2, task=13, participant=3, video=102, run=1001, warning=1, ai=2, log=1).items()}
+            survey=2, task=13, participant=3, still=121, run=1001, warning=1, ai=2, log=1).items()}
         self._surveys: dict[int, dict] = {1: dict(
             type=C.SurveyType.REGULAR, date="2026-10-23", investigator="홍길동", dept="포장부",
             process="포장공정", work="상자 포장 및 운반", status=C.SurveyStatus.DRAFT, confirmed_at=None, reasons=())}
@@ -99,17 +100,20 @@ class StubService:
         self._reba_in: dict[int, C.RebaInputs] = {
             10: C.RebaInputs(load_kg=15.0, shock_yn=False, coupling_cd=C.Coupling.GOOD, trunk_twist_side_yn=True,
                              act_repeat_yn=True), 11: C.RebaInputs(), 12: C.RebaInputs()}
-        self._videos: dict[int, dict] = {100: dict(
-            task=10, path="D:/영상/상자옮기기_측면.mp4", name="상자옮기기_측면.mp4", dur=32.0, fps=30.0, frames=960,
-            w=1080, h=1920, rot=90, consent=True)}
-        self._runs: dict[int, dict] = {10: dict(run_id=1000, video=100, model=4, key_frame=216, status=C.RunStatus.DONE)}
+        # 단위작업 10의 사진 21장 (옆모습, 작업 중 일정 간격). 마지막 한 장은 사람이 잘려 판별 불가
+        self._stills: dict[int, dict] = {
+            100 + i: dict(task=10, no=i + 1, path=f"D:/사진/상자옮기기_측면_{i + 1:02d}.jpg",
+                          name=f"상자옮기기_측면_{i + 1:02d}.jpg", w=1080, h=1920, rot=90, consent=True, removed=False)
+            for i in range(21)}
+        self._runs: dict[int, dict] = {10: dict(run_id=1000, model=1, key_still=107, status=C.RunStatus.DONE,
+                                                still_cnt=21, valid_cnt=20)}
         self._running: dict[int, dict] = {}
         self._judg: dict[int, dict[int, dict]] = {}
         self._warn: dict[int, dict] = {}
         self._ai: dict[int, dict] = {}
         self._log: list[tuple[int, C.EditLogEntry]] = []
         self._thr: dict[int, dict[C.ThresholdCode, tuple[float, str]]] = {1: {}}
-        self._settings = dict(pose_model_id=4, gpt_enabled=False, gpt_model=None, has_key=False, last_dir=None)
+        self._settings = dict(pose_model_id=1, gpt_enabled=False, gpt_model=None, has_key=False, last_dir=None)
         for tid in self._tasks:
             self._judg[tid] = {n: self._blank(tid, n) for n in _CRITERIA}
         self._recalc(10, log=False)
@@ -160,11 +164,11 @@ class StubService:
         self._log.append((sid, e))
 
     def _set_judgment(self, tid: int, no: int, status: C.JudgmentStatus, basis: str, actor: str, sid: int,
-                      changes: list, reason_text: str):
+                      changes: list, reason_text: str, review: Optional[C.ReviewReason] = None):
         j = self._judg[tid][no]
         if j["excl"] is not None:
             return
-        if j["status"] == status and j["basis"] == basis:
+        if j["status"] == status and j["basis"] == basis and j["reason"] == review:
             return
         unconfirmed = False
         if j["confirmed"]:
@@ -172,7 +176,7 @@ class StubService:
             unconfirmed = True
             self._entry(sid, tid, "JUDGMENT", f"criterion={no}", "UNCONFIRM", "확정", "초안", reason_text, actor)
         changes.append(C.JudgmentChange(no, j["status"], status, unconfirmed))
-        j.update(status=status, basis=basis, reason=None)
+        j.update(status=status, basis=basis, reason=review)
 
     def _recalc(self, tid: int, actor: str = "시스템", log: bool = True):
         """바뀐 입력으로 1·4·8·9호만 다시 계산하는 흉내. 바뀐 내용을 RecalcResult 재료로 돌려준다."""
@@ -189,13 +193,18 @@ class StubService:
             hit = inp.keyboard_h >= 4 and not inp.keyboard_self_paced_yn
             self._set_judgment(tid, 1, S.APPLICABLE if hit else S.NOT_APPLICABLE,
                                f"집중 입력 {inp.keyboard_h:g}시간 {'≥' if hit else '<'} 4시간", actor, sid, changes, reason)
-        # 4호 (비율은 영상에서 잰 값이라 분석이 있는 단위작업에만)
+        # 4호 (비율은 사진 표본에서 잰 값이라 분석이 있는 단위작업에만)
         if tid in self._runs:
             share = self._waist_share(sid)
+            valid = self._runs[tid]["valid_cnt"]
             if inp.daily_work_h is None or inp.unsupported_posture_yn is None:
                 self._set_judgment(tid, 4, S.NEEDS_INPUT, "하루 작업시간과 4호 전제를 넣어 주세요", actor, sid, changes, reason)
             elif not inp.unsupported_posture_yn:
                 self._set_judgment(tid, 4, S.NOT_APPLICABLE, "4호 전제가 '아니오'라 해당하지 않음", actor, sid, changes, reason)
+            elif valid < MIN_SAMPLE_CNT:
+                self._set_judgment(tid, 4, S.NEEDS_REVIEW,
+                                   f"판별 가능한 사진 {valid}장 < {MIN_SAMPLE_CNT}장이라 비율이 거칠다. 사진을 더 올리거나 사람이 확인해야 한다",
+                                   actor, sid, changes, reason, review=C.ReviewReason.SMALL_SAMPLE)
             else:
                 hours = share * inp.daily_work_h
                 hit = hours >= 2.0
@@ -289,7 +298,7 @@ class StubService:
         warnings = tuple(self._warning_dto(wid) for wid, w in sorted(self._warn.items())
                          if w["task"] == tid and w["cleared"] is None)
         if run is None:
-            return C.TaskResult(tid, None, None, None, None, None, None, (), judgments, warnings)
+            return C.TaskResult(tid, None, None, 0, 0, None, None, None, None, (), judgments, warnings)
         daily = self._inputs[tid].daily_work_h
         v, over, label = self._threshold_value(sid, C.ThresholdCode.WAIST_FLEX)
         src = C.ThresholdSource.INVESTIGATOR if over else C.ThresholdSource.MOEL_NOTE
@@ -300,11 +309,16 @@ class StubService:
             C.PostureShare("P3_UNION", 0.30, None if daily is None else 0.30 * daily, 45.0, C.ThresholdSource.MOEL_NOTE),
             C.PostureShare("SQUAT", 0.05, None if daily is None else 0.05 * daily, None, None),
         )
-        notices = (C.Notice("W-ANALYSIS-003", "다리가 보이지 않아 쪼그림·무릎 자세는 확인이 필요합니다."),) if tid == 11 else ()
+        notices = [C.Notice("W-ANALYSIS-003", "다리가 보이지 않아 쪼그림·무릎 자세는 확인이 필요합니다.")] if tid == 11 else []
+        if run["valid_cnt"] < MIN_SAMPLE_CNT:
+            notices.append(C.Notice("W-STILL-002", f"사진이 {run['valid_cnt']}장뿐입니다. 작업 중 여러 순간의 사진을 더 올려 주세요."))
+        invalid = run["still_cnt"] - run["valid_cnt"]
         return C.TaskResult(
-            unit_task_id=tid, run=C.RunHandle(run["run_id"], tid, run["video"], run["model"]),
-            run_status_cd=run["status"], invalid_ratio=0.03, reba=self._reba(tid), key_frame_no=run["key_frame"],
-            key_frame_jpeg=_JPEG, shares=shares, judgments=judgments, warnings=warnings, notices=notices)
+            unit_task_id=tid, run=C.RunHandle(run["run_id"], tid, run["model"], run["still_cnt"]),
+            run_status_cd=run["status"], still_cnt=run["still_cnt"], valid_still_cnt=run["valid_cnt"],
+            invalid_ratio=invalid / run["still_cnt"] if run["still_cnt"] else None, reba=self._reba(tid),
+            key_still_id=run["key_still"], key_still_jpeg=_JPEG, shares=shares, judgments=judgments,
+            warnings=warnings, notices=tuple(notices))
 
     def _warning_dto(self, wid: int) -> C.WarningItem:
         w = self._warn[wid]
@@ -450,8 +464,8 @@ class StubService:
     def _drop_task(self, tid: int):
         for d in (self._tasks, self._inputs, self._reps, self._lifts, self._reba_in, self._runs, self._judg):
             d.pop(tid, None)
-        for vid in [v for v, x in self._videos.items() if x["task"] == tid]:
-            del self._videos[vid]
+        for sid_ in [v for v, x in self._stills.items() if x["task"] == tid]:
+            del self._stills[sid_]
         for wid in [w for w, x in self._warn.items() if x["task"] == tid]:
             del self._warn[wid]
 
@@ -512,56 +526,66 @@ class StubService:
             self._task(unit_task_id)
             return self._reba_in[unit_task_id]
 
-    # ------------------------------------------------------------ 4.3 영상과 분석
-    def _video_info(self, vid: int) -> C.VideoInfo:
-        v = self._videos[vid]
-        notices = (C.Notice("W-VIDEO-002", "작업 한 사이클 이상 찍었는지 확인해 주세요."),) if v["dur"] < 10 else ()
-        return C.VideoInfo(vid, v["path"], v["name"], v["dur"], v["fps"], v["frames"], v["w"], v["h"], v["rot"], v["consent"], notices)
+    # ------------------------------------------------------------ 4.3 사진과 분석
+    def _still_info(self, still_id: int, notices: tuple = ()) -> C.StillInfo:
+        v = self._stills[still_id]
+        return C.StillInfo(still_id, v["no"], v["path"], v["name"], v["w"], v["h"], v["rot"], v["consent"], notices)
 
-    def inspect_video(self, path: Path) -> C.VideoInfo:
+    def _active_stills(self, tid: int) -> list[int]:
+        return [i for i, x in sorted(self._stills.items(), key=lambda kv: kv[1]["no"])
+                if x["task"] == tid and not x["removed"]]
+
+    def inspect_still(self, path: Path) -> C.StillInfo:
         p = Path(path)
-        _need(p.suffix.lower() in (".mp4", ".mov"), "E-VIDEO-001", "이 파일을 열 수 없습니다. mp4나 mov 파일을 골라 주세요.")
-        short = "short" in p.stem.lower()
-        dur = 8.0 if short else 32.0
-        notices = (C.Notice("W-VIDEO-002", "작업 한 사이클 이상 찍었는지 확인해 주세요."),) if dur < 10 else ()
-        return C.VideoInfo(None, str(p), p.name, dur, 30.0, int(dur * 30), 1080, 1920, 90, False, notices)
+        _need(p.suffix.lower() in _STILL_EXTS, "E-STILL-001", "이 파일을 열 수 없습니다. jpg나 png 파일을 골라 주세요.")
+        return C.StillInfo(None, None, str(p), p.name, 1080, 1920, 90, False)
 
-    def list_videos(self, unit_task_id: int) -> Sequence[C.VideoInfo]:
+    def list_stills(self, unit_task_id: int) -> Sequence[C.StillInfo]:
         with self._lock:
             self._task(unit_task_id)
-            return tuple(self._video_info(v) for v, x in sorted(self._videos.items()) if x["task"] == unit_task_id)
+            return tuple(self._still_info(i) for i in self._active_stills(unit_task_id))
 
-    def attach_video(self, unit_task_id: int, path: Path, consent: bool, actor: str) -> C.VideoInfo:
+    def attach_still(self, unit_task_id: int, path: Path, consent: bool, actor: str) -> C.StillInfo:
         with self._lock:
             self._task(unit_task_id)
-            info = self.inspect_video(path)
-            vid = next(self._id["video"])
-            self._videos[vid] = dict(task=unit_task_id, path=info.file_path, name=info.file_name, dur=info.duration_s,
-                                     fps=info.fps, frames=info.frame_cnt, w=info.width_px, h=info.height_px,
-                                     rot=info.rotation_deg, consent=bool(consent))
-            return self._video_info(vid)
+            info = self.inspect_still(path)
+            sid_ = next(self._id["still"])
+            no = 1 + max([x["no"] for x in self._stills.values() if x["task"] == unit_task_id], default=0)
+            self._stills[sid_] = dict(task=unit_task_id, no=no, path=info.file_path, name=info.file_name, w=info.width_px,
+                                      h=info.height_px, rot=info.rotation_deg, consent=bool(consent), removed=False)
+            n = len(self._active_stills(unit_task_id))
+            notices = (C.Notice("W-STILL-002", f"사진이 {n}장뿐입니다. 작업 중 여러 순간의 사진을 더 올려 주세요."),) \
+                if n < MIN_SAMPLE_CNT else ()
+            return self._still_info(sid_, notices)
 
-    def confirm_consent(self, video_id: int, actor: str) -> C.VideoInfo:
+    def detach_still(self, still_id: int, actor: str) -> None:
         with self._lock:
-            _need(video_id in self._videos, "E-NOTFOUND-001", "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
-            self._videos[video_id]["consent"] = True
-            return self._video_info(video_id)
-
-    def start_analysis(self, unit_task_id: int, video_id: int, on_progress: C.ProgressCallback) -> C.RunHandle:
-        with self._lock:
-            self._task(unit_task_id)
-            _need(video_id in self._videos and self._videos[video_id]["task"] == unit_task_id, "E-NOTFOUND-001",
+            _need(still_id in self._stills and not self._stills[still_id]["removed"], "E-NOTFOUND-001",
                   "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
-            _need(self._videos[video_id]["consent"], "E-VIDEO-003", "촬영 동의를 먼저 확인해 주세요.")
+            self._stills[still_id]["removed"] = True            # 분석에 쓴 사진은 지우지 않고 표본에서 뺀 것으로 표시한다
+
+    def confirm_consent(self, still_id: int, actor: str) -> C.StillInfo:
+        with self._lock:
+            _need(still_id in self._stills and not self._stills[still_id]["removed"], "E-NOTFOUND-001",
+                  "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
+            self._stills[still_id]["consent"] = True
+            return self._still_info(still_id)
+
+    def start_analysis(self, unit_task_id: int, on_progress: C.ProgressCallback) -> C.RunHandle:
+        with self._lock:
+            self._task(unit_task_id)
+            ids = self._active_stills(unit_task_id)
+            _need(len(ids) > 0, "E-INPUT-002", "분석할 사진을 먼저 올려 주세요.")
+            _need(all(self._stills[i]["consent"] for i in ids), "E-STILL-003", "촬영 동의를 먼저 확인해 주세요.")
             _need(not self._running, "E-ANALYSIS-004", "다른 분석이 끝난 뒤 시작해 주세요.")
             run_id = next(self._id["run"])
-            handle = C.RunHandle(run_id, unit_task_id, video_id, self._settings["pose_model_id"])
-            self._running[run_id] = dict(task=unit_task_id, cancel=threading.Event())
+            handle = C.RunHandle(run_id, unit_task_id, self._settings["pose_model_id"], len(ids))
+            self._running[run_id] = dict(task=unit_task_id, cancel=threading.Event(), ids=ids)
         threading.Thread(target=self._run, args=(handle, on_progress), daemon=True).start()
         return handle
 
     def _run(self, h: C.RunHandle, on_progress: C.ProgressCallback):
-        total = self._videos[h.video_id]["frames"]
+        total = h.still_cnt
         cancel = self._running[h.run_id]["cancel"]
         steps = ((C.Stage.DECODE, 3), (C.Stage.KEYPOINT, 25), (C.Stage.KEYPOINT, 50), (C.Stage.KEYPOINT, 75),
                  (C.Stage.ANGLE, 88), (C.Stage.JUDGE, 95), (C.Stage.SAVE, 99))
@@ -575,8 +599,10 @@ class StubService:
                     return
                 on_progress(C.Progress(h.run_id, stage, int(total * pct / 100), total, float(pct), eta_s=max(0.0, (100 - pct) / 10)))
             with self._lock:
-                self._runs[h.unit_task_id] = dict(run_id=h.run_id, video=h.video_id, model=h.model_id, key_frame=216,
-                                                  status=C.RunStatus.DONE)
+                ids = self._running[h.run_id]["ids"]
+                invalid = 1 if total >= MIN_SAMPLE_CNT else 0       # 스텁: 사진이 충분히 많으면 한 장은 판별 불가로 흉내 낸다
+                self._runs[h.unit_task_id] = dict(run_id=h.run_id, model=h.model_id, key_still=ids[0],
+                                                  status=C.RunStatus.DONE, still_cnt=total, valid_cnt=total - invalid)
                 self._recalc(h.unit_task_id, "시스템")
             on_progress(C.Progress(h.run_id, C.Stage.DONE, total, total, 100.0))
         except Exception as e:                                      # 스텁도 실패를 같은 방식으로 알린다
@@ -596,35 +622,43 @@ class StubService:
         with self._lock:
             return self._result(unit_task_id)
 
-    def get_frame_preview(self, run_id: int, frame_no: int) -> bytes:
+    def get_still_preview(self, run_id: int, still_id: int) -> bytes:
         with self._lock:
-            run = next((r for r in self._runs.values() if r["run_id"] == run_id), None)
-            _need(run is not None, "E-NOTFOUND-001", "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
-            _need(0 <= frame_no < self._videos[run["video"]]["frames"], "E-INPUT-001", "프레임 번호가 범위를 벗어났습니다.")
+            run_task = next((t for t, r in self._runs.items() if r["run_id"] == run_id), None)
+            _need(run_task is not None, "E-NOTFOUND-001", "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
+            _need(still_id in self._stills and self._stills[still_id]["task"] == run_task, "E-NOTFOUND-001",
+                  "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
             return _JPEG
 
-    def get_posture_timeline(self, unit_task_id: int) -> C.PostureTimeline:
+    def get_still_results(self, unit_task_id: int) -> Sequence[C.StillResult]:
         with self._lock:
             self._task(unit_task_id)
             run = self._runs.get(unit_task_id)
             _need(run is not None, "E-NOTFOUND-001", "분석 결과가 없습니다.")
-            v = self._videos[run["video"]]
-            n = v["frames"]
-            cut = lambda a, b: (int(n * a), int(n * b) - 1)
-            segs = tuple(C.PostureSegment("WAIST_FLEX", *cut(a, b)) for a, b in ((0.08, 0.20), (0.40, 0.52), (0.72, 0.83))) \
-                + (C.PostureSegment("INVALID", *cut(0.58, 0.61)),)
-            return C.PostureTimeline(run["run_id"], v["fps"], n, segs)
+            ids = [i for i in self._active_stills(unit_task_id)]
+            invalid_cnt = run["still_cnt"] - run["valid_cnt"]
+            out, k = [], 0
+            for pos, i in enumerate(ids):
+                valid = pos < len(ids) - invalid_cnt              # 스텁: 판별 불가는 맨 뒤 사진
+                flagged = ("WAIST_FLEX",) if valid and (k % 20) in _FLAGGED_AT else ()
+                is_key = i == run["key_still"]
+                reba = (9 if is_key else 5 + (k % 4)) if valid else None
+                out.append(C.StillResult(i, self._stills[i]["no"], valid, flagged, reba, is_key))
+                k += 1 if valid else 0
+            return tuple(out)
 
-    def set_key_frame(self, unit_task_id: int, frame_no: int, actor: str) -> C.TaskResult:
+    def set_key_still(self, unit_task_id: int, still_id: int, actor: str) -> C.TaskResult:
         with self._lock:
             self._task(unit_task_id)
             run = self._runs.get(unit_task_id)
             _need(run is not None, "E-NOTFOUND-001", "분석 결과가 없습니다.")
-            _need(0 <= frame_no < self._videos[run["video"]]["frames"], "E-INPUT-001", "프레임 번호가 범위를 벗어났습니다.")
-            old = run["key_frame"]
-            run["key_frame"] = frame_no
-            if old != frame_no:
-                self._entry(self._tasks[unit_task_id]["survey"], unit_task_id, "KEY_FRAME", "key_frame_no", "SET", old, frame_no, None, actor)
+            _need(still_id in self._stills and self._stills[still_id]["task"] == unit_task_id, "E-NOTFOUND-001",
+                  "찾을 수 없습니다. 목록을 새로 고쳐 주세요.")
+            old = run["key_still"]
+            run["key_still"] = still_id
+            if old != still_id:
+                self._entry(self._tasks[unit_task_id]["survey"], unit_task_id, "KEY_STILL", "key_still_id", "SET", old,
+                            still_id, None, actor)
             return self._result(unit_task_id)
 
     def confirm_judgment(self, unit_task_id: int, criterion_no: int, final_status: C.FinalStatus,

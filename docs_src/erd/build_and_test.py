@@ -23,17 +23,20 @@ def sample(c):
     x("INSERT INTO unit_task(unit_task_id,survey_id,task_name,worker_cnt,period_type_cd) VALUES (11,1,'선반 정리',1,'ONGOING')")
     x("INSERT INTO task_input(unit_task_id,daily_work_h,unsupported_posture_yn,lift_kg,lift_people_cnt,lift_cnt_per_day)"
       " VALUES (10,6,1,30,2,12)")
-    x("INSERT INTO video(video_id,unit_task_id,file_path,file_name,duration_s,fps,frame_cnt,width_px,height_px,consent_yn,consent_at)"
-      " VALUES (100,10,'D:/영상/상자옮기기_측면.mp4','상자옮기기_측면.mp4',32,30,960,720,1280,1,'2026-10-23T10:00:00')")
-    x("INSERT INTO video(video_id,unit_task_id,file_path,file_name,duration_s,fps,frame_cnt,width_px,height_px,consent_yn,consent_at)"
-      " VALUES (101,11,'D:/영상/선반.mp4','선반.mp4',20,30,600,720,1280,1,'2026-10-23T10:05:00')")
-    x("INSERT INTO analysis_run(run_id,unit_task_id,video_id,model_id,status_cd,is_current_yn,finished_at,processing_s,"
-      "frame_total_cnt,frame_valid_cnt,invalid_ratio) VALUES (1000,10,100,4,'DONE',1,'2026-10-23T10:01:00',19.4,100,100,0)")
-    rows = [(1000, n, 1, 35.0 if n < 35 else 10.0, 10.0, 5.0, 20.0, 20.0, 10.0, 10.0, 90.0, 90.0, 10.0, 10.0,
-             0, 0, 0, 0, 0, 0) for n in range(100)]
-    c.executemany("INSERT INTO frame_angle VALUES (" + ",".join("?" * 20) + ")", rows)
-    x("INSERT INTO reba_result VALUES (1000,10,'AUTO','R',2,4,2,6,2,8,3,1,2,4,1,5,8,1,9,'HIGH',0)")
-    x("INSERT INTO key_frame_image(run_id,frame_no,image_jpeg,masked_yn) VALUES (1000,10,X'FFD8FFE0',1)")
+    for n in range(20):                     # 단위작업 10: 사진 20장 (still_id 100~119, still_no 1~20)
+        x("INSERT INTO still(still_id,unit_task_id,still_no,file_path,file_name,width_px,height_px,consent_yn,consent_at)"
+          " VALUES (?,10,?,?,?,720,1280,1,'2026-10-23T10:00:00')",
+          (100 + n, n + 1, f"D:/사진/상자옮기기_{n + 1:02d}.jpg", f"상자옮기기_{n + 1:02d}.jpg"))
+    x("INSERT INTO still(still_id,unit_task_id,still_no,file_path,file_name,width_px,height_px,consent_yn,consent_at)"
+      " VALUES (200,11,1,'D:/사진/선반.jpg','선반.jpg',720,1280,1,'2026-10-23T10:05:00')")
+    x("INSERT INTO analysis_run(run_id,unit_task_id,model_id,status_cd,is_current_yn,finished_at,processing_s,"
+      "still_total_cnt,still_valid_cnt,invalid_ratio) VALUES (1000,10,1,'DONE',1,'2026-10-23T10:01:00',0.4,20,20,0)")
+    # 사진 20장 중 7장(still_no 1~7)이 허리 굽힘 35° → 비율 35%
+    rows = [(1000, 100 + n, 1, 35.0 if n < 7 else 10.0, 10.0, 5.0, 20.0, 20.0, 10.0, 10.0, 90.0, 90.0, 10.0, 10.0,
+             0, 0, 0, 0, 0, 0) for n in range(20)]
+    c.executemany("INSERT INTO still_angle VALUES (" + ",".join("?" * 20) + ")", rows)
+    x("INSERT INTO reba_result VALUES (1000,100,'AUTO','R',2,4,2,6,2,8,3,1,2,4,1,5,8,1,9,'HIGH',0)")
+    x("INSERT INTO key_still_image(run_id,still_id,image_jpeg,masked_yn) VALUES (1000,100,X'FFD8FFE0',1)")
     x("INSERT INTO judgment(judgment_id,unit_task_id,criterion_no,run_id,computed_status_cd,basis_text,source_text)"
       " VALUES (1,10,4,1000,'APPLICABLE','허리 굽힘 35% × 하루 6시간 = 2.10시간 ≥ 2시간','고시 제3조 제4호 · 각도 20°(해설 4호 주3)')")
     x("INSERT INTO judgment_basis(judgment_id,item_cd,share_ratio,exposure_h,threshold_value,threshold_source_cd)"
@@ -78,7 +81,7 @@ def p1(c):
     r = c.execute("SELECT waist_flex_ratio, waist_flex_h FROM v_posture_exposure_check WHERE run_id=1000").fetchone()
     assert approx(r[0], 0.35) and approx(r[1], 2.1), r
     return f"허리 굽힘 비율 {r[0]:.2f}, 하루 노출 {r[1]:.2f}시간"
-check("P1", "저장된 프레임별 각도로 자세 비율과 하루 노출을 다시 계산 (35% × 6시간)", p1, False)
+check("P1", "저장된 사진별 각도로 자세 비율과 하루 노출을 다시 계산 (20장 중 7장 = 35% × 6시간)", p1, False)
 
 def p2(c):
     r = c.execute("SELECT value_deg, source_label FROM v_effective_threshold WHERE survey_id=1 AND threshold_cd='WAIST_FLEX'").fetchone()
@@ -117,16 +120,16 @@ def p6(c):
     c.execute("UPDATE judgment SET confirmed_yn=1, final_status_cd='APPLICABLE', confirmed_by='홍길동',"
               " confirmed_at='2026-10-30T14:00:00' WHERE judgment_id=1")
     c.execute("UPDATE judgment SET confirmed_yn=1, final_status_cd='NOT_APPLICABLE', confirmed_by='홍길동',"
-              " confirmed_at='2026-10-30T14:01:00', confirm_reason_text='영상을 다시 보니 쪼그림 시간이 짧음' WHERE judgment_id=4")
+              " confirmed_at='2026-10-30T14:01:00', confirm_reason_text='사진을 다시 보니 쪼그림 시간이 짧음' WHERE judgment_id=4")
     return "초안과 같은 결과는 사유 없이, '사람 확인'은 사유와 함께 확정됨"
 check("P6", "정상 확정 (초안과 같으면 사유 없이, 사람 확인은 사유와 함께)", p6, False)
 
 def p7(c):
     c.execute("DELETE FROM survey WHERE survey_id=1")
     left = {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-            for t in ("unit_task", "frame_angle", "judgment", "warning", "edit_log", "video", "analysis_run")}
+            for t in ("unit_task", "still_angle", "judgment", "warning", "edit_log", "still", "analysis_run")}
     assert all(v == 0 for v in left.values()), left
-    return "조사를 지우면 단위작업·영상·분석·판정·경고·이력이 함께 지워짐"
+    return "조사를 지우면 단위작업·사진·분석·판정·경고·이력이 함께 지워짐"
 check("P7", "조사 전체 삭제는 수정 이력까지 함께 지움 (보존 기간이 끝난 조사 정리)", p7, False)
 
 def p8(c):
@@ -134,7 +137,7 @@ def p8(c):
     n = c.execute("SELECT COUNT(*) FROM analysis_run WHERE unit_task_id=10").fetchone()[0]
     e = c.execute("SELECT COUNT(*) FROM edit_log WHERE unit_task_id=10").fetchone()[0]
     assert n == 0 and e == 1, (n, e)
-    return "단위작업을 지우면 영상·분석은 지워지고 수정 이력 1줄은 남음"
+    return "단위작업을 지우면 사진·분석은 지워지고 수정 이력 1줄은 남음"
 check("P8", "단위작업 삭제: 분석은 함께 지워지고 이력은 남음", p8, False)
 
 # ---- 막혀야 하는 시험 ----
@@ -142,7 +145,7 @@ M = [
  ("M01", "REBA 점수 16점", lambda c: c.execute("UPDATE reba_result SET reba_score=16 WHERE run_id=1000")),
  ("M02", "REBA 9점인데 위험 단계 '보통'", lambda c: c.execute("UPDATE reba_result SET risk_level_cd='MEDIUM' WHERE run_id=1000")),
  ("M03", "REBA 점수 ≠ 표 C 점수 + 활동 점수", lambda c: c.execute("UPDATE reba_result SET activity_score=3 WHERE run_id=1000")),
- ("M04", "얼굴을 가리지 않은 대표 장면 저장", lambda c: c.execute("UPDATE key_frame_image SET masked_yn=0 WHERE run_id=1000")),
+ ("M04", "얼굴을 가리지 않은 대표 사진 저장", lambda c: c.execute("UPDATE key_still_image SET masked_yn=0 WHERE run_id=1000")),
  ("M05", "수정 이력 고치기", lambda c: c.execute("UPDATE edit_log SET new_value='5'")),
  ("M06", "수정 이력 한 줄만 지우기", lambda c: c.execute("DELETE FROM edit_log")),
  ("M07", "사유 없이 각도 기준 변경", lambda c: c.execute(
@@ -153,21 +156,21 @@ M = [
      "UPDATE judgment SET confirmed_yn=1, final_status_cd='APPLICABLE', confirmed_by='홍길동', confirmed_at='2026-10-30T14:00:00' WHERE judgment_id=4")),
  ("M10", "초안과 다른 결과로 사유 없이 확정", lambda c: c.execute(
      "UPDATE judgment SET confirmed_yn=1, final_status_cd='NOT_APPLICABLE', confirmed_by='홍길동', confirmed_at='2026-10-30T14:00:00' WHERE judgment_id=1")),
- ("M11", "촬영 동의 없는 영상으로 분석", lambda c: (
-     c.execute("INSERT INTO video(video_id,unit_task_id,file_path,file_name,duration_s,fps,frame_cnt,width_px,height_px)"
-               " VALUES (102,10,'D:/영상/b.mp4','b.mp4',10,30,300,720,1280)"),
-     c.execute("INSERT INTO analysis_run(unit_task_id,video_id,model_id,status_cd) VALUES (10,102,4,'RUNNING')"))),
+ ("M11", "촬영 동의 없는 사진이 있는데 분석", lambda c: (
+     c.execute("INSERT INTO still(still_id,unit_task_id,still_no,file_path,file_name,width_px,height_px)"
+               " VALUES (150,10,21,'D:/사진/b.jpg','b.jpg',720,1280)"),
+     c.execute("INSERT INTO analysis_run(unit_task_id,model_id,status_cd) VALUES (10,1,'RUNNING')"))),
  ("M12", "한 단위작업에 '현재' 분석이 2개", lambda c: c.execute(
-     "INSERT INTO analysis_run(unit_task_id,video_id,model_id,status_cd,is_current_yn,finished_at) VALUES (10,100,4,'DONE',1,'2026-10-23T11:00:00')")),
- ("M13", "다른 단위작업의 영상으로 분석", lambda c: c.execute(
-     "INSERT INTO analysis_run(unit_task_id,video_id,model_id,status_cd) VALUES (10,101,4,'RUNNING')")),
+     "INSERT INTO analysis_run(unit_task_id,model_id,status_cd,is_current_yn,finished_at) VALUES (10,1,'DONE',1,'2026-10-23T11:00:00')")),
+ ("M13", "다른 단위작업의 사진으로 각도 저장", lambda c: c.execute(
+     "INSERT INTO still_angle(run_id,still_id,valid_yn) VALUES (1000,200,1)")),
  ("M14", "없는 조사에 단위작업 추가 (외래키)", lambda c: c.execute(
      "INSERT INTO unit_task(survey_id,task_name,worker_cnt,period_type_cd) VALUES (999,'x',1,'ONGOING')")),
  ("M15", "하루 작업시간 25시간", lambda c: c.execute("UPDATE task_input SET daily_work_h=25 WHERE unit_task_id=10")),
  ("M16", "정기조사에 수시 사유 넣기", lambda c: c.execute("INSERT INTO survey_reason VALUES (1,'NEW_TASK')")),
  ("M17", "같은 단위작업·같은 호 판정 2개", lambda c: c.execute(
      "INSERT INTO judgment(unit_task_id,criterion_no,computed_status_cd,basis_text,source_text) VALUES (10,4,'APPLICABLE','x','y')")),
- ("M18", "분석에 쓴 영상만 지우기", lambda c: c.execute("DELETE FROM video WHERE video_id=100")),
+ ("M18", "분석에 쓴 사진만 지우기", lambda c: c.execute("DELETE FROM still WHERE still_id=105")),
  ("M19", "확정 시각 없이 조사 확정", lambda c: c.execute("UPDATE survey SET status_cd='CONFIRMED' WHERE survey_id=1")),
  ("M20", "다른 단위작업의 분석 결과로 판정", lambda c: c.execute(
      "INSERT INTO judgment(unit_task_id,criterion_no,run_id,computed_status_cd,basis_text,source_text) VALUES (11,3,1000,'APPLICABLE','x','y')")),
@@ -175,6 +178,10 @@ M = [
      "INSERT INTO ai_text(purpose_cd,warning_id,survey_id,model_name,prompt_version,request_json,result_cd)"
      " VALUES ('WARNING_ADVICE',1,1,'gpt','v1','{}','DISABLED')")),
  ("M22", "비틀림 시간이 하루 작업시간보다 큼", lambda c: c.execute("UPDATE task_input SET waist_twist_h=7 WHERE unit_task_id=10")),
+ ("M23", "대표 사진이 그 분석에 쓰지 않은 사진", lambda c: c.execute("UPDATE reba_result SET key_still_id=200 WHERE run_id=1000")),
+ ("M24", "사진이 없는 단위작업을 분석", lambda c: (
+     c.execute("INSERT INTO unit_task(unit_task_id,survey_id,task_name,worker_cnt,period_type_cd) VALUES (12,1,'사진 없는 작업',1,'ONGOING')"),
+     c.execute("INSERT INTO analysis_run(unit_task_id,model_id,status_cd) VALUES (12,1,'RUNNING')"))),
 ]
 for tid, name, fn in M:
     check(tid, name, fn, True)
