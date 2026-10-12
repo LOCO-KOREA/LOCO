@@ -41,7 +41,7 @@ MUTS = [
      "SELECT w.warning_id, t.survey_id, w.unit_task_id, t.task_name AS task_name,\n", "test_every_view_column_is_classified"),
     ("M09 계약의 코드 값 하나를 바꿈", "ergo/contracts.py",
      'NEEDS_REVIEW = "NEEDS_REVIEW"', 'NEEDS_REVIEW = "NEEDS_CHECK"', "test_enums_and_dtos_match_the_database"),
-    ("M10 얼굴을 안 가린 대표 장면도 저장되게", "ergo/db/schema_v1.sql",
+    ("M10 얼굴을 안 가린 대표 사진도 저장되게", "ergo/db/schema_v1.sql",
      "CHECK (masked_yn = 1)", "CHECK (masked_yn IN (0,1))", "test_every_case_behaves_as_expected"),
     ("M11 연결할 때 외래키를 켜지 않음", "ergo/db/connection.py",
      '    con.execute("PRAGMA foreign_keys = ON")\n', "", "test_in_memory_has_schema_seed_and_foreign_keys"),

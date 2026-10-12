@@ -1,7 +1,9 @@
 # LOCO — 근골격계 유해요인조사 보조 앱
 
 Windows PC 프로그램 (코드 이름 `ergo-assist`).
-작업 영상을 올리고 하루 작업시간을 넣으면, 고시 제3조의 부담작업 11개 기준에 대한 판정 초안과 경고를 만든다. 확정은 사람이 하고, 결과는 엑셀로 낸다.
+작업 중 찍은 사진 여러 장을 올리고 하루 작업시간을 넣으면, 사진에서 자세를 재서(MoveNet Lightning) 고시 제3조의 부담작업 11개 기준에 대한 판정 초안과 경고를 만든다. 확정은 사람이 하고, 결과는 엑셀로 낸다.
+
+MVP는 사진(스틸샷) 분석이다. 영상은 MVP 이후에 사진을 뽑아 쓰는 방식으로 붙인다 (결정 D-MVP-01 · D-MODEL-01, 2026-10-12, 기능정의서 v0.4).
 
 **처음 오셨다면: [`docs/팀원_읽기안내.md`](docs/팀원_읽기안내.md)부터 읽으세요.** (30분이면 된다)
 
@@ -9,8 +11,8 @@ Windows PC 프로그램 (코드 이름 `ergo-assist`).
 
 | 있는 것 | 없는 것 |
 |---|---|
-| 서비스 계약 (`ergo/contracts.py`, 함수 43개), 계약 시험 | 화면 |
-| DB 스키마 · 시드 · 연결 규칙, 제약 시험 30개 | 저장소 계층 (SQL을 쓰는 곳) |
+| 서비스 계약 (`ergo/contracts.py`, 함수 44개), 계약 시험 | 화면 |
+| DB 스키마 · 시드 · 연결 규칙, 제약 시험 32개 | 저장소 계층 (SQL을 쓰는 곳) |
 | 법 원문 사본과 시험 (고시 제2020-12호) | 분석 엔진 (관절, 각도, 판별, REBA, 판정) |
 | 스텁 서비스 (가짜 값을 돌려줘서 화면을 먼저 만들 수 있다) | GPT 어댑터, 엑셀 작성기 |
 | 설계 문서를 만드는 도구 (`docs_src/`) | |
@@ -53,7 +55,7 @@ svc.get_task_result(10)              # '상자 들어 옮기기'의 결과 (REBA
 | 문서 | 만드는 방식 | 고치려면 |
 |---|---|---|
 | `requirements.md`, `기능정의서.md`, `project-overview.md`, `benchmark-apps.md`, `법정서식_검증목록.md`, `화면명세서_GPT용.md`, `presentation-script.md` | 손으로 쓴다 | 파일을 직접 고친다 |
-| `ERD_데이터설계서.md`, `ERD.drawio`, `DB아키텍처_설계서.md`, `API_계약서.md`, `화면설계서.md`, `일정서.md`, `팀원_읽기안내.md`와 `*_그림/` | **스크립트가 만든다** | 원본(스키마·계약·화면 데이터·일정 데이터)을 고치고 `python docs_src/build_all.py` |
+| `ERD_데이터설계서.md`, `ERD.drawio`, `DB아키텍처_설계서.md`, `API_계약서.md`, `화면설계서.md`, `일정서.md`, `팀원_읽기안내.md`, `화면참고_*.png`와 `*_그림/` | **스크립트가 만든다** | 원본(스키마·계약·화면 데이터·일정 데이터)을 고치고 `python docs_src/build_all.py` |
 
 저장소에 넣지 않은 자료: REBA 워크시트(Cornell, Alan Hedge)와 KOSHA GUIDE H-9-2022 텍스트. 저작권이 있는 자료라 정욱님이 따로 갖고 있다.
 
@@ -99,20 +101,29 @@ class MyServiceContract(ServiceContractTests, unittest.TestCase):
 
 ## 알려진 함정
 
-- **한글 경로**: MediaPipe는 모델 파일 경로에 한글이 하나라도 있으면 `model_asset_path`로 못 연다. `model_asset_buffer=open(경로, "rb").read()`로 넘긴다. (OpenCV는 한글 경로를 연다.)
-- **폰 영상의 회전 정보**: OpenCV 5는 기본으로 적용한다. 끄면 옆으로 누운 프레임이 되는데 MediaPipe가 그래도 사람을 찾아서, 각도가 조용히 틀린다.
+- **폰 사진의 회전 정보(EXIF)**: 읽을 때 반드시 똑바로 세운다 (`PIL.ImageOps.exif_transpose`). 안 하면 옆으로 누운 사람을 모델이 그래도 찾아서 각도가 조용히 틀린다. Pillow는 한글 경로도 연다.
+- **MoveNet 좌표**: 출력은 모델에 넣은 정사각형 영역(192×192) 기준 0~1이다. 원본 사진 좌표로 되돌려야 한다 (예제 `ml/movenet.py`의 `_run_detector`가 하는 일). 사진마다 독립이므로 `detect(사진, reset_crop_region=True)`로 이전 사진의 자르기 영역을 쓰지 않는다.
+- **MoveNet에 없는 점**: 발끝, 발뒤꿈치, 손가락. 5호의 '발끝보다 앞'(TP-05)과 REBA 손목은 이 점으로 못 잰다. 사람 확인으로 둔다.
+- **한 사람 모델**: 사진에 몇 사람이 있어도 한 명만 낸다. 사람 수를 알 수 없으니 촬영 안내로 막고, 결과 화면의 관절 겹쳐 보기로 사람이 확인한다.
+- **Windows 실행기**: LiteRT(`ai-edge-litert`)는 Windows 바퀴가 없다. TensorFlow의 `tf.lite.Interpreter`를 쓴다 (pose2의 `requirements.txt`가 같은 이유로 그렇게 나눠 둠).
 - **SQLite 버전**: `STRICT` 테이블은 3.37, JSON 함수 내장은 3.38부터다. 낮으면 `open_db`가 시작을 막는다.
 - **줄바꿈**: 생성 스크립트는 LF로 쓴다. 편집기에서 CRLF로 저장하면 변경 내역이 줄마다 바뀐 것으로 보인다.
 - **문서 그림 만들기**: Edge 155에서는 `--headless=new`만으로는 화면을 안 찍는다. `docs_src/render/render.py`가 필요한 옵션을 넣어 둔다 (프로필 폴더는 짧은 경로여야 한다).
+  그림을 찍은 헤드리스 Edge는 스스로 끝나지 않고 쌓인다 (2026-10-12 실측: 1,600여 개가 남아 프로필 폴더 삭제가 끝나지 않았다). `cleanup_profiles()`가 이 도구가 띄운 것만 끄고 폴더를 지운다. 사용자의 Edge는 건드리지 않는다.
 
-## 이 PC에서 확인해 둔 패키지 버전 (2026-10-08, Python 3.11.9)
+## 모델과 이 PC에서 확인해 둔 것 (2026-10-08, Python 3.11.9)
 
-Pose 담당이 설치할 때 쓴다. 서로 함께 설치되는 것을 확인했다. 아직 `requirements.txt`는 없다.
+모델은 **MoveNet Lightning** (singlepose, TFLite float16 v4, 입력 192×192, 관절 17개, 4.8MB)이다 (결정 D-MODEL-01).
+모델 파일은 정욱님 PC의 `pose2` 폴더에 있다 (`movenet_lightning.tflite`, TF Hub `lite-model/movenet/singlepose/lightning/tflite/float16/4`).
+모델 파일은 저장소에 넣지 않았다. 위 주소에서 받거나 `pose2/download_models.py`로 받는다.
+
+아직 `requirements.txt`는 없다. 이 PC의 Python에 설치되어 있는 것 (예제 래퍼로 아래 속도를 잼):
 
 ```text
-mediapipe==1.1.0
-opencv-contrib-python==5.0.0.93
+tensorflow==2.21.0
 numpy==2.4.6
+opencv-contrib-python==5.0.0.93
+pillow==12.2.0
 ```
 
-처리 속도 (i7-10700K, 720×1280, 프레임당, CPU): MediaPipe Lite 11.9ms · Full 16.0ms · Heavy 49.8ms.
+처리 속도 (i7-10700K, 4스레드, 사진 읽기 시간 제외, 한 장당): MoveNet Lightning 5.2ms · Thunder 12.0ms.

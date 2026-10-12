@@ -1,4 +1,4 @@
-"""ergo.contracts — 화면 ↔ 앱 코어 계약 v0.2 (API 계약서 ERGO-API-001)
+"""ergo.contracts — 화면 ↔ 앱 코어 계약 v0.3 (API 계약서 ERGO-API-001)
 
 규칙
 - 값(Enum)은 ERD(ERGO-DD-001)의 코드값과 같다.
@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Protocol, Sequence
 
-CONTRACT_VERSION = "0.2"
+CONTRACT_VERSION = "0.3"
 
 
 # ---------------------------------------------------------------- 코드 (ERD 4.4)
@@ -124,11 +124,11 @@ class FinalStatus(str, Enum):
 
 class ReviewReason(str, Enum):
     JITTER = "JITTER"
-    INVALID_FRAMES = "INVALID_FRAMES"
+    INVALID_STILLS = "INVALID_STILLS"
     INTERPRETATION = "INTERPRETATION"
-    MULTI_PERSON = "MULTI_PERSON"
     LEGS_CUT = "LEGS_CUT"
     KNEE_ON_FLOOR = "KNEE_ON_FLOOR"
+    SMALL_SAMPLE = "SMALL_SAMPLE"        # 표본(사진)이 TP-12보다 적어 자세 비율을 믿기 어려움
 
 
 class Exclusion(str, Enum):
@@ -162,8 +162,8 @@ class AiResult(str, Enum):
 # API 계약서 8절의 오류·알림 코드 (E 오류 · W 경고 알림 · I 안내). 8절 표와 같아야 한다 (docs_src가 자동으로 대조한다)
 ERROR_CODES = frozenset({
     "E-INPUT-001", "E-INPUT-002", "E-INPUT-003", "E-NOTFOUND-001",
-    "E-VIDEO-001", "W-VIDEO-002", "E-VIDEO-003", "E-VIDEO-004",
-    "E-ANALYSIS-001", "W-ANALYSIS-002", "W-ANALYSIS-003", "E-ANALYSIS-004", "I-ANALYSIS-005", "E-ANALYSIS-009",
+    "E-STILL-001", "W-STILL-002", "E-STILL-003", "E-STILL-004",
+    "E-ANALYSIS-001", "W-ANALYSIS-003", "E-ANALYSIS-004", "I-ANALYSIS-005", "E-ANALYSIS-009",
     "E-CONFIRM-001", "E-CONFIRM-002", "E-CONFIRM-003", "E-THRESHOLD-001",
     "E-EXPORT-001", "E-DB-001", "E-DB-002", "W-GPT-001",
 })
@@ -327,18 +327,16 @@ class TaskInputBundle:                    # S03 화면을 채우는 값 (get_tas
     lift_positions: tuple[LiftPositionInput, ...]
 
 
-# ---------------------------------------------------------------- 영상과 분석
+# ---------------------------------------------------------------- 사진과 분석
 @dataclass(frozen=True)
-class VideoInfo:
-    video_id: Optional[int]               # inspect_video는 None (아직 저장 전)
+class StillInfo:                          # still. MVP의 분석 입력은 사진(스틸샷)이다 (기능정의서 D-MVP-01)
+    still_id: Optional[int]               # inspect_still은 None (아직 저장 전)
+    still_no: Optional[int]               # 단위작업 안의 사진 순번 (1부터). inspect_still은 None
     file_path: str
     file_name: str
-    duration_s: float
-    fps: float
-    frame_cnt: int
     width_px: int
     height_px: int
-    rotation_deg: int
+    rotation_deg: int                     # 사진에 적힌 회전 정보 (EXIF). 분석은 똑바로 세워서 한다
     consent_yn: bool
     notices: tuple[Notice, ...] = ()
 
@@ -347,16 +345,16 @@ class VideoInfo:
 class RunHandle:
     run_id: int
     unit_task_id: int
-    video_id: int
     model_id: int
+    still_cnt: int                        # 이번 분석에 쓰는 사진 수 (표본 수)
 
 
 @dataclass(frozen=True)
 class Progress:
     run_id: int
     stage: Stage
-    processed_frames: int
-    total_frames: int
+    processed_stills: int
+    total_stills: int
     percent: float                        # 0 ~ 100
     eta_s: Optional[float] = None
     error_code: Optional[str] = None      # stage == FAILED일 때
@@ -367,18 +365,13 @@ ProgressCallback = Callable[[Progress], None]
 
 
 @dataclass(frozen=True)
-class PostureSegment:                     # S06 시간 막대의 한 구간
-    item_cd: str                          # 예: WAIST_FLEX, NECK_FLEX, P3_UNION, SQUAT, INVALID(판별 불가)
-    start_frame_no: int
-    end_frame_no: int                     # 이 프레임까지 포함
-
-
-@dataclass(frozen=True)
-class PostureTimeline:                    # S06 시간 막대 (get_posture_timeline). 저장하지 않고 계산한다
-    run_id: int
-    fps: float
-    frame_cnt: int
-    segments: tuple[PostureSegment, ...]
+class StillResult:                        # S06 사진 목록의 한 장 (get_still_results). 저장하지 않고 계산한다
+    still_id: int
+    still_no: int
+    valid_yn: bool                        # 판별에 쓸 관절이 보이는 사진인가. False면 표본에서 뺀다
+    flagged_items: tuple[str, ...]        # 이 사진에서 해당한 자세 항목. 예: WAIST_FLEX, NECK_FLEX, P3_UNION, SQUAT
+    reba_score: Optional[int]             # 이 사진 한 장의 REBA (valid_yn이 False면 None)
+    is_key_yn: bool                       # 대표 사진인가
 
 
 # ---------------------------------------------------------------- 결과와 판정
@@ -459,10 +452,12 @@ class TaskResult:                         # S06
     unit_task_id: int
     run: Optional[RunHandle]
     run_status_cd: Optional[RunStatus]
-    invalid_ratio: Optional[float]
+    still_cnt: int                        # 분석한 사진 수 (표본 수). 분석 전이면 0
+    valid_still_cnt: int                  # 그중 판별에 쓴 사진 수
+    invalid_ratio: Optional[float]        # 판별 불가 사진 ÷ 전체 사진
     reba: Optional[RebaScore]
-    key_frame_no: Optional[int]
-    key_frame_jpeg: Optional[bytes]       # 얼굴을 가린 JPEG만
+    key_still_id: Optional[int]           # 대표 사진
+    key_still_jpeg: Optional[bytes]       # 얼굴을 가린 JPEG만
     shares: tuple[PostureShare, ...]
     judgments: tuple[Judgment, ...]
     warnings: tuple[WarningItem, ...]
@@ -573,19 +568,20 @@ class ServiceAPI(Protocol):
     def get_task_inputs(self, unit_task_id: int) -> TaskInputBundle: ...
     def get_reba_inputs(self, unit_task_id: int) -> RebaInputs: ...
 
-    # 4.3 영상과 분석
-    def inspect_video(self, path: Path) -> VideoInfo: ...
-    def list_videos(self, unit_task_id: int) -> Sequence[VideoInfo]: ...
-    def attach_video(self, unit_task_id: int, path: Path, consent: bool, actor: str) -> VideoInfo: ...
-    def confirm_consent(self, video_id: int, actor: str) -> VideoInfo: ...
-    def start_analysis(self, unit_task_id: int, video_id: int, on_progress: ProgressCallback) -> RunHandle: ...
+    # 4.3 사진과 분석
+    def inspect_still(self, path: Path) -> StillInfo: ...
+    def list_stills(self, unit_task_id: int) -> Sequence[StillInfo]: ...
+    def attach_still(self, unit_task_id: int, path: Path, consent: bool, actor: str) -> StillInfo: ...
+    def detach_still(self, still_id: int, actor: str) -> None: ...
+    def confirm_consent(self, still_id: int, actor: str) -> StillInfo: ...
+    def start_analysis(self, unit_task_id: int, on_progress: ProgressCallback) -> RunHandle: ...
     def cancel_analysis(self, run_id: int) -> None: ...
 
     # 4.4 결과와 판정
     def get_task_result(self, unit_task_id: int) -> TaskResult: ...
-    def get_frame_preview(self, run_id: int, frame_no: int) -> bytes: ...
-    def get_posture_timeline(self, unit_task_id: int) -> PostureTimeline: ...
-    def set_key_frame(self, unit_task_id: int, frame_no: int, actor: str) -> TaskResult: ...
+    def get_still_preview(self, run_id: int, still_id: int) -> bytes: ...
+    def get_still_results(self, unit_task_id: int) -> Sequence[StillResult]: ...
+    def set_key_still(self, unit_task_id: int, still_id: int, actor: str) -> TaskResult: ...
     def confirm_judgment(self, unit_task_id: int, criterion_no: int, final_status: FinalStatus,
                          reason: Optional[str], actor: str) -> Judgment: ...
     def confirm_all(self, unit_task_id: int, actor: str) -> ConfirmAllResult: ...

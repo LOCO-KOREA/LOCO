@@ -77,7 +77,7 @@ font:700 11.5px/21px Arial,sans-serif;text-align:center;z-index:9;box-shadow:0 0
 .dlg .df{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;background:#F7F9FA}
 """
 
-TABS = ["조사", "작업", "영상", "결과", "판정", "내보내기", "설정"]
+TABS = ["조사", "작업", "사진", "결과", "판정", "내보내기", "설정"]
 
 
 def n(k):
@@ -165,7 +165,7 @@ screen(id="S01", name="조사 목록", tab="조사", fids=["F01-02", "F01-03"],
            (2, "조사 목록 표", "표", "list_surveys() → SurveySummary.survey_date, SurveySummary.survey_type_cd, SurveySummary.process_name, "
                "SurveySummary.work_name, SurveySummary.task_cnt, SurveySummary.draft_judgment_cnt, SurveySummary.status_cd, "
                "SurveySummary.next_regular_due_date", "조사일 최신순 (F01-02 규칙 2). 예정일은 정기·최초 조사의 확정일 + 3년, 수시조사는 '—' (F01-03, AC-03)"),
-           (3, "열기", "링크", "get_survey(survey_id) → S03. 마지막 상태 그대로 연다", "영상이 옮겨졌어도 결과는 보인다. 다시 분석할 때만 위치를 다시 고른다 (F01-02 규칙 4)"),
+           (3, "열기", "링크", "get_survey(survey_id) → S03. 마지막 상태 그대로 연다", "사진이 옮겨졌어도 결과는 보인다. 다시 분석할 때만 위치를 다시 고른다 (F01-02 규칙 4)"),
            (4, "삭제", "링크", "D04 → delete_survey(survey_id, actor)", "조사와 수정 이력이 함께 지워진다. 보존 기간을 확인하게 한다"),
            (5, "기록 보존 안내", "안내", "고정 문구", "NFR-014, BR-20"),
        ],
@@ -241,7 +241,7 @@ def _s03_head(active):
 
 screen(id="S03", name="단위작업과 작업 정보", tab="작업", fids=["F02-01", "F02-02", "F02-03", "F05-04"],
        purpose="단위작업을 등록하고, 판정에 필요한 값을 넣는다. 값을 넣으면 자동 저장되고 그 값을 쓰는 호가 바로 다시 판정된다.",
-       entry="S02 '저장하고 작업 등록', S01 '열기', S07 '입력하기', 탭 '작업'", exit="S04 (영상 올리기)",
+       entry="S02 '저장하고 작업 등록', S01 '열기', S07 '입력하기', 탭 '작업'", exit="S04 (사진 올리기)",
        html=frame("작업", _s03_left() + f'''
 <div class="col" style="flex:1">
  <div class="row"><h2>상자 들어 옮기기</h2><span class="note">작업 인원 2명 · 상시 (단기간작업도 간헐적인 작업도 아님)</span>
@@ -251,7 +251,7 @@ screen(id="S03", name="단위작업과 작업 정보", tab="작업", fids=["F02-
   <div class="row" style="align-items:flex-start;gap:16px">
    <div class="col" style="flex:1;gap:12px">
     <div class="fld">{n(6)}<label>하루 작업시간 *</label><div class="in">6<span class="unit">시간 (0~24)</span></div>
-     <span class="help">잔업을 포함한 1일 총 작업시간 (해설 1호 주1). 3·4·5호 하루 노출 = 영상 속 비율 × 이 값</span></div>
+     <span class="help">잔업을 포함한 1일 총 작업시간 (해설 1호 주1). 3·4·5호 하루 노출 = 사진 표본의 비율 × 이 값</span></div>
     <div class="fld">{n(7)}<label>4호 전제: 지지되지 않은 상태이거나 임의로 자세를 바꿀 수 없는 조건인가요?</label>
      <div class="seg" style="width:max-content"><span class="on">예</span><span>아니오</span></div>
      <span class="help">지지대 없이 버티거나, 작업하려면 모든 근로자가 그 자세를 취할 수밖에 없으면 '예' (해설 4호 주1·2)</span></div>
@@ -260,7 +260,7 @@ screen(id="S03", name="단위작업과 작업 정보", tab="작업", fids=["F02-
      <div class="fld" style="flex:1"><label>허리 비틀림 시간</label><div class="in err">7<span class="unit">시간/일</span></div><span class="err">하루 작업시간(6시간)보다 클 수 없습니다 (E-INPUT-001)</span></div></div>
    </div>
    <div class="col" style="width:330px;flex:none;gap:10px">
-    <div class="card" style="background:#F7F9FA">{n(9)}<h3>영상에서 잰 값 (읽기 전용)</h3>
+    <div class="card" style="background:#F7F9FA">{n(9)}<h3>사진에서 잰 값 (읽기 전용)</h3>
      <table class="tbl"><tr><th>자세</th><th>비율</th><th>하루 노출</th></tr>
       <tr><td>4호 허리 굽힘 20°↑</td><td>35%</td><td><b style="color:var(--risk)">2.10시간</b></td></tr>
       <tr><td>4호 목 굽힘 20°↑</td><td>12%</td><td>0.72시간</td></tr>
@@ -272,7 +272,7 @@ screen(id="S03", name="단위작업과 작업 정보", tab="작업", fids=["F02-
    </div>
   </div>
  </div>
- <div class="row" style="justify-content:flex-end"><span class="btn p">{n(11)}영상 올리기 →</span></div>
+ <div class="row" style="justify-content:flex-end"><span class="btn p">{n(11)}사진 올리기 →</span></div>
 </div>
 <div class="toast" style="bottom:54px">{n(12)}저장됨 · 하루 작업시간 5 → 6 · <b>4호 비해당 → 해당 (초안)</b> · 경고 1개 새로 뜸</div>''',
                   task=False, foot_right="자동 저장됨 · 14:05"),
@@ -292,17 +292,17 @@ screen(id="S03", name="단위작업과 작업 정보", tab="작업", fids=["F02-
             "0~24. 비우면 3·4·5호가 '입력 필요' (AC-05). 25를 넣으면 저장하지 않고 칸 아래 E-INPUT-001"),
            (7, "4호 전제", "예 / 아니오", "TaskInputs.unsupported_posture_yn", "비우면 4호는 '입력 필요'. '아니오'면 노출이 길어도 4호 비해당 (AC-23, BR-09)"),
            (8, "목 · 허리 비틀림 시간", "숫자 2칸", "TaskInputs.neck_twist_h, TaskInputs.waist_twist_h",
-            "측면 영상으로는 못 재서 조사자가 넣는다. 하루 작업시간보다 크면 저장하지 않는다 (E-INPUT-001, ERD 시험 M22)"),
-           (9, "영상에서 잰 값", "표 (읽기 전용)", "get_task_result(unit_task_id) → TaskResult.shares (PostureShare.share_ratio, PostureShare.exposure_h)",
-            "영상 분석 전에는 '영상을 분석하면 채워집니다'. 시간은 소수 둘째 자리 (F04-05 규칙 5)"),
+            "사진 한 장으로는 못 재서 조사자가 넣는다. 하루 작업시간보다 크면 저장하지 않는다 (E-INPUT-001, ERD 시험 M22)"),
+           (9, "사진에서 잰 값", "표 (읽기 전용)", "get_task_result(unit_task_id) → TaskResult.shares (PostureShare.share_ratio, PostureShare.exposure_h)",
+            "사진 분석 전에는 '사진을 분석하면 채워집니다'. 비율은 사진 표본의 비율이다. 시간은 소수 둘째 자리 (F04-05 규칙 5)"),
            (10, "이 작업의 판정", "상태 배지", "TaskResult.judgments (Judgment.computed_status_cd를 상태별로 셈)", "누르면 S07"),
-           (11, "영상 올리기", "버튼 (주)", "S04로 이동", "—"),
+           (11, "사진 올리기", "버튼 (주)", "S04로 이동", "—"),
            (12, "다시 계산 알림", "알림 (5초)", "save_* 함수가 돌려준 RecalcResult.changes (JudgmentChange.before → JudgmentChange.after), "
                "RecalcResult.warnings_raised, RecalcResult.warnings_cleared",
             "확정이 풀리면 노란 알림 \"4호 확정이 풀렸습니다 (수정 이력에 남음)\" (JudgmentChange.unconfirmed, API 2.2절)"),
        ],
        states=["단위작업이 없으면 오른쪽에 \"단위작업을 먼저 추가하세요\"와 '+ 단위작업 추가'",
-               "작업 기간 구분이 단기간·간헐이면 입력 칸 위에 띠: \"단기간작업이라 11개 호를 모두 비해당으로 판정합니다 (BR-02). 영상 분석과 REBA는 그대로 보여 줍니다.\"",
+               "작업 기간 구분이 단기간·간헐이면 입력 칸 위에 띠: \"단기간작업이라 11개 호를 모두 비해당으로 판정합니다 (BR-02). 사진 분석과 REBA는 그대로 보여 줍니다.\"",
                "저장은 칸에서 벗어나거나 Enter를 누를 때 한다 (자동 저장, F01-02 규칙 1). 범위 밖 값은 저장하지 않고 이전 값을 지킨다"])
 
 # ---------------------------------------------------------------- S03-2 들기 탭
@@ -355,100 +355,113 @@ screen(id="S03-2", name="단위작업과 작업 정보 · 들기 탭", tab="작�
        ],
        states=["다른 탭(키보드·반복, 손, 충격)도 같은 모양이다: 왼쪽에 입력 카드, 오른쪽에 해설과 그 탭의 판정"])
 
-# ---------------------------------------------------------------- S04 영상 올리기
-screen(id="S04", name="영상 올리기", tab="영상", fids=["F03-01", "F03-02", "F03-03", "F03-04"],
-       purpose="찍어 둔 작업 영상을 고르고, 촬영 동의를 확인한 뒤 분석을 시작한다.",
-       entry="S03 '영상 올리기', 탭 '영상'", exit="S05 (분석 시작)",
-       html=frame("영상", f'''
+# ---------------------------------------------------------------- S04 사진 올리기
+screen(id="S04", name="사진 올리기", tab="사진", fids=["F03-01", "F03-02", "F03-03", "F03-04"],
+       purpose="작업 중에 찍은 사진 여러 장(표본)을 고르고, 촬영 동의를 확인한 뒤 분석을 시작한다.",
+       entry="S03 '사진 올리기', 탭 '사진'", exit="S05 (분석 시작)",
+       html=frame("사진", f'''
 <div class="col" style="flex:1.35">
- <h2>영상 올리기 · 상자 들어 옮기기</h2>
- <div class="card" style="border:2px dashed #AEB9C4;background:#fff;height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">{n(1)}
-  <div style="font-size:30px;color:#8E9AA6">⇪</div><div>작업 영상을 여기에 끌어 놓거나 <span class="btn s">파일 고르기</span></div><div class="help">mp4 · mov</div></div>
- <div class="card">{n(2)}<h3>고른 영상</h3>
-  <div class="row" style="gap:18px;font-size:12.5px"><b>상자옮기기_측면.mp4</b><span>32초</span><span>30fps · 960프레임</span><span>1080×1920</span>
+ <h2>사진 올리기 · 상자 들어 옮기기</h2>
+ <div class="card" style="border:2px dashed #AEB9C4;background:#fff;height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">{n(1)}
+  <div style="font-size:30px;color:#8E9AA6">⇪</div><div>작업 사진을 여기에 끌어 놓거나 <span class="btn s">파일 고르기</span></div><div class="help">jpg · png · 여러 장을 한 번에</div></div>
+ <div class="card">{n(2)}<h3>고른 사진</h3>
+  <div class="row" style="gap:18px;font-size:12.5px"><b>상자옮기기_측면_22.jpg</b><span>1080×1920</span>
    <span class="badge b-na">회전 정보 90° → 바로 세워서 분석</span></div></div>
- <div class="card">{n(3)}<h3>이 단위작업의 영상</h3>
-  <table class="tbl"><tr><th>파일</th><th>길이</th><th>동의</th><th>결과</th></tr>
-   <tr><td>상자옮기기_측면.mp4</td><td>32초</td><td>10-23 13:58 확인</td><td><span class="badge b-ok">지금 결과에 쓴 영상</span></td></tr>
-   <tr><td>상자옮기기_측면_2.mov</td><td>8초</td><td>아직</td><td><span class="badge b-rev">짧은 영상</span></td></tr></table></div>
+ <div class="card">{n(3)}<h3>이 단위작업의 사진 · 22장</h3>
+  <table class="tbl"><tr><th>순번</th><th>파일</th><th>동의</th><th>결과</th><th></th></tr>
+   <tr><td>1</td><td>상자옮기기_측면_01.jpg</td><td>10-23 13:58 확인</td><td><span class="badge b-ok">지금 결과에 쓴 사진</span></td><td><span class="lnk">빼기</span></td></tr>
+   <tr><td>…</td><td>…</td><td>…</td><td>…</td><td></td></tr>
+   <tr><td>22</td><td>상자옮기기_측면_22.jpg</td><td>아직</td><td><span class="badge b-rev">새 사진 · 다시 분석 필요</span></td><td><span class="lnk">빼기</span></td></tr></table></div>
 </div>
 <div class="col" style="flex:1">
- <div class="card">{n(4)}<h3>잘 찍은 영상</h3>
-  <div class="col" style="gap:6px">✔ 옆모습으로 찍기<br>✔ 전신이 보이게 찍기<br>✔ 작업을 1~3회 반복해서 찍기<br>✔ 카메라를 수평으로 두기 (각도의 기준이 화면 세로선)</div></div>
+ <div class="card">{n(4)}<h3>잘 찍은 사진</h3>
+  <div class="col" style="gap:6px">✔ 한 사람만, 옆모습으로 찍기<br>✔ 전신이 보이고, 사람이 화면의 절반 이상이 되게 찍기<br>✔ 작업 중 여러 순간을 일정한 간격으로 찍기 (많을수록 비율이 정확)<br>✔ 카메라를 수평으로 두기 (각도의 기준이 화면 세로선)</div></div>
  <div class="card">{n(5)}<span class="chk"><i class="box on"></i><b>촬영 대상자에게 목적을 설명하고 동의를 받았습니다</b></span>
   <div class="help" style="margin-top:6px">확인한 시각을 남깁니다. 동의를 확인해야 분석을 시작할 수 있습니다.</div></div>
- <div class="card">{n(6)}<h3>관절 모델</h3><div class="help">MediaPipe Pose Full 1.1.0 · 설정(S09)에서 바꿉니다</div></div>
+ <div class="card">{n(6)}<h3>관절 모델</h3><div class="help">MoveNet Lightning · 이 프로그램은 이 모델만 씁니다</div></div>
  <div class="row" style="justify-content:flex-end;margin-top:auto"><span class="btn p">{n(7)}분석 시작</span></div>
 </div>''', task_n=None),
        rows=[
-           (1, "영상 고르기", "끌어 놓기 + 버튼", "inspect_video(path) → VideoInfo", "mp4·mov. 열 수 없으면 선택을 취소하고 E-VIDEO-001 (EX-01)"),
-           (2, "고른 영상 정보", "정보 줄", "VideoInfo.file_name, VideoInfo.duration_s, VideoInfo.fps, VideoInfo.frame_cnt, VideoInfo.width_px, "
-               "VideoInfo.height_px, VideoInfo.rotation_deg, VideoInfo.notices",
-            "회전 정보가 있으면 바로 세워 분석한다는 표시 (F03-01 규칙 2). 10초보다 짧으면 W-VIDEO-002 (TP-07, EX-02). 원본은 복사하지 않는다"),
-           (3, "이 단위작업의 영상", "표", "list_videos(unit_task_id) → VideoInfo.consent_yn. 지금 결과에 쓴 영상은 TaskResult.run (RunHandle.video_id)",
-            "영상이 옮겨졌으면 '위치를 다시 고르기' (E-VIDEO-004)"),
+           (1, "사진 고르기", "끌어 놓기 + 버튼", "inspect_still(path) → StillInfo", "jpg·png. 여러 장을 한 번에 고를 수 있다. 열 수 없으면 선택을 취소하고 E-STILL-001 (EX-01)"),
+           (2, "고른 사진 정보", "정보 줄", "StillInfo.file_name, StillInfo.width_px, StillInfo.height_px, StillInfo.rotation_deg, StillInfo.notices",
+            "회전 정보(EXIF)가 있으면 바로 세워 분석한다는 표시 (F03-01 규칙 2). 원본은 복사하지 않는다"),
+           (3, "이 단위작업의 사진", "표", "list_stills(unit_task_id) → StillInfo.still_no, StillInfo.file_name, StillInfo.consent_yn. "
+               "'빼기' → detach_still(still_id, actor). 지금 결과에 쓴 사진 수는 TaskResult.still_cnt",
+            "사진이 옮겨졌으면 '위치를 다시 고르기' (E-STILL-004). 사진이 5장(TP-12)보다 적으면 노란 배지 W-STILL-002 (EX-02). 뺀 사진은 목록에서 사라지고 이미 나온 결과는 그대로"),
            (4, "촬영 안내 4줄", "안내", "고정 문구", "F03-02, AC-08"),
-           (5, "촬영 동의", "체크", "고른 영상을 붙일 때 attach_video(unit_task_id, path, consent, actor), 붙인 뒤에는 confirm_consent(video_id, actor)",
-            "체크 전에는 '분석 시작'이 꺼져 있다 (AC-09, E-VIDEO-003). 확인 시각을 남긴다"),
-           (6, "관절 모델 표시", "정보", "get_settings() → Settings.pose_model_id, list_models() → PoseModel.model_name, PoseModel.model_version", "바꾸려면 S09"),
-           (7, "분석 시작", "버튼 (주)", "start_analysis(unit_task_id, video_id, on_progress) → RunHandle → S05",
-            "다른 분석이 돌고 있으면 E-ANALYSIS-004. 영상을 찾을 수 없으면 E-VIDEO-004"),
+           (5, "촬영 동의", "체크", "고른 사진을 붙일 때 attach_still(unit_task_id, path, consent, actor), 붙인 뒤에는 confirm_consent(still_id, actor)",
+            "체크 전에는 '분석 시작'이 꺼져 있다 (AC-09, E-STILL-003). 확인 시각을 남긴다"),
+           (6, "관절 모델 표시", "정보", "get_settings() → Settings.pose_model_id, list_models() → PoseModel.model_name, PoseModel.model_version",
+            "MVP는 MoveNet Lightning 하나 (D-MODEL-01)"),
+           (7, "분석 시작", "버튼 (주)", "start_analysis(unit_task_id, on_progress) → RunHandle → S05",
+            "다른 분석이 돌고 있으면 E-ANALYSIS-004. 사진이 없으면 버튼이 꺼져 있다 (E-INPUT-002)"),
        ],
-       states=["영상을 아직 고르지 않았으면 2·3번 카드 대신 촬영 안내만 크게 보인다"])
+       states=["사진을 아직 고르지 않았으면 2·3번 카드 대신 촬영 안내만 크게 보인다"])
 
 # ---------------------------------------------------------------- S05 분석 진행
-screen(id="S05", name="분석 진행", tab="영상", fids=["F03-04", "F04-01", "F04-02"],
+screen(id="S05", name="분석 진행", tab="사진", fids=["F03-04", "F04-01", "F04-02"],
        purpose="분석이 어디까지 됐는지 보여 주고, 취소할 수 있게 한다. 끝나면 결과 화면으로 넘어간다.",
        entry="S04 '분석 시작'", exit="S06 (끝남), S04 (취소·실패)",
-       html=frame("영상", f'''
+       html=frame("사진", f'''
 <div class="col" style="flex:1;align-items:center">
  <div class="card col" style="width:820px;gap:14px">
-  <h2>분석 중 · 상자옮기기_측면.mp4</h2>
-  <div class="r">{n(1)}<div style="height:22px;background:#D5DDE5;border-radius:11px;overflow:hidden"><div style="width:68%;height:100%;background:var(--orange)"></div></div>
-   <div class="row" style="margin-top:6px;font-size:12.5px"><b>68%</b><span>관절 찾기 · 얼굴 가림</span><span>653 / 960 프레임</span><span style="margin-left:auto">남은 시간 약 9초</span></div></div>
+  <h2>분석 중 · 사진 21장</h2>
+  <div class="r">{n(1)}<div style="height:22px;background:#D5DDE5;border-radius:11px;overflow:hidden"><div style="width:67%;height:100%;background:var(--orange)"></div></div>
+   <div class="row" style="margin-top:6px;font-size:12.5px"><b>67%</b><span>관절 찾기 · 얼굴 가림</span><span>14 / 21 장</span><span style="margin-left:auto">남은 시간 약 2초</span></div></div>
   <div class="row" style="align-items:flex-start;gap:16px">
    <div class="r"><div style="background:#22303F;border-radius:10px;overflow:hidden">{figure(0.5, 840, 500)}</div>{n(2)}</div>
    <div class="col r" style="gap:8px;font-size:13px">{n(3)}
-    <div>✔ 영상 열기</div><div><b style="color:var(--orange)">● 관절 찾기 · 얼굴 가림</b></div><div style="color:#9AA7B4">○ 각도 계산</div>
+    <div>✔ 사진 열기</div><div><b style="color:var(--orange)">● 관절 찾기 · 얼굴 가림</b></div><div style="color:#9AA7B4">○ 각도 계산</div>
     <div style="color:#9AA7B4">○ 자세 판별 · 판정 · REBA</div><div style="color:#9AA7B4">○ 저장</div>
-    <div class="help" style="margin-top:8px">얼굴은 자동으로 가립니다. 원본 영상은 바꾸지 않습니다.</div></div>
+    <div class="help" style="margin-top:8px">얼굴은 자동으로 가립니다. 원본 사진은 바꾸지 않습니다.</div></div>
   </div>
   <div class="row" style="justify-content:flex-end"><span class="btn">{n(4)}취소</span></div>
  </div>
 </div>'''),
        rows=[
-           (1, "진행 막대", "진행 표시", "on_progress로 받는 Progress.percent, Progress.stage, Progress.processed_frames, Progress.total_frames, Progress.eta_s",
-            "콜백은 분석 스레드에서 온다. 화면은 자기 스레드로 넘겨 그린다 (API 4.3절)"),
-           (2, "미리보기", "그림", "get_frame_preview(run_id, frame_no) — 지금 처리한 프레임 근처를 1초에 한 번", "얼굴을 가린 장면만 (BR-22)"),
+           (1, "진행 막대", "진행 표시", "on_progress로 받는 Progress.percent, Progress.stage, Progress.processed_stills, Progress.total_stills, Progress.eta_s",
+            "콜백은 분석 스레드에서 온다. 화면은 자기 스레드로 넘겨 그린다 (API 4.3절). 사진 몇 십 장은 몇 초면 끝난다"),
+           (2, "미리보기", "그림", "get_still_preview(run_id, still_id) — 지금 처리한 사진을 1초에 한 번", "얼굴을 가린 사진만 (BR-22)"),
            (3, "단계 목록", "목록", "Progress.stage (DECODE · KEYPOINT · ANGLE · JUDGE · SAVE)", "—"),
            (4, "취소", "버튼", "cancel_analysis(run_id) → I-ANALYSIS-005 → S04", "결과를 저장하지 않는다 (EX-07, AC-10)"),
        ],
        states=["실패하면 본문이 바뀐다: 마지막 Progress가 FAILED이고 Progress.error_code가 E-ANALYSIS-001이면 \"사람을 찾지 못했습니다…\" + '다시 찍는 방법', "
-               "E-ANALYSIS-009면 \"분석 중 문제가 생겼습니다\" + '다시 시도' · '영상 바꾸기'",
+               "E-ANALYSIS-009면 \"분석 중 문제가 생겼습니다\" + '다시 시도' · '사진 바꾸기'",
                "끝나면 (DONE) 자동으로 S06으로 넘어간다"])
+
+
+# 사진 목록 막대의 칸: 판별 가능 20장 중 7장이 허리 굽힘 (35%), 마지막 한 장은 판별 불가, 8번째가 대표 사진
+def _still_strip():
+    flagged_at = {1, 4, 7, 9, 12, 15, 18}   # 7번째 자리 = 대표 사진 (8번, 테두리)
+    cells, k = [], 0
+    for i in range(21):
+        if i == 20:
+            bg = "#8E9AA6"
+        else:
+            bg = "var(--orange)" if (k % 20) in flagged_at else "#D5DDE5"
+            k += 1
+        edge = "3px solid var(--navy)" if i == 7 else "1px solid #fff"
+        cells.append(f'<div style="width:22px;height:34px;border-radius:4px;background:{bg};border:{edge};box-sizing:border-box;'
+                     f'font-size:9px;color:#fff;text-align:center;line-height:34px">{i + 1}</div>')
+    return "".join(cells)
+
 
 # ---------------------------------------------------------------- S06 분석 결과와 경고
 screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "F04-03", "F04-04", "F04-05", "F04-06", "F04-07", "F05-02", "F05-03", "F05-04", "F06-02", "F06-03"],
-       purpose="대표 장면, REBA 점수, 법 문구의 자세별 하루 노출, 경고를 한 화면에서 본다. REBA 사람 입력과 대표 장면을 고칠 수 있다.",
+       purpose="대표 사진, REBA 점수, 법 문구의 자세별 하루 노출, 경고를 한 화면에서 본다. REBA 사람 입력과 대표 사진을 고칠 수 있다.",
        entry="S05 (분석이 끝남), 탭 '결과'", exit="S07 (판정 보기), D03 (REBA 입력)",
        html=frame("결과", f'''
 <div class="col" style="width:640px;flex:none">
  <div class="r"><div style="background:#22303F;border-radius:10px;overflow:hidden;height:330px;position:relative">{figure(0.74, 840, 500)}
   <span style="position:absolute;left:12px;top:10px;background:var(--risk);color:#fff;font-weight:700;border-radius:7px;padding:3px 10px">REBA 9</span>
-  <span style="position:absolute;right:12px;top:12px;color:#C9D3DC">대표 장면 · 7.2초 (REBA 가장 높음)</span></div>{n(1)}</div>
+  <span style="position:absolute;right:12px;top:12px;color:#C9D3DC">대표 사진 · 8번 (REBA 가장 높음)</span></div>{n(1)}</div>
  <div class="card r" style="padding:10px 12px">{n(2)}
-  <div style="position:relative;height:16px;background:#D5DDE5;border-radius:8px">
-   <div style="position:absolute;left:8%;width:12%;height:16px;background:var(--orange);border-radius:8px"></div>
-   <div style="position:absolute;left:40%;width:12%;height:16px;background:var(--orange);border-radius:8px"></div>
-   <div style="position:absolute;left:72%;width:11%;height:16px;background:var(--orange);border-radius:8px"></div>
-   <div style="position:absolute;left:58%;width:3%;height:16px;background:#8E9AA6;border-radius:4px"></div>
-   <div style="position:absolute;left:22.5%;top:-5px;width:3px;height:26px;background:var(--navy)"></div></div>
-  <div class="row" style="margin-top:6px;font-size:12px"><span><b style="color:var(--orange)">■</b> 허리 20° 이상 굽힘 (35%)</span><span><b style="color:#8E9AA6">■</b> 판별 불가 (3%)</span><span>│ 대표 장면</span>
+  <div class="row" style="gap:3px;flex-wrap:wrap">{_still_strip()}</div>
+  <div class="row" style="margin-top:6px;font-size:12px"><span><b style="color:var(--orange)">■</b> 허리 20° 이상 굽힘 (7장 / 20장 = 35%)</span><span><b style="color:#8E9AA6">■</b> 판별 불가 (1장)</span><span>┃ 대표 사진</span>
    <span style="margin-left:auto"><span class="badge b-na">자세 바꾸기: 허리 굽힘 ▾</span></span></div></div>
- <div class="card r row" style="padding:8px 12px">{n(3)}<span class="help">장면 고르기</span>
-  <div style="flex:1;height:4px;background:#AEB9C4;border-radius:2px;position:relative"><div style="position:absolute;left:22%;top:-6px;width:14px;height:14px;border-radius:50%;background:var(--navy)"></div></div>
-  <span class="help">216 / 960</span><span class="btn s">이 장면을 대표 장면으로</span></div>
- <div class="note">{n2(4)}MediaPipe Pose Full 1.1.0 · 960프레임 · 판별 불가 3% · 각도 기준: 고용노동부 해설 (S09)</div>
+ <div class="card r row" style="padding:8px 12px">{n(3)}<span class="help">사진 고르기</span>
+  <span class="btn s">◀</span><span class="help">8 / 21</span><span class="btn s">▶</span><span class="btn s" style="margin-left:auto">이 사진을 대표 사진으로</span></div>
+ <div class="note">{n2(4)}MoveNet Lightning · 사진 21장 (판별 가능 20장) · 판별 불가 5% · 각도 기준: 고용노동부 해설 (S09)</div>
 </div>
 <div class="col" style="flex:1">
  <div class="card">{n(5)}<div class="row"><h3 style="margin:0">REBA</h3><span class="badge b-rev">임시 점수 · 손목 입력 전</span>
@@ -457,10 +470,10 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
    <span class="help">표 C 8 + 활동 1</span></div>
   <div class="help">목 2 · 몸통 4 · 다리 2 → 표 A 6 + 하중 2 = 점수 A 8 │ 위팔 3 · 아래팔 1 · 손목 <span class="badge b-rev">사람 확인</span> → 표 B 3 + 손잡이 0 = 점수 B 3</div></div>
  <div class="card">{n(7)}<h3>법 기준 자세의 하루 노출 (하루 작업시간 6시간)</h3>
-  <table class="tbl"><tr><th>호 · 자세</th><th>비율</th><th>하루 노출</th><th>기준</th></tr>
-   <tr><td>4호 허리 20° 이상 굽힘</td><td>35%</td><td><b style="color:var(--risk)">2.10시간</b></td><td>2시간 · 해설 4호 주3</td></tr>
-   <tr><td>3호 팔 (a~d 합산)</td><td>30%</td><td>1.80시간 <span class="badge b-rev">사람 확인</span></td><td>2시간 · 해설 3호 주1</td></tr>
-   <tr><td>5호 쪼그림</td><td>5%</td><td>0.30시간</td><td>2시간 · 해설 5호 주1</td></tr></table></div>
+  <table class="tbl"><tr><th>호 · 자세</th><th>비율 (사진)</th><th>하루 노출</th><th>기준</th></tr>
+   <tr><td>4호 허리 20° 이상 굽힘</td><td>35% (7/20장)</td><td><b style="color:var(--risk)">2.10시간</b></td><td>2시간 · 해설 4호 주3</td></tr>
+   <tr><td>3호 팔 (a~d 합산)</td><td>30% (6/20장)</td><td>1.80시간 <span class="badge b-rev">사람 확인</span></td><td>2시간 · 해설 3호 주1</td></tr>
+   <tr><td>5호 쪼그림</td><td>5% (1/20장)</td><td>0.30시간</td><td>2시간 · 해설 5호 주1</td></tr></table></div>
  <div class="card" style="background:#FFF4EB;border:2px solid var(--orange)">{n(8)}<b style="color:var(--risk)">경고</b>
   <div style="font-weight:700;font-size:14px;margin:4px 0">부담작업 4호 기준(하루 총 2시간)을 넘습니다.</div>
   <div class="help">허리 굽힘 35% × 하루 6시간 = 2.10시간</div>
@@ -470,14 +483,14 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
  <div class="row" style="justify-content:flex-end;margin-top:auto"><span class="btn p">{n(10)}판정 보기 →</span></div>
 </div>'''),
        rows=[
-           (1, "대표 장면", "그림", "get_task_result(unit_task_id) → TaskResult.key_frame_jpeg, TaskResult.key_frame_no, RebaScore.reba_score",
-            "얼굴을 가린 JPEG만 (BR-22). 기본은 REBA가 가장 높은 프레임 (F04-07 규칙 1)"),
-           (2, "자세 시간 막대", "막대", "get_posture_timeline(unit_task_id) → PostureTimeline.segments (PostureSegment.item_cd, PostureSegment.start_frame_no, PostureSegment.end_frame_no)",
-            "자세를 고르면 그 자세 구간을 칠한다. 판별 불가 구간은 회색. 각도 기준을 바꾸면 다시 계산된다"),
-           (3, "장면 고르기", "슬라이더 + 버튼", "get_frame_preview(run_id, frame_no)로 미리 보고, '이 장면을 대표 장면으로' → set_key_frame(unit_task_id, frame_no, actor)",
+           (1, "대표 사진", "그림", "get_task_result(unit_task_id) → TaskResult.key_still_jpeg, TaskResult.key_still_id, RebaScore.reba_score",
+            "얼굴을 가린 JPEG만 (BR-22). 기본은 REBA가 가장 높은 사진 (F04-07 규칙 1)"),
+           (2, "사진 목록 막대", "칸 목록", "get_still_results(unit_task_id) → StillResult.still_no, StillResult.valid_yn, StillResult.flagged_items, StillResult.reba_score, StillResult.is_key_yn",
+            "사진 한 장이 한 칸. 자세를 고르면 그 자세로 판별된 사진을 칠한다. 판별 불가는 회색, 대표 사진은 굵은 테두리. 각도 기준을 바꾸면 다시 계산된다"),
+           (3, "사진 고르기", "◀ ▶ + 버튼", "get_still_preview(run_id, still_id)로 미리 보고, '이 사진을 대표 사진으로' → set_key_still(unit_task_id, still_id, actor)",
             "바꾸면 REBA를 다시 계산하고 수정 이력에 남긴다 (AC-20)"),
-           (4, "분석 정보", "정보 줄", "RunHandle.model_id → PoseModel.model_name, TaskResult.invalid_ratio, TaskResult.notices",
-            "판별 불가 비율이 20%(TP-03)를 넘으면 노란 표시. 여러 사람·다리 잘림은 W-ANALYSIS-002 · W-ANALYSIS-003"),
+           (4, "분석 정보", "정보 줄", "RunHandle.model_id → PoseModel.model_name, TaskResult.still_cnt, TaskResult.valid_still_cnt, TaskResult.invalid_ratio, TaskResult.notices",
+            "판별 불가 비율이 20%(TP-03)를 넘으면 노란 표시. 판별 가능한 사진이 5장(TP-12)보다 적으면 W-STILL-002를 보이고 자세 비율로 정하는 호는 '사람 확인'. 다리 잘림은 W-ANALYSIS-003"),
            (5, "REBA 카드", "점수 + 단계", "TaskResult.reba → RebaScore.neck_score, RebaScore.trunk_score, RebaScore.legs_score, RebaScore.table_a_score, "
                "RebaScore.load_score, RebaScore.upper_arm_score, RebaScore.lower_arm_score, RebaScore.wrist_score, RebaScore.table_b_score, "
                "RebaScore.coupling_score, RebaScore.table_c_score, RebaScore.activity_score, RebaScore.reba_score, RebaScore.risk_level_cd, "
@@ -486,7 +499,7 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
            (6, "REBA 입력", "버튼", "D03", "—"),
            (7, "하루 노출 표", "표", "TaskResult.shares → PostureShare.item_cd, PostureShare.share_ratio, PostureShare.exposure_h, "
                "PostureShare.threshold_value, PostureShare.threshold_source_cd",
-            "각도 출처를 함께 보인다 (해설 / 조사자 변경). 확신도 때문에 '사람 확인'이면 노란 배지 (F05-02)"),
+            "비율은 사진 표본의 비율이라 '해당 사진 수 / 판별 가능 사진 수'를 함께 보인다. 각도 출처를 함께 보인다 (해설 / 조사자 변경). 확신도 때문에 '사람 확인'이면 노란 배지 (F05-02)"),
            (8, "경고", "강조 상자", "TaskResult.warnings → WarningItem.criterion_no, WarningItem.message_text, WarningItem.basis_text",
             "문구: \"부담작업 {N}호 기준({기준 요약})을 넘습니다.\" (F05-03). '사람 확인'인 호는 경고 대신 '확인 필요'. 인터넷이 없어도 뜬다 (AC-25)"),
            (9, "AI 조언", "문장 + 표시", "WarningItem.ai_text, WarningItem.ai_result_cd. '조언 받기' → request_warning_advice(warning_id) → AiTextResult.text, AiTextResult.is_ai. "
@@ -494,8 +507,9 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
             "GPT 문장에는 'AI 작성'. GPT를 쓸 수 없으면 기본 문구만 보이고 표시가 없다 (F06-03, W-GPT-001)"),
            (10, "판정 보기", "버튼 (주)", "S07로 이동", "—"),
        ],
-       states=["분석 결과가 없으면 \"영상을 분석하면 결과가 나옵니다\"와 'S04로'",
-               "분석 뒤 각도 기준이나 입력값이 바뀌면 화면이 저장된 각도로 다시 계산된 값으로 바뀐다 (영상을 다시 분석하지 않음, F05-04)"])
+       states=["분석 결과가 없으면 \"사진을 분석하면 결과가 나옵니다\"와 'S04로'",
+               "분석 뒤 각도 기준이나 입력값이 바뀌면 화면이 저장된 각도로 다시 계산된 값으로 바뀐다 (사진을 다시 분석하지 않음, F05-04)",
+               "분석 뒤 사진을 더하거나 뺐으면 위에 띠: \"사진이 바뀌었습니다. 다시 분석하면 반영됩니다\" (이미 나온 결과는 그대로 보임)"])
 
 # ---------------------------------------------------------------- S07 부담작업 판정
 _rows7 = [
@@ -581,7 +595,7 @@ screen(id="S08", name="결과와 엑셀 내보내기", tab="내보내기", fids=
   <div class="help">확정되지 않은 칸 31개는 '초안'으로 표시해서 내보냅니다.</div></div>
  <div class="r"><div class="card" style="padding:0;overflow:hidden">
   <div style="background:#1E7145;color:#fff;padding:6px 10px;font-size:12px">유해요인조사_2026-10-23_포장공정.xlsx</div>
-  <table class="tbl" style="font-size:11.5px"><tr><th>작업</th><th>REBA</th><th>위험</th><th>대표 장면</th></tr>
+  <table class="tbl" style="font-size:11.5px"><tr><th>작업</th><th>REBA</th><th>위험</th><th>대표 사진</th></tr>
    <tr><td>상자 들어 옮기기</td><td>9</td><td>높음</td><td><span style="display:inline-block;width:46px;height:28px;background:#22303F;border-radius:3px"></span></td></tr>
    <tr><td>선반 정리</td><td>6</td><td>보통</td><td><span style="display:inline-block;width:46px;height:28px;background:#22303F;border-radius:3px"></span></td></tr></table>
   <div class="row" style="gap:0;font-size:11px;border-top:1px solid var(--line)"><span style="padding:5px 10px">요약</span><span style="padding:5px 10px;background:#fff;font-weight:700;border-bottom:2px solid #1E7145">작업별 결과</span><span style="padding:5px 10px">경고 기록</span><span style="padding:5px 10px">판정 초안</span></div></div>{n(7)}</div>
@@ -602,13 +616,13 @@ screen(id="S08", name="결과와 엑셀 내보내기", tab="내보내기", fids=
 
 # ---------------------------------------------------------------- S09 설정
 screen(id="S09", name="설정", tab="설정", fids=["F07-01", "F07-02", "F07-03"],
-       purpose="관절 모델과 GPT 사용을 정하고, 열린 조사의 각도 기준(고용노동부 해설)을 보고 사유와 함께 바꾼다.",
+       purpose="쓰는 관절 모델을 확인하고, GPT 사용을 정하고, 열린 조사의 각도 기준(고용노동부 해설)을 보고 사유와 함께 바꾼다.",
        entry="탭 '설정' (언제든)", exit="D02 (각도 기준 변경)",
        html=frame("설정", f'''
 <div class="col" style="flex:1">
  <h2>설정</h2>
- <div class="card">{n(1)}<h3>관절 모델</h3><div class="in" style="width:420px">MediaPipe Pose Full · 1.1.0 · 관절 33개 (17개만 씀)<span class="unit">▾</span></div>
-  <div class="help" style="margin-top:4px">바꾸면 다음 분석부터 적용합니다. 이미 나온 결과는 그대로입니다.</div></div>
+ <div class="card">{n(1)}<h3>관절 모델</h3><div style="font-weight:700;font-size:14px">MoveNet Lightning · singlepose float16 v4 · 관절 17개</div>
+  <div class="help" style="margin-top:4px">이 프로그램은 이 모델만 씁니다. 분석 결과마다 모델 이름과 버전을 남깁니다.</div></div>
  <div class="card">{n(2)}<h3>자세 각도 기준 · 이 조사 (2026-10-23 정기조사)</h3>
   <table class="tbl"><tr><th>기준</th><th>값</th><th>출처</th><th></th></tr>
    <tr><td>목 굽힘 (수직 기준)</td><td>20° 이상</td><td>고용노동부 해설 4호 주3</td><td><span class="lnk">{n(3)}변경</span></td></tr>
@@ -624,14 +638,14 @@ screen(id="S09", name="설정", tab="설정", fids=["F07-01", "F07-02", "F07-03"
   <div class="fld">{n(5)}<label>모델</label><div class="in">(10/15 결정)<span class="unit">▾</span></div></div>
   <div class="fld">{n(6)}<label>API 키</label><div class="in">●●●●●●●●●●●● 저장됨<span class="unit">바꾸기 · 지우기</span></div>
    <span class="help">Windows 자격 증명 관리자에 저장합니다. DB·파일·엑셀에는 남기지 않습니다.</span></div>
-  <div class="help">{n2(7)}보내는 값: 호 번호, 기준 문구, 시간·비율·점수 숫자만. 영상, 이미지, 이름은 보내지 않습니다.</div></div>
+  <div class="help">{n2(7)}보내는 값: 호 번호, 기준 문구, 시간·비율·점수 숫자만. 사진, 이미지, 이름은 보내지 않습니다.</div></div>
  <div class="card r">{n(8)}<span class="chk"><i class="box on"></i><b>얼굴 가림</b></span> <span class="help">항상 켜짐 · 끌 수 없음</span></div>
- <div class="note">{n2(9)}저장 위치: %LOCALAPPDATA%\\ergo-assist · 계약 0.2</div>
+ <div class="note">{n2(9)}저장 위치: %LOCALAPPDATA%\\ergo-assist · 계약 0.3</div>
  <div class="row" style="justify-content:flex-end;margin-top:auto"><span class="btn p">{n(10)}저장</span></div>
 </div>''', task=False),
        rows=[
-           (1, "관절 모델", "고르기", "list_models() → PoseModel.model_name, PoseModel.model_version, PoseModel.keypoint_cnt. 저장은 save_settings(pose_model_id, gpt_enabled, gpt_model)",
-            "다음 분석부터 적용 (F07-01 규칙 2). 분석 결과마다 모델 이름과 버전을 남긴다 (AC-33)"),
+           (1, "관절 모델", "정보 (고를 수 없음)", "list_models() → PoseModel.model_name, PoseModel.model_version, PoseModel.keypoint_cnt. 저장할 때 save_settings(pose_model_id, ...)에는 지금 값을 그대로 넘긴다",
+            "MVP는 모델이 하나다 (D-MODEL-01). 모델을 더하면 이 칸이 고르기로 바뀐다. 분석 결과마다 모델 이름과 버전을 남긴다 (F07-01 규칙 4)"),
            (2, "각도 기준 표", "표", "get_thresholds(survey_id) → Threshold.threshold_cd, Threshold.value_deg, Threshold.source_label, Threshold.overridden_yn",
             "열린 조사가 없으면 기본값만 보이고 바꿀 수 없다. 쪼그려 앉기는 각도가 아니라서 표에 없다 (무릎이 발끝보다 앞, 해설 5호 주1)"),
            (3, "변경 · 기본값으로", "링크", "'변경' → D02 → set_threshold(...). '기본값으로' → reset_threshold(survey_id, threshold_cd, actor)",
@@ -660,7 +674,7 @@ dlg(id="D01", name="확정 · 확정 풀기 사유", w=900, h=560, fids=["F05-05
     html=dialog("판정 확정 · 3호 팔을 들거나 뒤로 한 자세", f'''
 <div class="row">{n2(1)}<span class="badge b-rev">사람 확인</span><span style="font-size:12.5px">30% × 6시간 = 1.80시간 · 각도 ±5°면 1.50~2.28시간 (기준 2시간 근처)</span></div>
 <div class="fld">{n(2)}<label>확정할 결과 *</label><div class="row" style="gap:18px"><span class="chk"><i class="radio on"></i>해당</span><span class="chk"><i class="radio"></i>비해당</span></div></div>
-<div class="fld">{n(3)}<label>사유 *</label><div class="in" style="min-height:70px;align-items:flex-start">영상에서 팔꿈치가 어깨 높이에 머무는 구간을 직접 확인함. 선반 윗단 작업이 하루 대부분</div></div>
+<div class="fld">{n(3)}<label>사유 *</label><div class="in" style="min-height:70px;align-items:flex-start">사진에서 팔꿈치가 어깨 높이에 머무는 것을 직접 확인함. 선반 윗단 작업이 하루 대부분</div></div>
 <div class="help">{n2(4)}확정자: 홍길동 (조사자) · 확정 시각과 사유가 수정 이력에 남습니다.</div>''',
                 f'<span class="btn">취소</span><span class="btn p">{n(5)}확정</span>'),
     rows=[
@@ -691,7 +705,7 @@ dlg(id="D02", name="각도 기준 변경", w=900, h=560, fids=["F07-02"],
     ])
 
 dlg(id="D03", name="REBA 사람 입력", w=1000, h=700, fids=["F04-06"],
-    purpose="영상으로 재기 어려운 REBA 항목을 조사자가 넣는다. 넣으면 REBA만 다시 계산한다 (판정에는 쓰지 않음).",
+    purpose="사진으로 재기 어려운 REBA 항목을 조사자가 넣는다. 넣으면 REBA만 다시 계산한다 (판정에는 쓰지 않음).",
     html=dialog("REBA 사람 입력 · 상자 들어 옮기기", f'''
 <div class="row" style="gap:14px;align-items:flex-start">
  <div class="col" style="flex:1;gap:10px">
@@ -702,7 +716,7 @@ dlg(id="D03", name="REBA 사람 입력", w=1000, h=700, fids=["F04-06"],
  </div>
  <div class="col" style="flex:1;gap:10px">
   <div class="fld">{n(5)}<label>다리 지지</label><div class="seg" style="width:max-content"><span class="on">양발</span><span>한 발 · 불안정</span></div></div>
-  <div class="fld">{n(6)}<label>팔</label><div class="row" style="gap:14px"><span class="chk"><i class="box"></i>어깨 올림</span><span class="chk"><i class="box"></i>위팔 벌림 (정면 영상 필요)</span><span class="chk"><i class="box"></i>팔 받침·기댐</span></div></div>
+  <div class="fld">{n(6)}<label>팔</label><div class="row" style="gap:14px"><span class="chk"><i class="box"></i>어깨 올림</span><span class="chk"><i class="box"></i>위팔 벌림 (정면 사진 필요)</span><span class="chk"><i class="box"></i>팔 받침·기댐</span></div></div>
   <div class="fld">{n(7)}<label>활동</label><div class="col" style="gap:4px"><span class="chk"><i class="box"></i>1분 넘게 정적 자세</span><span class="chk"><i class="box on"></i>분당 4회 넘는 작은 반복</span><span class="chk"><i class="box"></i>급격한 큰 자세 변화 · 불안정</span></div></div>
  </div>
 </div>
@@ -711,10 +725,10 @@ dlg(id="D03", name="REBA 사람 입력", w=1000, h=700, fids=["F04-06"],
     rows=[
         (1, "하중 · 충격", "숫자 + 체크", "RebaInputs.load_kg, RebaInputs.shock_yn", "REBA 5단계 (kg 구간)"),
         (2, "손잡이", "4단", "RebaInputs.coupling_cd", "REBA 11단계"),
-        (3, "손목", "2단 + 체크", "RebaInputs.wrist_flex_cd, RebaInputs.wrist_twist_yn", "영상 정확도가 낮아 조사자가 넣는다 (REBA 9단계)"),
+        (3, "손목", "2단 + 체크", "RebaInputs.wrist_flex_cd, RebaInputs.wrist_twist_yn", "MoveNet에는 손 점이 없어 조사자가 넣는다 (REBA 9단계)"),
         (4, "비틀림 · 옆 굽힘", "체크 2개", "RebaInputs.neck_twist_side_yn, RebaInputs.trunk_twist_side_yn", "REBA 1a · 2a"),
         (5, "다리 지지", "2단", "RebaInputs.legs_support_cd", "REBA 3단계"),
-        (6, "팔", "체크 3개", "RebaInputs.shoulder_raised_yn, RebaInputs.arm_abducted_yn, RebaInputs.arm_supported_yn", "벌림은 측면 영상으로 못 잰다 (OI-07)"),
+        (6, "팔", "체크 3개", "RebaInputs.shoulder_raised_yn, RebaInputs.arm_abducted_yn, RebaInputs.arm_supported_yn", "벌림은 측면 사진으로 못 잰다 (OI-07)"),
         (7, "활동", "체크 3개", "RebaInputs.act_static_yn, RebaInputs.act_repeat_yn, RebaInputs.act_rapid_yn", "REBA 13단계"),
         (8, "저장", "버튼 (주)", "열 때 get_reba_inputs(unit_task_id), 저장은 save_reba_inputs(unit_task_id, inputs, actor) → RecalcResult",
          "REBA만 다시 계산한다. 확정은 풀리지 않는다 (BR-15, API 2.2절)"),
@@ -743,7 +757,7 @@ dlg(id="D05", name="단위작업 추가 · 수정", w=900, h=560, fids=["F02-01"
 SMALL = [
     ("D04", "삭제 확인", "조사나 단위작업을 지우기 전에 한 번 더 묻는다.",
      [("문구 (조사)", "\"조사와 수정 이력이 모두 지워집니다. 기록 보존 기간(새 조사가 끝날 때까지, 신상정보가 있으면 5년)이 지났는지 확인하세요.\""),
-      ("문구 (단위작업)", "\"단위작업과 영상 분석 결과, 판정이 지워집니다. 수정 이력은 남습니다.\""),
+      ("문구 (단위작업)", "\"단위작업과 사진 기록, 분석 결과, 판정이 지워집니다. 수정 이력은 남습니다.\""),
       ("동작", "'삭제' → delete_survey(survey_id, actor) 또는 delete_unit_task(unit_task_id, actor). 기본 단추는 '취소'")]),
     ("D06", "참여자 추가", "면담에 참여한 근로자를 기록한다 (F02-03).",
      [("구분", "Participant.participant_type_cd (근로자 대표 · 해당 작업 근로자)"),
@@ -757,12 +771,11 @@ MESSAGE_PLACE = {
     "E-INPUT-002": ("S02 · D05 · D06 · S09", "그 칸 아래 빨간 글씨"),
     "E-INPUT-003": ("D05", "단위작업명 칸 아래"),
     "E-NOTFOUND-001": ("모든 화면", "화면 위 띠 + 목록으로 돌아감"),
-    "E-VIDEO-001": ("S04", "끌어 놓기 상자 아래. 선택을 취소"),
-    "W-VIDEO-002": ("S04", "고른 영상 정보 줄의 노란 배지"),
-    "E-VIDEO-003": ("S04", "'분석 시작'이 꺼져 있고, 누르면 동의 칸을 강조"),
-    "E-VIDEO-004": ("S04 · S06", "영상 목록의 그 줄에 '위치를 다시 고르기'"),
+    "E-STILL-001": ("S04", "끌어 놓기 상자 아래. 선택을 취소"),
+    "W-STILL-002": ("S04 · S06", "사진 목록 위와 분석 정보 줄의 노란 배지"),
+    "E-STILL-003": ("S04", "'분석 시작'이 꺼져 있고, 누르면 동의 칸을 강조"),
+    "E-STILL-004": ("S04 · S06", "사진 목록의 그 줄에 '위치를 다시 고르기'"),
     "E-ANALYSIS-001": ("S05", "본문이 실패 안내로 바뀜 + 다시 찍는 방법"),
-    "W-ANALYSIS-002": ("S06", "분석 정보 줄의 노란 배지"),
     "W-ANALYSIS-003": ("S06", "분석 정보 줄의 노란 배지"),
     "E-ANALYSIS-004": ("S04", "'분석 시작' 옆 알림"),
     "I-ANALYSIS-005": ("S04", "화면 아래 알림 (5초)"),
@@ -780,7 +793,7 @@ MESSAGE_PLACE = {
 OPEN_ITEMS = [
     ("UI-OI-01", "화면 도구 (D-API-01)가 정해지면 와이어프레임의 배치는 그대로 두고 모양만 도구에 맞춘다. Streamlit이면 탭이 위쪽 메뉴, PySide6면 창 위 탭", "10/14"),
     ("UI-OI-02", "기준 해상도. 발표 노트북 사양이 정해지면 바꿀 수 있음 (지금 1366×768, 최소 1280×720)", "10/16"),
-    ("UI-OI-03", "분석할 사람을 고르는 화면 (OI-08). 지금은 가장 크게 보이는 한 명 + '사람 확인'", "10/17"),
-    ("UI-OI-04", "분석 구간(작업 한 사이클)을 S04에서 지정할지 (OI-06). 지금은 영상 전체", "10/17"),
-    ("UI-OI-05", "정면 영상을 따로 받을지 (OI-07). 받으면 S04에 '정면 영상' 칸 추가", "10/17"),
+    ("UI-OI-03", "분석할 사람을 고르는 화면 (OI-08). MoveNet 한 사람 모델은 사람 수를 세지 못해 지금은 촬영 안내와 관절 겹쳐 보기로 사람이 확인한다", "10/17"),
+    ("UI-OI-04", "사진을 시간 간격으로 뽑는 영상 가져오기(영상 도입)와 분석 구간 지정 (OI-06). MVP 이후", "10/17"),
+    ("UI-OI-05", "정면 사진을 따로 받을지 (OI-07). 받으면 S04에 사진마다 '촬영 방향' 칸 추가", "10/17"),
 ]

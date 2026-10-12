@@ -1,4 +1,4 @@
-"""DB: 연결 규칙 (ERD 6.1절)과 제약 시험 30개 (ERD 9절)."""
+"""DB: 연결 규칙 (ERD 6.1절)과 제약 시험 32개 (ERD 9절)."""
 import importlib.util
 import sqlite3
 import tempfile
@@ -56,7 +56,7 @@ class OpenDb(unittest.TestCase):
 
 
 class ConstraintTests(unittest.TestCase):
-    """docs_src/erd/build_and_test.py의 30개 시험을 그대로 돌린다 (통과해야 할 8개, DB가 막아야 할 22개)."""
+    """docs_src/erd/build_and_test.py의 32개 시험을 그대로 돌린다 (통과해야 할 8개, DB가 막아야 할 24개)."""
 
     @classmethod
     def setUpClass(cls):
@@ -65,8 +65,8 @@ class ConstraintTests(unittest.TestCase):
         spec.loader.exec_module(mod)
         cls.results = mod.results
 
-    def test_at_least_30_cases(self):
-        self.assertGreaterEqual(len(self.results), 30)
+    def test_at_least_32_cases(self):
+        self.assertGreaterEqual(len(self.results), 32)
 
     def test_every_case_behaves_as_expected(self):
         for r in self.results:

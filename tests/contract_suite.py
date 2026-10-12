@@ -7,12 +7,13 @@
 
 시험용 데이터 (ERD 시험 데이터와 화면설계서의 예시와 같다)
     조사 1: 2026-10-23 정기조사, 포장공정. 확정된 판정 없음, 수정 이력 약간
-    단위작업 10 '상자 들어 옮기기' (상시): 하루 6시간, 15kg · 1명 · 하루 300회, 분석 결과가 있음 (허리 굽힘 35%)
+    단위작업 10 '상자 들어 옮기기' (상시): 하루 6시간, 15kg · 1명 · 하루 300회, 분석 결과가 있음
+        (사진 21장 중 판별 가능 20장, 허리 굽힘 7장 = 35%)
         판정 초안: 1호 입력 필요 · 3호 사람 확인 · 4호 해당 · 9호 해당 · 2·5호 확정(비해당)
         경고: 4호 (AI 문장이 이미 있음), 9호 (문장 없음)
     단위작업 11 '선반 정리' (상시): 입력 없음, 분석 없음
     단위작업 12 '수레 밀기' (단기간작업)
-    영상 100: 단위작업 10의 영상, 촬영 동의함
+    사진 100~120: 단위작업 10의 사진 21장, 촬영 동의함
 
 각 시험은 기능정의서의 수용 기준(AC)이나 API 계약서 8절의 오류 코드를 이름에 쓴다.
 """
@@ -28,7 +29,8 @@ from pathlib import Path
 from ergo import contracts as C
 from ergo.contracts import ErgoError
 
-SURVEY, TASK, TASK_SHORT, TASK_EMPTY, VIDEO = 1, 10, 12, 11, 100
+SURVEY, TASK, TASK_SHORT, TASK_EMPTY, STILL = 1, 10, 12, 11, 100
+MIN_SAMPLE = 5                           # TP-12
 BY = "홍길동"
 S = C.JudgmentStatus
 
@@ -86,16 +88,16 @@ class ServiceContractTests:
 
     def test_read_functions_return_the_contract_types(self):
         calls = {"list_surveys": (), "get_survey": (SURVEY,), "get_task_inputs": (TASK,), "get_reba_inputs": (TASK,),
-                 "list_videos": (TASK,), "get_task_result": (TASK,), "get_posture_timeline": (TASK,),
+                 "list_stills": (TASK,), "get_task_result": (TASK,), "get_still_results": (TASK,),
                  "list_edit_log": (SURVEY,), "get_thresholds": (SURVEY,), "get_settings": (), "list_models": ()}
         for name, args in calls.items():
             value = getattr(self.svc, name)(*args)
             ret = typing.get_type_hints(getattr(C.ServiceAPI, name), vars(C))["return"]
             self.assertTrue(_matches(value, ret), f"{name}이(가) {ret}이(가) 아닌 값을 돌려줌: {type(value)}")
 
-    def test_frame_preview_is_a_jpeg(self):
+    def test_still_preview_is_a_jpeg(self):
         run = self.svc.get_task_result(TASK).run
-        data = self.svc.get_frame_preview(run.run_id, 0)
+        data = self.svc.get_still_preview(run.run_id, STILL)
         self.assertIsInstance(data, bytes)
         self.assertEqual(data[:3], b"\xff\xd8\xff")
 
@@ -103,7 +105,7 @@ class ServiceContractTests:
         notices = []
         for t in (TASK, TASK_EMPTY, TASK_SHORT):
             notices += list(self.svc.get_task_result(t).notices)
-        for v in self.svc.list_videos(TASK):
+        for v in self.svc.list_stills(TASK):
             notices += list(v.notices)
         for n in notices:
             self.assertIn(n.code, C.ERROR_CODES)
@@ -213,10 +215,10 @@ class ServiceContractTests:
 
     def test_AC27_review_needs_a_reason(self):
         self.raises("E-CONFIRM-002", self.svc.confirm_judgment, TASK, 3, C.FinalStatus.APPLICABLE, None, BY)
-        j = self.svc.confirm_judgment(TASK, 3, C.FinalStatus.APPLICABLE, "영상에서 직접 확인함", BY)
+        j = self.svc.confirm_judgment(TASK, 3, C.FinalStatus.APPLICABLE, "사진에서 직접 확인함", BY)
         self.assertTrue(j.confirmed_yn)
         self.assertEqual(j.confirmed_by, BY)
-        self.assertEqual(j.confirm_reason_text, "영상에서 직접 확인함")
+        self.assertEqual(j.confirm_reason_text, "사진에서 직접 확인함")
 
     def test_a_different_result_than_the_draft_needs_a_reason(self):
         self.raises("E-CONFIRM-002", self.svc.confirm_judgment, TASK, 4, C.FinalStatus.NOT_APPLICABLE, None, BY)
@@ -273,17 +275,8 @@ class ServiceContractTests:
         self.assertEqual(theirs[C.ThresholdCode.NECK_FLEX].value_deg, 20.0)
         self.assertFalse(theirs[C.ThresholdCode.NECK_FLEX].overridden_yn)
 
-    # ---------------------------------------------------------------- 영상과 분석
-    def test_inspect_video_rejects_unknown_formats(self):
-        self.raises("E-VIDEO-001", self.svc.inspect_video, Path("D:/영상/메모.txt"))
-
-    def test_AC09_consent_is_required_before_analysis(self):
-        info = self.svc.attach_video(TASK, Path("D:/영상/새영상.mp4"), False, BY)
-        self.assertFalse(info.consent_yn)
-        self.raises("E-VIDEO-003", self.svc.start_analysis, TASK, info.video_id, lambda p: None)
-        self.assertTrue(self.svc.confirm_consent(info.video_id, BY).consent_yn)
-
-    def test_AC10_progress_never_goes_back_and_ends_with_done(self):
+    # ---------------------------------------------------------------- 사진과 분석
+    def run_analysis(self, svc, task):
         events, done = [], threading.Event()
 
         def cb(p):
@@ -291,14 +284,51 @@ class ServiceContractTests:
             if p.stage in (C.Stage.DONE, C.Stage.FAILED, C.Stage.CANCELED):
                 done.set()
 
-        handle = self.svc.start_analysis(TASK, VIDEO, cb)
-        self.assertEqual((handle.unit_task_id, handle.video_id), (TASK, VIDEO))
+        handle = svc.start_analysis(task, cb)
         self.wait(done)
+        return handle, events
+
+    def test_inspect_still_rejects_unknown_formats(self):
+        self.raises("E-STILL-001", self.svc.inspect_still, Path("D:/사진/메모.txt"))
+        self.raises("E-STILL-001", self.svc.attach_still, TASK, Path("D:/사진/작업영상.mp4"), True, BY)
+
+    def test_AC09_consent_is_required_before_analysis(self):
+        info = self.svc.attach_still(TASK, Path("D:/사진/새사진.jpg"), False, BY)
+        self.assertFalse(info.consent_yn)
+        self.raises("E-STILL-003", self.svc.start_analysis, TASK, lambda p: None)
+        self.assertTrue(self.svc.confirm_consent(info.still_id, BY).consent_yn)
+
+    def test_analysis_needs_at_least_one_still(self):
+        t = self.svc.create_unit_task(SURVEY, C.UnitTaskCreate("사진 없는 작업", 1, C.PeriodType.ONGOING))
+        self.raises("E-INPUT-002", self.svc.start_analysis, t.unit_task_id, lambda p: None)
+
+    def test_attach_numbers_stills_in_order_and_warns_about_a_small_sample(self):
+        t = self.svc.create_unit_task(SURVEY, C.UnitTaskCreate("표본 시험 작업", 1, C.PeriodType.ONGOING))
+        a = self.svc.attach_still(t.unit_task_id, Path("D:/사진/a.jpg"), True, BY)
+        b = self.svc.attach_still(t.unit_task_id, Path("D:/사진/b.png"), True, BY)
+        self.assertEqual((a.still_no, b.still_no), (1, 2))
+        self.assertTrue(any(n.code == "W-STILL-002" for n in b.notices), "표본이 TP-12보다 적으면 알려야 한다")
+        listed = self.svc.list_stills(t.unit_task_id)
+        self.assertEqual([s.still_no for s in listed], [1, 2])
+
+    def test_detach_removes_the_still_from_the_sample_but_keeps_the_result(self):
+        before = self.svc.list_stills(TASK)
+        self.svc.detach_still(before[-1].still_id, BY)
+        after = self.svc.list_stills(TASK)
+        self.assertEqual(len(after), len(before) - 1)
+        self.assertEqual(self.svc.get_task_result(TASK).still_cnt, len(before))     # 이미 나온 결과는 그대로
+        self.raises("E-NOTFOUND-001", self.svc.detach_still, before[-1].still_id, BY)
+
+    def test_AC10_progress_never_goes_back_and_ends_with_done(self):
+        handle, events = self.run_analysis(self.svc, TASK)
+        self.assertEqual((handle.unit_task_id, handle.still_cnt), (TASK, len(self.svc.list_stills(TASK))))
         self.assertEqual(events[-1].stage, C.Stage.DONE)
         self.assertEqual(events[-1].percent, 100.0)
         pct = [e.percent for e in events]
         self.assertEqual(pct, sorted(pct))
-        self.assertTrue(all(e.run_id == handle.run_id for e in events))
+        done_cnt = [e.processed_stills for e in events]
+        self.assertEqual(done_cnt, sorted(done_cnt))
+        self.assertTrue(all(e.run_id == handle.run_id and e.total_stills == handle.still_cnt for e in events))
 
     def test_AC10_cancel_stops_without_a_new_result(self):
         svc = self.make_service(progress_delay_s=0.1)
@@ -310,7 +340,7 @@ class ServiceContractTests:
             if p.stage in (C.Stage.DONE, C.Stage.FAILED, C.Stage.CANCELED):
                 done.set()
 
-        handle = svc.start_analysis(TASK, VIDEO, cb)
+        handle = svc.start_analysis(TASK, cb)
         svc.cancel_analysis(handle.run_id)
         self.wait(done)
         self.assertEqual(events[-1].stage, C.Stage.CANCELED)
@@ -319,27 +349,70 @@ class ServiceContractTests:
     def test_only_one_analysis_at_a_time(self):
         svc = self.make_service(progress_delay_s=0.1)
         done = threading.Event()
-        h = svc.start_analysis(TASK, VIDEO, lambda p: done.set() if p.stage in (C.Stage.DONE, C.Stage.CANCELED, C.Stage.FAILED) else None)
-        self.raises("E-ANALYSIS-004", svc.start_analysis, TASK, VIDEO, lambda p: None)
+        h = svc.start_analysis(TASK, lambda p: done.set() if p.stage in (C.Stage.DONE, C.Stage.CANCELED, C.Stage.FAILED) else None)
+        self.raises("E-ANALYSIS-004", svc.start_analysis, TASK, lambda p: None)
         svc.cancel_analysis(h.run_id)
         self.wait(done)
 
-    # ---------------------------------------------------------------- 대표 장면
-    def test_AC20_key_frame_change_leaves_a_log_line(self):
+    def test_AC37_a_small_sample_makes_criterion_4_need_review(self):
+        """AC-37: 판별 가능한 사진이 TP-12보다 적으면 자세 비율로 정하는 4호는 '사람 확인'이다 (SMALL_SAMPLE)."""
+        t = self.svc.create_unit_task(SURVEY, C.UnitTaskCreate("표본 적은 작업", 1, C.PeriodType.ONGOING))
+        tid = t.unit_task_id
+        self.svc.save_task_inputs(tid, C.TaskInputs(daily_work_h=6.0, unsupported_posture_yn=True), BY)
+        for i in range(3):
+            self.svc.attach_still(tid, Path(f"D:/사진/표본{i}.jpg"), True, BY)
+        _, events = self.run_analysis(self.svc, tid)
+        self.assertEqual(events[-1].stage, C.Stage.DONE)
+        res = self.svc.get_task_result(tid)
+        self.assertLess(res.valid_still_cnt, MIN_SAMPLE)
+        j4 = self.judgment(res, 4)
+        self.assertEqual(j4.computed_status_cd, S.NEEDS_REVIEW)
+        self.assertEqual(j4.review_reason_cd, C.ReviewReason.SMALL_SAMPLE)
+        self.assertTrue(any(n.code == "W-STILL-002" for n in res.notices))
+
+    def test_AC37_exactly_the_minimum_number_of_valid_stills_is_enough(self):
+        """AC-37 경계: 판별 가능한 사진이 딱 TP-12장이면 '표본이 적다'로 보지 않는다 (SMALL_SAMPLE도 알림도 없다)."""
+        t = self.svc.create_unit_task(SURVEY, C.UnitTaskCreate("최소 표본 작업", 1, C.PeriodType.ONGOING))
+        tid = t.unit_task_id
+        self.svc.save_task_inputs(tid, C.TaskInputs(daily_work_h=6.0, unsupported_posture_yn=True), BY)
+        for i in range(MIN_SAMPLE):
+            self.svc.attach_still(tid, Path(f"D:/사진/최소{i}.jpg"), True, BY)
+        _, events = self.run_analysis(self.svc, tid)
+        self.assertEqual(events[-1].stage, C.Stage.DONE)
+        res = self.svc.get_task_result(tid)
+        self.assertEqual(res.valid_still_cnt, MIN_SAMPLE)
+        self.assertNotEqual(self.judgment(res, 4).review_reason_cd, C.ReviewReason.SMALL_SAMPLE)
+        self.assertFalse(any(n.code == "W-STILL-002" for n in res.notices))
+
+    def test_still_results_agree_with_the_posture_shares(self):
+        """자세 비율 = 그 자세로 판별된 사진 수 ÷ 판별 가능한 사진 수 (표본 비율, BR-05)."""
+        res = self.svc.get_task_result(TASK)
+        rows = self.svc.get_still_results(TASK)
+        self.assertEqual(len(rows), res.still_cnt)
+        self.assertEqual(sum(1 for r in rows if r.valid_yn), res.valid_still_cnt)
+        self.assertEqual([r.still_id for r in rows if r.is_key_yn], [res.key_still_id])
+        valid = [r for r in rows if r.valid_yn]
+        flagged = sum(1 for r in valid if "WAIST_FLEX" in r.flagged_items)
+        share = next(s for s in res.shares if s.item_cd == "WAIST_FLEX")
+        self.assertAlmostEqual(share.share_ratio, flagged / len(valid), places=9)
+        self.assertTrue(all(r.reba_score is None for r in rows if not r.valid_yn))
+
+    # ---------------------------------------------------------------- 대표 사진
+    def test_AC20_key_still_change_leaves_a_log_line(self):
         res = self.svc.get_task_result(TASK)
         n = len(self.svc.list_edit_log(SURVEY))
-        frame = 100 if res.key_frame_no != 100 else 101
-        after = self.svc.set_key_frame(TASK, frame, BY)
-        self.assertEqual(after.key_frame_no, frame)
+        other = next(s.still_id for s in self.svc.list_stills(TASK) if s.still_id != res.key_still_id)
+        after = self.svc.set_key_still(TASK, other, BY)
+        self.assertEqual(after.key_still_id, other)
         log = self.svc.list_edit_log(SURVEY)
         self.assertEqual(len(log), n + 1)
-        self.assertEqual(log[-1].target_cd, "KEY_FRAME")
-        self.raises("E-INPUT-001", self.svc.set_key_frame, TASK, 10 ** 9, BY)
+        self.assertEqual(log[-1].target_cd, "KEY_STILL")
+        self.raises("E-NOTFOUND-001", self.svc.set_key_still, TASK, 10 ** 9, BY)
 
     # ---------------------------------------------------------------- GPT와 설정
     def test_AC33_settings_persist(self):
-        self.svc.save_settings(3, False, None)
-        self.assertEqual(self.svc.get_settings().pose_model_id, 3)
+        self.svc.save_settings(1, False, None)
+        self.assertEqual(self.svc.get_settings().pose_model_id, 1)
         self.raises("E-INPUT-001", self.svc.save_settings, 999, False, None)
 
     def test_api_key_is_never_returned(self):
@@ -353,7 +426,7 @@ class ServiceContractTests:
 
     def test_AC35_gpt_off_gives_the_default_sentence_only(self):
         """GPT를 끄면 새 문장을 요청하지 않고 기본 문구만 나온다 (API 계약서 6.6절)."""
-        self.svc.save_settings(4, False, None)
+        self.svc.save_settings(1, False, None)
         warn = next(w for w in self.svc.get_task_result(TASK).warnings if w.ai_text is None)
         res = self.svc.request_warning_advice(warn.warning_id)
         self.assertFalse(res.is_ai)
@@ -363,7 +436,7 @@ class ServiceContractTests:
     def test_stored_ai_sentence_stays_when_gpt_is_turned_off(self):
         """이미 저장된 문장(조사자가 고친 것 포함)은 GPT를 꺼도 사라지지 않는다 (API 계약서 6.6절)."""
         warn = next(w for w in self.svc.get_task_result(TASK).warnings if w.ai_text is not None)
-        self.svc.save_settings(4, False, None)
+        self.svc.save_settings(1, False, None)
         again = next(w for w in self.svc.get_task_result(TASK).warnings if w.warning_id == warn.warning_id)
         self.assertEqual(again.ai_text, warn.ai_text)
         self.assertEqual(self.svc.request_warning_advice(warn.warning_id).text, warn.ai_text)
