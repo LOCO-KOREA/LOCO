@@ -1,0 +1,5 @@
+# 줄바꿈은 항상 LF (생성 스크립트도 LF로 쓴다). Windows에서 CRLF로 바뀌어 변경 내역이 지저분해지는 것을 막는다.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.drawio text

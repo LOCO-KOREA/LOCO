@@ -1,0 +1,49 @@
+{
+ "date": "2026-10-12",
+ "platform": "Windows-10-10.0.19045-SP0",
+ "python": "3.11.9",
+ "sqlite": "3.45.1",
+ "frames": 900,
+ "journal_mode": "wal",
+ "synchronous": "FULL",
+ "save_900_frames_ms": {
+  "median": 10.4,
+  "max": 12.3
+ },
+ "recalc_read_ms": 9.17,
+ "commit_per_frame_ms": 1.86,
+ "commit_per_frame_range_ms": [
+  1.75,
+  1.89
+ ],
+ "commit_per_frame_900_s": 1.7,
+ "build_big_s": 5.0,
+ "big_db_mb": 62.8,
+ "big_counts": {
+  "survey": 100,
+  "unit_task": 500,
+  "analysis_run": 500,
+  "frame_angle": 450000,
+  "judgment": 5500
+ },
+ "open_big_ms": 1.0,
+ "open_big_max_ms": 1.8,
+ "list_100_surveys_ms": 1.03,
+ "judgments_of_one_task_ms": 0.05,
+ "backup_big_s": 0.55,
+ "integrity_check": {
+  "result": "ok",
+  "s": 0.42
+ },
+ "vacuum_big_s": 0.9,
+ "concurrent": {
+  "writes": 40,
+  "write_median_ms": 8.3,
+  "write_max_ms": 40.8,
+  "reads": 238,
+  "read_median_ms": 1.63,
+  "read_max_ms": 4.8,
+  "errors": [],
+  "error_count": 0
+ }
+}

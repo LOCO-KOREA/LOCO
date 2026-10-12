@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+docs_src/.work/
+*.db
+*.db-wal
+*.db-shm
+ergo_assist_backup_*.db
