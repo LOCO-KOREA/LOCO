@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from ergo.db import open_db
-from ergo.engine.types import KEYPOINT_NAMES, FrameAngles
+from ergo.engine.types import KEYPOINT_NAMES, StillAngles
 from ergo.gpt.payload import FILTER_COLUMNS, SENT_COLUMNS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,15 +33,15 @@ class ErrorCodes(unittest.TestCase):
 
 
 class EngineTypes(unittest.TestCase):
-    def test_frame_angles_are_columns_of_frame_angle(self):
+    def test_still_angles_are_columns_of_still_angle(self):
         con = open_db()
         try:
-            cols = {r[1] for r in con.execute("PRAGMA table_xinfo(frame_angle)")}
+            cols = {r[1] for r in con.execute("PRAGMA table_xinfo(still_angle)")}
         finally:
             con.close()
-        fields = {f.name for f in dataclasses.fields(FrameAngles)}
+        fields = {f.name for f in dataclasses.fields(StillAngles)}
         self.assertEqual(fields - cols, set(), "DB에 없는 필드")
-        self.assertEqual(cols - fields - {"run_id"}, set(), "DB에는 있는데 FrameAngles에 없는 컬럼")
+        self.assertEqual(cols - fields - {"run_id"}, set(), "DB에는 있는데 StillAngles에 없는 컬럼")
 
     def test_seventeen_keypoints(self):
         self.assertEqual(len(KEYPOINT_NAMES), 17)

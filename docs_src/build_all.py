@@ -18,6 +18,7 @@ STEPS = [
     ("DB 아키텍처 설계서", "dba/gen_dba_doc.py"),
     ("API 계약서", "api/gen_api_doc.py"),
     ("화면설계서", "ui/gen_ui.py"),
+    ("화면 참고 이미지 2장", "ui/gen_ref_images.py"),
     ("일정서", "sched/gen_schedule.py"),
     ("팀원 읽기 안내", "team/gen_team_guide.py"),
 ]

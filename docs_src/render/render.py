@@ -51,7 +51,26 @@ def _shot(page: Path, out: Path, w: int, h: int, scale: float, budget: int, time
     raise RuntimeError(f"screenshot timed out: {out}")
 
 
+def _stop_leftover_browsers():
+    """_shot이 띄운 헤드리스 Edge는 그림을 찍어도 스스로 끝나지 않는다 (Edge 155부터).
+    그대로 두면 프로필 폴더를 쥔 채 쌓여서 폴더 삭제가 끝나지 않는다 (2026-10-12 실측: 1,600개).
+    이 PC에서 이 도구가 띄운 것만 (명령줄에 프로필 폴더가 들어 있는 것) 끈다. 사용자의 Edge는 건드리지 않는다."""
+    if os.name != "nt":
+        return
+    # 폴더 이름만 보면 다른 도구의 프로필(deck_ergo_edge_profile 등)까지 걸리므로 '부모\폴더\'까지 맞춘다. 한글 경로를 피하려고 뒤 두 토막만 쓴다
+    mark = f"\\{PROFILE.parent.name}\\{PROFILE.name}\\"
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+          f"Where-Object {{ $_.CommandLine -like '*{mark}*' }} | "
+          "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                       capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def cleanup_profiles():
+    _stop_leftover_browsers()
     shutil.rmtree(PROFILE, ignore_errors=True)
 
 

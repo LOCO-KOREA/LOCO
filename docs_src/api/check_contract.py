@@ -48,7 +48,7 @@ def cols(name):
 
 field_map = {
     "TaskInputs": ("task_input", set()), "RebaInputs": ("reba_input", set()),
-    "RebaScore": ("reba_result", {"needs_review_items"}), "VideoInfo": ("video", {"notices"}),
+    "RebaScore": ("reba_result", {"needs_review_items"}), "StillInfo": ("still", {"notices"}),
     "Threshold": ("v_effective_threshold", set()), "SurveySummary": ("v_survey_list", set()),
     "EditLogEntry": ("v_edit_log", set()), "UnitTask": ("unit_task", set()),
     "Participant": ("participant", set()), "JudgmentBasis": ("judgment_basis", set()),

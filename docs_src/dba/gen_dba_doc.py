@@ -49,9 +49,9 @@ problems = []
 # ---- 1. 저장 순서
 ORDER = [
     ("analysis_run", "시작할 때 이미 있음 (RUNNING). 끝날 때 상태와 완료 시각을 바꾼다"),
-    ("frame_angle", "프레임 수만큼. 한 번의 `executemany`"),
+    ("still_angle", "사진 수만큼 (표본). 한 번의 `executemany`"),
     ("reba_result", "분석 한 줄"),
-    ("key_frame_image", "얼굴을 가린 대표 장면 (BLOB)"),
+    ("key_still_image", "얼굴을 가린 대표 사진 (BLOB)"),
     ("judgment", "단위작업 × 11개 호. 이미 있으면 갱신 (`ON CONFLICT`)"),
     ("judgment_basis", "판정마다 근거 값"),
     ("warning", "'해당' 초안인 호마다. 기존 경고는 해소 시각을 채운다"),
@@ -106,7 +106,7 @@ FIG1 = '''flowchart LR
     XLS -->|"읽기만<br/>뷰"| REPO
   end
   REPO --> DB[("ergo_assist.db<br/>SQLite · WAL")]
-  VID["원본 영상<br/>사용자 폴더 · 읽기만"] --> ENG
+  PIC["원본 사진<br/>사용자 폴더 · 읽기만"] --> ENG
   XLS --> XF["엑셀 · DB 백업<br/>사용자 폴더"]
   GPT -->|"숫자와 법 문구만"| API["GPT API (인터넷)"]
   GPT -.-> CRED["Windows 자격 증명 관리자<br/>GPT 키는 여기에만 있다"]
@@ -140,11 +140,11 @@ fill = {
     "BENCH_DATE": SNAP["date"], "BENCH_ENV": f"Windows 10 · Python {SNAP['python']} · SQLite {SNAP['sqlite']}",
     "MIN_SQLITE": MIN_SQLITE, "SCHEMA_VERSION": SCHEMA_VERSION,
     "JOURNAL": SNAP["journal_mode"].upper(), "SYNC": SNAP["synchronous"],
-    "SAVE_MS": f1(SNAP["save_900_frames_ms"]["median"]), "SAVE_MAX": f1(SNAP["save_900_frames_ms"]["max"]),
-    "COMMIT_MS": f1(SNAP["commit_per_frame_ms"]), "COMMIT_900": f1(SNAP["commit_per_frame_900_s"]),
-    "COMMIT_RANGE": "~".join(f1(x) for x in SNAP["commit_per_frame_range_ms"]),
+    "SAVE_MS": f1(SNAP["save_30_stills_ms"]["median"]), "SAVE_MAX": f1(SNAP["save_30_stills_ms"]["max"]),
+    "COMMIT_MS": f1(SNAP["commit_per_still_ms"]), "COMMIT_30": f1(SNAP["commit_per_still_30_s"] * 1000),
+    "COMMIT_RANGE": "~".join(f1(x) for x in SNAP["commit_per_still_range_ms"]),
     "RECALC_MS": f1(SNAP["recalc_read_ms"]), "LIST_MS": f1(SNAP["list_100_surveys_ms"]), "JUDG_MS": f1(SNAP["judgments_of_one_task_ms"]),
-    "N_SURVEY": str(big["survey"]), "N_FRAMES": f"{big['frame_angle']:,}", "N_JUDG": f"{big['judgment']:,}",
+    "N_SURVEY": str(big["survey"]), "N_STILLS": f"{big['still_angle']:,}", "N_JUDG": f"{big['judgment']:,}",
     "BIG_MB": f1(SNAP["big_db_mb"]), "KB_PER_RUN": str(kb_per_run),
     "CONC_W": str(conc["writes"]), "CONC_R": str(conc["reads"]), "CONC_WMED": f1(conc["write_median_ms"]),
     "CONC_WMAX": f1(conc["write_max_ms"]), "CONC_RMED": f1(conc["read_median_ms"]), "CONC_RMAX": f1(conc["read_max_ms"]),

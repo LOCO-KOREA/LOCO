@@ -7,12 +7,12 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 번호 | ERGO-DD-001 |
-| 버전 | v0.1 (초안) |
+| 버전 | v0.2 (초안) |
 | 작성일 | 2026-10-12 |
 | 작성 | 한정욱 (데이터 담당) |
 | 검토 | 김나리 · 유서하 · 정혁 |
 | 상태 | 초안. 10/14 설계 1차에서 검토, 10/15 확정 |
-| 상위 문서 | 기능정의서 v0.3 (ERGO-FD-001), requirements.md |
+| 상위 문서 | 기능정의서 v0.4 (ERGO-FD-001), requirements.md |
 | 다음 문서 | API 계약서 (ERGO-API-001) |
 | DBMS | SQLite 3.45 (Python 3.11 내장 sqlite3). 서버 없이 PC에 파일 하나 |
 | 그림 원본 | `ERD.drawio` (draw.io로 열어 고칠 수 있음) · PNG는 `ERD_그림` 폴더 |
@@ -22,9 +22,10 @@
 
 | 버전 | 날짜 | 바뀐 내용 |
 |---|---|---|
-| v0.1 | 2026-10-12 | 초안. 3단계 스키마, 데이터 표준, 테이블 {{N_TABLE}}개, 뷰 {{N_VIEW}}개, 인덱스 {{N_INDEX}}개, 트리거 {{N_TRIGGER}}개. SQLite에서 만들어 시험함. API 계약서와 대조해 GPT 뷰(거르기용 번호, 조사의 단위작업 수)와 수정 이력 동작 코드의 뜻을 맞춤 |
+| v0.1 | 2026-10-12 | 초안. 3단계 스키마, 데이터 표준, 테이블 25개, 뷰 9개, 인덱스 14개, 트리거 7개. SQLite에서 만들어 시험함. API 계약서와 대조해 GPT 뷰(거르기용 번호, 조사의 단위작업 수)와 수정 이력 동작 코드의 뜻을 맞춤 |
 | v0.1 | 2026-10-12 | ERD를 그림으로: draw.io 파일 1개(5쪽)와 PNG 5장. 개념 ERD와 5.5절에서 ai_text의 두 부모를 '반드시 하나'로 적었던 것을 '없거나 하나'로 바로잡음 (외래키가 NULL 허용) |
 | v0.1.1 | 2026-10-12 | 고시 제2020-12호 원문 대조 (국가법령정보센터 현행 본문): criterion.legal_text의 3호·6호를 원문대로 고침 (띄어쓰기만 다름, 나머지 9개는 일치). 작업 기간 구분 설명을 고시 제2조 표현으로 바꿈. 원문 사본과 시험은 프로젝트의 tests/test_law_text.py |
+| v0.2 | 2026-10-12 | MVP의 분석 입력을 사진(스틸샷)으로, 관절 모델을 MoveNet Lightning으로 정함 (기능정의서 v0.4 D-MVP-01 · D-MODEL-01). video → still, frame_angle → still_angle, key_frame_image → key_still_image. analysis_run에서 video_id · multi_person_yn · smoothing_frames를 빼고 min_sample_cnt(TP-12)를 더함. 대표 사진이 그 분석에 쓴 사진이어야 한다는 외래키와, 사진 없는 단위작업의 분석을 막는 트리거를 더함. 테이블 25개, 뷰 9개, 인덱스 14개, 트리거 8개 (7개에서 늘어남). 시험 32개 |
 
 ---
 
@@ -37,7 +38,7 @@
 - 설계 원칙
   1. **판정의 근거가 남는다.** 같은 입력이면 같은 결과가 나오고, 그 결과가 어떤 값으로 나왔는지 다시 보여 줄 수 있어야 한다 (NFR-004, NFR-005).
   2. **법 기준값은 출처와 함께 저장한다.** 각도 기준은 해설 값이 기본이고, 조사자가 바꾸면 사유가 남는다 (BR-06).
-  3. **필요한 것만 저장한다.** 얼굴, 원본 영상, 관절 위치 원자료는 저장하지 않는다 (BR-22, 8절).
+  3. **필요한 것만 저장한다.** 얼굴, 원본 사진, 관절 위치 원자료는 저장하지 않는다 (BR-22, 8절).
   4. **DB가 막을 수 있는 규칙은 DB가 막는다.** 값의 범위, 상태의 조합, 이력 보호는 CHECK, 외래키, 트리거로 건다. 앱 코드에 버그가 있어도 잘못된 데이터가 들어가지 않는다 (9절에서 시험).
   5. **PC 한 대, 파일 하나.** 백업과 이동은 파일 하나를 복사하면 된다.
 
@@ -79,13 +80,13 @@
 | F02-01 | 단위작업, 작업 기간 구분 | unit_task | — |
 | F02-02 | 하루 작업시간과 호별 입력값 | task_input, repetition_input, lift_position_input | 비어 있음(NULL) = '입력 필요' |
 | F02-03 | 참여 근로자 | participant | 개인정보 |
-| F03-01, F03-03 | 영상 정보, 촬영 동의 | video | 원본은 위치만 |
+| F03-01, F03-03 | 사진 정보, 촬영 동의 | still | 원본은 위치만. 뺀 사진은 표시만 함 |
 | F03-04 | 분석 실행과 상태 | analysis_run | 다시 분석하면 새 행 |
 | F04-01 | 관절 위치 | (저장 안 함) | 메모리에서만 씀 |
-| F04-02 | 얼굴 가린 대표 장면 | key_frame_image | 가린 것만 저장 (DB가 강제) |
-| F04-03, F04-04 | 프레임별 각도와 자세 판별 | frame_angle | 기준을 바꿔도 영상 없이 다시 계산 (OI-12) |
+| F04-02 | 얼굴 가린 대표 사진 | key_still_image | 가린 것만 저장 (DB가 강제) |
+| F04-03, F04-04 | 사진별 각도와 자세 판별 | still_angle | 기준을 바꿔도 사진을 다시 분석하지 않고 다시 계산 (OI-12) |
 | F04-05 | 자세 비율, 하루 노출 시간 | judgment_basis | 판정 시점의 값을 스냅샷으로 |
-| F04-06, F04-07 | REBA 사람 입력, 단계별 점수, 대표 장면 | reba_input, reba_result | — |
+| F04-06, F04-07 | REBA 사람 입력, 단계별 점수, 대표 사진 | reba_input, reba_result | 대표 사진은 그 분석에 쓴 사진 (DB가 강제) |
 | F05-01, F05-02 | 호별 판정, 사람 확인 사유 | judgment, judgment_basis, criterion | 단위작업 × 호마다 1행 |
 | F05-03 | 경고 기록 | warning | — |
 | F05-05, F05-06 | 확정, 수정 이력 | judgment, edit_log | 이력은 추가만 |
@@ -135,7 +136,7 @@
 | 부담작업 기준(호) | criterion | 각도 기준 | threshold |
 | 판정 | judgment | 근거 | basis |
 | 경고 | warning | 분석 | analysis_run |
-| 영상 | video | 프레임 | frame |
+| 사진 | still | 표본 | sample |
 | 참여자 | participant | 수정 이력 | edit_log |
 | 계산값(초안) | computed | 확정값 | final |
 | 확정 | confirm | 하루 | daily |
@@ -146,7 +147,7 @@
 | 목 | neck | 위팔 | upper_arm |
 | 팔꿈치 | elbow | 무릎 | knee |
 | 손잡이 | coupling | 하중 | load |
-| 대표 장면 | key_frame | 기울기 | tilt |
+| 대표 사진 | key_still | 기울기 | tilt |
 
 ### 4.4 코드 정의서
 
@@ -163,22 +164,22 @@
 | reba_input.wrist_flex_cd | LE15 0~15° · GT15 15° 초과 |
 | reba_input.legs_support_cd | BILATERAL 양발 지지 · UNILATERAL 한 발 지지·불안정 |
 | threshold_default.threshold_cd | NECK_FLEX 목 굽힘 · WAIST_FLEX 허리 굽힘 · WAIST_EXT 허리 젖힘 · NECK_TWIST 목 비틀림 · WAIST_TWIST 허리 비틀림 · UPPER_ARM_RAISE 팔꿈치 들기 (위팔) |
-| threshold_default.measure_cd | VIDEO 영상으로 잼 · INVESTIGATOR 조사자 판단 |
-| criterion.basis_type_cd | VIDEO 영상 · INPUT 입력 · MIXED 영상과 입력 |
+| threshold_default.measure_cd | POSE 사진의 관절로 잼 · INVESTIGATOR 조사자 판단 |
+| criterion.basis_type_cd | POSE 사진의 관절 · INPUT 입력 · MIXED 관절과 입력 |
 | analysis_run.status_cd | RUNNING 분석 중 · DONE 완료 · FAILED 실패 · CANCELED 취소 |
-| reba_result.key_frame_by_cd | AUTO 자동 · INVESTIGATOR 조사자가 고름 |
+| reba_result.key_still_by_cd | AUTO 자동 · INVESTIGATOR 조사자가 고름 |
 | reba_result.side_cd | L 왼쪽 · R 오른쪽 |
 | reba_result.risk_level_cd | NEGLIGIBLE 무시 (1) · LOW 낮음 (2~3) · MEDIUM 보통 (4~7) · HIGH 높음 (8~10) · VERY_HIGH 매우 높음 (11~15) |
 | judgment.computed_status_cd | APPLICABLE 해당 · NOT_APPLICABLE 비해당 · NEEDS_REVIEW 사람 확인 · NEEDS_INPUT 입력 필요 |
 | judgment.final_status_cd | APPLICABLE 해당 · NOT_APPLICABLE 비해당 |
-| judgment.review_reason_cd | JITTER 기준 각도 근처 · INVALID_FRAMES 판별 불가 프레임이 많음 · INTERPRETATION 따로 본 결과와 합친 결과가 다름 · MULTI_PERSON 여러 사람 · LEGS_CUT 다리 잘림 · KNEE_ON_FLOOR 무릎을 바닥에 댄 자세가 있음 |
+| judgment.review_reason_cd | JITTER 기준 각도 근처 · INVALID_STILLS 판별 불가 사진이 많음 · INTERPRETATION 따로 본 결과와 합친 결과가 다름 · LEGS_CUT 다리 잘림 · KNEE_ON_FLOOR 무릎을 바닥에 댄 자세가 있음 · SMALL_SAMPLE 표본(사진)이 적음 (TP-12) |
 | judgment.exclusion_cd | SHORT_TERM 단기간작업 · INTERMITTENT 간헐적인 작업 |
 | judgment_basis.unit_cd | H 시간 · KG · CNT_DAY 회/일 · CNT_MIN 회/분 · CNT_HOUR 회/시간 · PERSON 명 · RATIO 비율 · DEG 도 · YN 예/아니오 |
 | judgment_basis.threshold_source_cd | NOTICE 고시 · MOEL_NOTE 고용노동부 해설 · INVESTIGATOR 조사자 변경 |
 | judgment_basis.item_cd | 자세 항목은 threshold_cd 값과 P3_UNION(3호 합산) · SQUAT · KNEELING, 입력 항목은 KEYBOARD_H · REPEAT_{부위} · FINGER_* · ONEHAND_* · LIFT_KG_PER_PERSON · LIFT_CNT · POS_{위치} · FREQ_LIFT_* · IMPACT_*. CHECK 없이 이 목록으로 관리 (항목이 늘 수 있어서) |
 | ai_text.purpose_cd | WARNING_ADVICE 경고 조언 · REPORT_SUMMARY 보고서 요약 |
 | ai_text.result_cd | OK 정상 · DISABLED 꺼 둠 · NO_WARNING 열린 경고가 없어 부르지 않음 (보고서 요약) · FALLBACK_NO_KEY 키 없음 · FALLBACK_OFFLINE 인터넷 없음 · FALLBACK_TIMEOUT 시간 초과 · FALLBACK_ERROR 오류 · FALLBACK_NUMBER_MISMATCH 보낸 적 없는 숫자 |
-| edit_log.target_cd | SURVEY · TASK_INPUT · REBA_INPUT · THRESHOLD · KEY_FRAME · JUDGMENT |
+| edit_log.target_cd | SURVEY · TASK_INPUT · REBA_INPUT · THRESHOLD · KEY_STILL · JUDGMENT |
 | edit_log.action_cd | SET 값 입력·교체 (사유 선택) · CHANGE 사유가 필요한 변경 (각도 기준, 확정 결과 고치기) · CONFIRM 확정 · UNCONFIRM 확정 해제 · RESET 기본값으로 (언제 무엇을 쓰는지는 API 계약서 2.1절) |
 | app_setting.setting_key | POSE_MODEL_ID · GPT_ENABLED · GPT_MODEL · LAST_EXPORT_DIR |
 
@@ -193,7 +194,7 @@
 | 기준 정보 | criterion, threshold_default, pose_model | 법의 11개 호, 해설의 각도, 모델 목록. 앱과 함께 배포 |
 | 조사 | survey, survey_reason, participant, survey_threshold | 조사 한 건과 그 조사에만 적용하는 값 |
 | 작업과 입력 | unit_task, task_input, repetition_input, lift_position_input, reba_input | 단위작업과 조사자가 넣는 값 |
-| 영상과 분석 | video, analysis_run, frame_angle, reba_result, key_frame_image | 영상 분석 결과 |
+| 사진과 분석 | still, analysis_run, still_angle, reba_result, key_still_image | 사진 분석 결과 |
 | 판정과 경고 | judgment, judgment_basis, warning, ai_text | 11개 호 판정, 근거, 경고, AI 문장 |
 | 이력과 설정 | edit_log, export_log, app_setting, schema_version | 감사 기록, 설정, 스키마 버전 |
 
@@ -213,9 +214,9 @@
 
 ![논리 ERD 1](ERD_그림/ERD_2_조사_작업.png)
 
-**② 영상과 분석**
+**② 사진과 분석**
 
-![논리 ERD 2](ERD_그림/ERD_3_영상_분석.png)
+![논리 ERD 2](ERD_그림/ERD_3_사진_분석.png)
 
 **③ 판정과 경고 · 이력과 설정**
 
@@ -236,12 +237,12 @@
 | task_input | 작업 정보 입력 | 단위작업의 입력값 묶음 | unit_task_id (1:1 식별 관계) | 처음 입력할 때 |
 | repetition_input | 부위별 반복 시간 | 2호 부위 하나의 반복 시간 | unit_task_id + body_part_cd (복합) | 부위 시간을 넣을 때 |
 | lift_position_input | 위치별 들기 | 9호 위치 하나의 횟수와 무게 | unit_task_id + position_cd (복합) | 위치별 값을 넣을 때 |
-| reba_input | REBA 사람 입력 | 영상으로 못 재는 REBA 항목 | unit_task_id (1:1 식별 관계) | 처음 입력할 때 |
-| video | 영상 | 단위작업에 붙인 영상 파일 하나 | video_id (인조) | 영상을 고를 때 |
-| analysis_run | 분석 실행 | 영상 하나를 모델 하나로 분석한 한 번 | run_id (인조) | 분석을 시작할 때 |
-| frame_angle | 프레임별 각도 | 분석의 프레임 하나 | run_id + frame_no (복합, 식별 관계) | 분석이 끝날 때 |
-| reba_result | REBA 결과 | 분석의 대표 장면 REBA | run_id (1:1 식별 관계) | 분석이 끝날 때 |
-| key_frame_image | 대표 장면 이미지 | 얼굴 가린 대표 장면 | run_id (1:1 식별 관계) | 대표 장면이 정해질 때 |
+| reba_input | REBA 사람 입력 | 사진으로 못 재는 REBA 항목 | unit_task_id (1:1 식별 관계) | 처음 입력할 때 |
+| still | 사진 | 단위작업에 붙인 사진 파일 하나 (표본의 한 점) | still_id (인조), 대체키 unit_task_id + still_no | 사진을 고를 때 |
+| analysis_run | 분석 실행 | 단위작업의 사진 전체를 모델 하나로 분석한 한 번 | run_id (인조) | 분석을 시작할 때 |
+| still_angle | 사진별 각도 | 분석에 쓴 사진 하나 | run_id + still_id (복합, 식별 관계) | 분석이 끝날 때 |
+| reba_result | REBA 결과 | 분석의 대표 사진 REBA | run_id (1:1 식별 관계) | 분석이 끝날 때 |
+| key_still_image | 대표 사진 이미지 | 얼굴 가린 대표 사진 | run_id (1:1 식별 관계) | 대표 사진이 정해질 때 |
 | judgment | 판정 | 단위작업의 호 하나에 대한 판정 | judgment_id (인조), 대체키 unit_task_id + criterion_no | 판정을 계산할 때 |
 | judgment_basis | 판정 근거 | 판정에 쓴 값 하나 | basis_id (인조), 대체키 judgment_id + item_cd | 판정을 계산할 때 |
 | warning | 경고 | 띄운 경고 하나 | warning_id (인조) | '해당' 초안이 생길 때 |
@@ -261,12 +262,14 @@
 | criterion | threshold_default, judgment, warning | 1 : 0..N | 비식별 | 지울 수 없음 (기준 정보) |
 | unit_task | task_input, reba_input | 1 : 0..1 | 식별 (1:1) | 함께 지움 |
 | unit_task | repetition_input, lift_position_input | 1 : 0..N | 식별 | 함께 지움 |
-| unit_task | video, analysis_run, judgment, warning | 1 : 0..N | 비식별 | 함께 지움 |
-| video | analysis_run | 1 : 0..N | 비식별 | 분석이 남아 있으면 영상만 지울 수 없음 (증거 보호) |
+| unit_task | still, analysis_run, judgment, warning | 1 : 0..N | 비식별 | 함께 지움 |
+| still | still_angle | 1 : 0..N | 비식별 | 분석에 쓴 사진은 지울 수 없음 (증거 보호). 표본에서 빼려면 removed_yn |
 | pose_model | analysis_run | 1 : 0..N | 비식별 | 지울 수 없음 |
-| analysis_run | frame_angle | 1 : 0..N | 식별 | 함께 지움 |
+| analysis_run | still_angle | 1 : 0..N | 식별 | 함께 지움 |
 | analysis_run | reba_result | 1 : 0..1 | 식별 (1:1) | 함께 지움 |
-| reba_result | key_frame_image | 1 : 0..1 | 식별 (1:1) | 함께 지움 |
+| reba_result | key_still_image | 1 : 0..1 | 식별 (1:1) | 함께 지움 |
+| still_angle | reba_result (대표 사진) | 1 : 0..1 | 비식별 (복합 외래키 run_id + key_still_id) | 대표 사진은 그 분석에 쓴 사진이어야 함 |
+| still | key_still_image | 1 : 0..N | 비식별 | 대표 사진 이미지의 원본 사진. 지울 수 없음 (증거 보호) |
 | analysis_run | judgment | 0..1 : 0..N | 비식별, 선택 (입력만 쓰는 호는 분석이 없음) | 판정이 남아 있으면 지울 수 없음 |
 | judgment | judgment_basis | 1 : 0..N | 비식별 | 함께 지움 |
 | judgment | warning | 0..1 : 0..N | 비식별, 선택 | 경고의 연결만 끊음 (SET NULL) |
@@ -277,7 +280,7 @@
 | 단계 | 검토 | 이 설계에서 |
 |---|---|---|
 | 1정규형 | 한 칸에 값 하나, 반복 그룹 없음 | 수시 사유(여러 개) → survey_reason. 2호 부위별 시간 → repetition_input. 9호 위치별 횟수 → lift_position_input |
-| 2정규형 | 복합키의 일부에만 딸린 속성 없음 | frame_angle의 각도는 (run_id, frame_no) 전체에 딸림. survey_threshold의 값·사유는 (survey_id, threshold_cd) 전체에 딸림 |
+| 2정규형 | 복합키의 일부에만 딸린 속성 없음 | still_angle의 각도는 (run_id, still_id) 전체에 딸림. survey_threshold의 값·사유는 (survey_id, threshold_cd) 전체에 딸림 |
 | 3정규형 | 키가 아닌 속성끼리의 이행 종속 없음 | 호의 이름·법 문구는 criterion에만. 모델 이름·버전은 pose_model에만. 조사자 이름은 survey에만 |
 
 **의도적 반정규화** (이유가 있어 계산 결과를 저장한 곳)
@@ -300,8 +303,8 @@
 | 도메인 무결성 | 값의 범위와 코드 | CHECK: 하루 작업시간 0~24, REBA 1~15, 코드 목록, 날짜 형식, JSON 형식 | F02-02 처리 규칙 2 |
 | 상태 무결성 | 상태와 값의 조합 | 확정 = 확정 시각 있음. '입력 필요'는 확정 불가. '사람 확인'과 초안과 다른 확정은 사유 필수 | 3.2절, EX-14, EX-15 |
 | 계산 무결성 | 점수 합계 | 점수 A = 표 A + 하중, 점수 B = 표 B + 손잡이, REBA = 표 C + 활동, 위험 단계 = 점수 구간 | F04-06 |
-| 업무 규칙 (트리거) | 행 하나로는 못 거는 규칙 | 수시조사에만 사유 · 동의한 영상만 분석 · 같은 작업의 영상·분석만 · 수정 이력은 고치거나 지울 수 없음 | F03-03, F05-06 |
-| 개인정보 | 얼굴은 저장하지 않음 | key_frame_image.masked_yn = 1만 허용 | BR-22 |
+| 업무 규칙 (트리거) | 행 하나로는 못 거는 규칙 | 수시조사에만 사유 · 사진이 있어야 분석 · 동의한 사진만 분석 · 같은 작업의 사진·분석만 · 수정 이력은 고치거나 지울 수 없음 | F03-03, F05-06 |
+| 개인정보 | 얼굴은 저장하지 않음 | key_still_image.masked_yn = 1만 허용 | BR-22 |
 
 표 A·B·C의 조회 값(어떤 각도 점수 조합이 몇 점인지)은 DB가 확인하지 않는다. 분석 엔진이 계산하고 워크시트 예시로 시험한다 (AC-18).
 
@@ -316,8 +319,8 @@
 | 파일 | `%LOCALAPPDATA%\ergo-assist\ergo_assist.db` 하나 | 설치형 PC 프로그램. 사용자 폴더라 관리자 권한이 필요 없음 |
 | 연결 설정 | `PRAGMA foreign_keys = ON` (연결마다), `PRAGMA journal_mode = WAL` (파일 만들 때), `PRAGMA busy_timeout = 3000` | SQLite는 외래키가 기본으로 꺼져 있음. WAL은 분석 중 화면이 읽어도 막히지 않고 갑자기 꺼져도 안전함 |
 | STRICT 테이블 | 모든 테이블 | SQLite는 원래 타입을 느슨하게 받음. STRICT면 'abc'를 REAL 칸에 넣을 수 없음 |
-| WITHOUT ROWID | 복합키 테이블 (survey_reason, survey_threshold, repetition_input, lift_position_input, frame_angle), 문자 PK 테이블 (threshold_default, app_setting) | PK 순서로 바로 저장해 조회가 빠르고 공간이 적음 |
-| 이미지 | 대표 장면 JPEG를 BLOB로 DB에 저장 | 백업·이동이 파일 하나로 끝남 (결정 D-02) |
+| WITHOUT ROWID | 복합키 테이블 (survey_reason, survey_threshold, repetition_input, lift_position_input, still_angle), 문자 PK 테이블 (threshold_default, app_setting) | PK 순서로 바로 저장해 조회가 빠르고 공간이 적음 |
+| 이미지 | 대표 사진 JPEG를 BLOB로 DB에 저장 | 백업·이동이 파일 하나로 끝남 (결정 D-02) |
 | 시각 | 로컬 시각 ISO 문자열 | SQLite에 날짜 타입이 없음. 문자열이라도 정렬이 시간순과 같음 |
 
 ### 6.2 테이블 정의서
@@ -340,9 +343,9 @@
 
 ### 6.5 용량 추정
 
-- 30초 영상 1건(900프레임)의 분석 데이터가 파일에서 차지하는 크기: **약 {{RUN_KB}} KB** (실측: 900프레임을 넣고 VACUUM 전후 파일 크기 비교)
-- 대표 장면 JPEG 1장: 수십 KB (해상도에 따라)
-- 조사 1건 (단위작업 10개, 각 30초 영상): 수 MB 수준. 한 PC에 수백 건을 저장해도 문제없음
+- 사진 30장 분석 1건의 분석 데이터가 파일에서 차지하는 크기: **약 {{RUN_KB}} KB** (실측: 사진 30장의 사진 기록과 사진별 각도를 넣고 VACUUM 전후 파일 크기 비교)
+- 대표 사진 JPEG 1장: 수십 KB (해상도에 따라)
+- 조사 1건 (단위작업 10개, 각 사진 30장): 수 MB 수준. 한 PC에 수백 건을 저장해도 문제없음
 
 ### 6.6 백업 · 보존 · 삭제
 
@@ -394,8 +397,8 @@
 |---|---|---|---|
 | 조사자 이름 (survey.investigator_name, confirmed_by, actor_name, changed_by) | 개인정보 | 저장 | 화면과 엑셀에 보임. GPT에 보내지 않음 |
 | 참여 근로자 표시 이름 | 개인정보 | 저장 | 실명 대신 '근로자 A' 권장. GPT에 보내지 않음 |
-| 근로자 얼굴 | 개인정보 (영상) | **저장하지 않음** | 대표 장면은 가린 것만 (masked_yn = 1 강제) |
-| 원본 영상 | 개인정보 | **복사하지 않음** | 위치(file_path)만 저장 |
+| 근로자 얼굴 | 개인정보 (사진) | **저장하지 않음** | 대표 사진은 가린 것만 (masked_yn = 1 강제) |
+| 원본 사진 | 개인정보 | **복사하지 않음** | 위치(file_path)만 저장 |
 | 관절 위치 원자료 | 신체 정보 | **저장하지 않음** | 각도와 자세 판별 결과만 저장 |
 | 작업명, 작업 내용 (자유 입력) | 개인정보가 섞일 수 있음 | 저장 | GPT에 보내지 않음 (OI-05) |
 | 건강 정보 | 민감정보 | 지금은 없음 | 증상조사(FR-032)를 넣으면 민감정보라 따로 설계 (OI-04) |
@@ -429,14 +432,14 @@
 | F02-01 단위작업 등록 | unit_task | v_task_result |
 | F02-02 작업 정보 입력 | task_input, repetition_input, lift_position_input | — |
 | F02-03 참여 근로자 | participant | — |
-| F03-01 ~ F03-03 영상·동의 | video | — |
+| F03-01 ~ F03-03 사진·동의 | still | — |
 | F03-04 분석 실행 | analysis_run | v_task_result |
-| F04-02 얼굴 모자이크 | key_frame_image | — |
-| F04-03 ~ F04-05 각도·자세·노출 | frame_angle, judgment_basis | v_posture_exposure_check |
-| F04-06, F04-07 REBA·대표 장면 | reba_input, reba_result, key_frame_image | v_task_result |
+| F04-02 얼굴 모자이크 | key_still_image | — |
+| F04-03 ~ F04-05 각도·자세·노출 | still_angle, judgment_basis | v_posture_exposure_check |
+| F04-06, F04-07 REBA·대표 사진 | reba_input, reba_result, key_still_image | v_task_result |
 | F05-01, F05-02 판정·확신도 | judgment, judgment_basis, criterion | v_judgment_sheet |
 | F05-03 경고 | warning | v_warning_log, v_gpt_payload |
-| F05-04 다시 계산 | frame_angle, task_input, survey_threshold | v_effective_threshold |
+| F05-04 다시 계산 | still_angle, task_input, survey_threshold | v_effective_threshold |
 | F05-05 확정 | judgment | v_judgment_sheet |
 | F05-06 수정 이력 | edit_log | v_edit_log |
 | F06-01 엑셀 | export_log | v_excel_summary, v_task_result, v_warning_log, v_judgment_sheet |
@@ -453,8 +456,8 @@
 
 | ID | 결정 | 다른 선택지 | 이유 |
 |---|---|---|---|
-| D-01 | 프레임별 각도를 저장한다 (기능정의서 OI-12) | 요약만 저장 | 각도 기준을 바꿔도 영상 없이 다시 계산하고, 같은 결과를 증명할 수 있다. 30초 영상에 약 {{RUN_KB}} KB |
-| D-02 | 대표 장면 이미지는 DB에 BLOB로 | 이미지 파일을 폴더에 따로 | 파일 하나로 백업·이동. 얼굴 가림을 DB가 강제할 수 있음 |
+| D-01 | 사진별 각도를 저장한다 (기능정의서 OI-12) | 요약만 저장 | 각도 기준을 바꿔도 사진을 다시 분석하지 않고 다시 계산하고, 같은 결과를 증명할 수 있다. 사진 30장에 약 {{RUN_KB}} KB |
+| D-02 | 대표 사진 이미지는 DB에 BLOB로 | 이미지 파일을 폴더에 따로 | 파일 하나로 백업·이동. 얼굴 가림을 DB가 강제할 수 있음 |
 | D-03 | 판정은 현재 값 1행, 바뀐 내역은 수정 이력에 | 판정 버전 테이블 | 화면과 엑셀은 현재 값만 쓰고, 감사는 이력으로 충분 |
 | D-04 | 코드는 CHECK 목록으로 | 공통 코드 테이블 | 코드가 적고 거의 안 바뀜. DB가 바로 막음. 바뀌면 마이그레이션 |
 | D-05 | 단위작업을 지워도 수정 이력은 남긴다 | 함께 지움 | 누가 무엇을 지웠는지 남기기 위해. 조사 전체를 지울 때만 함께 지움 |
@@ -467,11 +470,11 @@
 | 기능정의서 미결 | 이렇게 정해지면 | 스키마 변경 |
 |---|---|---|
 | OI-01 4·5·9호를 합쳐 보기로 | 판정 계산만 바뀜 | 없음 (judgment_basis 항목만 추가) |
-| OI-03 2호·7~10호를 영상으로도 잼 | 영상 참고값 저장 | frame_angle에 동작 판별 열 추가 |
+| OI-03 2호·7~10호를 사진으로도 잼 | 사진 참고값 저장 | still_angle에 동작 판별 열 추가 (한 장으로는 반복을 못 잼. 영상이 들어올 때 다시 검토) |
 | OI-04 증상설문조사를 넣음 | 근로자 응답 저장 | 증상조사 테이블 추가 (민감정보 설계 필요) |
-| OI-06 분석 구간 지정 | 구간 저장 | analysis_run에 start_frame_no, end_frame_no 추가 |
-| OI-07 정면 영상 추가 | 영상 방향 구분 | video에 view_cd (측면·정면) 추가 |
-| OI-08 분석할 사람 선택 | 고른 사람 저장 | analysis_run에 person_index 추가 |
+| OI-06 분석 구간 지정 | 영상 도입 뒤의 문제. 사진 MVP에서는 조사자가 사진을 고르는 것으로 대신함 | (영상 도입 때) 사진에 source_video_id, time_ms 추가 |
+| OI-07 정면 사진 추가 | 사진 방향 구분 | still에 view_cd (측면·정면) 추가 |
+| OI-08 분석할 사람 선택 | 고른 사람 저장 | still_angle에 person_index 추가 (MoveNet 한 사람 모델은 다인 모델로 바꿔야 함) |
 
 ---
 
@@ -496,5 +499,5 @@
 | 0 | 3단계 스키마 | 2절 |
 | 1 | 개념 ERD | 5.2절 |
 | 2 | 논리·물리 ERD ① 기준 정보 · 조사 · 작업과 입력 | 5.3절 |
-| 3 | 논리·물리 ERD ② 영상과 분석 | 5.3절 |
+| 3 | 논리·물리 ERD ② 사진과 분석 | 5.3절 |
 | 4 | 논리·물리 ERD ③ 판정과 경고 · 이력과 설정 | 5.3절 |
