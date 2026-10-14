@@ -109,7 +109,7 @@ def dialog(title, body, foot, w=560):
             f'<div class="db">{body}</div><div class="df">{foot}</div></div></div>')
 
 
-# 사람 그림 (덱 screens1과 같은 좌표, 840×500 바탕을 줄여 씀). 머리는 회색 모자이크
+# 사람 그림 (덱 screens1과 같은 좌표, 840×500 바탕을 줄여 씀). 머리는 회색 원
 def figure(scale=0.78, w=840, h=500):
     limbs = [(319, 206, 161, -29.7), (461, 144, 67, -42), (442, 206, 85, 69.4), (465, 286, 81, 82.9),
              (298, 291, 95, 71.6), (309, 376, 83, 104)]
@@ -121,10 +121,7 @@ def figure(scale=0.78, w=840, h=500):
                      f'border-radius:4px;transform:rotate({a}deg);transform-origin:center"></div>')
     for x, y in joints:
         parts.append(f'<div style="position:absolute;left:{x}px;top:{y}px;width:16px;height:16px;border-radius:50%;background:#F2F4F6"></div>')
-    for i in range(5):
-        for j in range(5):
-            c = "#9AA7B4" if (i + j) % 2 == 0 else "#7C8996"
-            parts.append(f'<div style="position:absolute;left:{485 + 14 * j}px;top:{85 + 16 * i}px;width:14px;height:16px;background:{c}"></div>')
+    parts.append('<div style="position:absolute;left:488px;top:90px;width:64px;height:64px;border-radius:50%;background:#9AA7B4"></div>')
     inner = "".join(parts)
     return (f'<div style="width:{w * scale:.0f}px;height:{h * scale:.0f}px;position:relative;overflow:hidden">'
             f'<div style="position:absolute;left:0;top:0;width:{w}px;height:{h}px;transform:scale({scale});transform-origin:0 0">'
@@ -399,7 +396,7 @@ screen(id="S04", name="사진 올리기", tab="사진", fids=["F03-01", "F03-02"
        states=["사진을 아직 고르지 않았으면 2·3번 카드 대신 촬영 안내만 크게 보인다"])
 
 # ---------------------------------------------------------------- S05 분석 진행
-screen(id="S05", name="분석 진행", tab="사진", fids=["F03-04", "F04-01", "F04-02"],
+screen(id="S05", name="분석 진행", tab="사진", fids=["F03-04", "F04-01"],
        purpose="분석이 어디까지 됐는지 보여 주고, 취소할 수 있게 한다. 끝나면 결과 화면으로 넘어간다.",
        entry="S04 '분석 시작'", exit="S06 (끝남), S04 (취소·실패)",
        html=frame("사진", f'''
@@ -407,13 +404,13 @@ screen(id="S05", name="분석 진행", tab="사진", fids=["F03-04", "F04-01", "
  <div class="card col" style="width:820px;gap:14px">
   <h2>분석 중 · 사진 21장</h2>
   <div class="r">{n(1)}<div style="height:22px;background:#D5DDE5;border-radius:11px;overflow:hidden"><div style="width:67%;height:100%;background:var(--orange)"></div></div>
-   <div class="row" style="margin-top:6px;font-size:12.5px"><b>67%</b><span>관절 찾기 · 얼굴 가림</span><span>14 / 21 장</span><span style="margin-left:auto">남은 시간 약 2초</span></div></div>
+   <div class="row" style="margin-top:6px;font-size:12.5px"><b>67%</b><span>관절 찾기</span><span>14 / 21 장</span><span style="margin-left:auto">남은 시간 약 2초</span></div></div>
   <div class="row" style="align-items:flex-start;gap:16px">
    <div class="r"><div style="background:#22303F;border-radius:10px;overflow:hidden">{figure(0.5, 840, 500)}</div>{n(2)}</div>
    <div class="col r" style="gap:8px;font-size:13px">{n(3)}
-    <div>✔ 사진 열기</div><div><b style="color:var(--orange)">● 관절 찾기 · 얼굴 가림</b></div><div style="color:#9AA7B4">○ 각도 계산</div>
+    <div>✔ 사진 열기</div><div><b style="color:var(--orange)">● 관절 찾기</b></div><div style="color:#9AA7B4">○ 각도 계산</div>
     <div style="color:#9AA7B4">○ 자세 판별 · 판정 · REBA</div><div style="color:#9AA7B4">○ 저장</div>
-    <div class="help" style="margin-top:8px">얼굴은 자동으로 가립니다. 원본 사진은 바꾸지 않습니다.</div></div>
+    <div class="help" style="margin-top:8px">원본 사진은 바꾸지 않습니다.</div></div>
   </div>
   <div class="row" style="justify-content:flex-end"><span class="btn">{n(4)}취소</span></div>
  </div>
@@ -421,7 +418,7 @@ screen(id="S05", name="분석 진행", tab="사진", fids=["F03-04", "F04-01", "
        rows=[
            (1, "진행 막대", "진행 표시", "on_progress로 받는 Progress.percent, Progress.stage, Progress.processed_stills, Progress.total_stills, Progress.eta_s",
             "콜백은 분석 스레드에서 온다. 화면은 자기 스레드로 넘겨 그린다 (API 4.3절). 사진 몇 십 장은 몇 초면 끝난다"),
-           (2, "미리보기", "그림", "get_still_preview(run_id, still_id) — 지금 처리한 사진을 1초에 한 번", "얼굴을 가린 사진만 (BR-22)"),
+           (2, "미리보기", "그림", "get_still_preview(run_id, still_id) — 지금 처리한 사진을 1초에 한 번", "원본 사진을 읽어 보여 줄 뿐 저장하지 않는다"),
            (3, "단계 목록", "목록", "Progress.stage (DECODE · KEYPOINT · ANGLE · JUDGE · SAVE)", "—"),
            (4, "취소", "버튼", "cancel_analysis(run_id) → I-ANALYSIS-005 → S04", "결과를 저장하지 않는다 (EX-07, AC-10)"),
        ],
@@ -447,7 +444,7 @@ def _still_strip():
 
 
 # ---------------------------------------------------------------- S06 분석 결과와 경고
-screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "F04-03", "F04-04", "F04-05", "F04-06", "F04-07", "F05-02", "F05-03", "F05-04", "F06-02", "F06-03"],
+screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-03", "F04-04", "F04-05", "F04-06", "F04-07", "F05-02", "F05-03", "F05-04", "F06-02", "F06-03"],
        purpose="대표 사진, REBA 점수, 법 문구의 자세별 하루 노출, 경고를 한 화면에서 본다. REBA 사람 입력과 대표 사진을 고칠 수 있다.",
        entry="S05 (분석이 끝남), 탭 '결과'", exit="S07 (판정 보기), D03 (REBA 입력)",
        html=frame("결과", f'''
@@ -484,7 +481,7 @@ screen(id="S06", name="분석 결과와 경고", tab="결과", fids=["F04-02", "
 </div>'''),
        rows=[
            (1, "대표 사진", "그림", "get_task_result(unit_task_id) → TaskResult.key_still_jpeg, TaskResult.key_still_id, RebaScore.reba_score",
-            "얼굴을 가린 JPEG만 (BR-22). 기본은 REBA가 가장 높은 사진 (F04-07 규칙 1)"),
+            "대표 사진 JPEG 한 장. 기본은 REBA가 가장 높은 사진 (F04-07 규칙 1)"),
            (2, "사진 목록 막대", "칸 목록", "get_still_results(unit_task_id) → StillResult.still_no, StillResult.valid_yn, StillResult.flagged_items, StillResult.reba_score, StillResult.is_key_yn",
             "사진 한 장이 한 칸. 자세를 고르면 그 자세로 판별된 사진을 칠한다. 판별 불가는 회색, 대표 사진은 굵은 테두리. 각도 기준을 바꾸면 다시 계산된다"),
            (3, "사진 고르기", "◀ ▶ + 버튼", "get_still_preview(run_id, still_id)로 미리 보고, '이 사진을 대표 사진으로' → set_key_still(unit_task_id, still_id, actor)",
@@ -639,9 +636,8 @@ screen(id="S09", name="설정", tab="설정", fids=["F07-01", "F07-02", "F07-03"
   <div class="fld">{n(6)}<label>API 키</label><div class="in">●●●●●●●●●●●● 저장됨<span class="unit">바꾸기 · 지우기</span></div>
    <span class="help">Windows 자격 증명 관리자에 저장합니다. DB·파일·엑셀에는 남기지 않습니다.</span></div>
   <div class="help">{n2(7)}보내는 값: 호 번호, 기준 문구, 시간·비율·점수 숫자만. 사진, 이미지, 이름은 보내지 않습니다.</div></div>
- <div class="card r">{n(8)}<span class="chk"><i class="box on"></i><b>얼굴 가림</b></span> <span class="help">항상 켜짐 · 끌 수 없음</span></div>
- <div class="note">{n2(9)}저장 위치: %LOCALAPPDATA%\\ergo-assist · 계약 0.3</div>
- <div class="row" style="justify-content:flex-end;margin-top:auto"><span class="btn p">{n(10)}저장</span></div>
+ <div class="note">{n2(8)}저장 위치: %LOCALAPPDATA%\\ergo-assist · 계약 0.3</div>
+ <div class="row" style="justify-content:flex-end;margin-top:auto"><span class="btn p">{n(9)}저장</span></div>
 </div>''', task=False),
        rows=[
            (1, "관절 모델", "정보 (고를 수 없음)", "list_models() → PoseModel.model_name, PoseModel.model_version, PoseModel.keypoint_cnt. 저장할 때 save_settings(pose_model_id, ...)에는 지금 값을 그대로 넘긴다",
@@ -655,9 +651,8 @@ screen(id="S09", name="설정", tab="설정", fids=["F07-01", "F07-02", "F07-03"
            (6, "API 키", "가린 칸", "set_gpt_api_key(key), delete_gpt_api_key(). 있는지만 Settings.has_gpt_key로 안다",
             "키 자체는 다시 보여 주지 않는다. 빈 키는 E-INPUT-002"),
            (7, "보내는 값 안내", "안내", "고정 문구 (API 6.2절)", "BR-21"),
-           (8, "얼굴 가림", "표시 (끌 수 없음)", "—", "BR-22"),
-           (9, "저장 위치", "정보", "고정 (ERD 6.1절)", "—"),
-           (10, "저장", "버튼 (주)", "get_settings()로 열고 save_settings(pose_model_id, gpt_enabled, gpt_model)로 저장", "설정은 '저장'을 누를 때 저장한다 (입력 화면의 자동 저장과 다름)"),
+           (8, "저장 위치", "정보", "고정 (ERD 6.1절)", "—"),
+           (9, "저장", "버튼 (주)", "get_settings()로 열고 save_settings(pose_model_id, gpt_enabled, gpt_model)로 저장", "설정은 '저장'을 누를 때 저장한다 (입력 화면의 자동 저장과 다름)"),
        ],
        states=["GPT 키가 없으면 키 칸에 \"키 없음 · 기본 문구로 동작\" (FALLBACK_NO_KEY)"])
 

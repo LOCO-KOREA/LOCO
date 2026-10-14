@@ -7,12 +7,12 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 번호 | ERGO-API-001 |
-| 버전 | v0.3 (초안), 계약 버전 `CONTRACT_VERSION = "0.3"` |
+| 버전 | v0.4 (초안), 계약 버전 `CONTRACT_VERSION = "0.3"` |
 | 작성일 | 2026-10-12 |
 | 작성 | 한정욱 (총괄) |
 | 검토 | 김나리 · 유서하 · 정혁 |
 | 상태 | 초안. 10/14 설계 1차에서 검토, 10/15 확정 |
-| 상위 문서 | 기능정의서 v0.4 (ERGO-FD-001), 화면설계서 v0.2 (ERGO-UI-001), ERD · 데이터 설계서 v0.2 (ERGO-DD-001) |
+| 상위 문서 | 기능정의서 v0.5 (ERGO-FD-001), 화면설계서 v0.3 (ERGO-UI-001), ERD · 데이터 설계서 v0.3 (ERGO-DD-001) |
 | 다음 문서 | 일정서 (ERGO-SCH-001) |
 | 멘토 WBS | 3.3 API / Data 계약 (10/14 ~ 10/15, 산출물 api-data-design.md)의 '요청·응답, 모듈 경계' 부분. '저장 데이터' 부분은 ERD |
 
@@ -23,6 +23,7 @@
 | v0.1 | 2026-10-12 | 초안. 서비스 함수 39개, 엔진 함수 8개, GPT 계약, 엑셀 파일 계약, 오류 코드 21개. 계약 코드(contracts.py)를 실행하고 ERD와 대조함 (10절) |
 | v0.2 | 2026-10-12 | 화면설계서를 쓰며 찾은 빈 곳: 화면이 저장된 값을 다시 읽을 함수가 없었음. `get_task_inputs`, `get_reba_inputs`, `list_videos`, `get_posture_timeline` 추가 (DTO 3개 추가, 기존 함수는 그대로). 오류 코드 E-INPUT-003 추가. 계약 코드에 오류 코드 목록(`ERROR_CODES`)을 넣고 8절 표와 자동으로 대조함. 계약 버전 0.2. 지금 서비스 함수 43개, 엔진 함수 8개, 오류 코드 22개 |
 | v0.3 | 2026-10-12 | MVP의 분석 입력을 사진(스틸샷)으로, 관절 모델을 MoveNet Lightning으로 정함 (기능정의서 v0.4 D-MVP-01 · D-MODEL-01). `inspect_video` · `list_videos` · `attach_video` · `get_frame_preview` · `get_posture_timeline` · `set_key_frame`을 `inspect_still` · `list_stills` · `attach_still` · `get_still_preview` · `get_still_results` · `set_key_still`로 바꾸고 `detach_still`을 더함. `start_analysis`는 단위작업의 사진 전체를 분석한다 (`video_id` 없음). 진행률과 결과의 프레임 단위를 사진 단위로 바꾸고 `PostureTimeline` · `PostureSegment`를 `StillResult`로 바꿈. 오류 코드 E-VIDEO-xxx를 E-STILL-xxx로 바꾸고 '여러 사람' 알림 코드를 뺌(한 사람만 내는 모델이라 사람 수를 알 수 없음). 검토 사유 `SMALL_SAMPLE`을 더하고 `MULTI_PERSON`을 뺌. 계약 버전 0.3. 지금 서비스 함수 44개, 엔진 함수 8개, 오류 코드 21개 |
+| v0.4 | 2026-10-14 | 분석 엔진 함수 `mask_face`를 뺐다 (엔진 함수 8개에서 7개). `get_still_preview`와 `TaskResult.key_still_jpeg`는 원본 사진을 그대로 돌려준다. 서비스 함수와 오류 코드는 그대로이고 계약 버전도 0.3이다. 지금 서비스 함수 44개, 엔진 함수 7개, 오류 코드 21개 |
 
 ---
 
@@ -166,7 +167,7 @@ flowchart LR
 | 단계 (stage) | 뜻 | percent |
 |---|---|---|
 | DECODE | 사진을 여는 중 (회전 정보를 적용해 똑바로 세움) | 0 ~ 5 |
-| KEYPOINT | 관절 추출과 얼굴 모자이크 | 5 ~ 85 (처리한 사진 비율) |
+| KEYPOINT | 관절 추출 | 5 ~ 85 (처리한 사진 비율) |
 | ANGLE | 각도 계산 | 85 ~ 90 |
 | JUDGE | 자세 판별, 판정, REBA | 90 ~ 97 |
 | SAVE | 한 트랜잭션으로 저장 | 97 ~ 100 |
@@ -187,8 +188,8 @@ flowchart LR
 
 | 함수 | 기능 | 화면 | 하는 일 | 오류 | 이력 |
 |---|---|---|---|---|---|
-| `get_task_result(id)` → TaskResult | F04-05 ~ F05-03 | S06 | 현재 분석의 REBA, 자세 비율(표본 비율), 판정 11개, 경고, 대표 사진 (얼굴 가림) | E-NOTFOUND-001 | — |
-| `get_still_preview(run_id, still_id)` → JPEG | F04-07 | S06 | 원본 사진을 읽어 얼굴을 가려 돌려준다. 저장하지 않는다 | E-STILL-004, E-NOTFOUND-001 | — |
+| `get_task_result(id)` → TaskResult | F04-05 ~ F05-03 | S06 | 현재 분석의 REBA, 자세 비율(표본 비율), 판정 11개, 경고, 대표 사진 | E-NOTFOUND-001 | — |
+| `get_still_preview(run_id, still_id)` → JPEG | F04-07 | S06 | 원본 사진을 읽어 돌려준다. 저장하지 않는다 | E-STILL-004, E-NOTFOUND-001 | — |
 | `get_still_results(id)` → StillResult 목록 | F04-04, F04-05, F04-07 | S06 | 현재 분석의 사진별 결과(판별 가능 여부, 해당한 자세, REBA, 대표 여부). 저장된 각도와 지금 각도 기준으로 계산하고 저장하지 않는다 | E-NOTFOUND-001 | — |
 | `set_key_still(id, still_id, actor)` → TaskResult | F04-07 | S06 | 대표 사진을 바꾸고 REBA를 다시 계산 | E-NOTFOUND-001 | ⑥ |
 | `confirm_judgment(id, criterion_no, final_status, reason, actor)` → Judgment | F05-05 | S07 | 호 하나를 확정. 이미 확정된 호면 결과를 고친다 | E-CONFIRM-001, E-CONFIRM-002 | ① 또는 ② |
@@ -231,7 +232,6 @@ flowchart LR
 | 함수 | 입력 → 출력 | 기능 | 시험 |
 |---|---|---|---|
 | `extract_keypoints(still_id, image_path, model_id, params)` | 사진 한 장 → 관절 17개와 신뢰도 (메모리에만). 모델은 MoveNet Lightning | F04-01 | 사진 한 장으로 관절 17개 (AC-11) |
-| `mask_face(image, keypoints, params)` | 사진 → 얼굴 가린 사진 | F04-02 | 사진 150장 모두 가림 (AC-12) |
 | `compute_angles(keypoints, params)` | 관절 → 사진별 각도 (ERD still_angle 열과 같음) | F04-03 | 각도기 재연 사진 (AC-13) |
 | `classify_postures(angles, thresholds)` | 각도 + 각도 기준 → 사진별 자세 판별 | F04-04 | AC-14, AC-15 |
 | `posture_shares(postures, daily_work_h)` | 자세 판별 → 자세별 표본 비율(해당 사진 ÷ 판별 가능 사진), 3호 합산 | F04-05 | AC-16, AC-17 |
@@ -378,7 +378,7 @@ GPT 어댑터는 `v_gpt_payload` 뷰만 읽는다 (ERD 7절). 뷰의 열을 이�
 | 시트 | 열 | 원본 (ERD 뷰) |
 |---|---|---|
 | 요약 | 조사 구분, 조사일, 조사자, 부서, 작업공정명, 작업명, 참여자, 다음 정기조사 예정일 / 단위작업, 해당 호, 초안 수, REBA, 위험 단계 / 보존 기간 안내, 증상설문조사 별도 필요 안내, 근거 법령, 요약 문장 ('AI 작성' 표시) | v_survey_list, v_excel_summary, participant, ai_text |
-| 작업별 결과 | 단위작업, 하루 작업시간, REBA, 위험 단계, 부위 점수 (목·몸통·다리·위팔·아래팔·손목), 대표 사진 (얼굴 가린 이미지), 3·4·5호 자세별 하루 노출 시간, 표본 수와 판별 불가 비율, 모델 | v_task_result, reba_result, judgment_basis, key_still_image |
+| 작업별 결과 | 단위작업, 하루 작업시간, REBA, 위험 단계, 부위 점수 (목·몸통·다리·위팔·아래팔·손목), 대표 사진 (이미지), 3·4·5호 자세별 하루 노출 시간, 표본 수와 판별 불가 비율, 모델 | v_task_result, reba_result, judgment_basis, key_still_image |
 | 경고 기록 | 단위작업, 호, 경고 문구, 근거, 뜬 시각, 사라진 시각, 조언 문장, 문장 출처 (AI 작성 · 기본 문구) | v_warning_log, ai_text |
 | 판정 초안 | 단위작업, 호, 기준 이름, 상태, 초안·확정, 근거, 출처, 각도 기준 출처 (해설 · 조사자 변경과 사유), 사람 확인 사유, 확정자, 확정 시각, 사유 | v_judgment_sheet, judgment_basis |
 
@@ -440,7 +440,7 @@ sequenceDiagram
   S->>DB: 사진 있음·동의 확인, analysis_run 만들기 (RUNNING)
   S-->>UI: RunHandle
   loop 백그라운드, 0.2초마다
-    S->>E: extract_keypoints, mask_face
+    S->>E: extract_keypoints
     S-->>UI: Progress (KEYPOINT, %)
   end
   S->>E: compute_angles → classify_postures → posture_shares → judge_criteria → reba
@@ -490,10 +490,10 @@ sequenceDiagram
 | 엔진 ↔ SQL 대조 | 엔진의 자세 비율과 `v_posture_exposure_check` 결과가 같은지 | AC-16 |
 | GPT 요청 | 보낸 JSON에 금지 필드가 없는지 | AC-30 |
 | GPT 응답 | 보내지 않은 숫자가 있으면 기본 문구, 10초를 넘기면 기본 문구 | AC-31, AC-32 |
-| 엑셀 | 시트 4개, '초안' 표시, 얼굴 가림, 책임 문구 | AC-29 |
+| 엑셀 | 시트 4개, '초안' 표시, 책임 문구 | AC-29 |
 | DB 제약 | ERD 9절의 32개 시험을 그대로 다시 씀 | ERD 9절 |
 
-### 10.1 계약 ↔ ERD 대조 결과 (2026-10-12, 자동 생성)
+### 10.1 계약 ↔ ERD 대조 결과 (2026-10-14, 자동 생성)
 
 `check_contract.py`가 contracts.py와 ERD의 schema_v1.sql을 읽어 비교한 출력이다.
 
@@ -557,9 +557,9 @@ contract version 0.3 | service functions 44 | enums 20 | mismatches 2
 | F03-02 촬영 안내 | (화면만) | — |
 | F03-03 촬영 동의 | confirm_consent | — |
 | F03-04 분석 실행 | start_analysis, cancel_analysis | extract_keypoints |
-| F04-01 ~ F04-05 | get_task_result, get_still_results | extract_keypoints, mask_face, compute_angles, classify_postures, posture_shares |
+| F04-01 ~ F04-05 | get_task_result, get_still_results | extract_keypoints, compute_angles, classify_postures, posture_shares |
 | F04-06 REBA | get_reba_inputs, save_reba_inputs, get_task_result | reba_for_still |
-| F04-07 대표 사진 | set_key_still, get_still_preview, get_still_results | pick_key_still, mask_face |
+| F04-07 대표 사진 | set_key_still, get_still_preview, get_still_results | pick_key_still |
 | F05-01, F05-02 판정·확신도 | get_task_result | judge_criteria |
 | F05-03 경고 | get_task_result | judge_criteria |
 | F05-04 다시 계산 | save_*, set_threshold, reset_threshold, set_key_still | classify_postures, posture_shares, judge_criteria |
@@ -1060,7 +1060,7 @@ class TaskResult:                         # S06
     invalid_ratio: Optional[float]        # 판별 불가 사진 ÷ 전체 사진
     reba: Optional[RebaScore]
     key_still_id: Optional[int]           # 대표 사진
-    key_still_jpeg: Optional[bytes]       # 얼굴을 가린 JPEG만
+    key_still_jpeg: Optional[bytes]       # 대표 사진 JPEG
     shares: tuple[PostureShare, ...]
     judgments: tuple[Judgment, ...]
     warnings: tuple[WarningItem, ...]

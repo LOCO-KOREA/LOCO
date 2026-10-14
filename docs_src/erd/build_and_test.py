@@ -36,7 +36,7 @@ def sample(c):
              0, 0, 0, 0, 0, 0) for n in range(20)]
     c.executemany("INSERT INTO still_angle VALUES (" + ",".join("?" * 20) + ")", rows)
     x("INSERT INTO reba_result VALUES (1000,100,'AUTO','R',2,4,2,6,2,8,3,1,2,4,1,5,8,1,9,'HIGH',0)")
-    x("INSERT INTO key_still_image(run_id,still_id,image_jpeg,masked_yn) VALUES (1000,100,X'FFD8FFE0',1)")
+    x("INSERT INTO key_still_image(run_id,still_id,image_jpeg) VALUES (1000,100,X'FFD8FFE0')")
     x("INSERT INTO judgment(judgment_id,unit_task_id,criterion_no,run_id,computed_status_cd,basis_text,source_text)"
       " VALUES (1,10,4,1000,'APPLICABLE','허리 굽힘 35% × 하루 6시간 = 2.10시간 ≥ 2시간','고시 제3조 제4호 · 각도 20°(해설 4호 주3)')")
     x("INSERT INTO judgment_basis(judgment_id,item_cd,share_ratio,exposure_h,threshold_value,threshold_source_cd)"
@@ -145,7 +145,7 @@ M = [
  ("M01", "REBA 점수 16점", lambda c: c.execute("UPDATE reba_result SET reba_score=16 WHERE run_id=1000")),
  ("M02", "REBA 9점인데 위험 단계 '보통'", lambda c: c.execute("UPDATE reba_result SET risk_level_cd='MEDIUM' WHERE run_id=1000")),
  ("M03", "REBA 점수 ≠ 표 C 점수 + 활동 점수", lambda c: c.execute("UPDATE reba_result SET activity_score=3 WHERE run_id=1000")),
- ("M04", "얼굴을 가리지 않은 대표 사진 저장", lambda c: c.execute("UPDATE key_still_image SET masked_yn=0 WHERE run_id=1000")),
+ ("M04", "빈 이미지를 대표 사진으로 저장", lambda c: c.execute("UPDATE key_still_image SET image_jpeg=X'' WHERE run_id=1000")),
  ("M05", "수정 이력 고치기", lambda c: c.execute("UPDATE edit_log SET new_value='5'")),
  ("M06", "수정 이력 한 줄만 지우기", lambda c: c.execute("DELETE FROM edit_log")),
  ("M07", "사유 없이 각도 기준 변경", lambda c: c.execute(

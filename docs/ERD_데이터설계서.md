@@ -7,12 +7,12 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 번호 | ERGO-DD-001 |
-| 버전 | v0.2 (초안) |
+| 버전 | v0.3 (초안) |
 | 작성일 | 2026-10-12 |
 | 작성 | 한정욱 (데이터 담당) |
 | 검토 | 김나리 · 유서하 · 정혁 |
 | 상태 | 초안. 10/14 설계 1차에서 검토, 10/15 확정 |
-| 상위 문서 | 기능정의서 v0.4 (ERGO-FD-001), requirements.md |
+| 상위 문서 | 기능정의서 v0.5 (ERGO-FD-001), requirements.md |
 | 다음 문서 | API 계약서 (ERGO-API-001) |
 | DBMS | SQLite 3.45 (Python 3.11 내장 sqlite3). 서버 없이 PC에 파일 하나 |
 | 그림 원본 | `ERD.drawio` (draw.io로 열어 고칠 수 있음) · PNG는 `ERD_그림` 폴더 |
@@ -26,6 +26,7 @@
 | v0.1 | 2026-10-12 | ERD를 그림으로: draw.io 파일 1개(5쪽)와 PNG 5장. 개념 ERD와 5.5절에서 ai_text의 두 부모를 '반드시 하나'로 적었던 것을 '없거나 하나'로 바로잡음 (외래키가 NULL 허용) |
 | v0.1.1 | 2026-10-12 | 고시 제2020-12호 원문 대조 (국가법령정보센터 현행 본문): criterion.legal_text의 3호·6호를 원문대로 고침 (띄어쓰기만 다름, 나머지 9개는 일치). 작업 기간 구분 설명을 고시 제2조 표현으로 바꿈. 원문 사본과 시험은 프로젝트의 tests/test_law_text.py |
 | v0.2 | 2026-10-12 | MVP의 분석 입력을 사진(스틸샷)으로, 관절 모델을 MoveNet Lightning으로 정함 (기능정의서 v0.4 D-MVP-01 · D-MODEL-01). video → still, frame_angle → still_angle, key_frame_image → key_still_image. analysis_run에서 video_id · multi_person_yn · smoothing_frames를 빼고 min_sample_cnt(TP-12)를 더함. 대표 사진이 그 분석에 쓴 사진이어야 한다는 외래키와, 사진 없는 단위작업의 분석을 막는 트리거를 더함. 테이블 25개, 뷰 9개, 인덱스 14개, 트리거 8개 (7개에서 늘어남). 시험 32개 |
+| v0.3 | 2026-10-14 | `key_still_image.masked_yn` 열과 그 CHECK를 뺐다. 시험 32개 중 M04를 '빈 이미지를 대표 사진으로 저장'으로 바꿨다. 데이터 표준의 이미지 항목과 개인정보 분류(8절)를 고쳤다 |
 
 ---
 
@@ -38,7 +39,7 @@
 - 설계 원칙
   1. **판정의 근거가 남는다.** 같은 입력이면 같은 결과가 나오고, 그 결과가 어떤 값으로 나왔는지 다시 보여 줄 수 있어야 한다 (NFR-004, NFR-005).
   2. **법 기준값은 출처와 함께 저장한다.** 각도 기준은 해설 값이 기본이고, 조사자가 바꾸면 사유가 남는다 (BR-06).
-  3. **필요한 것만 저장한다.** 얼굴, 원본 사진, 관절 위치 원자료는 저장하지 않는다 (BR-22, 8절).
+  3. **필요한 것만 저장한다.** 원본 사진 전체와 관절 위치 원자료는 저장하지 않는다 (BR-22, 8절). 사진은 대표 사진 1장만 저장한다.
   4. **DB가 막을 수 있는 규칙은 DB가 막는다.** 값의 범위, 상태의 조합, 이력 보호는 CHECK, 외래키, 트리거로 건다. 앱 코드에 버그가 있어도 잘못된 데이터가 들어가지 않는다 (9절에서 시험).
   5. **PC 한 대, 파일 하나.** 백업과 이동은 파일 하나를 복사하면 된다.
 
@@ -83,10 +84,9 @@
 | F03-01, F03-03 | 사진 정보, 촬영 동의 | still | 원본은 위치만. 뺀 사진은 표시만 함 |
 | F03-04 | 분석 실행과 상태 | analysis_run | 다시 분석하면 새 행 |
 | F04-01 | 관절 위치 | (저장 안 함) | 메모리에서만 씀 |
-| F04-02 | 얼굴 가린 대표 사진 | key_still_image | 가린 것만 저장 (DB가 강제) |
 | F04-03, F04-04 | 사진별 각도와 자세 판별 | still_angle | 기준을 바꿔도 사진을 다시 분석하지 않고 다시 계산 (OI-12) |
 | F04-05 | 자세 비율, 하루 노출 시간 | judgment_basis | 판정 시점의 값을 스냅샷으로 |
-| F04-06, F04-07 | REBA 사람 입력, 단계별 점수, 대표 사진 | reba_input, reba_result | 대표 사진은 그 분석에 쓴 사진 (DB가 강제) |
+| F04-06, F04-07 | REBA 사람 입력, 단계별 점수, 대표 사진 | reba_input, reba_result, key_still_image | 대표 사진은 그 분석에 쓴 사진 (DB가 강제) |
 | F05-01, F05-02 | 호별 판정, 사람 확인 사유 | judgment, judgment_basis, criterion | 단위작업 × 호마다 1행 |
 | F05-03 | 경고 기록 | warning | — |
 | F05-05, F05-06 | 확정, 수정 이력 | judgment, edit_log | 이력은 추가만 |
@@ -126,7 +126,7 @@
 | 이름 | `_name` | TEXT | 빈 글자 금지 |
 | 글 | `_text`, `_desc`, `_json` | TEXT | JSON은 `json_valid()` 검사 |
 | 위치 | `_path` | TEXT | 원본 파일 위치 |
-| 이미지 | `_jpeg` | BLOB | 얼굴 가린 JPEG만 |
+| 이미지 | `_jpeg` | BLOB | JPEG (대표 사진) |
 
 ### 4.3 표준 단어
 
@@ -242,7 +242,7 @@
 | analysis_run | 분석 실행 | 단위작업의 사진 전체를 모델 하나로 분석한 한 번 | run_id (인조) | 분석을 시작할 때 |
 | still_angle | 사진별 각도 | 분석에 쓴 사진 하나 | run_id + still_id (복합, 식별 관계) | 분석이 끝날 때 |
 | reba_result | REBA 결과 | 분석의 대표 사진 REBA | run_id (1:1 식별 관계) | 분석이 끝날 때 |
-| key_still_image | 대표 사진 이미지 | 얼굴 가린 대표 사진 | run_id (1:1 식별 관계) | 대표 사진이 정해질 때 |
+| key_still_image | 대표 사진 이미지 | 대표 사진 | run_id (1:1 식별 관계) | 대표 사진이 정해질 때 |
 | judgment | 판정 | 단위작업의 호 하나에 대한 판정 | judgment_id (인조), 대체키 unit_task_id + criterion_no | 판정을 계산할 때 |
 | judgment_basis | 판정 근거 | 판정에 쓴 값 하나 | basis_id (인조), 대체키 judgment_id + item_cd | 판정을 계산할 때 |
 | warning | 경고 | 띄운 경고 하나 | warning_id (인조) | '해당' 초안이 생길 때 |
@@ -304,7 +304,6 @@
 | 상태 무결성 | 상태와 값의 조합 | 확정 = 확정 시각 있음. '입력 필요'는 확정 불가. '사람 확인'과 초안과 다른 확정은 사유 필수 | 3.2절, EX-14, EX-15 |
 | 계산 무결성 | 점수 합계 | 점수 A = 표 A + 하중, 점수 B = 표 B + 손잡이, REBA = 표 C + 활동, 위험 단계 = 점수 구간 | F04-06 |
 | 업무 규칙 (트리거) | 행 하나로는 못 거는 규칙 | 수시조사에만 사유 · 사진이 있어야 분석 · 동의한 사진만 분석 · 같은 작업의 사진·분석만 · 수정 이력은 고치거나 지울 수 없음 | F03-03, F05-06 |
-| 개인정보 | 얼굴은 저장하지 않음 | key_still_image.masked_yn = 1만 허용 | BR-22 |
 
 표 A·B·C의 조회 값(어떤 각도 점수 조합이 몇 점인지)은 DB가 확인하지 않는다. 분석 엔진이 계산하고 워크시트 예시로 시험한다 (AC-18).
 
@@ -608,14 +607,13 @@
 
 #### T17. key_still_image (대표 사진 이미지)
 
-얼굴을 가린 대표 사진 (엑셀에 넣음, BR-22). 저장 방식: STRICT
+분석마다 한 장 저장하는 대표 사진 (엑셀에 넣음). 저장 방식: STRICT
 
 | 컬럼 | 타입 | NULL | 기본값 | 키 | 설명 |
 |---|---|---|---|---|---|
 | run_id | INTEGER | 아니오 |  | PK · FK → reba_result.run_id | 분석 |
 | still_id | INTEGER | 아니오 |  | FK → still.still_id | 사진 |
 | image_jpeg | BLOB | 아니오 |  |  | JPEG 이미지 |
-| masked_yn | INTEGER | 아니오 |  |  | 얼굴 가림 (항상 1) |
 | created_at | TEXT | 아니오 | 지금 시각 |  | 만든 시각 |
 
 #### T18. judgment (판정)
@@ -953,7 +951,7 @@ GROUP BY r.run_id;
 |---|---|---|---|
 | 조사자 이름 (survey.investigator_name, confirmed_by, actor_name, changed_by) | 개인정보 | 저장 | 화면과 엑셀에 보임. GPT에 보내지 않음 |
 | 참여 근로자 표시 이름 | 개인정보 | 저장 | 실명 대신 '근로자 A' 권장. GPT에 보내지 않음 |
-| 근로자 얼굴 | 개인정보 (사진) | **저장하지 않음** | 대표 사진은 가린 것만 (masked_yn = 1 강제) |
+| 작업 사진 속 얼굴 | 개인정보 (사진) | **대표 사진 1장만 저장** | 촬영·분석 동의가 있어야 분석한다. GPT에 보내지 않음 |
 | 원본 사진 | 개인정보 | **복사하지 않음** | 위치(file_path)만 저장 |
 | 관절 위치 원자료 | 신체 정보 | **저장하지 않음** | 각도와 자세 판별 결과만 저장 |
 | 작업명, 작업 내용 (자유 입력) | 개인정보가 섞일 수 있음 | 저장 | GPT에 보내지 않음 (OI-05) |
@@ -981,7 +979,7 @@ SQLite 3.45.1에서 실행. **32/32 기대대로** (통과해야 할 것 8개, �
 | M01 | REBA 점수 16점 | 막혀야 함 | 맞음 | CHECK constraint failed: reba_score BETWEEN 1 AND 15 |
 | M02 | REBA 9점인데 위험 단계 '보통' | 막혀야 함 | 맞음 | CHECK constraint failed: risk_level_cd = CASE WHEN reba_score = 1 THEN 'NEGLIGIBLE' WHEN reba_score <= 3 THEN 'LOW' W… |
 | M03 | REBA 점수 ≠ 표 C 점수 + 활동 점수 | 막혀야 함 | 맞음 | CHECK constraint failed: reba_score = table_c_score + activity_score |
-| M04 | 얼굴을 가리지 않은 대표 사진 저장 | 막혀야 함 | 맞음 | CHECK constraint failed: masked_yn = 1 |
+| M04 | 빈 이미지를 대표 사진으로 저장 | 막혀야 함 | 맞음 | CHECK constraint failed: length(image_jpeg) > 0 |
 | M05 | 수정 이력 고치기 | 막혀야 함 | 맞음 | edit_log: 수정 이력은 고칠 수 없습니다 |
 | M06 | 수정 이력 한 줄만 지우기 | 막혀야 함 | 맞음 | edit_log: 수정 이력은 지울 수 없습니다 (조사 전체를 지울 때만 함께 지워집니다) |
 | M07 | 사유 없이 각도 기준 변경 | 막혀야 함 | 맞음 | CHECK constraint failed: length(trim(reason_text)) > 0 |
@@ -1064,7 +1062,6 @@ SELECT s.survey_id FROM survey s WHERE EXISTS (SELECT 1 FROM judgment j JOIN uni
 | F02-03 참여 근로자 | participant | — |
 | F03-01 ~ F03-03 사진·동의 | still | — |
 | F03-04 분석 실행 | analysis_run | v_task_result |
-| F04-02 얼굴 모자이크 | key_still_image | — |
 | F04-03 ~ F04-05 각도·자세·노출 | still_angle, judgment_basis | v_posture_exposure_check |
 | F04-06, F04-07 REBA·대표 사진 | reba_input, reba_result, key_still_image | v_task_result |
 | F05-01, F05-02 판정·확신도 | judgment, judgment_basis, criterion | v_judgment_sheet |
@@ -1087,7 +1084,7 @@ SELECT s.survey_id FROM survey s WHERE EXISTS (SELECT 1 FROM judgment j JOIN uni
 | ID | 결정 | 다른 선택지 | 이유 |
 |---|---|---|---|
 | D-01 | 사진별 각도를 저장한다 (기능정의서 OI-12) | 요약만 저장 | 각도 기준을 바꿔도 사진을 다시 분석하지 않고 다시 계산하고, 같은 결과를 증명할 수 있다. 사진 30장에 약 0 KB |
-| D-02 | 대표 사진 이미지는 DB에 BLOB로 | 이미지 파일을 폴더에 따로 | 파일 하나로 백업·이동. 얼굴 가림을 DB가 강제할 수 있음 |
+| D-02 | 대표 사진 이미지는 DB에 BLOB로 | 이미지 파일을 폴더에 따로 | 파일 하나로 백업·이동 |
 | D-03 | 판정은 현재 값 1행, 바뀐 내역은 수정 이력에 | 판정 버전 테이블 | 화면과 엑셀은 현재 값만 쓰고, 감사는 이력으로 충분 |
 | D-04 | 코드는 CHECK 목록으로 | 공통 코드 테이블 | 코드가 적고 거의 안 바뀜. DB가 바로 막음. 바뀌면 마이그레이션 |
 | D-05 | 단위작업을 지워도 수정 이력은 남긴다 | 함께 지움 | 누가 무엇을 지웠는지 남기기 위해. 조사 전체를 지울 때만 함께 지움 |
@@ -1370,7 +1367,6 @@ CREATE TABLE key_still_image (
   run_id      INTEGER PRIMARY KEY REFERENCES reba_result(run_id) ON DELETE CASCADE,
   still_id    INTEGER NOT NULL REFERENCES still(still_id),
   image_jpeg  BLOB    NOT NULL CHECK (length(image_jpeg) > 0),
-  masked_yn   INTEGER NOT NULL CHECK (masked_yn = 1),
   created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 ) STRICT;
 

@@ -257,7 +257,6 @@ CREATE TABLE key_still_image (
   run_id      INTEGER PRIMARY KEY REFERENCES reba_result(run_id) ON DELETE CASCADE,
   still_id    INTEGER NOT NULL REFERENCES still(still_id),
   image_jpeg  BLOB    NOT NULL CHECK (length(image_jpeg) > 0),
-  masked_yn   INTEGER NOT NULL CHECK (masked_yn = 1),
   created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S','now','localtime'))
 ) STRICT;
 

@@ -51,7 +51,7 @@ ORDER = [
     ("analysis_run", "시작할 때 이미 있음 (RUNNING). 끝날 때 상태와 완료 시각을 바꾼다"),
     ("still_angle", "사진 수만큼 (표본). 한 번의 `executemany`"),
     ("reba_result", "분석 한 줄"),
-    ("key_still_image", "얼굴을 가린 대표 사진 (BLOB)"),
+    ("key_still_image", "대표 사진 (BLOB)"),
     ("judgment", "단위작업 × 11개 호. 이미 있으면 갱신 (`ON CONFLICT`)"),
     ("judgment_basis", "판정마다 근거 값"),
     ("warning", "'해당' 초안인 호마다. 기존 경고는 해소 시각을 채운다"),
