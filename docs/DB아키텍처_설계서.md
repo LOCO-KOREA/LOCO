@@ -1,6 +1,6 @@
 # 데이터베이스 아키텍처 설계서
 
-> 문서 ID ERGO-DBA-001 · 설계 버전 1.2 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-DBA-001 · 설계 버전 1.3 · 기준일 2026-10-14 · 데모 개발 기준
 
 ## 1. 단순 로컬 구조
 
@@ -30,7 +30,7 @@ flowchart TD
   UI[화면] --> APP[Application Service]
   APP --> INPUT[조사·작업·촬영 입력]
   APP --> POSE[pose: 좌표·각도·태그]
-  APP --> REBA[reba: 점수표]
+  APP --> REBA[reba: 각도 후보·점수표]
   APP --> BURDEN[burden: 직접입력 11호]
   APP --> GPT[explanation: 선택 설명]
   APP --> REPORT[report: Excel]
@@ -40,9 +40,9 @@ flowchart TD
 
 - 계산 모듈은 DTO를 받고 DTO를 반환한다. DB 연결/파일저장/다른 계산 모듈 내부 호출은 하지 않는다.
 - capture는 등록/미리보기에서 사진을 읽고 pose는 추론을 위해 읽는다. 모델 실행은pose만 담당한다. report는 선택 대표사진을 출력에 넣을 때 읽는다.
-- reba는 포즈 후보와 수동값/하중으로 계산한다. burden은 작업조건/직접노출시간/횟수로 계산하며 pose/reba 총점에 의존하지 않는다.
-- explanation은 NumericSummary만 받아 문장을 반환한다. 생성 문장은 계산 모듈로 역입력하지 않는다.
-- report는 ExportSnapshot에서 ReportOverview/다음 입력 안내를 구성하고 같은 파생값으로 Excel을 렌더링한다. UI/DB가 집계나 누락 분류를 별도로 구현하지 않는다. report는 REBA/고시 엔진을 재호출하지 않는다.
+- reba는 PoseResult의 각도에서 사진별6개 후보를 만들고 수동값/하중으로 점수표를 계산한다. 후보 적용 전에는 확정 수동값으로 사용하지 않는다. 목은 REBA_TABLE_2000_V2의 수동 구간이다. burden은 작업조건/직접노출시간/횟수로 계산하며 pose/reba 총점에 의존하지 않는다. 확인된 제외→모순→확실한미달→결론에 필요한누락→해석→해당의 순서는 burden이 담당한다.
+- explanation은 NumericSummary만 받아 문장을 반환한다. 서비스가 미계산/미완전/완전과 초안/조사자/effective 상태·출처·제외/누락/검토사유를 함께 구성한다. 생성 문장은 계산 모듈로 역입력하지 않는다.
+- report.build_overview(snapshot)은 같은 ExportSnapshot에서 선택 분석의 상태/집계/다음 입력 안내를 구성한다. report.render(snapshot,destination)은 그 파생값과 snapshot.include_representative로 네 시트를 쓰고 RenderedReport를 반환한다. UI/DB가 집계나 누락 분류를 별도로 구현하지 않는다. report는 REBA/고시 엔진을 재호출하지 않는다.
 - storage는6테이블별 읽기/쓰기/삭제와 JSON 직렬화만 맡는다. 새로운 계산 기능 때문에 DB 구조를 매번 늘리지 않는다.
 
 ## 4. 저장 흐름
@@ -50,6 +50,8 @@ flowchart TD
 ### 입력 저장
 
 서비스가 Task DTO의 입력부를 TASK.input_json으로 저장하고 input_revision을1증가한다. 짧은 기본 트랜잭션으로 JSON·revision·updated_at을 함께 쓴다. 예상버전 가드나 실행중 잠금은 없다. 변경 시 결과에 ‘이전 입력 기준’ 표시를 한다.
+
+선택사진/같은순간3회차/개별 편집은 UI가 현재 ManualValue[]에 선택 필드만 합쳐 전체 목록을 보낸다. 자동 적용은 각 대상 사진 자신의 후보를 쓰며 source=AUTO_ACCEPTED와 대상photo_id/근거를 기록한다. service/storage는 기존 TASK.input_json.manual에 저장한다. 사진 없는 대상/없는 후보는 미확인으로 남기고 다른 편집은 계속한다. 별도 그룹/템플릿 저장소나 승인 API를 만들지 않는다.
 
 ### 사진 분석
 
@@ -77,7 +79,9 @@ Analysis.status는 RUNNING/FINISHED/FAILED/CANCELED라는 요청 실행상태다
 
 Excel 생성은 선택한 분석과 조사정보를 ExportSnapshot으로 복사한 뒤 DB 밖에서 수행한다. 현재/과거·미완전·검토상태를 기록한다. 생성된 파일과 EXPORT_LOG는 보고서 수치 출처를 연결한다. 생성 후 로그저장 실패면 파일은 남아 있을 수 있으며 결과에 그 사실을 알린다.
 
-서비스는 preview_excel/export_excel에서 같은 작업별 분석 선택 규칙으로 snapshot을 구성한다. report가 같은 함수로 ReportOverview를 구성하며 미리보기는 파일/로그 저장 없이 DTO를 반환한다. 출력은 호출 시점의 새 snapshot으로 네 시트를 만들고 기존 EXPORT_LOG.snapshot_json에 ExportSnapshot을 기록한다. report_version/schema_version/exported_at도 이 JSON에 저장하며 새 컬럼은 없다.
+서비스는 preview_excel/export_excel에서 같은 작업별 분석 선택 규칙으로 snapshot을 구성한다. report.build_overview가 ReportOverview를 구성하며 미리보기는 파일/로그 저장 없이 DTO를 반환한다. 출력은 호출 시점의 새 snapshot에 ExportSpec.include_representative를 복사하고 render(snapshot,ExportSpec.destination)을 호출한다. 미리보기 내부 옵션은true이며 상태/집계와 무관하다. render가 반환한 overview.state를 ExportReceipt에 옮긴다. 기존 EXPORT_LOG.snapshot_json에 ExportSnapshot, receipt_json에 sheets와reviewed/review_current/has_incomplete/has_stale를 기록한다. report_version/schema_version=1.3, include_representative/exported_at도 이 JSON에 저장하며 새 컬럼은 없다.
+
+출력 reviewed는 선택analysis_id가 검토목록에 있는지와 조사reviewed로 정하고 review_current는 여기에 metadata_revision 일치/분석CURRENT까지 비교한다. has_incomplete는 선택 분석/모듈 결과 유무와 원래 pose/reba/judgment 상태에서 직접 계산한다. 안내는 기존 포즈 diagnostics/REBA missing_fields·좌우 review_reasons/고시 computed_status·missing_fields·review_reasons에서 next_inputs[].message로 구성한다. 별도 미완전 사유 분류/배열이나 그 저장소를 만들지 않는다. UI/Excel은 같은 안내 문구를 사용하고 출력기록에는 기존 네 상태 부울을 기록한다. 상태는 저장·분석·검토·출력 허가 조건으로 사용하지 않는다. SUMMARY 작업표는14열이고 조사정보는 위 개요, 진단/적용 설명은 아래 식별자 붙은 상세영역, 버전/대표슬롯은 기존 상세시트에 표시한다. 데이터와 네 시트는 유지한다.
 
 입력 부족/검토 필요 기준 수, REBA 미완료 사진 수와 next_inputs는 저장 결과에서 파생한다. 조회 SQL/뷰/trigger나 별도 집계 테이블에 계산을 넣지 않는다. 조사자 결론/검토 표시와 부족 항목은 독립이다. 대표사진/구성점수와 판정의 모든 근거는 같은 선택 분석에서 읽으며 원본 사진이 없으면 이미지와 사유만 바뀐다. 필터/정렬 표 밖에 식별자를 붙인 대표블록을 렌더링한다. 출력 수치와 판정은 Excel 수식으로 재계산하지 않는다.
 

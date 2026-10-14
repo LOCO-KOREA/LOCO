@@ -1,6 +1,6 @@
 # API 계약서
 
-> 문서 ID ERGO-API-001 · 설계 버전 1.2 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-API-001 · 설계 버전 1.3 · 기준일 2026-10-14 · 데모 개발 기준
 
 ## 1. 경계·모듈
 
@@ -12,10 +12,10 @@ Windows 로컬 UI→Application Service 계약이다. 아래 타입 표기는 �
 | task_input | TaskConditions/LegalInputs/ManualValue→Task | 입력·input_revision·수정 영향 |
 | capture | 사진경로/배정→PhotoInfo/CaptureSet | 다중사진·15슬롯·촬영 관찰 |
 | pose | PoseRequest→PoseResult, TagRequest→TagResult | 17관절·각도·태그 |
-| reba | RebaRequest→RebaResult | 사진별 좌우 점수표 |
+| reba | RebaRequest→RebaResult | 사진별 자동 후보·좌우 점수표 |
 | burden | BurdenRequest→JudgmentResult | 직접입력으로11호 초안 |
 | explanation | NumericSummary→생성문자열 | 선택 GPT 설명 |
-| report | ExportSnapshot→ReportOverview/Excel 파일 | 공통 요약 집계·다음 입력 안내·네 시트 렌더링 |
+| report | build_overview(snapshot)→ReportOverview, render(snapshot,destination)→RenderedReport | 공통 상태·집계·다음 입력 안내·네 시트 렌더링 |
 | storage | 아래 DTO↔SQLite/JSON | 저장·읽기·서비스 삭제 |
 
 expected_version/WriteGuard/승인 토큰/잠금 API/보안검증기는 없다. 미입력·모순·부분분석은 반환 결과의 notes/missing_fields/review_reasons로 표시한다. 저장·분석·초안 내보내기는 이런 상태에서도 사용할 수 있다. 읽을 수 없는 파일·모델·DB·출력 오류는 정상 오류 처리이며 운영 차단정책이 아니다.
@@ -97,15 +97,17 @@ type TaskInputBundle = {task:Task,exclusions:Exclusions,photos:PhotoInfo[],setti
 
 short_term/intermittent 파생은 기능정의서 §5. 자세 해석 pending은3/4/5/9에 사용한다. 근거는 권장 입력, 미기입도 저장한다. ManualValue의 scope/범주는 기능정의서 §4 표와 같다. 마지막5개 태그전용 필드는 COMMON/Truth, seated도 Truth. neck_base/wrist_base는 자동 좌표로 생성하지 않는다. 사진 교체 시 해당 슬롯 manual/observation을 비워 둔다. 사진이 없는 슬롯에는 manual을 자동 생성하지 않는다.
 
-자동 후보 수용은trunk_base/upper_arm_base/lower_arm_base/knee_band만AUTO_ACCEPTED로 기록한다. 비틀림/지지/손목/쥐기/충격/활동은 현장 관찰·면담 입력이다. 이 구분은 값의 출처이며 별도 승인/차단 가드를 요구하지 않는다.
+자동 후보 ‘값 적용’은trunk_base/upper_arm_base/lower_arm_base/knee_band만AUTO_ACCEPTED로 기록한다. 목은 중립/0..20° 굴곡1, >20° 굴곡/모든 신전2, 관찰불가null이며 수동 선택한다. 선택한 목 자세문구는 ManualValue.evidence.text에 기존 근거와 함께 기록한다. neck_base=2만으로 굴곡/신전을 구별하지 않는다. 비틀림/지지/손목/쥐기/충격/활동은 현장 관찰·면담 입력이다. 이 구분은 값의 출처이며 별도 승인/차단 가드를 요구하지 않는다.
+
+burden의 결과 우선순위는 기능정의서 §5.1의 확인된 제외→해당 기준 입력모순→확실한FALSE→결론에 필요한 누락→미결정 해석→해당이다. 제외/확실한FALSE로 끝난 기준의 missing_fields/review_reasons는 비우며 무관한 누락은 원자료/notes로 남긴다. 모든 기준에 제외/일일시간 입력을 일괄 요구하지 않는다.
 
 ## 4. 분석·결과 DTO
 
 ```typescript
 type PoseModel = {name:string,version:string,preprocess_version:string,input_size:192,point_count:17,confidence_min:0.5};
 type PostureProfile = {version:'POSTURE_TECH_V1',neck_forward_deg:Number,trunk_flex_deg:Number,trunk_extension_deg:Number,upper_arm_raise_deg:Number};
-type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V1',burden_rule:'MOEL_2020_12_V1'};
-type TaskSnapshot = {schema_version:'1.2',task_id:ID,input_revision:Count,task_name:string,conditions:TaskConditions,legal:LegalInputs,capture:CaptureSet,manual:ManualValue[],photos:PhotoInfo[],settings:AnalysisSettings};
+type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V2',burden_rule:'MOEL_2020_12_V1'};
+type TaskSnapshot = {schema_version:'1.3',task_id:ID,input_revision:Count,task_name:string,conditions:TaskConditions,legal:LegalInputs,capture:CaptureSet,manual:ManualValue[],photos:PhotoInfo[],settings:AnalysisSettings};
 type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number};
 type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null};
 type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[]};
@@ -115,12 +117,14 @@ type TagRequest = {pose:PoseResult|null,snapshot:TaskSnapshot};
 type SlotTag = {slot_no:Count,tag:TagCode,value:Truth,source:'ANGLE'|'MANUAL'|'UNKNOWN'};
 type TagSummary = {tag:TagCode,yes_count:Count,observed_count:Count,valid_pose_count:Count,manual_observed_count:Count,total_slot_count:15,sample_ratio:Number|null};
 type TagResult = {slots:SlotTag[],summary:TagSummary[]};
+type CandidateField = 'trunk_base'|'upper_arm_base'|'lower_arm_base'|'knee_band';
+type RebaCandidate = {slot_no:Count,photo_id:ID|null,scope:'COMMON'|'LEFT'|'RIGHT',field:CandidateField,proposed_value:Count|KneeBand|null,angles:Angle[],min_confidence:Number|null,review_reasons:ReviewReason[],diagnostics:Diagnostic[]};
 type RebaSideScore = {side:Side,trunk:Count|null,neck:Count|null,legs:Count|null,table_a:Count|null,load_score:Count|null,score_a:Count|null,upper_arm:Count|null,lower_arm:Count|null,wrist:Count|null,table_b:Count|null,coupling_score:Count|null,score_b:Count|null,table_c:Count|null,activity_score:Count|null,total:Count|null,risk:Risk|null,missing_fields:string[],review_reasons:ReviewReason[]};
-type RebaSlotResult = {slot_no:Count,photo_id:ID|null,load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[]};
+type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[]};
 type RebaSummary = {complete_count:Count,total_slot_count:15,available_max:Count|null,full_max:Count|null,representative_slot_no:Count|null,selection:'AUTO'|'MANUAL'|null};
 type RebaResult = {status:'COMPLETE'|'INCOMPLETE',slots:RebaSlotResult[],summary:RebaSummary};
 type RebaRequest = {pose:PoseResult|null,snapshot:TaskSnapshot};
-type BasisItem = {item_code:string,value:Number|Truth|null,unit:'MIN_DAY'|'KG'|'KG_EQUIV'|'COUNT_DAY'|'COUNT_MIN'|'COUNT_HOUR'|'BOOLEAN',operator:'GE'|'LE'|'EQ'|'OR'|null,threshold:Number|null,source:string};
+type BasisItem = {item_code:string,value:Number|Truth|null,unit:'MIN_DAY'|'KG'|'KG_EQUIV'|'COUNT_DAY'|'COUNT_MIN'|'COUNT_HOUR'|'MONTH'|'COUNT_YEAR'|'BOOLEAN',operator:'GE'|'LE'|'EQ'|'OR'|null,threshold:Number|null,source:string};
 type InvestigatorConclusion = {criterion_no:Count,status:FinalStatus|null,reason:string|null,evidence:Evidence,reviewer:string|null,reviewed_at:Timestamp|null};
 type Judgment = {criterion_no:Count,computed_status:JudgmentStatus,exclusion:'SHORT_TERM'|'INTERMITTENT'|'BOTH'|null,basis:BasisItem[],missing_fields:string[],review_reasons:ReviewReason[],source:string,investigator:InvestigatorConclusion,effective_status:JudgmentStatus};
 type JudgmentResult = {judgments:Judgment[]};
@@ -133,9 +137,11 @@ type TaskResult = {task:Task,currentness:Currentness,analysis:Analysis|null,warn
 
 Analysis.input_revision=현재TASK.input_revision이고 latest_analysis_id가 해당 행이면 CURRENT, 이전이면 STALE, 결과 없음 NONE. currentness/review_current는 저장 부울을 신뢰하지 않고 조회에서 계산한다. 포즈 완료와 REBA/고시 완전성은 독립이다. PoseResult.slots/RebaResult.slots는15개, JudgmentResult.judgments는11개다. 추론한 슬롯 points17개·angles좌우×7개, 미처리 슬롯은 빈 배열이다. 읽을 수 없는 사진은 슬롯 ERROR, 빈 슬롯은 INVALID/MISSING_PHOTO.
 
-JobStatus FINISHED는 요청한 모듈 처리 완료이고 PoseResult의 DONE과 다르다. 포즈가 FAILED여도 고시/수동REBA 결과를 반환한 작업은 FINISHED일 수 있다. 조사 review_current는 reviewed=true, 검토 당시 metadata_revision 일치, 현존 작업별 최신CURRENT 분석ID 목록 일치일 때 true다. set_survey_review에서 서비스가 현재 metadata_revision을 기록한다. 이는 검토표시 계산이며 버튼을 차단하지 않는다.
+JobStatus FINISHED는 요청한 모듈 처리 완료이고 PoseResult의 DONE과 다르다. 포즈가 FAILED여도 고시/수동REBA 결과를 반환한 작업은 FINISHED일 수 있다. SurveySummary.reviewed는 SURVEY.review.reviewed를 표시한다. SurveySummary.review_current는 작업이1개 이상이고 reviewed=true, 검토 metadata_revision 일치, 현존 모든 작업에 최신CURRENT 분석이 있으며 그ID들이 모두 검토목록에 포함될 때true다. 다른 과거ID가 목록에 더 있어도 이를 바꾸지 않는다. TaskResult.review_current는 그 작업의 최신 분석에 대해 같은 포함/metadata/CURRENT 조건을 적용한다. set_survey_review에서 서비스가 현재 metadata_revision을 기록한다. 이는 검토표시 계산이며 버튼을 차단하지 않는다.
 
 REBA total/risk는 모든 인자가 확인됐을 때만 존재한다. 양쪽 중 미완전이면 selected_side/전체 total/risk null. RebaResult.status COMPLETE는15슬롯 모두COMPLETE일 때이고 그 외INCOMPLETE다. full_max도15개완전일 때만 존재한다. 기술태그 입력은 POSTURE_TECH_V1이고 REBA/고시 기준을 바꾸지 않는다. 수동 관찰이 없는 태그 UNKNOWN은 observed_count에서 제외한다.
+
+각 슬롯 candidates는 COMMON.trunk_base/COMMON.knee_band/LEFT.upper_arm_base/LEFT.lower_arm_base/RIGHT.upper_arm_base/RIGHT.lower_arm_base의6개다. 몸통은 camera_side의 TRUNK_TILT_VERT, 팔은 해당 측 UPPER_ARM_FLEX_TRUNK/ELBOW_FLEX, 무릎은 양쪽 KNEE_FLEX의 큰 값을 사용한다. 필요한 각도가 부족하면 proposed_value/min_confidence=null과 진단을 반환한다. angles는 참조한 Angle을 그대로 담으며 무릎은 양쪽 값 모두 필요하다. 범주·confidence·경계 사유는 기능정의서 §4.2에서 정한 대로 reba가 만든다. 후보 반환은 다른 필수 수동값의 입력과 무관하다. candidate의 slot_no/photo_id는 부모 슬롯과 같다. 적용하지 않은 후보를 점수 인자로 사용하지 않는다.
 
 TagResult.slots는15슬롯×11태그, summary는11태그다. 서비스는 slots를Analysis.slot_tags, summary를Analysis.tags에 저장한다. 미계산 태그는 둘 다빈배열, 계산했다면 관측불가도UNKNOWN 항목을 남긴다. manual_observed_count는 source=MANUAL인 YES/NO수다. S06의 사진별 태그는 slot_tags에서 읽으며 UI가 같은 분류를 다시 구현하지 않는다. PostureProfile 기본값은20/20/−20/45°이며 실제 설정값은 snapshot에 보존한다.
 
@@ -181,7 +187,9 @@ TagResult.slots는15슬롯×11태그, summary는11태그다. 서비스는 slots�
 | get_settings | 없음 | Settings | S09 |
 | update_settings | settings:Settings | Settings | S09 |
 
-set_manual_values는 현재15배정에 대한 전체 목록 교체다. start_analysis는 snapshot을 만들고 pose/tag/reba/burden을 수행한다. 재계산 명령은 요청 모듈만 실행해 새 ANALYSIS행을 만들고 다른 모듈은 관련 입력이 같은 기존 출력만 복사한다. 다른 모듈의 입력도 바뀌었다면 그 출력은 null(태그는 빈 배열)과 재계산 안내를 반환한다. 과거 계산을 현재로 복사하지 않는다. recalculate_judgments는 pose 없이도 실행 가능하다. 취소는 요청 후 get_analysis로 처리 상태를 읽는다. 이미 끝난 분석이면 같은 상태를 반환한다.
+set_manual_values는 현재15배정에 대한 전체 목록 교체다. S06의 선택사진 공통 편집/같은순간3회차 편집/사진별 편집은 UI가 현재 manual에 (slot_no,scope,field)로 합친 전체 배열을 보낸다. 대상의 현재 photo_id를 쓰고 선택하지 않은 값은 보존한다. 같은순간 그룹은1/6/11,2/7/12,3/8/13,4/9/14,5/10/15다. 자동 일괄 적용은 대상별 자신의 candidate를 사용하며 evidence.source=OTHER, text=근거 각도·측·최저confidence, observed_at=적용시각, ManualValue.source=AUTO_ACCEPTED다. 직접 관찰 복사는 사용자가 고른 필드/대상에만 기존 관찰 출처와 근거를 기록한다. 후보의 사진·카메라·작업맥락·모델/전처리 입력이 현재와 다르면 그 후보는null/재계산 안내로 취급한다. null 후보는 기존 수동값을 덮어쓰지 않고 자동 생성도 하지 않으며, 빈사진 슬롯도 manual을 만들지 않는다. 다른 값은 계속 저장한다. 별도 bulk/template 서비스나 DB 테이블은 없다.
+
+start_analysis는 snapshot을 만들고 pose/tag/reba/burden을 수행한다. 재계산 명령은 요청 모듈만 실행해 새 ANALYSIS행을 만들고 다른 모듈은 관련 입력이 같은 기존 출력만 복사한다. 다른 모듈의 입력도 바뀌었다면 그 출력은 null(태그는 빈 배열)과 재계산 안내를 반환한다. 과거 계산을 현재로 복사하지 않는다. recalculate_judgments는 pose 없이도 실행 가능하다. 취소는 요청 후 get_analysis로 처리 상태를 읽는다. 이미 끝난 분석이면 같은 상태를 반환한다.
 
 update_photo는 같은 원본 경로 재연결/동의 기록이다. 내용이 다른 사진은 새 등록 후 set_capture로 교체한다. delete_photo는 현재배정을 비우고 history snapshot의 메타/수치를 남긴다. 역사이미지는 파일이 없으면 표시하지 않는다. snapshot은 원본 바이트를 고정하지 않으며 외부에서 원본을 바꾸는 자동감지는 데모에 없다.
 
@@ -195,14 +203,18 @@ update_photo는 같은 원본 경로 재연결/동의 기록이다. 내용이 �
 
 ```typescript
 type AiPurpose = 'TASK_EXPLANATION'|'IMPROVEMENT_ADVICE';
-type NumericBasis = {item_code:string,value:Number|Truth|null,unit:string,operator:string|null,threshold:Number|null};
-type NumericCriterion = {criterion_no:Count,effective_status:JudgmentStatus,basis:NumericBasis[]};
-type NumericSummary = {purpose:AiPurpose,complete_reba_count:Count,total_slot_count:15,available_max:Count|null,full_max:Count|null,tag_counts:TagSummary[],criteria:NumericCriterion[]};
+type NumericBasis = {item_code:string,value:Number|Truth|null,unit:BasisItem['unit'],operator:BasisItem['operator'],threshold:Number|null};
+type NumericCriterion = {criterion_no:Count,computed_status:JudgmentStatus|null,investigator_status:FinalStatus|null,effective_status:JudgmentStatus|null,effective_source:'COMPUTED'|'INVESTIGATOR'|null,exclusion:'SHORT_TERM'|'INTERMITTENT'|'BOTH'|null,missing_fields:string[],missing_count:Count|null,review_reasons:ReviewReason[],basis:NumericBasis[]};
+type NumericSummary = {purpose:AiPurpose,reba_status:'NOT_CALCULATED'|'INCOMPLETE'|'COMPLETE',judgment_status:'NOT_CALCULATED'|'CALCULATED',complete_reba_count:Count|null,total_slot_count:15,available_max:Count|null,full_max:Count|null,tag_counts:TagSummary[],criteria:NumericCriterion[]};
 type AiText = {purpose:AiPurpose,result:'GENERATED'|'FALLBACK'|'DISABLED',generated_text:string|null,edited_text:string|null,applied_text:string|null,applied_kind:'MODEL'|'INVESTIGATOR'|'FALLBACK'|null,model:string,prompt_version:string,created_at:Timestamp};
 type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_key_present:boolean};
 ```
 
 NumericSummary는 서비스가 계산결과에서 구성한다. BasisItem.source·근거·이름·사진·경로·좌표·내부 ID는 없다. 공개 기준 설명은 내장 문구다. explanation 모듈은 이 DTO로 문장을 요청하며 별도 보안 가드/수치검증기/승인 흐름은 없다. 키는 OPENAI_API_KEY 실행환경을 읽고 Settings에는 존재 여부만 반환한다. gpt_key_present는 읽기전용 파생값이다.
+
+reba=null이면 reba_status=NOT_CALCULATED, complete_reba_count/available_max/full_max=null이다. 계산 결과가 있으면 실제 status/complete_count를 옮기며 계산한0개와 미계산을 구분한다. judgment=null이면 judgment_status=NOT_CALCULATED, criteria는1..11의 자리를 유지하되 각 상태/effective_source/exclusion/missing_count=null, missing_fields/review_reasons/basis=[]다. 계산 결과가 있으면 CALCULATED이며 초안/조사자/effective 상태를 각각 옮긴다. effective_source는 investigator.status가 있으면INVESTIGATOR, 없으면COMPUTED다. missing_count는 중복 제거한 missing_fields 수다. missing_fields/item_code는 문서의 입력 필드·조건 코드이며 파일 경로나 자유입력 근거가 아니다.
+
+설명은 ‘초안 NEEDS_INPUT + 조사자 APPLICABLE’을 조사자의 별도 결론으로 표현하고 계산이 완전해졌다고 쓰지 않는다. 제외된 기준은 제외사유, NEEDS_REVIEW는 실제 review_reasons, 미계산 모듈은 미계산이라고 설명한다. DTO의 숫자/상태를 바꾸거나 누락값을 추정하지 않는다. 생성문은 제안이며 조사자가 편집/적용한다.
 
 timeout10초/요청실패/키없음은 고정 설명 FALLBACK, 비활성은 DISABLED. 로컬 계산을 실패로 바꾸지 않는다. 각 분석에 purpose별1개 AiText를 저장하며 생성본/수정본/적용본은 별도 필드다. 이전 결과의 설명을 새 결과에 자동 적용하지 않는다.
 
@@ -212,40 +224,51 @@ timeout10초/요청실패/키없음은 고정 설명 FALLBACK, 비활성은 DISA
 
 ```typescript
 type ExportSpec = {destination:string,analysis_ids:ID[],include_representative:boolean};
-type ExportSnapshot = {schema_version:'1.2',report_version:'1.2',survey:Survey,tasks:Task[],analyses:Analysis[],unanalysed_task_ids:ID[],exported_at:Timestamp};
+type ExportSnapshot = {schema_version:'1.3',report_version:'1.3',survey:Survey,tasks:Task[],analyses:Analysis[],unanalysed_task_ids:ID[],include_representative:boolean,exported_at:Timestamp};
 type ReportCounts = {needs_input_count:Count|null,needs_review_count:Count|null,incomplete_reba_count:Count|null};
-type NextInputItem = {module:'ANALYSIS'|'REBA'|'BURDEN',kind:'NOT_CALCULATED'|'MISSING_INPUT'|'REVIEW_REQUIRED',slot_no:Count|null,criterion_no:Count|null,field_paths:string[],reason_codes:string[],message:string};
-type ReportTaskOverview = {task_id:ID,task_name:string,analysis_id:ID|null,input_revision:Count,currentness:Currentness,counts:ReportCounts,next_inputs:NextInputItem[]};
-type ReportOverview = {report_version:'1.2',counts:ReportCounts,tasks:ReportTaskOverview[]};
-type ExportReceipt = {export_id:ID,file_path:string,sheets:string[],reviewed:boolean,has_incomplete:boolean,has_stale:boolean,created_at:Timestamp};
+type NextInputItem = {module:'ANALYSIS'|'POSE'|'REBA'|'BURDEN',kind:'NOT_CALCULATED'|'MISSING_INPUT'|'REVIEW_REQUIRED',slot_no:Count|null,criterion_no:Count|null,field_paths:string[],reason_codes:string[],message:string};
+type ReportState = {reviewed:boolean,review_current:boolean,has_incomplete:boolean,has_stale:boolean};
+type ReportReviewStatus = 'NO_ANALYSIS'|'UNREVIEWED'|'REVIEWED_CURRENT'|'REVIEWED_HISTORY';
+type ReportTaskOverview = {task_id:ID,task_name:string,analysis_id:ID|null,input_revision:Count,currentness:Currentness,state:ReportState,review_status:ReportReviewStatus,counts:ReportCounts,next_inputs:NextInputItem[]};
+type ReportOverview = {report_version:'1.3',state:ReportState,counts:ReportCounts,tasks:ReportTaskOverview[]};
+type RenderedReport = {file_path:string,sheets:string[],overview:ReportOverview};
+type ExportReceipt = ReportState & {export_id:ID,file_path:string,sheets:string[],created_at:Timestamp};
 ```
 
 분석 선택은 작업별 한 행이다. 명령 시 현존 모든 task를 포함하고 선택하지 않은 작업은 최신분석 또는 미분석15/11빈행을 넣는다. 과거/미완전 분석도 내보낸다. 동일작업을 두 번 선택하면 UI에서 한 행을 고르는 선택 화면을 제공한다. 보고서에 서로 다른 모듈 결과를 임의로 조합하지 않고 선택한 ANALYSIS의 snapshot을 쓴다. 분석없는 작업은 현재 입력을 쓴다.
 
 | sheet | 정확한 열(순서 고정) |
 |---|---|
-| SUMMARY | task_id,task_name,analysis_id,input_revision,survey_id,survey_title,survey_date,investigator,department,process,currentness,reviewed,review_current,valid_pose_count,complete_reba_count,available_max,full_max,representative_slot_no,applicable_criteria,needs_input_count,needs_review_count,incomplete_reba_count,next_inputs,notes,applied_explanation,report_notice |
+| SUMMARY | task_id,task_name,analysis_id,currentness,review_status,valid_pose_count,complete_reba_count,available_max,full_max,applicable_criteria,needs_input_count,needs_review_count,incomplete_reba_count,next_inputs |
 | TASK_INPUTS | task_id,analysis_id,input_revision,input_group,item_code,value,unit,source,evidence_text,observed_at |
 | PHOTO_REBA | task_id,analysis_id,slot_no,cycle_no,phase,pose_status,load_state,effective_load_kg,left_total,right_total,selected_side,total,risk,missing_fields,diagnostics,image |
 | CRITERIA | task_id,analysis_id,criterion_no,computed_status,investigator_status,effective_status,exclusion,comparison_values,source,evidence_text,review_reasons,missing_fields,investigator_reason,reviewer,reviewed_at,warning |
 
-PHOTO_REBA 작업당15행, CRITERIA 작업당11행. TASK_INPUTS는 조건/20시간/11기준입력/15배정관찰/수동값/모델·규칙버전을 행으로 펼친다. image열은 대표 상세블록 참조/이미지 생략 사유를 쓰며 실제 사진은 표 밖의 고정 블록에 넣는다. report_notice는 기능정의서 §9 고정 문구다. 미계산 값은 빈칸이며 초안/조사자결론/현재성/완전성/검토를 각각 표시한다.
+SUMMARY의 작업표는 위14열이다. survey_id/title/survey_date/investigator/department/process는 표 위 조사 개요에 한 번 표시한다. input_revision은 TASK_INPUTS 식별 열, representative_slot_no는 PHOTO_REBA 대표블록에 표시한다. notes와 TASK_EXPLANATION의 applied_explanation/applied_kind는 SUMMARY 표 아래 작업ID/분석ID가 붙은 상세영역, report_notice는 아래 고정 안내영역에 표시한다. 열을 줄여도 이 정보는 생략하지 않는다.
 
-선택분석이 있으면 task_name/조건/수동값/사진배정은Analysis.snapshot에서 읽는다. ExportSnapshot.tasks는 현재 작업목록·현재성 비교에 사용한다. 분석없는 작업만Task의 현재입력을 출력한다. 누락 설명은SUMMARY.notes, 관절·각도는TASK_INPUTS의 input_group=RESULT_POSE, 태그/사진별관찰은RESULT_TAG, REBA구성점수는RESULT_REBA로 펼친다. angle은unit=DEG,관절좌표는PX,confidence는RATIO로 쓴다. NumericSummary.tag_counts는Analysis.tags를 사용한다. SUMMARY.applied_explanation은TASK_EXPLANATION의 적용문이고 개선문은TASK_INPUTS의 input_group=EXPLANATION에 기록한다.
+PHOTO_REBA 작업당15행, CRITERIA 작업당11행. TASK_INPUTS는 조건/20시간/11기준입력/15배정관찰/수동값/모델·규칙버전을 행으로 펼친다. image열은 대표 상세블록 참조/이미지 생략 사유를 쓰며 실제 사진은 표 밖의 고정 블록에 넣는다. 고정 안내는 기능정의서 §9의 문구다. 미계산 값은 빈칸이며 초안/조사자결론/현재성/완전성/검토를 각각 표시한다.
+
+선택분석이 있으면 task_name/조건/수동값/사진배정은Analysis.snapshot에서 읽는다. ExportSnapshot.tasks는 현재 작업목록·현재성 비교에 사용한다. 분석없는 작업만Task의 현재입력을 출력한다. 누락 설명은SUMMARY 아래 상세영역, 관절·각도는TASK_INPUTS의 input_group=RESULT_POSE, 태그/사진별관찰은RESULT_TAG, REBA구성점수/후보는RESULT_REBA로 펼친다. angle은unit=DEG,관절좌표는PX,confidence는RATIO로 쓴다. NumericSummary.tag_counts는Analysis.tags를 사용한다. SUMMARY 아래 적용 설명은TASK_EXPLANATION의 적용문이며 생성/수정/적용본과 개선문은TASK_INPUTS의 input_group=EXPLANATION에 각각 기록한다.
 
 ### 7.2 미리보기·집계·다음 입력
 
-preview_excel과 export_excel은 같은 분석 선택 규칙으로 ExportSnapshot을 구성하고 report의 같은 파생값 구성 함수를 사용한다. preview_excel은 ReportOverview만 반환하며 파일/EXPORT_LOG를 만들지 않는다. export_excel은 호출 시점의 새 snapshot으로 파일을 쓰고 성공 로그를 저장한다. 미리보기 후 입력이 바뀌면 실제 출력 시점의 상태를 사용한다. 미리보기 일치 가드/승인 절차는 없다. 내부 미리보기 snapshot의 exported_at을 실제 파일 출력 시각으로 안내하지 않는다.
+preview_excel과 export_excel은 같은 분석 선택 규칙으로 ExportSnapshot을 구성하고 report.build_overview(snapshot)의 같은 상태/집계 함수를 사용한다. preview_excel의 내부 snapshot은 include_representative=true이며 이 옵션은 상태/집계에 영향을 주지 않는다. 미리보기는 ReportOverview만 반환하며 파일/EXPORT_LOG를 만들지 않는다. export_excel은 호출 시점의 새 snapshot에 spec.include_representative를 복사하고 report.render(snapshot,spec.destination)을 호출한다. render는 snapshot.include_representative로 이미지 여부를 결정하고 build_overview의 결과를 RenderedReport.overview로 돌려준다. 서비스는 overview.state를 ExportReceipt에 옮겨 성공 로그를 저장한다. 미리보기 후 입력이 바뀌면 실제 출력 시점의 상태를 사용한다. 미리보기 일치 가드/승인 절차는 없다. 내부 미리보기 snapshot의 exported_at을 실제 파일 출력 시각으로 안내하지 않는다.
 
 ReportTaskOverview의 작업명/input_revision은 선택 분석 snapshot, 분석이 없으면 현재 Task에서 읽는다. currentness는 ExportSnapshot.tasks의 현재 입력과 선택 analysis_id를 비교한다. ReportOverview/ReportCounts/NextInputItem은 파생값이며 Task/Analysis에 저장하지 않는다. 집계 규칙은 기능정의서 §9.2다. 조사 합계는 해당 결과가 모든 작업에 있을 때만 합산하고, 없는 작업이 있으면 해당 항목만 null이다.
 
-NextInputItem은 미분석이면 ANALYSIS/NOT_CALCULATED 한 항목, 분석은 있으나 reba/judgment가 null이면 각각 REBA/BURDEN의 NOT_CALCULATED를 만든다. 결과가 있으면 슬롯별 누락과 기준별 누락/검토 사유를 모두 만든다. 같은 module/slot_no/criterion_no/kind는 한 항목으로 묶고 field_paths/reason_codes의 중복을 제거한다. 좌우 REBA 경로는 left./right.를 유지하고 공통 누락은 두 번 표시하지 않는다. field_paths는 원래 누락 경로, reason_codes는 원래 검토 사유이며 둘 다 빈 배열일 수 있다. message는 내장된 항목명과 회차·phase·좌우·기준 번호로 생성한다. 미분석/미계산 안내→슬롯1..15→기준1..11 순서이며 같은 대상의 MISSING_INPUT을 REVIEW_REQUIRED보다 먼저 표시한다. GPT/새 경고 이력은 사용하지 않는다.
+ReportState는 기능정의서 §9.2의 선택 분석 규칙을 사용한다. 작업 reviewed는 선택 analysis_id가 존재하고 survey.review.reviewed=true이며 reviewed_analysis_ids에 그ID가 있을 때true다. review_current는 여기에 검토 metadata_revision 일치와 currentness=CURRENT까지 만족할 때true다. review_status는 분석없음NO_ANALYSIS, reviewed=false면UNREVIEWED, review_current=true면REVIEWED_CURRENT, 나머지reviewed=true면REVIEWED_HISTORY다. 검토한A2 대신A1을 선택했는데 A1이 목록에 없다면 UNREVIEWED다. TaskResult/SurveySummary의 최신분석 검토표시를 과거 선택 분석에 그대로 복사하지 않는다.
 
-SUMMARY의 세 count열은 ReportTaskOverview.counts, next_inputs는 next_inputs[].message를 모두 줄바꿈해 표시한다. applicable_criteria는 effective_status=APPLICABLE의 번호와 출처(COMPUTED/INVESTIGATOR)를 함께 적고 확정 목록으로 표현하지 않는다. 적용 설명에는 applied_kind도 표시한다. 조사 전체 집계는 고정 요약영역의 ReportOverview.counts를 사용한다. null숫자는 빈칸과 사유, 실제0은 숫자0이다. 미분석의 판정/REBA 수치를 추측해 채우지 않는다.
+작업 has_incomplete는 선택 분석이 없거나, 분석의 pose=null/valid_count<15, reba=null/status=INCOMPLETE, judgment=null/초안computed_status에NEEDS_INPUT 또는NEEDS_REVIEW 중 하나라도 있을 때true다. report.build_overview가 원래 결과를 직접 읽어 산출하며 별도 미완전 사유 분류/배열을 만들지 않는다. 실패/취소는 원래 실행상태와 슬롯 진단으로 표시한다. 이 값은 조사자 결론/검토와 독립이며 저장·분석·검토·출력 허가 조건으로 사용하지 않는다. has_stale는 선택 분석 currentness=STALE일 때만true며 NONE은 미분석이다. 조사 ReportOverview.state의 reviewed/review_current는 작업이1개 이상이고 모든 작업의 해당 값이true일 때true, has_incomplete/has_stale는 하나라도true일 때true다. 작업0개면 네 값 모두false다. Excel/UI/ExportReceipt는 이 동일 파생값을 사용하고 receipt_json에 네 부울을 기록한다.
+
+NextInputItem은 미분석이면 ANALYSIS/NOT_CALCULATED 한 항목, 분석은 있으나 pose/reba/judgment가 null이면 각각 POSE/REBA/BURDEN의 NOT_CALCULATED를 만든다. 포즈 결과의 VALID가 아닌 슬롯은 POSE/REVIEW_REQUIRED로 진단코드/field_path와 회차·순간에 맞는 사진 연결/촬영 확인/재분석 안내를 만든다. 수동REBA가 완전해도 포즈 진단은 남긴다. REBA와 고시 결과가 있으면 슬롯별 누락과 기준별 누락/검토 사유를 모두 만든다. 같은 module/slot_no/criterion_no/kind는 한 항목으로 묶고 field_paths/reason_codes의 중복을 제거한다. 좌우 REBA 경로는 left./right.를 유지하고 공통 누락은 두 번 표시하지 않는다. field_paths는 원래 누락/진단 경로, reason_codes는 원래 검토사유/진단코드이며 둘 다 빈 배열일 수 있다. message는 내장된 항목명과 회차·phase·좌우·기준 번호로 생성한다. 미분석/미계산 안내→슬롯1..15→기준1..11 순서이며 같은 대상의 MISSING_INPUT을 REVIEW_REQUIRED보다 먼저, 같은종류에서는POSE/REBA/BURDEN 순서로 표시한다. GPT/새 경고 이력은 사용하지 않는다.
+
+안내는 새 미완전 사유 코드로 변환하지 않는다. 분석/모듈 결과 없음은 null과 선택 여부에 맞는 고정 문구, 포즈는 기존 diagnostics[].message, REBA는 missing_fields와 좌우 review_reasons, 고시는 computed_status/missing_fields/review_reasons를 사용한다. 예: ‘포즈 분석을 아직 수행하지 않았습니다’, ‘2회차 선반 접촉 직전: 오른쪽 손목 범주 입력 필요’, ‘4호: 조건 합산 해석 검토 필요’. UI와 Excel은 동일한 next_inputs[].message를 표시한다. has_incomplete를 안내 항목 수로 계산하지 않으며 원래 결과 상태에서 직접 산출한다.
+
+SUMMARY의 세 count열은 ReportTaskOverview.counts, next_inputs는 next_inputs[].message를 모두 줄바꿈해 표시한다. applicable_criteria는 effective_status=APPLICABLE의 번호와 출처(COMPUTED/INVESTIGATOR)를 함께 적고 확정 목록으로 표현하지 않는다. 적용 설명에는 applied_kind도 표시한다. 고정 요약영역은 ReportOverview.counts와 state의 네 부울을 화면설계서 문구로 표시한다. 기존 결과 상태/진단/누락에서 만든 작업별 안내는 아래 식별자 붙은 상세영역에도 표시한다. null숫자는 빈칸과 사유, 실제0은 숫자0이다. 미분석의 판정/REBA 수치를 추측해 채우지 않는다.
 
 ### 7.3 식별정보·상세블록·서식
 
-각 시트 제목영역에 ExportSnapshot.report_version/schema_version/exported_at과 survey_id를 표시한다. SUMMARY 작업표에는 task_id/analysis_id/input_revision, TASK_INPUTS의 input_group=SETTINGS에는 snapshot.settings의 모델/전처리/태그/REBA/고시 버전을 넣는다. TASK_INPUTS.item_code는 슬롯/좌우/관절/태그/필드를 구별하는 경로다. RESULT_POSE/RESULT_TAG/RESULT_REBA의 슬롯별 값에는 슬롯번호와 COMMON/LEFT/RIGHT를 경로에 포함한다. 집계 태그는 태그코드/필드로 구별한다. 모든 세부값은 같은 선택 분석에서 읽는다.
+각 시트 제목영역에 ExportSnapshot.report_version/schema_version/exported_at과 survey_id를 표시한다. SUMMARY 작업표에는 task_id/analysis_id, TASK_INPUTS 식별 열에는 해당 input_revision, input_group=SETTINGS에는 snapshot.settings의 모델/전처리/태그/REBA/고시 버전을 넣는다. TASK_INPUTS.item_code는 슬롯/좌우/관절/태그/필드를 구별하는 경로다. RESULT_POSE/RESULT_TAG/RESULT_REBA의 슬롯별 값에는 슬롯번호와 COMMON/LEFT/RIGHT를 경로에 포함한다. 후보는RESULT_REBA에 slots.{slot_no}.candidates.{scope}.{field}.{property}라는 출력용 항목코드로 제안값/근거각도/최저confidence/사유를 펼친다. 예: slots.8.candidates.COMMON.trunk_base.proposed_value. 이 번호는 slot_no이며 배열의0기반 인덱스가 아니다. 집계 태그는 태그코드/필드로 구별한다. 모든 세부값은 같은 선택 분석에서 읽는다.
 
 PHOTO_REBA의 image열은 선택 대표 행에 ‘대표 상세블록 참조’ 또는 ‘이미지 제외/원본을 읽을 수 없음’을 표시하고 나머지는 빈칸이다. 실제 이미지는 표 밖의 고정 대표 상세블록에 한 번 넣는다. include_representative=false이면 이미지만 생략하고 식별자/수치는 표시한다. 대표가 없으면 그 사유를 표시하며 임의 사진을 대표로 대체하지 않는다.
 
