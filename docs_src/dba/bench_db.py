@@ -60,7 +60,7 @@ def save_analysis(con, task_id, run_id, replace_run=None):
             con.execute("UPDATE analysis_run SET is_current_yn = 0 WHERE run_id = ?", (replace_run,))
         con.executemany("INSERT INTO still_angle VALUES (" + ",".join("?" * 20) + ")", still_rows(run_id, task_id))
         con.execute("INSERT INTO reba_result VALUES (?,?,'AUTO','R',2,4,2,6,2,8,3,1,2,4,1,5,8,1,9,'HIGH',0)", (run_id, key_still))
-        con.execute("INSERT INTO key_still_image(run_id,still_id,image_jpeg,masked_yn) VALUES (?,?,?,1)", (run_id, key_still, JPEG))
+        con.execute("INSERT INTO key_still_image(run_id,still_id,image_jpeg) VALUES (?,?,?)", (run_id, key_still, JPEG))
         for no in range(1, 12):
             con.execute("INSERT INTO judgment(unit_task_id,criterion_no,run_id,computed_status_cd,basis_text,source_text)"
                         " VALUES (?,?,?,?,?,?) ON CONFLICT(unit_task_id,criterion_no) DO UPDATE SET run_id=excluded.run_id,"

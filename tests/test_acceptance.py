@@ -29,11 +29,6 @@ class AcceptanceTodo(unittest.TestCase):
         """AC-11: MoveNet Lightning으로 사진 한 장을 돌려 관절 17개와 신뢰도가 나온다."""
         self.fail('구현하고 skip을 지운다')
 
-    @unittest.skip("WP1 · F04-02 · 아직 구현 전")
-    def test_AC12_f04_02(self):
-        """AC-12: 결과 화면과 엑셀 어디에도 얼굴이 보이지 않는다 (시험: 사진 150장 모두 가림, 한 장당 20ms)."""
-        self.fail('구현하고 skip을 지운다')
-
     @unittest.skip("WP1 · F04-03 · 아직 구현 전")
     def test_AC13_f04_03(self):
         """AC-13: 각도기로 잰 재연 사진과 비교해 각도별 평균 오차를 낸다. 목표치는 10/17 기술 검토에서 정한다 (NFR-015)."""
@@ -86,7 +81,7 @@ class AcceptanceTodo(unittest.TestCase):
 
     @unittest.skip("WP3 · F06-01 · 아직 구현 전")
     def test_AC29_f06_01(self):
-        """AC-29: 엑셀에서 열리고 시트가 4개다. 확정되지 않은 칸에 "초안"이 있고, 이미지에 얼굴이 없다."""
+        """AC-29: 엑셀에서 열리고 시트가 4개다. 확정되지 않은 칸에 "초안"이 있고, 대표 사진이 들어 있다."""
         self.fail('구현하고 skip을 지운다')
 
     @unittest.skip("WP2 · F06-02 · 아직 구현 전")

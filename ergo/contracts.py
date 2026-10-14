@@ -457,7 +457,7 @@ class TaskResult:                         # S06
     invalid_ratio: Optional[float]        # 판별 불가 사진 ÷ 전체 사진
     reba: Optional[RebaScore]
     key_still_id: Optional[int]           # 대표 사진
-    key_still_jpeg: Optional[bytes]       # 얼굴을 가린 JPEG만
+    key_still_jpeg: Optional[bytes]       # 대표 사진 JPEG
     shares: tuple[PostureShare, ...]
     judgments: tuple[Judgment, ...]
     warnings: tuple[WarningItem, ...]

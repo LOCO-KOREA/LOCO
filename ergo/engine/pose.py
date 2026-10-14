@@ -1,4 +1,4 @@
-"""관절 추출과 얼굴 가림 (WP1 · 기능정의서 F04-01, F04-02 · API 계약서 5절).
+"""관절 추출 (WP1 · 기능정의서 F04-01 · API 계약서 5절).
 
 MVP의 모델은 MoveNet Lightning (singlepose, TFLite float16 v4)이다 (2026-10-12 정욱 결정).
 정욱님 PC의 `pose2` 폴더에 TensorFlow 공식 예제의 래퍼(`ml/movenet.py`)와 모델 파일(`movenet_lightning.tflite`, 4.8MB)이 있다.
@@ -32,14 +32,5 @@ def extract_keypoints(still_id: int, image_path: Path, model_id: int, params: En
     회전 정보를 적용해 똑바로 세운 사진에서 재고, 좌표는 그 사진의 가로·세로 비율(0~1)로 돌려준다.
     사진을 서비스가 한 장씩 돌리며 진행률(처리한 사진 ÷ 전체)과 취소를 다룬다.
     수용 기준: AC-11 (MoveNet Lightning으로 사진 한 장을 돌려 관절 17개가 나온다).
-    """
-    raise NotImplementedError("WP1")
-
-
-def mask_face(image, keypoints: StillKeypoints, params: EngineParams):
-    """사진 → 얼굴(머리 상자)을 모자이크한 사진.
-
-    머리 점(코, 눈, 귀)이 하나도 안 보이면 사진 전체를 흐리게 한다. 사진은 서로 이어지지 않으므로 직전 상자를 쓰지 않는다.
-    화면, 대표 사진, 엑셀에는 이 결과만 쓴다 (BR-22). 수용 기준: AC-12 (시험 사진 모두 가림, 한 장당 20ms).
     """
     raise NotImplementedError("WP1")

@@ -41,7 +41,7 @@ def dot(x, y):
 
 
 def figure():
-    """허리를 깊이 굽혀 바닥의 상자를 드는 사람 (관절 선과 점). 머리는 회색 모자이크로 가린다."""
+    """허리를 깊이 굽혀 바닥의 상자를 드는 사람 (관절 선과 점). 머리는 회색 원이다."""
     parts = [
         '<div class="abs" style="left:120px;top:400px;width:600px;height:4px;background:#3B4A5A"></div>',
         '<div class="abs" style="left:470px;top:310px;width:120px;height:80px;border:4px solid #C9D3DC;border-radius:6px"></div>',
@@ -49,10 +49,7 @@ def figure():
         line(465, 266, 81, 82.9), line(298, 271, 95, 71.6), line(309, 356, 83, 104),
         dot(322, 222), dot(462, 142), dot(492, 222), dot(502, 302), dot(352, 312), dot(332, 392),
     ]
-    for r in range(5):               # 머리 모자이크 5×5
-        for c in range(5):
-            shade = "#9AA7B4" if (r + c) % 2 == 0 else "#7C8996"
-            parts.append(f'<div class="abs" style="left:{485 + 14 * c}px;top:{65 + 16 * r}px;width:14px;height:16px;background:{shade}"></div>')
+    parts.append('<div class="abs" style="left:488px;top:70px;width:64px;height:64px;border-radius:50%;background:#9AA7B4"></div>')
     return "".join(parts)
 
 

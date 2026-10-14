@@ -86,8 +86,8 @@ D = {
    "lower_arm_score": "8단계 아래팔", "wrist_score": "9단계 손목", "table_b_score": "10단계 표 B", "coupling_score": "11단계 손잡이",
    "score_b": "12단계 점수 B", "table_c_score": "12단계 표 C", "activity_score": "13단계 활동", "reba_score": "REBA 점수 (1~15)",
    "risk_level_cd": "위험 단계", "provisional_yn": "임시 점수 (사람 입력 빈칸 있음)"}),
- "key_still_image": ("대표 사진 이미지", "얼굴을 가린 대표 사진 (엑셀에 넣음, BR-22)", {
-   "run_id": "분석", "still_id": "사진", "image_jpeg": "JPEG 이미지", "masked_yn": "얼굴 가림 (항상 1)", "created_at": "만든 시각"}),
+ "key_still_image": ("대표 사진 이미지", "분석마다 한 장 저장하는 대표 사진 (엑셀에 넣음)", {
+   "run_id": "분석", "still_id": "사진", "image_jpeg": "JPEG 이미지", "created_at": "만든 시각"}),
  "judgment": ("판정", "단위작업 × 호마다 1행. 지금 값만 두고 바뀐 내역은 수정 이력에 (F05-01, F05-05)", {
    "judgment_id": "판정 식별자", "unit_task_id": "단위작업", "criterion_no": "호", "run_id": "근거 분석 (사진 근거 호만)",
    "computed_status_cd": "계산 결과 (3.2절)", "review_reason_cd": "사람 확인 사유", "exclusion_cd": "제외 사유: 단기간·간헐",
