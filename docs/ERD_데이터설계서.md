@@ -1,12 +1,14 @@
 # ERD · 데이터 설계서
 
-> 문서 ID ERGO-DD-001 · 설계 버전 1.3 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-DD-001 · 설계 버전 1.4 · 기준일 2026-10-14 · 데모 개발 기준
 
 ## 1. 설계 원칙
 
 DB는 **6개 테이블**만 사용한다. 복잡한 revision/관절/REBA구성점수/판정근거 개별 테이블은 만들지 않는다. 상세 데이터는 [API 계약서](API_계약서.md)의 명시된 DTO를 JSON으로 저장한다. 계산은 기능 모듈에서 수행하고 SQL/뷰/트리거에 넣지 않는다.
 
 데모 단계의 DB는 단순 SQLite다. PK 이외의 FK/UNIQUE/CHECK/차단 trigger, 암호화, 보안·운영 가드는 구현 요구에 넣지 않는다. 아래 관계는 저장/조회/삭제를 이해하기 위한 **논리 관계**다. 보안·백업·보존정책은 구현 이후 검토한다.
+
+Electron renderer/preload/main은 Python Application Service를 호출하고 DB 저장은 Python storage가 담당한다. Electron IPC/JSON Lines의request_id는 통신 중 요청·응답 연결용이며 저장하지 않는다. PhotoPreview.data_url/픽셀 크기는 화면 조회 응답이며 PHOTO의 기존 원본경로 참조를 대체하거나 미리보기 컬럼/BLOB 테이블을 만들지 않는다. 문서 버전1.4와 저장 schema_version/report_version=1.3을 구분한다.
 
 ## 2. 논리 ERD
 

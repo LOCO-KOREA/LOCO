@@ -1,16 +1,16 @@
 # API 계약서
 
-> 문서 ID ERGO-API-001 · 설계 버전 1.3 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-API-001 · 설계 버전 1.4 · 기준일 2026-10-14 · 데모 개발 기준
 
 ## 1. 경계·모듈
 
-Windows 로컬 UI→Application Service 계약이다. 아래 타입 표기는 설계이며 구현 코드가 아니다. HTTP 서버를 요구하지 않는다. 서비스는 모듈들을 순서대로 호출하고 storage에 저장한다. 계산 모듈은 DB를 직접 읽거나 서로의 내부 함수를 호출하지 않는다.
+Windows Electron renderer(UI)→preload→main→로컬 Python Application Service 계약이다. 아래 타입 표기는 설계이며 구현 코드가 아니다. 화면은 HTML/CSS/JavaScript 계열로 작성하고 계산·저장·Excel은 Python이 담당한다. 서비스는 모듈들을 순서대로 호출하고 storage에 저장한다. 계산 모듈은 DB를 직접 읽거나 서로의 내부 함수를 호출하지 않는다. 문서 버전1.4는 실행 연결을 구체화한 것이며 TaskSnapshot/ExportSnapshot.schema_version과 report_version은1.3이다.
 
 | 모듈 | 입력→출력 | 책임 |
 |---|---|---|
 | survey | SurveyDraft/ReviewMark→Survey | 조사·검토 표시 |
 | task_input | TaskConditions/LegalInputs/ManualValue→Task | 입력·input_revision·수정 영향 |
-| capture | 사진경로/배정→PhotoInfo/CaptureSet | 다중사진·15슬롯·촬영 관찰 |
+| capture | 사진경로/배정→PhotoInfo/CaptureSet/PhotoPreview | 다중사진·15슬롯·촬영 관찰·EXIF 미리보기 |
 | pose | PoseRequest→PoseResult, TagRequest→TagResult | 17관절·각도·태그 |
 | reba | RebaRequest→RebaResult | 사진별 자동 후보·좌우 점수표 |
 | burden | BurdenRequest→JudgmentResult | 직접입력으로11호 초안 |
@@ -19,6 +19,27 @@ Windows 로컬 UI→Application Service 계약이다. 아래 타입 표기는 �
 | storage | 아래 DTO↔SQLite/JSON | 저장·읽기·서비스 삭제 |
 
 expected_version/WriteGuard/승인 토큰/잠금 API/보안검증기는 없다. 미입력·모순·부분분석은 반환 결과의 notes/missing_fields/review_reasons로 표시한다. 저장·분석·초안 내보내기는 이런 상태에서도 사용할 수 있다. 읽을 수 없는 파일·모델·DB·출력 오류는 정상 오류 처리이며 운영 차단정책이 아니다.
+
+### 1.1 Electron·Python 호출 연결
+
+renderer는 preload의 window.loco.call(method,params)을 호출한다. preload는 ipcRenderer.invoke의 loco:call 채널로 main에 전달하고 main은 Python 프로세스 stdin으로 아래 요청 한 줄을 보낸다. Python은 기존 §5 서비스 메서드를 호출하고 stdout으로 응답 한 줄을 돌려준다. 구조는 [Electron 프로세스 문서](https://www.electronjs.org/docs/latest/tutorial/process-model)와 [IPC 문서](https://www.electronjs.org/docs/latest/tutorial/ipc)를 따른다.
+
+```typescript
+type BridgeRequest = {request_id:number,method:string,params:Record<string,unknown>};
+type BridgeResponse<T> = {request_id:number,result:Result<T>};
+type DesktopBridge = {
+  call<T>(method:string,params:Record<string,unknown>):Promise<Result<T>>;
+  choose_photo_paths():Promise<string[]>;
+  path_for_file(file:File):string;
+  choose_export_destination():Promise<string|null>;
+};
+```
+
+request_id는 main이 요청마다 붙이는 통신용 정수이며 같은 ID의 응답을 해당 Promise에 연결한다. 분석ID/input_revision/승인 토큰이 아니며 DB에 저장하지 않는다. params의 키/반환 Result<T>는 §5의 계약과 같다. JSON은 UTF-8이며 한 메시지마다 줄바꿈 한 개로 구분하고 stdout 조각을 줄 단위로 모아 읽는다. 줄 안의 문자열 줄바꿈은 JSON 이스케이프를 사용한다. Python 전송부는 완료 응답을 한 메시지씩 stdout에 써서 동시에 끝난 작업의 메시지가 섞이지 않게 한다. stdout은 응답 전용, Python 로그는stderr로 보낸다. HTTP 서버/별도 이벤트 버스/통신용 DB 테이블은 없다.
+
+main은 앱 시작 시 Node child_process.spawn으로 로컬 Python 실행파일과 서비스 진입파일을 별도 인자로 전달해 프로세스 하나를 실행한다. Windows 콘솔창은 windowsHide=true로 숨기고 stdin/stdout은UTF-8로 맞춘다. Python 출력은 버퍼에 남지 않게 메시지마다 flush한다. 앱 종료 시 자식 프로세스도 종료한다. 개발 실행 설정에 Python 실행파일/진입파일 위치를 두며 APP_SETTINGS에는 추가하지 않는다. Python 서비스는 장시간 분석을 백그라운드에서 실행하고 요청 읽기/진행 조회/취소 처리를 계속한다. 호출별 request_id로 응답을 연결하며 응답 순서를 요청 순서로 가정하지 않는다. 계산 실패는 기존 Result.error/슬롯 진단으로, 프로세스 시작 실패·중단·통신 실패는 해당 call의 Promise 오류로 표시한다. 별도 재시작 정책/동시실행 차단/승인 절차를 만들지 않는다. [Node 자식 프로세스 문서](https://nodejs.org/api/child_process.html)
+
+choose_photo_paths는 main의 dialog.showOpenDialog(openFile,multiSelections) 결과 filePaths를 반환한다. 사용자가 취소하면 빈 배열이다. 끌어놓기의 path_for_file은 preload의 webUtils.getPathForFile을 사용하고, 경로 없는 항목은 해당 사진 안내로 표시한다. choose_export_destination는 main의 dialog.showSaveDialog에서 선택한 Excel 경로 또는 취소null을 반환한다. 이 세 함수는 데스크톱 파일 연결이며 Python 서비스/DB 메서드가 아니다. [Electron dialog](https://www.electronjs.org/docs/latest/api/dialog), [webUtils](https://www.electronjs.org/docs/latest/api/web-utils)
 
 ## 2. 공통 타입
 
@@ -81,6 +102,7 @@ type C11Input = CriterionCommon & {criterion_no:11,impact_rate_hour:Number|null}
 type CriterionInput = C1Input|C2Input|C3Input|C4Input|C5Input|C6Input|C7Input|C8Input|C9Input|C10Input|C11Input;
 type LegalInputs = {lift_count_day:Count|null,criteria:CriterionInput[],exposures:ExposureInput[]};
 type PhotoInfo = {photo_id:ID,task_id:ID,file_path:string,file_name:string,width_px:Count|null,height_px:Count|null,consent:Truth,notes:Diagnostic[]};
+type PhotoPreview = {photo_id:ID,data_url:string,width_px:Count,height_px:Count};
 type FileFailure = {file_path:string,message:string};
 type ImportReport = {added:PhotoInfo[],unreadable:FileFailure[],notes:Diagnostic[]};
 type CaptureObservation = {phase_verified:Truth,load_state:LoadState,single_person:Truth,full_frame:Truth,camera_fixed:Truth,normal_cycle:Truth,evidence:Evidence};
@@ -94,6 +116,8 @@ type TaskInputBundle = {task:Task,exclusions:Exclusions,photos:PhotoInfo[],setti
 ```
 
 작업 생성 시15고정 슬롯, 기준1..11 하나씩,20조건 시간 하나씩을 빈값으로 만든다. 슬롯 순서는 기능정의서 §2. 입력은 부분 상태로 저장할 수 있다. 중량/높이>0, 시간0..1440, months/days/횟수≥0이 계산상 의미 범위다. 범위 밖/모순은 계산 결과에 INPUT_CONFLICT를 표시하며 저장 가드를 만들지 않는다.
+
+PhotoPreview는 capture가 원본을 읽어 EXIF 방향을 적용한 이미지 data URL과 그 픽셀 크기를 반환하는 조회 DTO다. 미리보기는 원본을 저장/복사하거나 TASK/ANALYSIS/PHOTO JSON에 추가하지 않는다. pose 좌표와 같은 EXIF 적용 후 원본 크기이며 화면 표시 축소 시 UI가 표시 크기 비율로 좌표를 맞춘다. get_photo_preview의 PhotoInfo는 현재 사진목록 또는 선택 분석 snapshot.photos에서 전달하므로 PHOTO행이 삭제된 과거 사진도 원본 경로가 존재하면 표시할 수 있다. 원본을 못 읽으면 FILE_ERROR와 화면 안내를 반환하고 저장된 수치/다른 사진은 유지한다.
 
 short_term/intermittent 파생은 기능정의서 §5. 자세 해석 pending은3/4/5/9에 사용한다. 근거는 권장 입력, 미기입도 저장한다. ManualValue의 scope/범주는 기능정의서 §4 표와 같다. 마지막5개 태그전용 필드는 COMMON/Truth, seated도 Truth. neck_base/wrist_base는 자동 좌표로 생성하지 않는다. 사진 교체 시 해당 슬롯 manual/observation을 비워 둔다. 사진이 없는 슬롯에는 manual을 자동 생성하지 않는다.
 
@@ -164,6 +188,7 @@ TagResult.slots는15슬롯×11태그, summary는11태그다. 서비스는 slots�
 | set_legal_inputs | task_id:ID,legal:LegalInputs | Task | S03/S07 |
 | delete_task | task_id:ID | Ack | S03 |
 | import_photos | task_id:ID,file_paths:string[] | ImportReport | S04 |
+| get_photo_preview | photo:PhotoInfo | PhotoPreview | S04/S06 |
 | update_photo | photo_id:ID,file_path:string,consent:Truth | PhotoInfo | S04 |
 | delete_photo | photo_id:ID | Ack | S04 |
 | set_capture | task_id:ID,capture:CaptureSet | Task | S04 |
