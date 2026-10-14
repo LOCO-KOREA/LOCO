@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024">
+  <title>분석과 설명 설정</title>
+  <desc>LOCO demo design 1.3. Static editable UI mockup; all values are examples.</desc>
+  <rect x="0" y="0" width="1440" height="1024" rx="0" fill="#EEF1F5" stroke="#DDE3EA" />
+  <rect x="0" y="0" width="1440" height="78" rx="0" fill="#172230" />
+  <rect x="40" y="25" width="6" height="28" rx="0" fill="#FF6B43" />
+  <text x="58" y="53" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="29" font-weight="700" fill="#FFFFFF">LOCO</text>
+  <text x="157" y="49" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" font-weight="400" fill="#B4C0CF">DEMO / 1.3</text>
+  <text x="366" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">작업 공간</text>
+  <text x="478" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">조사 목록</text>
+  <text x="590" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">분석 기록</text>
+  <rect x="652" y="0" width="100" height="78" rx="0" fill="#223044" />
+  <rect x="652" y="74" width="100" height="4" rx="0" fill="#FF6B43" />
+  <text x="702" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">설정</text>
+  <text x="814" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">보고서</text>
+  <line x1="1090" y1="24" x2="1090" y2="54" stroke="#3A4655" />
+  <text x="1115" y="47" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#DAE1EA">한빛 제조 / 본사</text>
+  <circle cx="1360" cy="39" r="18" fill="#344255" />
+  <text x="1360" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">김</text>
+  <text x="40" y="152" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#1B2635">분석과 설명 설정</text>
+  <text x="40" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">사진 분석 설정과 선택 GPT 설명을 관리합니다. 설정 변경은 새 분석 입력에 적용됩니다.</text>
+  <rect x="40" y="205" width="1360" height="44" rx="6" fill="#FFFFFF" stroke="#DDE3EA" />
+  <text x="58" y="233" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">2026 정기조사 / 물류팀 · 입출고 / 상자 올리기 A</text>
+  <text x="1200" y="233" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#277253">● 이 PC에 자동 저장</text>
+  <rect x="40" y="329" width="820" height="568" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <rect x="880" y="329" width="520" height="568" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="64" y="363" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">사진 분석</text>
+  <text x="64" y="391" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">관절 모델</text>
+  <rect x="64" y="403" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="425" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">MoveNet Lightning · singlepose float16 v4</text>
+  <text x="64" y="459" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">입력 / 관절 / 전처리</text>
+  <rect x="64" y="471" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="493" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">192 × 192 / 17개 / 원본 비율 유지 패딩</text>
+  <text x="64" y="527" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">관절 신뢰도 하한</text>
+  <rect x="64" y="539" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="561" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">0.5</text>
+  <text x="64" y="595" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">기술 태그 프로필</text>
+  <rect x="64" y="607" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="629" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">POSTURE_TECH_V1</text>
+  <text x="64" y="663" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">몸통 앞굽힘 / 뒤젖힘</text>
+  <rect x="64" y="675" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="697" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">20° / 20°</text>
+  <text x="64" y="731" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">위팔 수직 올림 / 목 참고 프록시</text>
+  <rect x="64" y="743" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="765" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">45° / 20°</text>
+  <text x="64" y="799" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">REBA / 고시 계산 규칙</text>
+  <rect x="64" y="811" width="772" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="76" y="833" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">REBA_TABLE_2000_V2 / MOEL_2020_12_V1</text>
+  <text x="64" y="865" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">기술 태그 각도는 고시의 확정 각도로 표현하지 않습니다.</text>
+  <text x="904" y="363" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">선택 GPT 설명</text>
+  <text x="904" y="408" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">GPT 사용</text>
+  <rect x="904" y="420" width="472" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="916" y="442" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">끄기 ∨</text>
+  <text x="904" y="492" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">설명 모델</text>
+  <rect x="904" y="504" width="472" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="916" y="526" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">미설정</text>
+  <text x="904" y="576" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#1B2635">실행환경 키</text>
+  <rect x="904" y="588" width="472" height="34" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="916" y="610" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">키 없음 · 기본 설명 사용</text>
+  <rect x="904" y="636" width="472" height="90" rx="8" fill="#F0F4F8" stroke="#DDE3EA" stroke-width="1" />
+  <text x="920" y="662" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">사진·개인정보를 보내지 않고 수치 요약만 사용합니다.</text>
+  <text x="920" y="684" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">GPT는 설명 문장만 제안합니다.</text>
+  <text x="920" y="706" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">사용하지 않아도 분석·판정·Excel이 동작합니다.</text>
+  <text x="904" y="760" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">키는 실행환경 OPENAI_API_KEY로 설정합니다.</text>
+  <text x="904" y="798" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">모델 변경: 사진 재분석</text>
+  <text x="904" y="824" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">기술 태그 변경: 기존 포즈로 태그 재계산</text>
+  <rect x="40" y="918" width="120" height="44" rx="5" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
+  <text x="100.0" y="940.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#172230" text-anchor="middle" dominant-baseline="central">이전</text>
+  <rect x="1100" y="918" width="300" height="44" rx="5" fill="#FF6B43" stroke="#DDE3EA" stroke-width="1" />
+  <text x="1250.0" y="940.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">설정 저장</text>
+  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="40" y="109" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">LOCO / 작업 자세 분석</text>
+  <rect x="1220" y="121" width="180" height="26" rx="4" fill="#E6EBF1" />
+  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="1220" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">화면설계 1.3</text>
+  <line x1="40" y1="978" x2="1400" y2="978" stroke="#DDE3EA" />
+  <text x="40" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">부담작업 해당 여부 결정과 조사 결과의 책임은 사업주와 조사자에게 있습니다.</text>
+  <text x="1220" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">LOCO / DEMO · 1.3</text>
+  <rect x="40" y="261" width="1360" height="48" rx="5" fill="#FFFFFF" />
+  <circle cx="68" cy="285" r="12" fill="#E4E9EF" />
+  <text x="68" y="285" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="700" fill="#67788D" text-anchor="middle" dominant-baseline="central">1</text>
+  <text x="93" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">작업 정보</text>
+  <circle cx="338" cy="285" r="12" fill="#E4E9EF" />
+  <text x="338" y="285" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="700" fill="#67788D" text-anchor="middle" dominant-baseline="central">2</text>
+  <text x="363" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">사진 등록</text>
+  <circle cx="608" cy="285" r="12" fill="#E4E9EF" />
+  <text x="608" y="285" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="700" fill="#67788D" text-anchor="middle" dominant-baseline="central">3</text>
+  <text x="633" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">자세 분석</text>
+  <circle cx="878" cy="285" r="12" fill="#E4E9EF" />
+  <text x="878" y="285" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="700" fill="#67788D" text-anchor="middle" dominant-baseline="central">4</text>
+  <text x="903" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">판정 검토</text>
+  <circle cx="1148" cy="285" r="12" fill="#E4E9EF" />
+  <text x="1148" y="285" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="700" fill="#67788D" text-anchor="middle" dominant-baseline="central">5</text>
+  <text x="1173" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">보고서</text>
+</svg>
