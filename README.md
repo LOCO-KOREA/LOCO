@@ -54,8 +54,8 @@ svc.get_task_result(10)              # '상자 들어 옮기기'의 결과 (REBA
 
 | 문서 | 만드는 방식 | 고치려면 |
 |---|---|---|
-| `requirements.md`, `기능정의서.md`, `project-overview.md`, `benchmark-apps.md`, `법정서식_검증목록.md`, `화면명세서_GPT용.md`, `presentation-script.md` | 손으로 쓴다 | 파일을 직접 고친다 |
-| `ERD_데이터설계서.md`, `ERD.drawio`, `DB아키텍처_설계서.md`, `API_계약서.md`, `화면설계서.md`, `일정서.md`, `팀원_읽기안내.md`, `화면참고_*.png`와 `*_그림/` | **스크립트가 만든다** | 원본(스키마·계약·화면 데이터·일정 데이터)을 고치고 `python docs_src/build_all.py` |
+| `requirements.md`, `기능정의서.md`, `project-overview.md`, `benchmark-apps.md`, `법정서식_검증목록.md`, `화면명세서_GPT용.md`, `presentation-script.md`, `ui/화면설계서.md`와 `ui/svg/01~08` (UI 시각 시안) | 손으로 쓴다 | 파일을 직접 고친다 |
+| `ERD_데이터설계서.md`, `ERD.drawio`, `DB아키텍처_설계서.md`, `API_계약서.md`, `화면설계서.md`, `일정서.md`, `팀원_읽기안내.md`, `화면참고_*.png`, `ui/svg/00_전체미리보기.svg`, `ui/png/*.png`와 `*_그림/` | **스크립트가 만든다** | 원본(스키마·계약·화면 데이터·일정 데이터·UI 시안 SVG)을 고치고 `python docs_src/build_all.py` |
 
 저장소에 넣지 않은 자료: REBA 워크시트(Cornell, Alan Hedge)와 KOSHA GUIDE H-9-2022 텍스트. 저작권이 있는 자료라 정욱님이 따로 갖고 있다.
 
