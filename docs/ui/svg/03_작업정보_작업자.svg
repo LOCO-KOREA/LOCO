@@ -53,11 +53,11 @@
 <rect x="56" y="491" width="198" height="81" rx="5" fill="#F6F8FA" />
 <text x="72" y="520" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#1B2635">선반 정리</text>
 <rect x="72" y="532" width="74" height="26" rx="4" fill="#EDF1F5" />
-<text x="83" y="550" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176">영상 없음</text>
+<text x="83" y="550" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176">사진 없음</text>
 <rect x="56" y="596" width="198" height="81" rx="5" fill="#F6F8FA" />
 <text x="72" y="625" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#1B2635">수레 밀기</text>
 <rect x="72" y="637" width="74" height="26" rx="4" fill="#EDF1F5" />
-<text x="83" y="655" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176">영상 없음</text>
+<text x="83" y="655" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176">사진 없음</text>
 <rect x="56" y="756" width="198" height="42" rx="5" fill="#FFFFFF" stroke="#DDE3EA" />
 <text x="101.0" y="782.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#1B2635">＋ 단위작업 추가</text>
 <rect x="290" y="329" width="712" height="568" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
@@ -82,7 +82,7 @@
 <text x="646" y="725" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">상시 · 단기간작업 · 간헐적인 작업</text>
 <rect x="314" y="776" width="664" height="70" rx="6" fill="#F0F4F8" stroke="#DDE3EA" />
 <rect x="314" y="776" width="4" height="70" rx="2" fill="#8394A7" /><text x="330" y="801" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#1B2635">단기간·간헐 작업은 11개 호를 비해당으로 초안 처리합니다.</text>
-<text x="330" y="825" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#1B2635">영상 분석과 REBA 점수는 계속 확인할 수 있습니다.</text>
+<text x="330" y="825" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#1B2635">사진 분석과 REBA 점수는 계속 확인할 수 있습니다.</text>
 <rect x="1022" y="329" width="378" height="568" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
 <text x="1046" y="363" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">참여 근로자</text>
 <text x="1046" y="389" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">참여자 구분</text>
