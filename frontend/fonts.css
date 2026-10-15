@@ -1,0 +1,16 @@
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./assets/fonts/PretendardVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root, body, button, input, select, textarea {
+  font-family: 'Pretendard', sans-serif;
+}
+body * {
+  font-family: 'Pretendard', sans-serif !important;
+}
+#screen svg text, #screen .design-field {
+  font-family: 'Pretendard', sans-serif !important;
+}

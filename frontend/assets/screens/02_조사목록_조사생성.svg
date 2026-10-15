@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024">
+  <defs>
+    <filter id="locoCardShadow" x="-12%" y="-18%" width="124%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1D2B50" flood-opacity="0.035" />
+    </filter>
+    <linearGradient id="locoPetBody" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#edf0ff" />
+      <stop offset="1" stop-color="#c4cbea" />
+    </linearGradient>
+    <linearGradient id="locoPetHat" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#f1c779" />
+      <stop offset="1" stop-color="#dfab59" />
+    </linearGradient>
+  </defs>
+  <title>조사 목록과 새 조사</title>
+  <desc>LOCO demo design 1.3: survey list and creation. Review state is independent of completeness. Example data.</desc>
+  <rect x="0" y="0" width="1440" height="1024" rx="0" fill="#F5F6FA" />
+  <rect x="0" y="0" width="1440" height="49" fill="#F9FAFE" />
+  <line x1="0" y1="48.5" x2="1440" y2="48.5" stroke="#EDF0F6" />
+<svg x="24" y="7" width="90" height="34" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 286 94" fill="none"><title>LOCO — C 글자 중심 로고</title><g stroke="#5C61DB" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M16 13v38c0 19 12 29 30 29h30"/><circle cx="83" cy="51" r="29"/><path d="M177 29a29 29 0 1 0 0 44"/><circle cx="229" cy="51" r="29"/></g><path d="m228 52 19-20" stroke="white" stroke-width="14" stroke-linecap="round"/><path d="m228 52 19-20" stroke="#AFB4D8" stroke-width="8" stroke-linecap="round"/><circle cx="249" cy="29" r="11" fill="#AFB4D8" stroke="white" stroke-width="4"/><circle cx="249" cy="29" r="4" fill="#5C61DB"/></svg>
+
+  <line x1="123" y1="15" x2="123" y2="34" stroke="#DFE4EE" />
+  <text x="137" y="31" font-family="Pretendard, sans-serif" font-size="11" font-weight="650" fill="#56647B">현장 자세 분석</text>
+  <text x="278" y="31" font-family="Pretendard, sans-serif" font-size="10" fill="#8994A7"><tspan>조사 관리</tspan><tspan fill="#C5CCD9">  ›  </tspan><tspan fill="#6F7A90">조사 목록</tspan></text>
+  <circle cx="1036" cy="24" r="3" fill="#B97723" />
+  <text x="1046" y="28" font-family="Pretendard, sans-serif" font-size="10" fill="#8792A7">저장 상태 확인</text>
+  <rect x="1210" y="10" width="59" height="28" rx="6" fill="#EEEFFD" />
+  <text x="1239.5" y="28" text-anchor="middle" font-family="Pretendard, sans-serif" font-size="10" font-weight="600" fill="#6065C5">UI 데모</text>
+  <rect x="1380" y="10" width="32" height="29" rx="8" fill="#FFFFFF" stroke="#E8EBF2" />
+<text x="1396" y="30" text-anchor="middle" font-family="Pretendard, sans-serif" font-size="14" font-weight="600" fill="#7B8496">?</text>
+  <rect x="0" y="49" width="1440" height="59" fill="#FFFFFF" />
+  <rect x="24" y="55" width="126" height="46" rx="12" fill="#EEEFFD" />
+  <rect x="38" y="102" width="98" height="3" rx="1.5" fill="#5C61DB" />
+  <g transform="translate(36 69)" fill="none" stroke="#5C61DB" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1" y="1" width="5.5" height="5.5" rx="1" />
+    <rect x="9.5" y="1" width="5.5" height="5.5" rx="1" />
+    <rect x="1" y="9.5" width="5.5" height="5.5" rx="1" />
+    <rect x="9.5" y="9.5" width="5.5" height="5.5" rx="1" />
+  </g>
+  <text x="59" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#5C61DB">조사 목록</text>
+  <text x="139" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#969AE1">01</text>
+  <g transform="translate(167 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="2.5" width="11" height="13" rx="1.6" />
+    <path d="M5.5 2.5v-1h5v1M5.5 7h5M5.5 10h5" />
+  </g>
+  <text x="190" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">조사 개요</text>
+  <text x="270" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">02</text>
+  <g transform="translate(298 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 4.5 8.5 1 16 4.5 8.5 8zM1 4.5v8l7.5 3.5V8M16 4.5v8l-7.5 3.5" />
+  </g>
+  <text x="321" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">작업·직접입력</text>
+  <text x="437" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">03</text>
+  <g transform="translate(465 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.5 5h3l1.6-2h4.8l1.6 2h2v9.5h-13z" />
+    <circle cx="8" cy="9.7" r="2.7" />
+  </g>
+  <text x="488" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">사진 등록</text>
+  <text x="568" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">04</text>
+  <g transform="translate(596 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 1.5H2a.5.5 0 0 0-.5.5v2.5M11 1.5h3a.5.5 0 0 1 .5.5v2.5M15.5 11.5V14a.5.5 0 0 1-.5.5h-3M5 14.5H2a.5.5 0 0 1-.5-.5v-2.5" />
+    <circle cx="8.5" cy="8" r="2.5" />
+  </g>
+  <text x="619" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">분석 진행</text>
+  <text x="699" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">05</text>
+  <g transform="translate(727 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8" cy="2.2" r="1.8" />
+    <path d="M8 4.2v5M8 5.5 3.5 8M8 5.5 12.5 8M8 9.2 4.5 15M8 9.2 12 15" />
+  </g>
+  <text x="750" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">사진·REBA 분석</text>
+  <text x="871" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">06</text>
+  <g transform="translate(899 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 1 14 3.2v4.2c0 3.5-2.4 5.8-6 7.6-3.6-1.8-6-4.1-6-7.6V3.2z" />
+    <path d="m5.2 7.7 1.8 1.8 3.7-3.7" />
+  </g>
+  <text x="922" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">11호 초안·검토</text>
+  <text x="1043" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">07</text>
+  <g transform="translate(1071 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 1.5h7l3 3v10H3zM10 1.5v3h3M5.5 7h5M5.5 9.5h5M5.5 12h3.5" />
+  </g>
+  <text x="1094" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">보고서 내보내기</text>
+  <text x="1211" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">08</text>
+  <line x1="1234" y1="67" x2="1234" y2="90" stroke="#E8EBF2" />
+  <g transform="translate(1261 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8" cy="8" r="2.8" />
+    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M13 3l-1.4 1.4M4.4 11.6 3 13" />
+  </g>
+  <text x="1285" y="83" font-family="Pretendard, sans-serif" font-size="12" font-weight="500" fill="#758198">설정</text>
+  <text x="1366" y="82" text-anchor="end" font-family="Pretendard, sans-serif" font-size="9" fill="#ACB4C4">09</text>
+  <rect x="0" y="108" width="1440" height="25" fill="#F0F1FA" />
+  <line x1="0" y1="132.5" x2="1440" y2="132.5" stroke="#E9EBF5" />
+  <text x="720" y="124" text-anchor="middle" font-family="Pretendard, sans-serif" font-size="9" fill="#8B8FAB"><tspan font-weight="700" fill="#757BA8">INTERACTIVE PROTOTYPE</tspan><tspan>  ·  화면 예시이며 사진과 분석 수치는 가상 데이터입니다.</tspan></text>
+  <g transform="translate(0 30)">
+  <text x="40" y="152" font-family="Pretendard, sans-serif" font-size="30" font-weight="700" fill="#242D41">조사 목록과 새 조사</text>
+  <text x="40" y="183" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#7B8496">조사를 만들고 저장된 조사를 최신순으로 다시 엽니다.</text>
+  <rect x="40" y="215" width="770" height="688" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="64" y="249" font-family="Pretendard, sans-serif" font-size="18" font-weight="700" fill="#242D41">저장된 조사</text>
+  <rect x="64" y="264" width="405" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" />
+  <text x="77" y="291" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">조사명 · 부서 · 공정</text>
+  <rect x="490" y="264" width="135" height="42" rx="11" fill="#FFFFFF" stroke="#E8EBF2" />
+  <text x="519.5" y="290.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#242D41">검토 상태 ∨</text>
+  <rect x="640" y="264" width="145" height="42" rx="11" fill="#FFFFFF" stroke="#E8EBF2" />
+  <text x="668.0" y="290.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#242D41">조사일 최신순</text>
+  <rect x="64" y="334" width="722" height="38" rx="9" fill="#FAFBFD" />
+  <text x="80" y="359" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#7B8496">조사 / 구분</text>
+  <text x="356" y="359" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#7B8496">조사일</text>
+  <text x="516" y="359" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#7B8496">작업</text>
+  <text x="606" y="359" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#7B8496">조사자 검토</text>
+  <rect x="64" y="372" width="722" height="55" rx="12" fill="#FCF0EB" />
+  <text x="80" y="404.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">물류팀 정기</text>
+  <text x="356" y="404.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.10.12</text>
+  <text x="516" y="404.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="606" y="386.5" width="140" height="26" rx="6" fill="#FAFBFD" />
+  <text x="676.0" y="399.5" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">미검토</text>
+  <line x1="64" y1="427" x2="786" y2="427" stroke="#E8EBF2" stroke-width="1" />
+  <text x="80" y="459.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">조립팀 수시</text>
+  <text x="356" y="459.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.10.10</text>
+  <text x="516" y="459.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="606" y="441.5" width="140" height="26" rx="6" fill="#FFF4DF" />
+  <text x="676.0" y="454.5" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#B97723" text-anchor="middle" dominant-baseline="central">이전 결과 검토</text>
+  <line x1="64" y1="482" x2="786" y2="482" stroke="#E8EBF2" stroke-width="1" />
+  <text x="80" y="514.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">가공팀 정기</text>
+  <text x="356" y="514.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.09.30</text>
+  <text x="516" y="514.5" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="606" y="496.5" width="140" height="26" rx="6" fill="#EAF7F2" />
+  <text x="676.0" y="509.5" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#278E78" text-anchor="middle" dominant-baseline="central">검토 완료</text>
+  <line x1="64" y1="537" x2="786" y2="537" stroke="#E8EBF2" stroke-width="1" />
+  <text x="64" y="553" dominant-baseline="text-before-edge" font-family="Pretendard, sans-serif" font-size="13" font-weight="400" fill="#7B8496">선택 조사 · 물류팀 정기 / 마지막 저장 오늘 10:24</text>
+  <rect x="540" y="841" width="245" height="42" rx="9" fill="#162239" />
+  <text x="662.5" y="862.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">조사 다시 열기 →</text>
+  <text x="64" y="788" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">검토 상태는 입력과 계산의 완전성과 별도입니다.</text>
+  <text x="64" y="817" font-family="Pretendard, sans-serif" font-size="12" font-weight="400" fill="#7B8496">이전 결과를 검토한 조사는 현재 결과를 다시 확인할 수 있습니다.</text>
+  <rect x="830" y="215" width="570" height="688" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="854" y="249" font-family="Pretendard, sans-serif" font-size="18" font-weight="700" fill="#242D41">조사개요 입력</text>
+  <text x="854" y="273" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">조사 구분</text>
+  <rect x="854" y="286" width="250" height="38" rx="9" fill="#162239" />
+  <text x="965" y="310.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">정기</text>
+  <rect x="1126" y="286" width="250" height="38" rx="9" fill="#FFFFFF" stroke="#E8EBF2" />
+  <text x="1237" y="310.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#242D41">수시</text>
+  <text x="854" y="350" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">조사일</text>
+  <rect x="854" y="362" width="250" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1" />
+  <text x="867" y="389" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">2026.10.12</text>
+  <text x="1126" y="350" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">조사자 이름</text>
+  <rect x="1126" y="362" width="250" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1" />
+  <text x="1139" y="389" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">김나리</text>
+  <text x="854" y="451" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">부서</text>
+  <rect x="854" y="463" width="522" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1" />
+  <text x="867" y="490" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">물류팀</text>
+  <text x="854" y="547" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">작업공정명</text>
+  <rect x="854" y="559" width="522" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1" />
+  <text x="867" y="586" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">입출고</text>
+  <text x="854" y="643" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">조사 제목</text>
+  <rect x="854" y="655" width="522" height="42" rx="9" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1" />
+  <text x="867" y="682" font-family="Pretendard, sans-serif" font-size="14" font-weight="400" fill="#242D41">2026 물류팀 정기조사</text>
+  <text x="854" y="748" font-family="Pretendard, sans-serif" font-size="13" font-weight="700" fill="#242D41">수시 사유 · 수시조사 선택 시 기록</text>
+  <rect x="854" stroke="#E8EBF2" rx="9" y="759" fill="#FFFFFF" width="522" height="38" stroke-width="1" />
+  <text x="867" y="780" font-family="Pretendard, sans-serif" font-size="12" font-weight="400" fill="#7B8496">수시 사유를 입력하세요.</text>
+  <text x="854" y="824" font-family="Pretendard, sans-serif" font-size="12" font-weight="400" fill="#7B8496">사유가 비어 있어도 저장할 수 있습니다.</text>
+  <rect x="854" y="841" width="522" height="42" rx="9" fill="#5C61DB" />
+  <text x="1115.0" y="862.0" font-family="Pretendard, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">조사 만들고 작업 등록 →</text>
+  <rect x="64" stroke="#E8EBF2" rx="11" y="841" fill="#FFFFFF" width="140" height="42" stroke-width="1" />
+  <text font-family="Pretendard, sans-serif" fill="#C66B4F" y="862.0" font-size="14" x="134.0" text-anchor="middle" dominant-baseline="central" font-weight="700">선택 조사 삭제</text>
+  <text x="1310.0" y="134.0" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="40" y="109" font-family="Pretendard, sans-serif" font-size="11" font-weight="400" fill="#7B8496">LOCO / 작업 자세 분석</text>
+  <rect x="1220" y="121" width="180" height="26" rx="4" fill="#E8EBF2" />
+  <text x="1310.0" y="134.0" font-family="Pretendard, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="1220" y="183" font-family="Pretendard, sans-serif" font-size="11" font-weight="400" fill="#7B8496">화면설계 1.5</text>
+  <line x1="40" y1="978" x2="1400" y2="978" stroke="#E8EBF2" />
+  <text x="40" y="1000" font-family="Pretendard, sans-serif" font-size="11" font-weight="400" fill="#7B8496">부담작업 해당 여부 결정과 조사 결과의 책임은 사업주와 조사자에게 있습니다.</text>
+  <text x="1220" y="1000" font-family="Pretendard, sans-serif" font-size="11" font-weight="400" fill="#7B8496">LOCO / DEMO · 1.5</text>
+  </g>
+<g aria-label="로코 안내 위젯 · S01">
+  <path d="M1083 810H1309A13 13 0 0 1 1322 823V972A3 3 0 0 1 1319 975H1083A13 13 0 0 1 1070 962V823A13 13 0 0 1 1083 810Z" fill="#FFFFFF" fill-opacity=".98" stroke="#E1E4F1" filter="url(#locoCardShadow)" />
+  <text x="1085" y="833" font-family="Pretendard, sans-serif" font-size="10" font-weight="650" fill="#686DA9">로코<tspan font-size="8" font-weight="400" fill="#AAB0C8"> · 현장 관찰 동료</tspan></text>
+  <text x="1300" y="833" font-family="Pretendard, sans-serif" font-size="14" fill="#B5BAC9">×</text>
+  <text x="1085" y="856" font-family="Pretendard, sans-serif" font-size="11" fill="#6F7C95">안녕하세요, 로코예요!</text>
+<text x="1085" y="874" font-family="Pretendard, sans-serif" font-size="11" fill="#6F7C95">현장의 움직임을 기록하는 동안</text>
+<text x="1085" y="892" font-family="Pretendard, sans-serif" font-size="11" fill="#6F7C95">옆에서 필요한 입력을 짚어드릴게요.</text>
+  <text x="1085" y="949" font-family="Pretendard, sans-serif" font-size="10" font-weight="600" fill="#5C61DB">진행 중인 조사 열기  →</text>
+  <svg x="1322" y="888" width="94" height="115" viewBox="0 0 104 126" role="img" aria-label="안전모를 쓴 작은 로봇 로코">
+    <title>안전모를 쓴 작은 로봇 로코</title>
+    <ellipse cx="52" cy="118" rx="28" ry="5" fill="#aeb9d7" opacity=".22" />
+    <path d="M28 74 18 84l4 17 8-5 4-15m42-7 12 10-4 17-8-5-4-15" fill="#bfc8e6" stroke="#a6b3d6" stroke-width="1" />
+    <path d="M35 99v11h-8v6h20v-17m11 0v11h-1v6h20v-6h-8V99" fill="#b8c2e1" />
+    <rect x="29" y="70" width="47" height="35" rx="14" fill="url(#locoPetBody)" stroke="#aebadb" />
+    <path d="M42 82h20v12H42z" fill="#f4f5ff" stroke="#b5bfde" />
+    <path d="m47 88 3 3 7-7" stroke="#8da79e" stroke-width="2" fill="none" stroke-linecap="round" />
+    <rect x="16" y="34" width="10" height="23" rx="5" fill="#9eaaca" />
+    <rect x="78" y="34" width="10" height="23" rx="5" fill="#9eaaca" />
+    <rect x="21" y="29" width="62" height="47" rx="19" fill="url(#locoPetBody)" stroke="#a9b7d9" />
+    <rect x="27" y="37" width="50" height="29" rx="12" fill="#344063" />
+    <g class="pet-eyes"><rect x="34" y="45" width="8" height="13" rx="4" fill="#959eee" /><rect x="61" y="45" width="8" height="13" rx="4" fill="#959eee" /><circle cx="37" cy="48" r="1.5" fill="#e9ecff" /><circle cx="64" cy="48" r="1.5" fill="#e9ecff" /></g>
+    <path d="M47 59q5 4 10 0" stroke="#8a95c5" stroke-width="1.4" fill="none" stroke-linecap="round" />
+    <path d="M26 29C27 13 37 8 52 8s25 5 26 21z" fill="url(#locoPetHat)" stroke="#d5a963" />
+    <path d="M47 10v14m10-14v14" stroke="#f8dfa8" stroke-width="3" stroke-linecap="round" />
+    <rect x="20" y="27" width="64" height="7" rx="3.5" fill="#dfb161" />
+    <path d="M76 16 82 8m-3 14 8-2" stroke="#d4b67d" stroke-width="1.4" stroke-linecap="round" opacity=".65" />
+  </svg>
+</g>
+</svg>
