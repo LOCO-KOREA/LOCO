@@ -140,7 +140,7 @@ class PhotoWorkspace {
       if (action==='import') await this.choosePhotos();
       else if (action==='save') { await this.save(); this.notify('사진 배정과 관찰 입력을 저장했습니다.'); }
       else if (action==='back') { if (this.task.task_id) await this.save(); await this.onBack(); }
-      else if (action==='analysis') { if (this.task.task_id) { await this.save(); this.notify('사진 입력을 저장했습니다. 분석 실행은 다음 구현 단계에서 연결합니다.'); } else this.notify('분석 실행은 다음 구현 단계에서 연결합니다.'); }
+      else if (action==='analysis') { if (this.task.task_id) { await this.save(); await this.onAnalyze(this.task.task_id); } else this.notify('조사와 작업을 저장한 뒤 분석을 실행하세요.'); }
       else if (action==='unlinked') this.notify('분석·판정·보고서 화면은 다음 구현 단계입니다.');
       else if (action==='keep-details') await this.keepDetails();
     });
