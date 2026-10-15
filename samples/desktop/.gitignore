@@ -1,0 +1,9 @@
+node_modules/
+.npm-cache/
+.venv/
+__pycache__/
+*.db
+*.db-shm
+*.db-wal
+*.xlsx
+models/

@@ -1,0 +1,14 @@
+{
+  "name": "loco-desktop-sample",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated LOCO v1.5 desktop sample",
+  "engines": { "node": ">=22.12.0" },
+  "main": "main.cjs",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "setup:electron": "node node_modules/electron/install.js",
+    "start": "electron ."
+  },
+  "devDependencies": { "electron": "^43.0.0" }
+}
