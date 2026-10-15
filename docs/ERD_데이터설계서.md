@@ -1,91 +1,115 @@
 # ERD · 데이터 설계서
 
-> 문서 ID ERGO-DD-001 · 설계 버전 1.5 · 기준일 2026-10-15 · 데모 개발 기준
+> 문서 ID ERGO-DATA-001 · 설계 버전 2.0 · 개정일 2026-10-15 · 완성 목표 2026-10-23(Asia/Seoul)
 
-## 1. 설계 원칙
+## 1. 저장 원칙과 논리 관계
 
-DB는 **6개 테이블**만 사용한다. 복잡한 revision/관절/REBA구성점수/판정근거 개별 테이블은 만들지 않는다. 상세 데이터는 [API 계약서](API_계약서.md)의 명시된 DTO를 JSON으로 저장한다. 계산은 기능 모듈에서 수행하고 SQL/뷰/트리거에 넣지 않는다.
+SQLite의 기존 여섯 테이블과 JSON TEXT 컬럼을 유지한다. 물리 migration·추가 테이블·trigger·외래키를 도입하지 않는다. API DTO 2.0은 JSON과 조회 조합으로 표현한다. 상자 들기도 같은 GENERAL_TASK·가변 사진 구조다.
 
-데모 단계의 DB는 단순 SQLite다. PK 이외의 FK/UNIQUE/CHECK/차단 trigger, 암호화, 보안·운영 가드는 구현 요구에 넣지 않는다. 아래 관계는 저장/조회/삭제를 이해하기 위한 **논리 관계**다. 보안·백업·보존정책은 구현 이후 검토한다.
-
-Electron renderer/preload/main은 Python Application Service를 호출하고 DB 저장은 Python storage가 담당한다. Electron IPC/JSON Lines의request_id는 통신 중 요청·응답 연결용이며 저장하지 않는다. PhotoPreview.data_url/픽셀 크기는 화면 조회 응답이며 PHOTO의 기존 원본경로 참조를 대체하거나 미리보기 컬럼/BLOB 테이블을 만들지 않는다. 문서 버전1.5와 저장 schema_version/report_version=1.3을 구분한다.
-
-## 2. 논리 ERD
-
-```mermaid
+~~~mermaid
 erDiagram
   SURVEY ||--o{ TASK : contains
-  TASK ||--o{ PHOTO : has
-  TASK ||--o{ ANALYSIS : records_snapshots
-  SURVEY ||--o{ EXPORT_LOG : records_outputs
-APP_SETTINGS ||--o{ ANALYSIS : analysis_settings_snapshot
-```
+  TASK ||--o{ PHOTO : registers
+  TASK ||--o{ ANALYSIS : snapshots
+  SURVEY ||--o{ EXPORT_LOG : exports
+  APP_SETTINGS ||--o{ ANALYSIS : copied_into_snapshot
+~~~
 
-TASK.latest_analysis_id는 그 작업에서 마지막으로 요청한 분석을 가리킨다. 사진은 하나의 작업에 속한다. 과거 ANALYSIS는 snapshot 안의 사진 메타데이터/15배정을 보유하므로 PHOTO 삭제 뒤에도 수치 출처를 읽을 수 있다. APP_SETTINGS 관계는 참조 FK가 아니라 `settings_json.analysis`의 분석시점 설정 복사다. GPT·로코 UI 설정은 분석 snapshot에 복사하지 않는다.
+선은 서비스가 관리하는 논리 관계이며 실제 FK가 아니다. ANALYSIS에 복사된 설정은 APP_SETTINGS의 변경을 따라가지 않는다. PHOTO는 원본 파일 경로·메타를 저장하고 이미지 바이트는 DB에 넣지 않는다.
 
-## 3. 테이블·컬럼
+## 2. 물리 테이블·컬럼
 
-| 테이블 | 컬럼 | API 대응·의미 |
+| 테이블 | 컬럼 | 의미 |
 |---|---|---|
-| SURVEY | survey_id INTEGER PK, metadata_revision INTEGER, metadata_json TEXT, review_json TEXT, created_at TEXT, updated_at TEXT | metadata_json=SurveyDraft 전체, review_json=ReviewMark. Survey의 조회용 래퍼는 ID/시각/metadata_revision 포함 |
-| TASK | task_id INTEGER PK, survey_id INTEGER, input_revision INTEGER, latest_analysis_id INTEGER nullable, input_json TEXT, created_at TEXT, updated_at TEXT | input_json={task_kind,task_name,worker_count,conditions,legal,capture,manual}. Task의 나머지 키는 컬럼에서 구성 |
-| PHOTO | photo_id INTEGER PK, task_id INTEGER, metadata_json TEXT | metadata_json={file_path,file_name,width_px,height_px,consent,notes}. PhotoInfo의 ID는 컬럼에서 구성 |
-| ANALYSIS | analysis_id INTEGER PK, task_id INTEGER, input_revision INTEGER, status TEXT, snapshot_json TEXT, result_json TEXT, created_at TEXT, finished_at TEXT nullable | snapshot_json=TaskSnapshot 전체. result_json={pose,slot_tags,tags,reba,judgment,ai,notes}. Analysis의 ID/상태/시각은 컬럼에서 구성, currentness는 조회 계산 |
-| APP_SETTINGS | settings_id INTEGER PK, settings_json TEXT | settings_id=1을 사용. Settings의 analysis/gpt_enabled/gpt_model/ui{loco_visible,loco_mode} 저장. UI 기본값은 true/normal, gpt_key_present는 환경에서 파생 |
-| EXPORT_LOG | export_id INTEGER PK, survey_id INTEGER, file_path TEXT, snapshot_json TEXT, receipt_json TEXT, created_at TEXT | snapshot_json=ExportSnapshot, receipt_json={sheets,reviewed,review_current,has_incomplete,has_stale}. ExportReceipt의 나머지는 컬럼에서 구성 |
+| SURVEY | survey_id INTEGER PK, metadata_revision INTEGER, metadata_json TEXT, review_json TEXT, created_at TEXT, updated_at TEXT | 조사 정보·검토 이력 |
+| TASK | task_id INTEGER PK, survey_id INTEGER, input_revision INTEGER, latest_analysis_id INTEGER nullable, input_json TEXT, created_at TEXT, updated_at TEXT | 현재 편집 입력·최신 분석 포인터 |
+| PHOTO | photo_id INTEGER PK, task_id INTEGER, metadata_json TEXT | 등록 사진 정보 |
+| ANALYSIS | analysis_id INTEGER PK, task_id INTEGER, input_revision INTEGER, status TEXT, snapshot_json TEXT, result_json TEXT, created_at TEXT, finished_at TEXT nullable | 분석 시점 입력과 계산/표시 결과 |
+| APP_SETTINGS | settings_id INTEGER PK, settings_json TEXT | settings_id=1의 앱 설정 |
+| EXPORT_LOG | export_id INTEGER PK, survey_id INTEGER, file_path TEXT, snapshot_json TEXT, receipt_json TEXT, created_at TEXT | 출력 당시 데이터와 영수증 |
 
-모든 JSON은 UTF-8 text다. null을 보존하고 배열 순서는 slot_no/criterion_no/condition_code 기준으로 정한다. JSON 버전은 TaskSnapshot/ExportSnapshot.schema_version='1.3'. 테이블 수를 늘리는 범용 EAV나 DB JSON Schema 검증장치를 넣지 않는다.
+ID는 양의 정수, 시각은 UTC ISO8601이다. UI·Excel은 Asia/Seoul로 표시한다. schema_version/report_version/module_states/비교/AI 이력을 위한 새 컬럼을 만들지 않는다. currentness·review_current·설명 현재성은 조회 때 계산한다.
 
-## 4. JSON 내부 구조
+## 3. JSON 매핑
+
+### SURVEY
+
+metadata_json은 SurveyDraft의 조사종류·날짜·조사자·부서·공정·제목·수시 사유다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
 
 ### TASK.input_json
 
-- conditions는 TaskConditions. 상자무게/선반높이/작업시간/작업자/방법/단기간·연간일수 입력이다.
-- legal은 LegalInputs. lift_count_day, 기준1..11의 조건 인자,20조건의 직접 노출시간과 근거를 가진다.
-- capture는 CaptureSet.3회×5사건=15고정 자리. 각 자리는 photo_id 또는null, 사건/하중 관찰값을 가진다.
-- manual은 ManualValue 배열. 슬롯·photo_id·COMMON/LEFT/RIGHT·필드·값·출처·근거를 가진다. 빈 배열도 가능하다. 선택사진/같은순간3회차/개별 편집을 모두 대상별 값으로 펼쳐 이 배열에 저장하며 그룹/템플릿 테이블은 없다. 자동 후보 적용은 AUTO_ACCEPTED, 대상 사진ID를 기록한다.
-- worker_count=1, task_kind=FLOOR_TO_SHELF_BOX_SINGLE_PERSON. UI가 데모 범위를 고정하며 DB 제약으로 운영 차단하지 않는다.
+API의 TaskInput 전체를 저장한다. schema_version='2.0', task_kind='GENERAL_TASK', task_name, input_template, worker_count, conditions, legal, capture, manual, analysis_scope, legacy_input이다.
+
+| JSON 영역 | 내용 |
+|---|---|
+| conditions | 작업자 코드·방법·작업 높이·하루 시간·일회성·예정 개월·연간 일수·근거 |
+| legal.criteria | criterion_no 1~11을 각각 한 번; 공통 질적 확인과 기준별 조건 |
+| legal.exposures | 1~5호의 ExposureCode 15종 직접시간·근거 |
+| 기준 6~11 | 조건별 rows·rows_complete·적격 행 row_ids·중복 제거 union 또는 9호 totals |
+| capture | GENERAL_STILLS_V1, 가변 slots의 안정적 slot_no·photo_id·분석대상·촬영조건·관찰 하중 |
+| manual | slot_no/photo_id/scope/field/value/source/evidence |
+| analysis_scope | judgment=true, pose/tags/reba 선택 |
+| legacy_input | 신규 null; 이전 TASK.input_json 원문 전체를 변환하지 않은 보존본 |
+
+6/7/10/11호 union.value의 단위는 min/day, 8호는 count/day, 9호 totals는 위치별/합집합 count/day다. 서로 다른 조건 행의 중량·횟수·시간을 분리해 보존한다. 15종 시간에 6/7/10/11호 시간을 중복 저장하지 않는다.
+
+### PHOTO.metadata_json
+
+PhotoInfo 중 ID와 task_id를 제외한 file_path, file_name, width_px, height_px, consent, notes다. 사진 등록과 분석대상 배정은 별개다. 하나의 등록 photo_id를 여러 슬롯에 중복 배정하면 중복 관찰로 진단한다. 파일 내용 동일성은 경로만으로 증명하지 않는다.
 
 ### ANALYSIS.snapshot_json
 
-TaskSnapshot은 분석 시작 시의 작업명/input_revision/조건/직접입력/15배정/수동값/사진 메타/모델·프로필·규칙을 복사한다. 실행 중 TASK가 바뀌어도 이 값은 유지한다. 원본 사진 바이트는 저장하지 않으므로 외부에서 파일 내용을 바꾸는 것을 완전히 고정했다고 주장하지 않는다.
+TaskSnapshot 전체를 깊은 복사한다. TaskInput 2.0과 task_id, input_revision, photos, AnalysisSettings를 포함한다. 촬영 프로토콜·관찰 하중·수동값·규칙·모델/전처리 버전·기술태그 숫자 설정까지 고정한다. 원본 이미지 바이트는 복사하지 않는다.
+
+입력·설정이 바뀌어도 snapshot을 수정하지 않는다. 파일이 사라져도 저장한 좌표·계산 결과는 읽을 수 있으나 원본 사진 재추론·이미지 재출력은 불가능할 수 있다. 이 한계를 결과/출력에 표시한다.
 
 ### ANALYSIS.result_json
 
-- pose: PoseResult 또는null.15슬롯 각각의 상태·진단·17좌표·좌우7각도다. 미처리 좌표/각도는 빈 배열.
-- slot_tags: SlotTag 배열.15슬롯×11태그의YES/NO/UNKNOWN과ANGLE/MANUAL/UNKNOWN 출처다.
-- tags: TagSummary 배열. YES수/관찰분모/수동관찰수/유효포즈수/비율. 시간으로 바꾼 값은 없다.
-- reba: RebaResult 또는null.15사진의 candidates/하중·좌우 구성점수·총점·위험·누락, available_max/full_max/대표슬롯. candidates에는 각 슬롯의 몸통/무릎 공통2개와 좌우 위팔·아래팔4개의 제안값/근거각도/confidence/사유를 보관한다. 후보는 확정 수동값이 아니다.
-- judgment: JudgmentResult 또는null.11기준의 초안·직접 비교값·누락·해석·조사자 결론/사유/근거.
-- ai: purpose별 AiText. 생성/수정/적용문을 별도 필드에 둔다.
-- notes: 부분분석·중복사용·파일누락 등의 Diagnostic 배열.
+2.0에서는 module_states, pose, slot_tags, tags, reba, judgment, ai, notes를 저장한다. 분석 ID·task_id·revision·status·시각은 컬럼과 snapshot에서 조합한다.
 
-REBA total/risk는 미완전이면null이다. 표본 최대를 저장할 때 available_max와15완전조건 full_max를 구분한다. 고시 시간은 직접 입력이며 사진 발생비율을 곱한 시간을 저장하지 않는다. 사진이 중복 배정되어도 DB가 차단하지 않고 결과 notes로 안내한다.
+| 구역 | 보존할 내용 |
+|---|---|
+| pose | 대상 N의 사진별 상태·17관절·각도·진단 |
+| tags | 사진별 기술태그와 yes/observed 수·표본 비율 |
+| reba | 후보·관찰 하중·좌우 구성점수·누락·사진 총점·집계·대표 선택 |
+| judgment | 11개 계산 초안·비교값·누락·해석·출처·별도 조사자 결론 |
+| ai | 생성별 text_id·목적·is_active·생성/편집/적용본·content·입력 NumericSummary·모델/프롬프트 버전·시각·대체 이유 |
+| module_states/notes | 요청별 상태와 계산/파일/설명 진단 |
 
-### EXPORT_LOG.snapshot_json과 출력 파생값
+결과가 없으면 null 또는 계약상 빈 배열로 표현하고 미요청/미계산 상태를 함께 저장한다. empty 배열 자체를 계산 완료로 해석하지 않는다. API 키·원본 사진·좌표의 GPT 전송용 복사본은 저장하지 않는다. GPT에 보낸 NumericSummary에는 자유입력 근거·이름·내부 ID·사용자 행 label도 없다. ai 배열은 생성마다 추가하며 편집/적용은 text_id로 지정한다. 같은 목적에서 적용된 활성 레코드만 is_active=true다. 이전 적용문과 그 입력 요약을 함께 보존한다.
 
-ExportSnapshot 전체를 기존 snapshot_json에 저장한다. schema_version='1.3', report_version='1.3', survey/tasks/선택analyses/unanalysed_task_ids/include_representative/exported_at을 가진다. 대표이미지 옵션/보고서 버전/출력 시각을 위한 새 컬럼은 만들지 않는다. 출력 당시의 조사정보와 선택 분석 snapshot/결과를 함께 보관한다.
+계산 완료와 AI 편집은 서로 소유한 JSON 키만 바꾼다. 오래된 전체 result_json으로 다른 결과를 덮어쓰지 않는다. judgment의 조사자 결론과 reba의 대표 선택처럼 같은 하위 객체를 공유하는 경우에도 기존 값을 트랜잭션 안에서 다시 읽어 해당 경로만 갱신한다.
 
-ReportOverview/ReportCounts/NextInputItem은 report가 이 snapshot에서 구성하는 파생 DTO다. needs_input_count/needs_review_count는 computed_status별 기준 수, incomplete_reba_count는15−complete_count이며 미계산은null이다. next_inputs는 missing_fields/review_reasons와 슬롯·좌우·기준 식별정보에서 만든다. TASK/ANALYSIS/EXPORT_LOG에 별도 집계/안내 필드를 중복 저장하지 않는다. 조사자 결론/검토가 초안의 부족 항목을 제거하지 않는다. 기준/사진 단위와 조사 합계의 null처리는 기능정의서 §9.2를 따른다.
+### APP_SETTINGS.settings_json
 
-ReportState의reviewed/review_current/has_incomplete/has_stale와 작업별review_status는 report가 선택 analysis_id·SURVEY.review·metadata_revision·현재 TASK·pose/reba/judgment에서 파생한다. has_incomplete는 분석/모듈 결과 유무와 원래 결과 상태를 직접 읽어 계산한다. 별도 미완전 사유 분류/배열을 저장하거나 반환하지 않는다. 검토한 다른 분석의 부울을 복사하지 않는다. next_inputs는 기존 포즈 diagnostics/REBA missing_fields·좌우 review_reasons/고시 computed_status·missing_fields·review_reasons와 결과 유무에서 구성한다. 포즈 안내를 고시 기준수와 합치지 않는다. 네 부울만 출력 당시 receipt_json에 기록한다. 계산 규칙은 기능정의서 §9.2/API §7.2이며 상태/집계 테이블은 추가하지 않는다.
+analysis 설정, gpt_enabled, gpt_model, ui{loco_visible,loco_mode}를 저장한다. gpt_key_present는 Python 환경에서 파생하며 키 자체는 DB에 저장하지 않는다. ui 기본값은 true/normal이다. 분석 설정은 snapshot에 복사하고 이후 변경을 소급하지 않는다.
 
-NumericSummary는 저장 결과에서 서비스가 구성해 explanation에 전달하는 DTO다. REBA 미계산 완전수null, 초안/조사자/effective 상태와 출처, 제외/누락/검토사유를 보내고 자유입력 근거는 보내지 않는다. 별도 GPT입력 테이블은 없으며 생성/수정/적용문은 기존 ai에 저장한다. SUMMARY14열로 배치를 바꿔도 snapshot의 조사정보/진단/설명/버전/대표식별자를 제거하지 않는다.
+### EXPORT_LOG
 
-대표 상세는 snapshot.capture.slots의photo_id와 result.reba.slots의슬롯/좌우 구성점수를 연결한다. 대표이미지는 원본경로 참조이며 BLOB/마스킹 이미지 테이블을 추가하지 않는다. 기준 근거는 judgment.judgments[].basis 전항목과 investigator.evidence를 별도로 출력한다. 새 경고 이력/조치 완료 테이블은 없다.
+snapshot_json은 ExportSnapshot 2.0 전체다. survey, 모든 현존 tasks, 작업별 선택 analyses, unanalysed_task_ids, include_representative, comparison_specs, comparison_analyses, exported_at, schema_version/report_version을 담는다.
 
-## 5. 현재성·검토·재계산
+비교 대상은 같은 조사의 서로 다른 분석이며 일반 출력의 “한 작업 한 분석” 선택과 별도로 복사한다. 같은 작업의 과거/현재 비교에서도 두 snapshot이 빠지지 않는다. 출력 파일을 나중에 삭제해도 로그의 수치 근거는 남으며 파일 존재를 보증하지 않는다.
 
-TASK 입력 변경 시 input_revision만 증가한다. 별도 입력 revision 테이블은 없다. ANALYSIS에는 해당 숫자와 snapshot을 저장한다. 현재성은 `(analysis_id==latest_analysis_id) AND (분석input_revision==작업input_revision)`이면CURRENT, 결과없음NONE, 그 외STALE다.
+receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 한글 4시트와 receipt를 함께 만든다.
 
-재계산은 새 ANALYSIS행에 현재 snapshot과 결과를 저장한다. 이전 pose/REBA/고시는 관련 입력이 같을 때만 복사한다. 수정 영향은 기능정의서 §6 표다. ANALYSIS의 status는 분석작업 상태, result.pose.status는 포즈15장 상태로 구분한다. 명령 시작 때 latest_analysis_id를 정하고 오래된 완료는 이 포인터를 바꾸지 않는다.
+## 4. 불변성·현재성·트랜잭션
 
-조사자 결론/대표사진/AI적용은 ANALYSIS.result_json의 표시 영역을 수정한다. 계산 초안과 시작 snapshot은 유지한다. 검토는 SURVEY.review_json에 분석ID목록과 검토 당시 metadata_revision을 기록한다. 조사자 결론 변경/해제는reviewed=false로 저장한다. 대표/설명문만 변경하면 계산검토 표시를 유지한다. 부분 결과도 검토 가능하며 DB가 승인/완전성 게이트를 만들지 않는다.
+- 시작 시 TASK 입력·PHOTO 메타·설정을 읽어 ANALYSIS snapshot을 만들고 latest_analysis_id를 설정한다.
+- input_revision 변경은 한 사용자 입력 저장에서 한 번이다. 조사 메타 변경은 별도 metadata_revision이다.
+- CURRENT는 현재 task revision과 분석 revision, latest_analysis_id가 모두 일치할 때다. 과거 분석 완료가 최신 포인터를 되돌리지 않는다.
+- 검토 현재성은 선택 분석 ID 집합·metadata_revision·CURRENT에 묶인다. 결론 변경과 전체 reviewed=false는 원자적으로 저장한다.
+- 같은 사진 경로 재연결은 관찰·수동값을 보존한다. 다른 photo_id 교체는 해당 값만 제거한다.
+- 사진 삭제는 배정 해제·관찰/수동값 제거·PHOTO 삭제를 함께 처리하고 현재 입력이 바뀐 경우 revision을 한 번 올린다.
+- 조사/작업 삭제는 서비스가 관련 행을 함께 지운다. 원본 사진 파일은 삭제하지 않는다. 지연 완료는 삭제된 ANALYSIS를 다시 만들지 않는다.
 
-## 6. 초기화·삭제
+## 5. 1.3 호환 읽기
 
-작업 생성 시 빈15슬롯·11기준·20시간을 TASK JSON에 만든다. 분석 시작은15결과 자리를 ANALYSIS JSON에 만든다. 수동값은 빈 배열, 아직 결과가 없으면null이다. 조회 currentness는 서비스가 DTO에서 계산하고 보고서의 완전성/선택 분석 검토현재성은 report.build_overview가 산출한다. DB가 별도로 판정하지 않는다.
+schema_version이 1.3인 기존 TASK·ANALYSIS·EXPORT_LOG를 일괄 재작성하지 않는다. 구체 타입은 API 계약서의 고정 이전 계약을 따른다. 과거 15슬롯·회차·사건 하중은 당시 의미로 읽고 이전 형식임을 표시한다.
 
-delete_photo는 한 트랜잭션에서 대상 PHOTO를 참조하는 모든 현재 capture 슬롯의 photo_id와 관찰을 API 계약의 UNKNOWN/null 초기값으로 바꾸고, TASK.manual에서 대상 photo_id 항목을 제거한 뒤 PHOTO행을 삭제한다. 현재 TASK 입력이 바뀐 경우 input_revision을 한 번 증가시키고 updated_at을 갱신한다. 미배정 사진이고 참조 manual이 없으면 input_revision은 유지한다. 역사 snapshot의 메타/수치는 남기며 이미지가 없으면 못 읽음 표시다. delete_task는 PHOTO→ANALYSIS→TASK 순서로 storage가 삭제한다. delete_survey는 소속 작업과 EXPORT_LOG→SURVEY를 삭제한다. 원본 사진/외부 Excel은 삭제하지 않는다.
+get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다. 사진·알려진 수동값을 보존하고 사건명은 역사적 사진 label로 남긴다. 기존 중량/시간의 관련값은 조건 행으로 옮기되 새로운 망라성·측면 확인·실제 사진 하중을 추정하지 않는다. 이전 TASK.input_json 전체는 legacy_input에 보존한다. C4_TRUNK_EXT는 새 법령 입력에 포함하지 않는다. 사진 비율 등 환산값은 새 직접수치에 null을 넣고 이전 원문·변환 출처·진단으로 남겨 재확인한다.
 
-여러 행 삭제·입력/버전 저장은 짧은 기본 트랜잭션으로 묶는다. DB 차단장치가 아니라 저장 중 오류에 대한 일관성 처리다. trigger/FK cascade/복잡한 감사로그는 만들지 않는다. 상세 운영·보존·보안은 데모 구현 이후 검토한다.
+명시 저장 때 TASK.input_json만 2.0으로 바꾸고 revision을 올린다. 새 분석·출력은 2.0이며 과거 분석/출력 snapshot은 불변이다. 새 분석에 과거 조사자 결론·AI 적용문·검토를 자동 승계하지 않는다.
+
+## 6. 확인할 데이터 반례
+
+혼합 중량 행의 분리, null/0, row_ids 누락/중복, 0개 사진 상태, 같은 사진 재연결, 새 사진 교체, 계산 중 AI 편집, 삭제 후 늦은 완료, 과거 분석을 포함한 전후 출력, 과거 1.3 열람 후 취소가 원본을 변경하지 않는지 확인한다. 물리 스키마가 같다는 사실만으로 데이터 호환 완료를 주장하지 않는다.

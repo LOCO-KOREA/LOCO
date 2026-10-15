@@ -1,102 +1,109 @@
 # 데이터베이스 아키텍처 설계서
 
-> 문서 ID ERGO-DBA-001 · 설계 버전 1.5 · 기준일 2026-10-15 · 데모 개발 기준
+> 문서 ID ERGO-ARCH-001 · 설계 버전 2.0 · 개정일 2026-10-15 · 완성 목표 2026-10-23(Asia/Seoul)
 
-## 1. 단순 로컬 구조
+## 1. 구조와 구현 경계
 
-Windows Electron 데스크톱 앱과 로컬 Python 서비스, SQLite6테이블(SURVEY/TASK/PHOTO/ANALYSIS/APP_SETTINGS/EXPORT_LOG)을 사용한다. Electron은 화면/파일 선택/호출 전달, Python은 계산/저장/Excel을 담당한다. 세부 입력·계산결과는 DTO JSON으로 저장한다. 별도 revision/각도/점수/법규조건 테이블, SQL 계산뷰, FK/UNIQUE/CHECK/차단 trigger, 보안·암호화·운영 가드는 데모에 넣지 않는다.
+Electron renderer → preload → main → Python Application Service → task_input/capture/pose/tags/reba/burden/explanation/report → storage → SQLite다. 기능 모듈은 계산·출력을 담당하고 서비스가 순서를 조정한다. SQLite는 근거·snapshot·결과를 저장하며 계산 규칙을 실행하지 않는다.
 
-DB는 기록을 저장한다. 실제 계산은 pose/reba/burden 모듈이 한다. 물리 스키마는 `ergo/db/schema_v1.sql`, SQLite 연결은 `ergo/db/connection.py`, JSON DTO 저장은 `ergo/db/storage.py`가 담당한다. 저장소 함수는 Python Application Service 내부에서 호출하며 Electron의 API 계약과 구분한다.
+상자 들기와 다른 작업에 동일한 일반 작업/가변 사진 경로를 사용한다. 입력 템플릿은 UI 설정이며 서비스·DB에 별도 상자 프로토콜을 추가하지 않는다. 이전 1.3 프로토콜은 호환 읽기 adapter에 한정한다.
 
-## 2. 파일 배치
+여섯 테이블의 기존 컬럼을 유지하고 2.0의 조건 행·분석 범위·모듈 상태·GPT 이력·전후 비교는 JSON에 넣는다. 세부 매핑은 [ERD](ERD_데이터설계서.md), 서비스 계약은 [API](API_계약서.md)를 따른다.
 
-| 자료 | 위치 | 처리 |
+## 2. 현재 실행 경로와 목표 배포
+
+| 항목 | 현재 코드에서 확인한 경로/동작 | 2.0 목표 |
 |---|---|---|
-| 앱 DB | %LOCALAPPDATA%\LOCO\loco_demo.db | SQLite6테이블 |
-| 원본 사진 | 사용자가 등록한 절대경로 | 앱이 복사/삭제하지 않음 |
-| 사진 배정·수동관찰 | TASK.input_json | 명시된 DTO/15슬롯 |
-| 분석입력/결과 | ANALYSIS.snapshot_json/result_json | 입력시점 복사,15사진/11기준 |
-| 대표사진 | 원본 PHOTO 경로 | 별도 JPEG/BLOB 보관 없음. 못 읽으면 생략 |
-| Excel | 사용자가 지정한 경로 | EXPORT_LOG에 생성정보와snapshot 기록 |
-| 설정 | APP_SETTINGS.settings_json | analysis/gpt_enabled/gpt_model/ui{loco_visible,loco_mode}; UI 기본값은true/normal |
-| GPT 키 | 실행환경 OPENAI_API_KEY | DB/OS자격증명 모듈 추가하지 않음 |
-| 화면·데스크톱 연결 | Electron renderer/preload/main | 로컬 화면, 네이티브 파일 선택, IPC 전달 |
-| Python 실행파일·서비스 진입파일 | 데모 실행 설정의 로컬 경로 | main이 프로세스 하나를 실행. APP_SETTINGS에 저장하지 않음 |
-| 사진 미리보기 | capture가 반환한 PhotoPreview | EXIF 적용 data URL/크기, 화면 메모리에서 사용. DB/별도 파일 보관 없음 |
+| 통합 시작 | run-integrated.ps1 → frontend/start.ps1 → ergo/service/json_lines.py | 공통 서비스 단일 진입점 |
+| 업무 조정 | ergo/service/application.py | 일반 작업·범위·revision·비동기 조정 |
+| frontend 기본 실행 | electron/main.cjs는 별도 지정 없으면 service/survey_service.py | 배포에서 공통 서비스로 고정 |
+| 통합 DB 기본 | frontend/.local/loco_frontend.db | 선택 가능한 사용자 데이터 경로 |
+| 서비스 단독 DB 기본 | %LOCALAPPDATA%/LOCO/loco_demo.db | 실제 사용할 경로를 실행 안내에 명시 |
+| 모델 | LOCO_MOVENET_MODEL 또는 models/movenet_lightning.tflite | 배포 모델 파일·버전·경로 검증 |
+| GPT | application.py의 고정 텍스트 | 실제 API + 대체 설명 + 편집/적용 보존 |
+| 별도 desktop 샘플 | samples/desktop의 이전 backend | 이전 구조 참고, 새 구현 정본 아님 |
 
-파일 해시·암호화·동의/보존 차단·자동백업·복구정책은 구현 이후 검토한다. DB 백업 버튼이나 이를 위한 테이블은 이번 데모에 없다.
+설계 변경은 현재 코드의 실행 완료를 의미하지 않는다. 10월 16일 첫 Windows 실행 묶음, 10월 22일 개발 환경 없는 PC 검증, 10월 23일 전달을 목표로 한다. 첫 묶음은 중간본이며 11개 기준 완성을 주장하지 않는다.
 
-새 DB 파일을 열 때 위 6개 테이블을 만든다. 구 프로토타입 DB를 새 구조로 자동 변환하는 마이그레이션과 DB schema-version 표는 두지 않는다.
+## 3. 파일과 런타임
 
-## 3. 모듈 분리
+| 자원 | 위치·책임 |
+|---|---|
+| 앱/서비스 | 설치/배포 디렉터리; Electron·Python과 필요한 패키지 |
+| SQLite | 사용자가 선택한 파일; 기본 경로를 실행 안내와 UI에 표시 |
+| 원본 사진 | 사용자가 등록한 로컬 경로; 앱은 원본을 변경/삭제하지 않음 |
+| 모델 | 배포 시 지정한 TFLite; 버전과 전처리를 snapshot에 기록 |
+| Excel | 사용자가 선택한 출력 경로; EXPORT_LOG에 당시 snapshot/receipt |
+| API 키 | Python 환경 OPENAI_API_KEY; DB/renderer/패키지에 저장하지 않음 |
 
-```mermaid
-flowchart TD
-  UI[Electron renderer: 화면] --> PRELOAD[preload: IPC 연결]
-  PRELOAD --> MAIN[Electron main: 파일 선택·프로세스 실행]
-  MAIN -->|UTF-8 JSON Lines| APP[로컬 Python Application Service]
-  APP --> INPUT[조사·작업·촬영 입력]
-  APP --> POSE[pose: 좌표·각도·태그]
-  APP --> REBA[reba: 각도 후보·점수표]
-  APP --> BURDEN[burden: 직접입력 11호]
-  APP --> GPT[explanation: 선택 설명]
-  APP --> REPORT[report: Excel]
-  APP --> STORE[storage: DTO와 SQLite 매핑]
-  STORE --> DB[SQLite 6테이블]
-```
+현재 requirements-desktop.txt는 Pillow, numpy, openpyxl, ai-edge-litert, opencv-python-headless를 사용한다. 목표 런타임은 CPython 3.12 x64다. 실제 GPT를 연결할 때 공식 SDK 의존성과 사용 버전을 명시하고 배포본에도 포함한다. 이번 문서 개정은 의존성 파일을 바꾸지 않는다.
 
-- 계산 모듈은 DTO를 받고 DTO를 반환한다. DB 연결/파일저장/다른 계산 모듈 내부 호출은 하지 않는다.
-- Electron의 renderer/preload/main은 Python 모듈 앞의 화면·호출 전달 역할이다. Python 계산 모듈과 SQLite를 Electron에서 중복 구현하지 않는다. main과 Python은stdin/stdout으로 메시지를 교환하며 HTTP 서버/포트/통신용 DB를 두지 않는다.
-- capture는 등록/미리보기에서 사진을 읽고 pose는 추론을 위해 읽는다. 모델 실행은pose만 담당한다. report는 선택 대표사진을 출력에 넣을 때 읽는다.
-- reba는 PoseResult의 각도에서 사진별6개 후보를 만들고 수동값/하중으로 점수표를 계산한다. 후보 적용 전에는 확정 수동값으로 사용하지 않는다. 목은 REBA_TABLE_2000_V2의 수동 구간이다. burden은 작업조건/직접노출시간/횟수로 계산하며 pose/reba 총점에 의존하지 않는다. 확인된 제외→모순→확실한미달→결론에 필요한누락→해석→해당의 순서는 burden이 담당한다.
-- explanation은 NumericSummary만 받아 문장을 반환한다. 서비스가 미계산/미완전/완전과 초안/조사자/effective 상태·출처·제외/누락/검토사유를 함께 구성한다. 생성 문장은 계산 모듈로 역입력하지 않는다.
-- report.build_overview(snapshot)은 같은 ExportSnapshot에서 선택 분석의 상태/집계/다음 입력 안내를 구성한다. report.render(snapshot,destination)은 그 파생값과 snapshot.include_representative로 네 시트를 쓰고 RenderedReport를 반환한다. UI/DB가 집계나 누락 분류를 별도로 구현하지 않는다. report는 REBA/고시 엔진을 재호출하지 않는다.
-- `ergo/db/storage.py`는6테이블별 읽기/쓰기/삭제와 JSON 직렬화를 맡는다. 현재 내부 함수는 SURVEY(create/get/list/update metadata/set review/delete), TASK(create/get/list/update input/set latest analysis/delete), PHOTO(create/get/list/update/delete), ANALYSIS(create/get/list/update), APP_SETTINGS(get/update), EXPORT_LOG(create/list)다. 분석 생성과 최신 분석 포인터 갱신, 사진 삭제에 따른 현재 배정/수동값 정리, task/survey 종속 행 삭제를 짧은 트랜잭션으로 묶는다. 사진 삭제가 TASK 입력을 바꾸면 input_revision과 updated_at도 함께 갱신한다. 저장소 함수는 API §5의 Electron 호출 메서드가 아니며 service가 조합해 호출한다. 새로운 계산 기능 때문에 DB 구조를 매번 늘리지 않는다.
+DB·모델·사진·출력 경로에 공백/한글이 있어도 인자를 목록으로 전달한다. Python 프로세스는 windowsHide=true로 시작한다. 비밀키를 로그/예외 원문에 출력하지 않는다. 사진을 GPT에 업로드하지 않는다.
 
-앱 시작 시 main이 로컬 Python 실행파일/서비스 진입파일을 spawn하고 Windows 콘솔창은 숨긴다. renderer는 로컬 화면 리소스를 로드하고 preload를 통해 기존 서비스를 호출한다. 메시지는 UTF-8 한 줄 JSON이며 main의 request_id로 응답 Promise를 연결한다. Python stdout은응답, stderr는로그다. Python의 장시간 분석은 백그라운드에서 실행해 요청 읽기/get_analysis/cancel_analysis 처리가 계속 가능하도록 한다. DB 연결은 storage 호출의 실행문맥에서 사용·정리하며 계산 중 트랜잭션을 열어 두거나 연결을 다른 스레드로 넘기지 않는다. 앱 종료 시 자식 프로세스도 종료한다. 실행 오류는 호출 결과에 표시하며 자동 재시작/승인/동시실행 차단 정책을 추가하지 않는다. 정확한 메시지와 파일 선택 API는 API §1.1이다.
+## 4. 기능 모듈 경계
 
-데모 실행은 Electron 개발 실행 환경과 로컬 Python 실행 환경을 사용한다. 설치파일/내장 Python 런타임을 포함한 배포 패키지는 별도 배포 작업이다. 이번 문서는 문서 버전1.5이며 저장 snapshot/보고서 버전은1.3을 사용한다.
+| 모듈 | 입력 → 출력 | DB 직접 접근 |
+|---|---|---|
+| task_input | 전체 입력 → 정규화·진단·revision 영향 | 서비스/저장 계층을 통해 |
+| capture | 등록 사진·배정 → 가변 행·관찰·미리보기 | 서비스/저장 계층을 통해 |
+| pose | 고정 snapshot·모델 → 관절·각도·상태 | 없음 |
+| tags | pose·확인 태그·기술 임계값 → 표본 기술태그 | 없음 |
+| reba | 관찰 하중·수동 범주 → 좌우 점수·누락·집계 | 없음 |
+| burden | 직접시간·조건 행·제외 조건 → 11개 초안 | 없음 |
+| explanation | NumericSummary → 생성/대체 설명 | 없음 |
+| report | ExportSnapshot → overview·한글 4시트 | 없음 |
+| storage | DTO/부분 변경 → 여섯 테이블 | 있음 |
 
-## 4. 저장 흐름
+명칭은 논리 책임이며 모든 파일이 이미 존재한다는 뜻은 아니다. 공통 DTO를 사용하고 샘플 backend를 공통 모듈의 런타임 의존성으로 삼지 않는다. DB 분기 개선은 base와 의존 경로를 확인해 필요한 부분만 포팅한다.
 
-### 입력 저장
+## 5. 통신과 비동기
 
-서비스가 Task DTO의 입력부를 TASK.input_json으로 저장하고 input_revision을1증가한다. 짧은 기본 트랜잭션으로 JSON·revision·updated_at을 함께 쓴다. 예상버전 가드나 실행중 잠금은 없다. 변경 시 결과에 ‘이전 입력 기준’ 표시를 한다.
+main은 Python 프로세스 하나와 UTF-8 JSON Lines로 통신한다. request_id로 응답을 연결하고 stdout은 응답 전용, stderr는 로그다. Python 응답 쓰기를 메시지 단위로 직렬화해 두 스레드의 JSON이 섞이지 않게 한다.
 
-선택사진/같은순간3회차/개별 편집은 UI가 현재 ManualValue[]에 선택 필드만 합쳐 전체 목록을 보낸다. 자동 적용은 각 대상 사진 자신의 후보를 쓰며 source=AUTO_ACCEPTED와 대상photo_id/근거를 기록한다. service/storage는 기존 TASK.input_json.manual에 저장한다. 사진 없는 대상/없는 후보는 미확인으로 남기고 다른 편집은 계속한다. 별도 그룹/템플릿 저장소나 승인 API를 만들지 않는다.
+start_analysis는 snapshot·RUNNING 행과 핸들을 먼저 반환하고 분석을 백그라운드에서 수행한다. GPT 요청도 별도 작업으로 처리하되 원래 request_id로 최종 결과를 돌려준다. 파일 선택·설정 조회·입력 저장이 GPT 네트워크 대기 때문에 막히지 않아야 한다. HTTP 서버나 DB를 IPC로 사용하지 않는다.
 
-### 사진 분석
+추론·API 호출·Excel 렌더링 중 DB 트랜잭션을 잡지 않는다. 각 작업 스레드는 자신의 SQLite 연결을 사용하며 쓰기는 서비스의 짧은 잠금/트랜잭션으로 직렬화한다. 완료 시 저장 대상의 존재를 다시 확인한다. 입력 수정 중인 분석은 당시 snapshot으로 끝나며 현재성은 조회에서 계산한다.
 
-1. 서비스가 현재 입력/15배정/수동값/사진메타/설정을 TaskSnapshot으로 복사한다.
-2. ANALYSIS행과15개 PENDING 자리를 저장하고 TASK.latest_analysis_id를 새ID로 둔다.
-3. DB 트랜잭션 밖에서 pose를 사진별로 실행한다. 빈 슬롯/읽기실패는 해당 진단을 남기고 나머지를 계속 처리한다.
-4. 서비스가 tag/reba/burden을 각각 호출한다. 수동값·직접입력이 충분한 모듈은 포즈 불량에도 결과를 낸다. 나머지는 null/누락을 표시한다.
-5. 결과 JSON과 완료시각을 저장한다. 실패/취소도15슬롯 상태를 남긴다. 오래된 완료는 latest_analysis_id를 갱신하지 않는다.
+요청 범위와 각 모듈 상태를 저장한다. 미요청을 완성으로 표시하지 않고, 0개 사진을 요청한 경우의 실패/미완성도 계약대로 반환한다. 취소는 입력·이전 결과를 보존하고 지연 완료가 취소 상태를 덮어쓰지 않도록 확인한다.
 
-Analysis.status는 RUNNING/FINISHED/FAILED/CANCELED라는 요청 실행상태다. FINISHED는 요청 모듈들이 결과/진단을 반환한 상태이며 포즈/REBA의 완전성을 뜻하지 않는다. pose.status는 RUNNING/DONE/PARTIAL_REVIEW/FAILED/CANCELED이고 유효사진 수 기준은 기능정의서 §6이다. DB 저장 자체가 실패하면 정상적으로 저장됐다고 표시하지 않고 DB_ERROR를 반환한다.
+## 6. 주요 저장 흐름
 
-### 재계산
+### 입력·사진
 
-현재 입력으로 새 snapshot/ANALYSIS행을 만들고 요청 모듈만 실행한다. 다른 모듈은 관련 입력이 같을 때만 복사하고 달라졌으면null(태그는빈배열)/재계산 안내를 둔다. reba만 수정했으면 pose·고시를 다시 실행하지 않는다. 법적 입력만 바뀌면 burden만 다시 계산한다. 태그만 재계산하는recalculate_tags도 제공한다. 사진/카메라/모델이 바뀌면 pose를 재사용하지 않는다. 모듈 의존 비교는 DTO 값 비교이며 해시/FK/trigger 가드로 만들지 않는다.
+서비스가 기존 입력과 새 입력을 비교해 실제 변경 시 revision을 한 번 올리고 검토를 무효화한다. 사진 경로 재연결은 같은 photo_id의 메타만 바꾸고 수동/관찰값을 보존한다. 다른 사진 교체·삭제는 관련 배정·관찰·수동값을 함께 갱신한다. 사진 동의만 바뀌면 계산 revision은 유지한다.
 
-## 5. 현재성·검토
+작업자/방법/작업 높이 변경, 촬영조건 변경, 모델/전처리 변경의 수동값 처리 범위는 기능정의서 §6을 따른다. 직접 관찰과 AUTO_ACCEPTED를 구분해 모델 변경이 현장 사실을 지우지 않게 한다.
 
-현재성은 input_revision와 latest_analysis_id를 비교해 CURRENT/STALE/NONE으로 읽는다. 저장된 과거 결과를 자동으로 최신이라고 표시하지 않는다. 실행중 TASK 수정은 가능하고 결과는 시작 snapshot을 유지한다. 원본 파일 바이트 자체의 변경 자동 감지는 데모에 없다.
+### 분석 시작·완료
 
-조사 검토는 SURVEY.review_json의 분석ID목록/검토자/시각/메모/검토 당시 metadata_revision이다. 조사 메타 변경은 metadata_revision만 증가한다. 기준별 조사자 결론은 ANALYSIS.result_json.judgment에 있으며 계산 초안은 별도 필드다. 미완전 결과도 검토 가능하고 검토 표시가 계산 완전성을 대신하지 않는다.
+시작 트랜잭션에서 입력·PHOTO·설정의 snapshot, ANALYSIS 행, TASK.latest_analysis_id를 함께 저장한다. 계산은 snapshot만 읽는다. 완료는 해당 analysis_id의 계산 키·모듈 상태·시각을 갱신한다. 기존 RUNNING 결과를 새 FINISHED 행에 복사하지 않는다.
 
-대표사진/설명문/조사자결론은 해당 분석의 표시영역을 수정한다. 시작 snapshot·앱의 계산 초안은 유지한다. 조사자결론 변경/해제는SURVEY.review_json.reviewed=false로 저장하며 대표/설명문만 수정하면 계산검토 표시는 유지한다. 원본이 사라지면 수치는 보존하고 이미지 보기/출력만 생략한다.
+완료 시 TASK 최신 포인터를 새로 쓰지 않는다. 삭제된 분석은 재생성하지 않는다. FAILED/CANCELED 이후 늦은 성공 응답을 FINISHED로 바꾸지 않는다. 부분 결과는 각 모듈 상태와 함께 저장한다.
 
-## 6. 출력·삭제·범위
+### 계산·AI·조사자 결론의 부분 저장
 
-Excel 생성은 선택한 분석과 조사정보를 ExportSnapshot으로 복사한 뒤 DB 밖에서 수행한다. 현재/과거·미완전·검토상태를 기록한다. 생성된 파일과 EXPORT_LOG는 보고서 수치 출처를 연결한다. 생성 후 로그저장 실패면 파일은 남아 있을 수 있으며 결과에 그 사실을 알린다.
+storage는 트랜잭션 안에서 최신 result_json을 읽어 소유한 경로만 바꾼다. 계산은 pose/slot_tags/tags/reba의 계산 부분/judgment의 계산 부분/module_states/관련 notes만, AI 편집은 해당 text_id의 레코드만 바꾼다. 대표 선택·조사자 결론은 계산 부분과 분리한다.
 
-서비스는 preview_excel/export_excel에서 같은 작업별 분석 선택 규칙으로 snapshot을 구성한다. report.build_overview가 ReportOverview를 구성하며 미리보기는 파일/로그 저장 없이 DTO를 반환한다. 출력은 호출 시점의 새 snapshot에 ExportSpec.include_representative를 복사하고 render(snapshot,ExportSpec.destination)을 호출한다. 미리보기 내부 옵션은true이며 상태/집계와 무관하다. render가 반환한 overview.state를 ExportReceipt에 옮긴다. 기존 EXPORT_LOG.snapshot_json에 ExportSnapshot, receipt_json에 sheets와reviewed/review_current/has_incomplete/has_stale를 기록한다. report_version/schema_version=1.3, include_representative/exported_at도 이 JSON에 저장하며 새 컬럼은 없다.
+계산을 마친 오래된 객체의 ai를 다시 저장하는 경로를 금지한다. GPT 생성마다 새 text_id의 레코드를 추가하므로 오래된 응답이 기존 편집/적용 레코드를 덮어쓰지 않는다. 생성 완료만으로 활성 적용문을 바꾸지 않는다. 사용자가 text_id를 지정해 적용할 때 같은 목적의 is_active를 원자적으로 전환한다. 과거 적용문과 그 입력 요약은 보존하고 해당 요약으로 설명 현재성을 계산한다.
 
-출력 reviewed는 선택analysis_id가 검토목록에 있는지와 조사reviewed로 정하고 review_current는 여기에 metadata_revision 일치/분석CURRENT까지 비교한다. has_incomplete는 선택 분석/모듈 결과 유무와 원래 pose/reba/judgment 상태에서 직접 계산한다. 안내는 기존 포즈 diagnostics/REBA missing_fields·좌우 review_reasons/고시 computed_status·missing_fields·review_reasons에서 next_inputs[].message로 구성한다. 별도 미완전 사유 분류/배열이나 그 저장소를 만들지 않는다. UI/Excel은 같은 안내 문구를 사용하고 출력기록에는 기존 네 상태 부울을 기록한다. 상태는 저장·분석·검토·출력 허가 조건으로 사용하지 않는다. SUMMARY 작업표는14열이고 조사정보는 위 개요, 진단/적용 설명은 아래 식별자 붙은 상세영역, 버전/대표슬롯은 기존 상세시트에 표시한다. 데이터와 네 시트는 유지한다.
+조사자 결론 저장과 SURVEY.reviewed=false는 한 트랜잭션이다. 대표 사진/설명 편집은 계산 결과에 대한 검토 표시를 그대로 두되 각 편집의 출처·시각을 보존한다.
 
-입력 부족/검토 필요 기준 수, REBA 미완료 사진 수와 next_inputs는 저장 결과에서 파생한다. 조회 SQL/뷰/trigger나 별도 집계 테이블에 계산을 넣지 않는다. 조사자 결론/검토 표시와 부족 항목은 독립이다. 대표사진/구성점수와 판정의 모든 근거는 같은 선택 분석에서 읽으며 원본 사진이 없으면 이미지와 사유만 바뀐다. 필터/정렬 표 밖에 식별자를 붙인 대표블록을 렌더링한다. 출력 수치와 판정은 Excel 수식으로 재계산하지 않는다.
+### 출력·전후 비교
 
-사진삭제: storage가 한 트랜잭션에서 배정된 슬롯의 photo_id와 observation을 초기화하고 TASK.manual의 해당 항목을 제거한 뒤 PHOTO를 삭제한다. 현재 입력이 바뀐 경우에만 input_revision을 한 번 올리고 updated_at을 갱신한다. 작업삭제: PHOTO→ANALYSIS→TASK. 조사삭제: 소속 작업의 PHOTO→ANALYSIS→TASK, 이어서 EXPORT_LOG→SURVEY. storage가 각 삭제 흐름을 한 트랜잭션으로 수행하며 서비스는 삭제 요청을 전달한다. 실행중 삭제도 잠금으로 막지 않으며 취소를 요청하고 늦은 완료응답은 삭제된행을 재생성하지 않는다. 원본사진/외부Excel은 삭제하지 않는다. 복잡한 DB cascade/감사 trigger는 없다.
+한 읽기 snapshot으로 현존 모든 작업, 작업별 선택 분석, 미분석 작업, 별도 비교 분석, 조사 메타·검토를 묶는다. report.build_overview(snapshot)를 UI·Excel·receipt가 공유한다. 미리보기는 출력 파일·로그를 만들지 않는다.
 
-데모는 단일 PC·단일 사용자다. 계정/권한/분산DB/동시사용자/암호화/백업복구/자동보존삭제/운영차단은 구현 이후 검토다. 기존 tests/docs_src 검증도구를 새 데모의 의무 실행절차로 연결하지 않는다. 새 테스트/가드는 이번 작업에 추가하지 않는다.
+렌더링은 같은 snapshot으로 한글 4시트를 만든다. 파일 쓰기 실패는 EXPORT_ERROR이며 성공 로그를 남기지 않는다. 파일 완료 후 EXPORT_LOG를 저장한다. 파일과 SQLite를 단일 원자 트랜잭션으로 보장하지 않는다. 파일은 생성됐지만 로그 저장이 실패하면 DB_ERROR와 생성 경로를 알려 준다. 이를 정상 출력 완료로 보고하지 않는다.
+
+비교 대상의 두 분석은 같은 조사에 속하는 서로 다른 ID여야 한다. 없는 ID를 최신 분석으로 몰래 대체하지 않는다. 호별 상태를 병기하고 REBA 규칙·프로토콜·대상 수·전체 완성이 맞을 때만 최대 점수 차이를 계산한다.
+
+## 7. 버전 호환과 재현 한계
+
+기존 1.3 입력은 메모리상 편집 DTO로 정규화하고 명시 저장 전에는 DB를 바꾸지 않는다. 편집 DTO의 legacy_input에 이전 TASK.input_json 전체를 보존하고 환산값은 새 직접수치에 null로 두어 재확인한다. 기존 분석·출력 snapshot은 수정하지 않는다. 이전 상자 고정 프로토콜은 과거 읽기에만 남기며 새 관찰 하중·망라성·측면 확인을 추정하지 않는다.
+
+2.0 계산 재현에는 입력·설정·규칙/모델/전처리 버전이 필요하다. 이미 저장한 관절·점수는 읽을 수 있지만 원본 사진/모델 파일을 보관하지 않으면 재추론은 제한된다. GPT는 같은 입력에서도 같은 문장을 보장하지 않으므로 실제 응답·입력 요약을 보존한다. 출력 당시 Excel 값은 ExportSnapshot에서 확인한다.
+
+## 8. 구현 우선순위·검증
+
+10/16 저장 충돌·사진 재연결·공통 실행 연결 → 10/17~18 일반 입력·가변 사진·11개 규칙·실제 GPT → 10/19 전체 통합 → 10/20 출력/비교 → 10/21 독립 반례 검토 → 10/22 수정·깨끗한 PC 검증 → 10/23 전달 순서다.
+
+검증은 base/ancestry·변경 범위를 먼저 확인하고 정상·실패·경계·누락·통합을 독립 대조한다. 현재 정적 검토의 사진 재연결 소실·AI 편집 덮어쓰기 경로를 최소 반례로 재현하고 수정 후 회귀 확인한다. 스키마·문서 정합성 확인만으로 실행 안전성·법률 해석·배포 성공을 완료로 선언하지 않는다.
