@@ -1,0 +1,30 @@
+body:has(#dashboard-workspace:not([hidden])) main{padding-top:21px}
+body:has(#dashboard-workspace:not([hidden])) .page-title h1{margin-bottom:8px}
+.dashboard-actions{display:flex;justify-content:flex-end;margin:22px 0 11px}
+.dashboard-actions button{width:180px}
+.dashboard-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.dashboard-stats .panel{padding:20px;min-height:105px}
+.dashboard-stats h2{font-size:13px;color:#7b8496;font-weight:400;margin:0 0 14px}
+.dashboard-stats .panel>div{display:flex;align-items:baseline;gap:24px}
+.dashboard-stats strong{font-size:30px;line-height:1}
+.dashboard-stats span{font-size:12px;color:#7b8496}
+.dashboard-stats .panel:nth-child(3) strong{color:#5c61db}
+.dashboard-heading{font-size:20px;margin:28px 0 16px}
+.dashboard-columns{display:grid;grid-template-columns:minmax(0,845fr) minmax(0,497fr);gap:28px 18px}
+.dashboard-columns>.panel{min-height:225px}
+.dashboard-continue,.dashboard-next{min-height:240px!important;display:flex;flex-direction:column}
+.dashboard-card-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.dashboard-card-heading h2{margin:0;overflow-wrap:anywhere}
+.dashboard-columns p{font-size:14px;color:#7b8496;margin:14px 0}
+.dashboard-result{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;background:#fafbfd;border-radius:9px;padding:12px;font-size:13px;margin-top:12px}
+.dashboard-result span{color:#7b8496;font-size:12px}
+.dashboard-columns .dashboard-note{font-size:12px;margin:12px 0}
+.dashboard-card-actions{display:flex;justify-content:flex-end;margin-top:auto}
+.dashboard-card-actions button{min-width:260px}
+.dashboard-next h3{font-size:21px;margin:0;overflow-wrap:anywhere}
+.dashboard-next>button{width:100%;margin-top:auto}
+.dashboard-recent .table-wrap{margin-top:16px}
+.dashboard-recent td{padding:10px 14px;cursor:default}
+.dashboard-guide ol{padding-left:20px;font-size:13px;color:#7b8496;line-height:2}
+.dashboard-guide p{font-size:12px}
+body:has(#dashboard-workspace:not([hidden])) footer{margin-top:40px}

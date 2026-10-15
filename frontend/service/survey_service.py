@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from ergo.db import storage
 from task_inputs import dispatch_task
+from photo_inputs import PhotoError, dispatch_photo
 
 DB_PATH = os.environ.get('LOCO_DB_PATH') or str(Path(__file__).resolve().parents[1] / '.local' / 'loco_frontend.db')
 
@@ -27,6 +28,8 @@ def get_survey(survey_id):
     return survey
 
 def dispatch(method, params):
+    if method in {'import_photos', 'get_photo_preview', 'update_photo', 'delete_photo', 'set_capture'}:
+        return dispatch_photo(method, params, DB_PATH)
     if method in {'create_task', 'get_task', 'delete_task', 'rename_task', 'set_task_conditions', 'set_legal_inputs'}:
         return dispatch_task(method, params, DB_PATH)
     if method == 'list_surveys':
@@ -69,6 +72,8 @@ for line in sys.stdin:
         request_id = request['request_id']
         value = dispatch(request['method'], request.get('params', {}))
         result = dict(ok=True, value=value)
+    except PhotoError as error:
+        result = dict(ok=False, error=dict(code='FILE_ERROR', message=str(error)))
     except LookupError as error:
         result = dict(ok=False, error=dict(code='NOT_FOUND', message=str(error)))
     except (sqlite3.Error, OSError) as error:
