@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any, Iterator, Mapping
 
 from .connection import open_db
@@ -31,6 +32,10 @@ def _dump(value: Any) -> str:
 
 def _load(value: str | None) -> Any:
     return json.loads(value) if value is not None else None
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _survey(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -264,6 +269,52 @@ def update_photo(
 
 def delete_photo(photo_id: int, *, db_path: str | None = None) -> None:
     with _transaction(db_path) as connection:
+        photo = connection.execute(
+            "SELECT task_id FROM PHOTO WHERE photo_id = ?", (photo_id,)
+        ).fetchone()
+        if photo is None:
+            return
+
+        task = connection.execute(
+            "SELECT input_revision, input_json FROM TASK WHERE task_id = ?",
+            (photo["task_id"],),
+        ).fetchone()
+        if task is not None:
+            input_data = _load(task["input_json"])
+            changed = False
+            for slot in input_data["capture"]["slots"]:
+                if slot["photo_id"] == photo_id:
+                    slot["photo_id"] = None
+                    slot["observation"] = {
+                        "phase_verified": "UNKNOWN",
+                        "load_state": "UNKNOWN",
+                        "single_person": "UNKNOWN",
+                        "full_frame": "UNKNOWN",
+                        "camera_fixed": "UNKNOWN",
+                        "normal_cycle": "UNKNOWN",
+                        "evidence": {"source": None, "text": None, "observed_at": None},
+                    }
+                    changed = True
+
+            remaining_manual = [
+                value for value in input_data["manual"] if value["photo_id"] != photo_id
+            ]
+            if len(remaining_manual) != len(input_data["manual"]):
+                input_data["manual"] = remaining_manual
+                changed = True
+
+            if changed:
+                connection.execute(
+                    "UPDATE TASK SET input_json = ?, input_revision = ?, updated_at = ? "
+                    "WHERE task_id = ?",
+                    (
+                        _dump(input_data),
+                        (task["input_revision"] or 0) + 1,
+                        _utc_now(),
+                        photo["task_id"],
+                    ),
+                )
+
         connection.execute("DELETE FROM PHOTO WHERE photo_id = ?", (photo_id,))
 
 

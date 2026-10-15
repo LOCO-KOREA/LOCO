@@ -180,12 +180,7 @@ def dispatch(method,p):
         if any(s['photo_id']==photo['photo_id'] for s in task['capture']['slots']): save_task(task)
         return photo
     if method=='delete_photo':
-        photo=require('photo',p['photo_id']); task=require('task',photo['task_id']); changed=False
-        for slot in task['capture']['slots']:
-            if slot['photo_id']==photo['photo_id']: slot.update(photo_id=None,observation=observation()); changed=True
-        task['manual']=[m for m in task['manual'] if m['photo_id']!=photo['photo_id']]
-        if changed: save_task(task)
-        store('delete_photo',photo['photo_id']); return dict(message='사진 참조를 삭제했습니다. 원본은 유지됩니다.')
+        store('delete_photo',p['photo_id']); return dict(message='사진 참조를 삭제했습니다. 원본은 유지됩니다.')
     if method=='start_analysis':
         a=new_analysis(require('task',p['task_id']),['pose','tags','reba','judgment']); cancel=threading.Event(); _cancels[a['analysis_id']]=cancel
         threading.Thread(target=run,args=(a,['pose','tags','reba','judgment'],cancel),daemon=True).start()
