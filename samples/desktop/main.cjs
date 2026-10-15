@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { spawn } = require('node:child_process');
 const { join } = require('node:path');
+const { existsSync } = require('node:fs');
 const readline = require('node:readline');
 let worker, win, sequence = 0, workerError;
 const pending = new Map();
@@ -10,9 +11,14 @@ function failAll(error) {
   pending.clear();
 }
 app.whenReady().then(() => {
-  worker = spawn(process.env.LOCO_PYTHON || 'python', ['-u', join(__dirname, 'backend', 'server.py')], {
+  const localPython = join(__dirname, '.venv', 'Scripts', 'python.exe');
+  const pythonPath = process.env.LOCO_PYTHON || (existsSync(localPython) ? localPython : 'python');
+  const localModel = join(__dirname, 'models', 'movenet_lightning.tflite');
+  const configuredModel = process.env.LOCO_MOVENET_MODEL;
+  const modelPath = configuredModel && existsSync(configuredModel) ? configuredModel : (existsSync(localModel) ? localModel : configuredModel || '');
+  worker = spawn(pythonPath, ['-u', join(__dirname, 'backend', 'server.py')], {
     cwd: __dirname, windowsHide: true,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONDONTWRITEBYTECODE: '1' },
+    env: { ...process.env, LOCO_MOVENET_MODEL: modelPath, PYTHONIOENCODING: 'utf-8', PYTHONDONTWRITEBYTECODE: '1' },
     stdio: ['pipe', 'pipe', 'pipe']
   });
   worker.on('error', failAll);

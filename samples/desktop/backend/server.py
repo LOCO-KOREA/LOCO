@@ -16,7 +16,7 @@ import traceback
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]))
 from ergo.db import storage
-from domain import now,evidence,observation,capture,legal_inputs,default_settings,exclusions,diagnostic,calculate_reba
+from domain import now,evidence,observation,capture,legal_inputs,default_settings,exclusions,diagnostic,calculate_reba,PREPROCESS_VERSION
 import burden
 import pose
 import report
@@ -36,6 +36,14 @@ def require(name,identity):
 def settings():
     value=store('get_settings')
     if value is None: value=default_settings(); store('update_settings',value)
+    if value['analysis']['pose_model']['preprocess_version']!=PREPROCESS_VERSION:
+        # Record the actual preprocessing implementation; preserve historical snapshots.
+        value['analysis']['pose_model']['preprocess_version']=PREPROCESS_VERSION
+        store('update_settings',value)
+        for survey in store('list_surveys'):
+            for task in store('list_tasks',survey['survey_id']):
+                task['manual']=[m for m in task['manual'] if m['source']!='AUTO_ACCEPTED']
+                save_task(task)
     return dict(value,gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')))
 
 def task_input(task):
@@ -56,15 +64,36 @@ RESULT_KEYS=['pose','slot_tags','tags','reba','judgment','ai','notes']
 def persist_analysis(a):
     store('update_analysis',a['analysis_id'],a['status'],{key:a[key] for key in RESULT_KEYS},a['finished_at'])
 
+def pose_inputs(snap):
+    """Only dependencies of inference; load observations do not change coordinates."""
+    cap=snap['capture']; assigned={s['photo_id'] for s in cap['slots'] if s['photo_id'] is not None}
+    return dict(camera_side=cap['camera_side'],forward_direction=cap['forward_direction'],
+        slots=[(s['slot_no'],s['photo_id']) for s in cap['slots']],
+        photos=sorted((p['photo_id'],p['file_path'],p.get('width_px'),p.get('height_px')) for p in snap['photos'] if p['photo_id'] in assigned),
+        context={k:snap['conditions'].get(k) for k in ['worker_code','method_description','shelf_height_cm']},
+        model=snap['settings']['pose_model'])
+
 def new_analysis(task,modules):
+    settings()
+    task=require('task',task['task_id'])
     snap=snapshot(task); old=store('get_analysis',task['latest_analysis_id']) if task['latest_analysis_id'] else None
     result=dict(pose=None,slot_tags=[],tags=[],reba=None,judgment=None,ai=[],notes=[])
     if old and modules!=['pose','tags','reba','judgment']:
         previous=old['snapshot']
         def same(keys): return all(previous.get(k)==snap.get(k) for k in keys)
-        pose_same=same(['capture','photos']) and all(previous['conditions'].get(k)==snap['conditions'].get(k) for k in ['worker_code','method_description','shelf_height_cm']) and previous['settings']['pose_model']==snap['settings']['pose_model']
-        if pose_same: result['pose']=old['pose']
-        if pose_same and same(['manual']) and previous['settings']['posture_profile']==snap['settings']['posture_profile']: result['slot_tags']=old['slot_tags']; result['tags']=old['tags']
+        pose_same=pose_inputs(previous)==pose_inputs(snap)
+        pose_source=old if pose_same and old['pose'] is not None else None
+        if pose_source is None:
+            for candidate in reversed(store('list_analyses',task['task_id'])):
+                if candidate['pose'] is not None and candidate['status']=='FINISHED' and pose_inputs(candidate['snapshot'])==pose_inputs(snap):
+                    pose_source=candidate; break
+        if pose_source is not None:
+            result['pose']=copy.deepcopy(pose_source['pose'])
+            tag_fields={'neck_twisted','trunk_twisted','hand_above_head','elbow_above_shoulder','elbow_behind_trunk','squat','kneel'}
+            def tag_manual(data):
+                return sorted((m['slot_no'],m['photo_id'],m['scope'],m['field'],str(m['value'])) for m in data['manual'] if m['scope']=='COMMON' and m['field'] in tag_fields)
+            if tag_manual(pose_source['snapshot'])==tag_manual(snap) and pose_source['snapshot']['settings']['posture_profile']==snap['settings']['posture_profile']:
+                result['slot_tags']=copy.deepcopy(pose_source['slot_tags']); result['tags']=copy.deepcopy(pose_source['tags'])
         if pose_same and same(['manual','capture']) and previous['conditions'].get('box_mass_kg')==snap['conditions'].get('box_mass_kg') and previous['settings']['reba_rule']==snap['settings']['reba_rule']: result['reba']=old['reba']
         if same(['conditions','legal']) and previous['settings']['burden_rule']==snap['settings']['burden_rule']:
             result['judgment']=copy.deepcopy(old['judgment'])

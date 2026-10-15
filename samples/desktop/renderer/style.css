@@ -68,6 +68,11 @@ textarea{min-height:80px;resize:vertical}
 .note{margin-top:20px;padding:12px 14px;border-radius:10px;background:#f3f5f9;color:#737f95}
 .note.warn{background:#fff7e8;color:#967745}
 .table-wrap{overflow:auto;max-width:100%}
+.reba-results table{min-width:1080px}
+.reba-results th,.reba-results td{white-space:nowrap}
+.reba-results td:nth-child(7){white-space:normal;min-width:350px;max-width:480px}
+.missing-fields{padding-left:18px;margin:10px 0;font-size:12px;line-height:1.8;columns:2;column-gap:24px}
+.missing-fields li{break-inside:avoid;overflow-wrap:anywhere}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{text-align:left;white-space:nowrap;font-size:12px;font-weight:600;color:#758198;background:#fafbfe;padding:12px;border-bottom:1px solid #e8ebf2}
 td{padding:14px 12px;border-bottom:1px solid #edf0f6;vertical-align:top;color:#56647b;line-height:1.8}
@@ -96,6 +101,11 @@ tr:last-child td{border-bottom:0}
 .cycle-label{margin:28px 0 0;font-size:14px;color:#56647b}
 .photo-view{position:relative;background:#fafbfe;border:1px solid #e8ebf2;border-radius:12px;min-height:300px;display:flex;align-items:center;justify-content:center}
 .photo-view canvas{max-width:100%;max-height:500px}
+.pose-legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px;color:#56647b;font-size:11px;line-height:1.8}
+.pose-legend span{display:inline-flex;align-items:center;gap:6px}
+.pose-legend i{display:inline-block;width:10px;height:10px;border:1px solid #758198;border-radius:50%;flex:none}
+.pose-left{background:#ff1493}.pose-right{background:#00ffff}.pose-center{background:#ffff00}
+.pose-legend small{flex-basis:100%;font-size:11px;color:#8b91ad}
 .manual-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .manual-grid label,.manual-grid select{font-size:12px}
 .split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
@@ -112,12 +122,29 @@ tr:last-child td{border-bottom:0}
 .detail{margin-top:18px;font-size:12px;color:#737f95;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}
 details summary{cursor:pointer;color:#5c61db;font-size:12px;margin:14px 0}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;color:#737f95;line-height:1.8}
+.basis-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:12px;color:#56647b;line-height:1.9;padding:12px 14px;border-radius:10px;background:#fafbfe}
+.criteria-results table{table-layout:fixed;min-width:930px}
+.criteria-results .criterion-column{width:17%}
+.criteria-results .draft-column{width:12%}
+.criteria-results .basis-column{width:35%}
+.criteria-results .conclusion-column{width:12%}
+.criteria-results .effective-column{width:13%}
+.criteria-results .action-column{width:11%}
+.criteria-results th,.criteria-results td{vertical-align:top}
+.criteria-results td{overflow-wrap:anywhere}
+.criteria-results td:nth-child(2),.criteria-results td:nth-child(4),.criteria-results td:nth-child(5),.criteria-results td:nth-child(6){white-space:nowrap}
+.criteria-results td:nth-child(3)>details{margin-top:0}
+.criteria-results details summary{margin:0 0 10px;line-height:1.8}
+.criteria-results .basis-text{max-width:100%;min-width:0;margin-top:10px}
+.criteria-results td:nth-child(6) button{white-space:nowrap}
 .guide-controls{margin-top:28px}
 .guide-controls label{display:flex;align-items:center;gap:9px}
 #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#242d41;color:#fff;max-width:650px;padding:14px 20px;border-radius:10px;box-shadow:0 5px 18px rgba(29,43,80,.1);z-index:100;display:none;font-size:12px;white-space:pre-wrap}
 .modal-backdrop{position:fixed;inset:0;background:rgba(36,45,65,.22);z-index:70;display:flex;align-items:center;justify-content:center}
 .modal{width:740px;max-width:90vw;max-height:85vh;overflow:auto;border:1px solid #e8ebf2;border-radius:16px;background:#fff;padding:28px}
 .modal h2{font-size:19px;margin:0 0 20px}
+.modal>label{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-top:14px;line-height:1.7}
+.modal>label input,.modal>label select,.modal>label textarea{min-width:0;margin-top:0}
 .modal .toolbar{justify-content:flex-end;margin-top:22px}
 a{color:#5c61db}
 @media(max-width:900px){.manual-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}.slot-grid{overflow:auto;grid-template-columns:repeat(5,minmax(150px,1fr))}}

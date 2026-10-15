@@ -1,6 +1,7 @@
 """Optional real MoveNet inference. Missing models yield diagnostics, never fake poses."""
 import math
 import os
+import sys
 from pathlib import Path
 from domain import diagnostic, TAGS
 
@@ -10,8 +11,15 @@ _interpreter=None
 def interpreter():
     global _interpreter
     if _interpreter is None:
-        path=os.environ.get('LOCO_MOVENET_MODEL','')
-        if not path or not Path(path).is_file(): raise RuntimeError('MoveNet 모델이 연결되지 않았습니다. LOCO_MOVENET_MODEL에 Lightning float16 v4 파일을 지정하세요.')
+        local_model=Path(__file__).resolve().parents[1]/'models'/'movenet_lightning.tflite'
+        configured=os.environ.get('LOCO_MOVENET_MODEL')
+        if configured and Path(configured).is_file(): path=configured
+        elif local_model.is_file():
+            path=str(local_model)
+            if configured: print(f'지정한 모델 경로를 읽지 못해 샘플 기본 모델을 사용합니다: {configured}',file=sys.stderr)
+        else:
+            attempted=' / '.join(str(p) for p in [configured,local_model] if p)
+            raise RuntimeError(f'MoveNet 모델을 찾지 못했습니다. 확인한 경로: {attempted}. 모델 배치 또는 경로 설정 후 앱을 완전히 종료하고 다시 실행하세요.')
         try: from ai_edge_litert.interpreter import Interpreter
         except ImportError:
             try: from tensorflow.lite.python.interpreter import Interpreter
@@ -23,7 +31,7 @@ def read_image(path):
     from PIL import Image, ImageOps
     with Image.open(path) as image: return ImageOps.exif_transpose(image).convert('RGB')
 
-def angles(points, forward):
+def angles(points, forward, width, height):
     sign=1 if forward=='SCREEN_RIGHT' else -1
     p={point['name']:point for point in points}; result=[]
     norm=lambda a:(a+180)%360-180
@@ -41,7 +49,8 @@ def angles(points, forward):
         specs=[('TRUNK_TILT_VERT',['hip','shoulder'],lambda:tilt('hip','shoulder')),('NECK_TILT_VERT_PROXY',['shoulder','ear'],lambda:tilt('shoulder','ear')),('NECK_FLEX_TRUNK_PROXY',['hip','shoulder','ear'],lambda:norm(tilt('shoulder','ear')-tilt('hip','shoulder'))),('UPPER_ARM_RAISE_VERT',['shoulder','elbow'],lambda:tilt('shoulder','elbow',True)),('UPPER_ARM_FLEX_TRUNK',['hip','shoulder','elbow'],lambda:norm(tilt('shoulder','elbow',True)+tilt('hip','shoulder'))),('ELBOW_FLEX',['shoulder','elbow','wrist'],lambda:flex('shoulder','elbow','wrist')),('KNEE_FLEX',['hip','knee','ankle'],lambda:flex('hip','knee','ankle'))]
         for code,joints,compute in specs:
             confidence=min(p[prefix+j]['confidence'] for j in joints); value=None; note=None
-            if confidence<0.5: note='관절 신뢰도 부족 또는 프레임 밖'
+            in_frame=all(0<=p[prefix+j]['x_px']<width and 0<=p[prefix+j]['y_px']<height for j in joints)
+            if confidence<0.5 or not in_frame: note='관절 신뢰도 부족 또는 프레임 밖'
             elif forward is None: note='작업자 진행 방향 미입력'
             else:
                 try: value=compute()
@@ -59,20 +68,23 @@ def process(slot,snapshot):
         result.update(status='ERROR',diagnostics=[diagnostic('UNREADABLE_FILE',str(error))]); return result
     try:
         import numpy as np
-        from PIL import Image
-        model=interpreter(); info=model.get_input_details()[0]; width,height=image.size; scale=min(192/width,192/height)
-        rw,rh=round(width*scale),round(height*scale); ox,oy=(192-rw)//2,(192-rh)//2
-        padded=Image.new('RGB',(192,192)); padded.paste(image.resize((rw,rh)),(ox,oy))
-        values=np.asarray(padded,dtype=info['dtype'])[None,...]
+        import cv2
+        model=interpreter(); info=model.get_input_details()[0]; width,height=image.size
+        # RGB comes from Pillow after EXIF correction; OpenCV does not swap channels here.
+        # Pad at source resolution, allocating any odd extra pixel to bottom/right.
+        square=max(width,height); ox,oy=(square-width)//2,(square-height)//2
+        padded=cv2.copyMakeBorder(np.asarray(image),oy,square-height-oy,ox,square-width-ox,cv2.BORDER_CONSTANT,value=(0,0,0))
+        resized=cv2.resize(padded,(192,192),interpolation=cv2.INTER_LINEAR)
+        values=resized.astype(info['dtype'])[None,...]
         if list(info['shape'])!=[1,192,192,3]: raise RuntimeError('192×192 Lightning 모델이 아닙니다')
         model.set_tensor(info['index'],values); model.invoke(); raw=model.get_tensor(model.get_output_details()[0]['index']).reshape(17,3)
         for index,(y,x,score) in enumerate(raw):
-            px=(float(x)*192-ox)*width/rw; py=(float(y)*192-oy)*height/rh
-            result['points'].append(dict(point_no=index,name=NAMES[index],x_px=px,y_px=py,confidence=float(score) if 0<=px<=width and 0<=py<=height else 0.0))
-        result['angles']=angles(result['points'],snapshot['capture']['forward_direction'])
+            px=float(x)*square-ox; py=float(y)*square-oy
+            result['points'].append(dict(point_no=index,name=NAMES[index],x_px=px,y_px=py,confidence=float(score)))
+        result['angles']=angles(result['points'],snapshot['capture']['forward_direction'],width,height)
         side=snapshot['capture']['camera_side']; direction=snapshot['capture']['forward_direction']
         if not side or not direction: result['diagnostics']=[diagnostic('MISSING_CAMERA','카메라 측면과 작업자 진행 방향을 입력하세요')]
-        elif all(p['confidence']>=0.5 for p in result['points'] if p['name'] in [side.lower()+'_'+j for j in ['ear','shoulder','elbow','wrist','hip','knee','ankle']]): result['status']='VALID'
+        elif all(p['confidence']>=0.5 and 0<=p['x_px']<width and 0<=p['y_px']<height for p in result['points'] if p['name'] in [side.lower()+'_'+j for j in ['ear','shoulder','elbow','wrist','hip','knee','ankle']]): result['status']='VALID'
         else: result['diagnostics']=[diagnostic('LOW_CONFIDENCE','가까운 쪽 관절 가림·프레임·신뢰도를 확인하세요')]
     except Exception as error: result.update(status='ERROR',diagnostics=[diagnostic('MODEL_ERROR',str(error))])
     return result

@@ -1,6 +1,8 @@
 """Pure DTO helpers and REBA calculations. No database access."""
 from datetime import datetime, timezone
 
+PREPROCESS_VERSION = 'EXIF_OPENCV_LETTERBOX_V2'
+
 PHASES = ['CYCLE_START', 'LIFT_OFF', 'MID_LIFT', 'SHELF_APPROACH', 'CYCLE_END']
 PHASE_NAMES = ['손 닿기 전', '바닥 분리 직후', '바닥면 절반 높이', '선반 접촉 직전', '손 놓은 후']
 EXPOSURES = ['C1_KEYBOARD_FOCUSED', 'C2_NECK', 'C2_SHOULDER', 'C2_ELBOW', 'C2_WRIST', 'C2_HAND', 'C3_UNION', 'C4_NECK_FLEX', 'C4_TRUNK_FLEX', 'C4_TRUNK_EXT', 'C4_NECK_TWIST', 'C4_TRUNK_TWIST', 'C4_UNION', 'C5_SQUAT', 'C5_KNEEL', 'C5_UNION', 'C6_QUALIFYING', 'C7_QUALIFYING', 'C10_LIFT', 'C11_IMPACT']
@@ -37,7 +39,7 @@ def legal_inputs():
     return dict(lift_count_day=None, criteria=criteria, exposures=[dict(condition_code=c, minutes=None, evidence=evidence()) for c in EXPOSURES])
 
 def default_settings():
-    return dict(analysis=dict(pose_model=dict(name='MoveNet Lightning singlepose TFLite float16', version='4', preprocess_version='EXIF_LETTERBOX_V1', input_size=192, point_count=17, confidence_min=0.5), posture_profile=dict(version='POSTURE_TECH_V1', neck_forward_deg=20, trunk_flex_deg=20, trunk_extension_deg=-20, upper_arm_raise_deg=45), reba_rule='REBA_TABLE_2000_V2', burden_rule='MOEL_2020_12_V1'), gpt_enabled=False, gpt_model='', ui=dict(loco_visible=True,loco_mode='normal'))
+    return dict(analysis=dict(pose_model=dict(name='MoveNet Lightning singlepose TFLite float16', version='4', preprocess_version=PREPROCESS_VERSION, input_size=192, point_count=17, confidence_min=0.5), posture_profile=dict(version='POSTURE_TECH_V1', neck_forward_deg=20, trunk_flex_deg=20, trunk_extension_deg=-20, upper_arm_raise_deg=45), reba_rule='REBA_TABLE_2000_V2', burden_rule='MOEL_2020_12_V1'), gpt_enabled=False, gpt_model='', ui=dict(loco_visible=True,loco_mode='normal'))
 
 def exclusions(c):
     m, d = c.get('planned_duration_months'), c.get('annual_work_days')
