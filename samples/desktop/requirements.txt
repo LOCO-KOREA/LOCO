@@ -1,5 +1,4 @@
 Pillow>=10,<13
 numpy>=1.26,<3
 openpyxl>=3.1,<4
-# Optional inference runtime: install a Windows-compatible tensorflow or ai-edge-litert
-# separately and set LOCO_MOVENET_MODEL to your Lightning float16 v4 .tflite file.
+# Actual MoveNet inference: install requirements-inference.txt with Python 3.12 x64.

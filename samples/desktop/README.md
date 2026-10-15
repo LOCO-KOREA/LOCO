@@ -4,19 +4,20 @@
 
 ## 실행
 
-Node.js 22.12 이상/npm과 Python을 사용할 수 있는 PowerShell에서 저장소 루트 기준:
+Node.js 22.12 이상/npm과 Python 3.12 x64를 사용할 수 있는 PowerShell에서 저장소 루트 기준:
 
 ```powershell
 cd samples/desktop
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\start.ps1 -PythonPath "$PWD\.venv\Scripts\python.exe"
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-inference.txt
+.\start.ps1 -ModelPath 'C:\models\movenet_lightning_float16_v4.tflite'
 ```
 
-`python` 명령을 사용할 수 없으면 설치된 Python 실행파일의 전체 경로를 사용합니다. PowerShell 실행 정책 때문에 스크립트를 실행할 수 없다면 정책 변경 없이 다음 명령을 사용합니다.
+`py -3.12` 명령을 사용할 수 없으면 설치된 Python 3.12 실행파일의 전체 경로로 가상환경을 만듭니다. `.venv`가 이미 준비되어 있다면 앞의 두 설치 명령은 반복할 필요가 없습니다. PowerShell 실행 정책 때문에 스크립트를 실행할 수 없다면 정책 변경 없이 다음 명령을 사용합니다.
 
 ```powershell
 $env:LOCO_PYTHON = "$PWD\.venv\Scripts\python.exe"
+$env:LOCO_MOVENET_MODEL = 'C:\models\movenet_lightning_float16_v4.tflite'
 npm.cmd install --cache .npm-cache
 npm.cmd start
 ```
@@ -41,14 +42,24 @@ npm.cmd start
 
 ## 실제 MoveNet 연결
 
-모델 파일과 TensorFlow/LiteRT는 저장소에 포함하지 않았습니다. Windows와 Python 버전에 호환되는 런타임을 선택해 샘플 가상환경에 설치하고 **singlepose Lightning TFLite float16 v4, 192×192** 모델 경로를 지정합니다.
+현재 전처리는 `EXIF_OPENCV_LETTERBOX_V2`입니다. Pillow에서 EXIF 방향 보정·RGB 변환 후, OpenCV로 원본 해상도에서 검은 정사각형 패딩을 추가하고 `INTER_LINEAR`로 192×192에 축소합니다. 홀수 여백의 남은 1픽셀은 오른쪽/아래에 배치합니다. 관절은 실제 패딩 크기로 원본 픽셀에 역변환하며 소수점을 유지합니다. OpenCV에 RGB 배열을 전달하므로 BGR 변환을 추가하지 않습니다.
+
+이전 전처리 버전의 저장 분석은 그대로 남습니다. 새 실행에서 현재 전처리 버전을 설정에 반영하고 기존 작업의 입력 revision을 올리며, 이전 자동 후보 적용값(AUTO_ACCEPTED)만 비웁니다. 직접 관찰값은 유지합니다. 새 관절·각도가 필요하면 사진 분석을 다시 실행해야 합니다. 실행 중이던 앱은 완전히 종료하고 다시 열어 Python 코드와 설정을 함께 갱신합니다.
+
+모델 파일과 가상환경은 Git에 포함하지 않습니다. `requirements-inference.txt`는 Python 3.12 x64와 LiteRT 2.3.0을 사용하는 추론 환경입니다. **singlepose Lightning TFLite float16 v4, 192×192** 모델 경로를 지정합니다.
 
 ```powershell
 $env:LOCO_MOVENET_MODEL = 'C:\models\movenet_lightning_float16_v4.tflite'
-.\start.ps1 -PythonPath "$PWD\.venv\Scripts\python.exe"
+.\start.ps1
 ```
 
-샘플 어댑터는 `ai_edge_litert.interpreter.Interpreter`, 다음으로 TensorFlow의 Interpreter를 사용합니다. 모델·런타임이 없으면 해당 사진에 MODEL_ERROR를 반환합니다. 예시 관절이나 임의 점수를 성공 결과로 생성하지 않습니다. 모델의 실제 정확도와 Windows 런타임 호환성은 아직 확인하지 않았습니다. 기존 `pose2/movenet_lightning.tflite`도 참고할 수 있으며, 다운로드 스크립트에는 float16 v4 출처가 기록되어 있습니다. 파일 자체의 모델 실행은 확인하지 않았습니다.
+샘플 어댑터는 `ai_edge_litert.interpreter.Interpreter`, 다음으로 TensorFlow의 Interpreter를 사용합니다. 모델·런타임이 없으면 해당 사진에 MODEL_ERROR를 반환합니다. 예시 관절이나 임의 점수를 성공 결과로 생성하지 않습니다.
+
+Electron과 `start.ps1`은 샘플의 `.venv/Scripts/python.exe`를 우선 사용합니다. `LOCO_PYTHON`이나 `-PythonPath`로 별도 실행파일을 지정할 수도 있습니다. 모델은 `-ModelPath` 또는 `LOCO_MOVENET_MODEL`로 지정하며, 지정하지 않으면 샘플의 `models/movenet_lightning.tflite`가 있을 때 사용합니다. 실행 경로는 APP_SETTINGS/계산 DTO에 추가하지 않습니다.
+
+2026-10-15 첫 연결 작업에서 이 PC의 Python 3.12 가상환경과 LiteRT 2.3.0으로 기존 `pose2/movenet_lightning.tflite`를 로드했습니다. 모델 입출력은 `[1,192,192,3]` uint8 / `[1,1,17,3]`이었습니다. 사용자 제공 `sample.jpg`(360×540)에서 17개 좌표를 추출했고, 16개가 신뢰도 0.5 이상이었습니다. 정확도·측면 촬영 적합성을 검증했다는 의미는 아닙니다.
+
+제공 사진은 정측면의 바닥→선반 작업 사진이 아니므로 카메라 측면/앞쪽 방향·촬영 순간·하중을 미확인으로 유지했습니다. 좌표는 표시하되 각도는 null과 진단, 포즈는 INVALID/MISSING_CAMERA, REBA 총점은 null입니다. 빈 14슬롯과 함께 결과를 저장합니다. 샘플 DB에는 `첫 연결 확인 · 제공사진` 조사와 `관절 표시 연결 · 촬영 조건 미확인` 작업을 만들었습니다. 사진은 경로만 저장하고 원본을 수정하지 않았습니다.
 
 ## 데이터와 파일 경계
 
@@ -61,7 +72,7 @@ $env:LOCO_MOVENET_MODEL = 'C:\models\movenet_lightning_float16_v4.tflite'
 ## 아직 남은 부분과 확인 수준
 
 - Electron 의존성과 실행 파일을 설치하고 기본 제공 Python으로 앱을 실행했습니다. 화면에서 모든 기능을 순회하거나 계산 결과를 검증한 상태는 아닙니다.
-- 실제 사진 15장과 MoveNet 런타임을 이용한 전체 실행은 확인하지 않았습니다.
+- 제공 사진 한 장의 실제 추론과 DB 저장 결과는 확인했습니다. 실제 작업 사진 15장 및 화면 전체의 동작·계산 정확도는 확인하지 않았습니다.
 - 외부 GPT API, 관절점 직접 드래그 편집, 상세 분석설정 편집 UI, 사진 경로 재연결 UI는 미연결입니다. 사진 경로/동의 업데이트 서비스는 있습니다.
 - 기준·근거의 입력 UI와 Excel 상세 출력은 샘플 수준입니다. 9호 union 별도 근거·목 자세의 자세한 기록, 긴 셀의 최대 높이, 상세 결과 항목코드·서식은 팀 구현 시 문서와 추가 대조해야 합니다.
 - 재사용 비교는 보수적으로 처리하므로 일부 관련 없는 입력 변경에도 다른 모듈을 미계산으로 남길 수 있습니다. 이전 수치를 최신으로 잘못 복사하지 않습니다.
