@@ -1,12 +1,12 @@
 # 데이터베이스 아키텍처 설계서
 
-> 문서 ID ERGO-DBA-001 · 설계 버전 1.4 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-DBA-001 · 설계 버전 1.5 · 기준일 2026-10-15 · 데모 개발 기준
 
 ## 1. 단순 로컬 구조
 
 Windows Electron 데스크톱 앱과 로컬 Python 서비스, SQLite6테이블(SURVEY/TASK/PHOTO/ANALYSIS/APP_SETTINGS/EXPORT_LOG)을 사용한다. Electron은 화면/파일 선택/호출 전달, Python은 계산/저장/Excel을 담당한다. 세부 입력·계산결과는 DTO JSON으로 저장한다. 별도 revision/각도/점수/법규조건 테이블, SQL 계산뷰, FK/UNIQUE/CHECK/차단 trigger, 보안·암호화·운영 가드는 데모에 넣지 않는다.
 
-DB는 기록을 저장한다. 실제 계산은 pose/reba/burden 모듈이 한다. 이번 문서는 구조를 정의하며 현재 프로토타입 SQL이 새 설계를 구현했다고 주장하지 않는다.
+DB는 기록을 저장한다. 실제 계산은 pose/reba/burden 모듈이 한다. 물리 스키마는 `ergo/db/schema_v1.sql`, SQLite 연결은 `ergo/db/connection.py`, JSON DTO 저장은 `ergo/db/storage.py`가 담당한다. 저장소 함수는 Python Application Service 내부에서 호출하며 Electron의 API 계약과 구분한다.
 
 ## 2. 파일 배치
 
@@ -18,13 +18,15 @@ DB는 기록을 저장한다. 실제 계산은 pose/reba/burden 모듈이 한다
 | 분석입력/결과 | ANALYSIS.snapshot_json/result_json | 입력시점 복사,15사진/11기준 |
 | 대표사진 | 원본 PHOTO 경로 | 별도 JPEG/BLOB 보관 없음. 못 읽으면 생략 |
 | Excel | 사용자가 지정한 경로 | EXPORT_LOG에 생성정보와snapshot 기록 |
-| 설정 | APP_SETTINGS.settings_json | 모델/프로필/GPT사용여부/모델명 |
+| 설정 | APP_SETTINGS.settings_json | analysis/gpt_enabled/gpt_model/ui{loco_visible,loco_mode}; UI 기본값은true/normal |
 | GPT 키 | 실행환경 OPENAI_API_KEY | DB/OS자격증명 모듈 추가하지 않음 |
 | 화면·데스크톱 연결 | Electron renderer/preload/main | 로컬 화면, 네이티브 파일 선택, IPC 전달 |
 | Python 실행파일·서비스 진입파일 | 데모 실행 설정의 로컬 경로 | main이 프로세스 하나를 실행. APP_SETTINGS에 저장하지 않음 |
 | 사진 미리보기 | capture가 반환한 PhotoPreview | EXIF 적용 data URL/크기, 화면 메모리에서 사용. DB/별도 파일 보관 없음 |
 
 파일 해시·암호화·동의/보존 차단·자동백업·복구정책은 구현 이후 검토한다. DB 백업 버튼이나 이를 위한 테이블은 이번 데모에 없다.
+
+새 DB 파일을 열 때 위 6개 테이블을 만든다. 구 프로토타입 DB를 새 구조로 자동 변환하는 마이그레이션과 DB schema-version 표는 두지 않는다.
 
 ## 3. 모듈 분리
 
@@ -49,11 +51,11 @@ flowchart TD
 - reba는 PoseResult의 각도에서 사진별6개 후보를 만들고 수동값/하중으로 점수표를 계산한다. 후보 적용 전에는 확정 수동값으로 사용하지 않는다. 목은 REBA_TABLE_2000_V2의 수동 구간이다. burden은 작업조건/직접노출시간/횟수로 계산하며 pose/reba 총점에 의존하지 않는다. 확인된 제외→모순→확실한미달→결론에 필요한누락→해석→해당의 순서는 burden이 담당한다.
 - explanation은 NumericSummary만 받아 문장을 반환한다. 서비스가 미계산/미완전/완전과 초안/조사자/effective 상태·출처·제외/누락/검토사유를 함께 구성한다. 생성 문장은 계산 모듈로 역입력하지 않는다.
 - report.build_overview(snapshot)은 같은 ExportSnapshot에서 선택 분석의 상태/집계/다음 입력 안내를 구성한다. report.render(snapshot,destination)은 그 파생값과 snapshot.include_representative로 네 시트를 쓰고 RenderedReport를 반환한다. UI/DB가 집계나 누락 분류를 별도로 구현하지 않는다. report는 REBA/고시 엔진을 재호출하지 않는다.
-- storage는6테이블별 읽기/쓰기/삭제와 JSON 직렬화만 맡는다. 새로운 계산 기능 때문에 DB 구조를 매번 늘리지 않는다.
+- `ergo/db/storage.py`는6테이블별 읽기/쓰기/삭제와 JSON 직렬화만 맡는다. 현재 내부 함수는 SURVEY(create/get/list/update metadata/set review/delete), TASK(create/get/list/update input/set latest analysis/delete), PHOTO(create/get/list/update/delete), ANALYSIS(create/get/list/update), APP_SETTINGS(get/update), EXPORT_LOG(create/list)다. 분석 생성과 최신 분석 포인터 갱신, task/survey 삭제 순서는 짧은 트랜잭션으로 묶는다. 저장소 함수는 API §5의 Electron 호출 메서드가 아니며 service가 조합해 호출한다. 새로운 계산 기능 때문에 DB 구조를 매번 늘리지 않는다.
 
 앱 시작 시 main이 로컬 Python 실행파일/서비스 진입파일을 spawn하고 Windows 콘솔창은 숨긴다. renderer는 로컬 화면 리소스를 로드하고 preload를 통해 기존 서비스를 호출한다. 메시지는 UTF-8 한 줄 JSON이며 main의 request_id로 응답 Promise를 연결한다. Python stdout은응답, stderr는로그다. Python의 장시간 분석은 백그라운드에서 실행해 요청 읽기/get_analysis/cancel_analysis 처리가 계속 가능하도록 한다. DB 연결은 storage 호출의 실행문맥에서 사용·정리하며 계산 중 트랜잭션을 열어 두거나 연결을 다른 스레드로 넘기지 않는다. 앱 종료 시 자식 프로세스도 종료한다. 실행 오류는 호출 결과에 표시하며 자동 재시작/승인/동시실행 차단 정책을 추가하지 않는다. 정확한 메시지와 파일 선택 API는 API §1.1이다.
 
-데모 실행은 Electron 개발 실행 환경과 로컬 Python 실행 환경을 사용한다. 설치파일/내장 Python 런타임을 포함한 배포 패키지는 별도 배포 작업이다. 이번 문서는 문서 버전1.4이며 저장 snapshot/보고서 버전은1.3을 사용한다.
+데모 실행은 Electron 개발 실행 환경과 로컬 Python 실행 환경을 사용한다. 설치파일/내장 Python 런타임을 포함한 배포 패키지는 별도 배포 작업이다. 이번 문서는 문서 버전1.5이며 저장 snapshot/보고서 버전은1.3을 사용한다.
 
 ## 4. 저장 흐름
 

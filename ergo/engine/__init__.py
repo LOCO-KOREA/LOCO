@@ -1,11 +1,6 @@
-"""분석 엔진 (API 계약서 5절). DB와 화면을 모르는 순수 함수만 둔다.
+"""분석 엔진 프로토타입. 자세·REBA·판정 설계의 기준은 docs/ 아래 문서다.
 
-모듈과 담당 (일정서 4절, 이름은 10/14에 확정)
-    pose.py      WP1  관절 추출 (MoveNet Lightning)   F04-01
-    angles.py    WP1  관절 각도                         F04-03
-    postures.py  WP1  법 문구 자세 판별, 비율          F04-04, F04-05
-    reba.py      WP1  REBA, 대표 사진                   F04-06, F04-07
-    judge.py     WP3  11개 호 판정 초안                 F05-01 (확신도 F05-02는 WP2)
-
-아직 모두 자리만 있다 (NotImplementedError). 함수의 입출력 모양은 10/14 회의에서 확정한다.
+분석 설계 흐름: pose.py → angles.py → postures.py → reba.py → judge.py.
+현재 파일은 구현 상태의 증거가 아니며, 요구사항은 docs/기능정의서.md와
+인터페이스는 docs/API_계약서.md에서 직접 관리한다.
 """

@@ -159,7 +159,7 @@ class AiResult(str, Enum):
 
 
 # ---------------------------------------------------------------- 오류와 알림 (8절)
-# API 계약서 8절의 오류·알림 코드 (E 오류 · W 경고 알림 · I 안내). 8절 표와 같아야 한다 (docs_src가 자동으로 대조한다)
+# 기존 프로토타입 서비스의 오류·알림 코드. 설계 문서는 docs/API_계약서.md에서 직접 관리한다.
 ERROR_CODES = frozenset({
     "E-INPUT-001", "E-INPUT-002", "E-INPUT-003", "E-NOTFOUND-001",
     "E-STILL-001", "W-STILL-002", "E-STILL-003", "E-STILL-004",

@@ -1,6 +1,6 @@
 # ERD · 데이터 설계서
 
-> 문서 ID ERGO-DD-001 · 설계 버전 1.4 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-DD-001 · 설계 버전 1.5 · 기준일 2026-10-15 · 데모 개발 기준
 
 ## 1. 설계 원칙
 
@@ -8,7 +8,7 @@ DB는 **6개 테이블**만 사용한다. 복잡한 revision/관절/REBA구성�
 
 데모 단계의 DB는 단순 SQLite다. PK 이외의 FK/UNIQUE/CHECK/차단 trigger, 암호화, 보안·운영 가드는 구현 요구에 넣지 않는다. 아래 관계는 저장/조회/삭제를 이해하기 위한 **논리 관계**다. 보안·백업·보존정책은 구현 이후 검토한다.
 
-Electron renderer/preload/main은 Python Application Service를 호출하고 DB 저장은 Python storage가 담당한다. Electron IPC/JSON Lines의request_id는 통신 중 요청·응답 연결용이며 저장하지 않는다. PhotoPreview.data_url/픽셀 크기는 화면 조회 응답이며 PHOTO의 기존 원본경로 참조를 대체하거나 미리보기 컬럼/BLOB 테이블을 만들지 않는다. 문서 버전1.4와 저장 schema_version/report_version=1.3을 구분한다.
+Electron renderer/preload/main은 Python Application Service를 호출하고 DB 저장은 Python storage가 담당한다. Electron IPC/JSON Lines의request_id는 통신 중 요청·응답 연결용이며 저장하지 않는다. PhotoPreview.data_url/픽셀 크기는 화면 조회 응답이며 PHOTO의 기존 원본경로 참조를 대체하거나 미리보기 컬럼/BLOB 테이블을 만들지 않는다. 문서 버전1.5와 저장 schema_version/report_version=1.3을 구분한다.
 
 ## 2. 논리 ERD
 
@@ -18,10 +18,10 @@ erDiagram
   TASK ||--o{ PHOTO : has
   TASK ||--o{ ANALYSIS : records_snapshots
   SURVEY ||--o{ EXPORT_LOG : records_outputs
-  APP_SETTINGS ||--o{ ANALYSIS : copied_into_snapshot
+APP_SETTINGS ||--o{ ANALYSIS : analysis_settings_snapshot
 ```
 
-TASK.latest_analysis_id는 그 작업에서 마지막으로 요청한 분석을 가리킨다. 사진은 하나의 작업에 속한다. 과거 ANALYSIS는 snapshot 안의 사진 메타데이터/15배정을 보유하므로 PHOTO 삭제 뒤에도 수치 출처를 읽을 수 있다. APP_SETTINGS 관계는 참조 FK가 아니라 분석시점 설정 복사다.
+TASK.latest_analysis_id는 그 작업에서 마지막으로 요청한 분석을 가리킨다. 사진은 하나의 작업에 속한다. 과거 ANALYSIS는 snapshot 안의 사진 메타데이터/15배정을 보유하므로 PHOTO 삭제 뒤에도 수치 출처를 읽을 수 있다. APP_SETTINGS 관계는 참조 FK가 아니라 `settings_json.analysis`의 분석시점 설정 복사다. GPT·로코 UI 설정은 분석 snapshot에 복사하지 않는다.
 
 ## 3. 테이블·컬럼
 
@@ -31,7 +31,7 @@ TASK.latest_analysis_id는 그 작업에서 마지막으로 요청한 분석을 
 | TASK | task_id INTEGER PK, survey_id INTEGER, input_revision INTEGER, latest_analysis_id INTEGER nullable, input_json TEXT, created_at TEXT, updated_at TEXT | input_json={task_kind,task_name,worker_count,conditions,legal,capture,manual}. Task의 나머지 키는 컬럼에서 구성 |
 | PHOTO | photo_id INTEGER PK, task_id INTEGER, metadata_json TEXT | metadata_json={file_path,file_name,width_px,height_px,consent,notes}. PhotoInfo의 ID는 컬럼에서 구성 |
 | ANALYSIS | analysis_id INTEGER PK, task_id INTEGER, input_revision INTEGER, status TEXT, snapshot_json TEXT, result_json TEXT, created_at TEXT, finished_at TEXT nullable | snapshot_json=TaskSnapshot 전체. result_json={pose,slot_tags,tags,reba,judgment,ai,notes}. Analysis의 ID/상태/시각은 컬럼에서 구성, currentness는 조회 계산 |
-| APP_SETTINGS | settings_id INTEGER PK, settings_json TEXT | settings_id=1을 사용. Settings의 analysis/gpt_enabled/gpt_model 저장, gpt_key_present는 환경에서 파생 |
+| APP_SETTINGS | settings_id INTEGER PK, settings_json TEXT | settings_id=1을 사용. Settings의 analysis/gpt_enabled/gpt_model/ui{loco_visible,loco_mode} 저장. UI 기본값은 true/normal, gpt_key_present는 환경에서 파생 |
 | EXPORT_LOG | export_id INTEGER PK, survey_id INTEGER, file_path TEXT, snapshot_json TEXT, receipt_json TEXT, created_at TEXT | snapshot_json=ExportSnapshot, receipt_json={sheets,reviewed,review_current,has_incomplete,has_stale}. ExportReceipt의 나머지는 컬럼에서 구성 |
 
 모든 JSON은 UTF-8 text다. null을 보존하고 배열 순서는 slot_no/criterion_no/condition_code 기준으로 정한다. JSON 버전은 TaskSnapshot/ExportSnapshot.schema_version='1.3'. 테이블 수를 늘리는 범용 EAV나 DB JSON Schema 검증장치를 넣지 않는다.

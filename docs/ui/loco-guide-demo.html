@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOCO · 로코 안내 위젯 시연</title>
+<style>
+:root{font-family:Pretendard,"Noto Sans CJK KR","Malgun Gothic",Arial,sans-serif;color:#242d41;background:#f5f6fa;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+header{height:64px;display:flex;align-items:center;padding:0 32px;background:#fff;border-bottom:1px solid #e8ebf2}
+.brand{font-weight:800;color:#5c61db;letter-spacing:-.04em}
+nav{display:flex;gap:6px;margin-left:34px;overflow:auto}
+nav button{border:0;border-radius:9px;background:transparent;padding:9px 12px;color:#758198;font-family:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+nav button[aria-current="page"]{background:#eeeffd;color:#5c61db}
+main{max-width:1050px;margin:54px auto;padding:0 28px}
+.eyebrow{font:700 10px Consolas,monospace;letter-spacing:.14em;color:#8b91ad}
+h1{font-size:30px;letter-spacing:-.06em;margin:10px 0 6px}
+.lead{margin:0;color:#7b8496;font-size:14px;line-height:1.8}
+.panel{margin-top:28px;background:#fff;border:1px solid #e8ebf2;border-radius:16px;padding:28px;box-shadow:0 5px 18px rgba(29,43,80,.035)}
+.panel h2{margin:0 0 8px;font-size:19px}
+.panel p{margin:0;color:#7b8496;line-height:1.8}
+.actions{display:flex;gap:22px;flex-wrap:wrap;margin-top:22px;padding-top:20px;border-top:1px solid #edf0f6}
+label{display:flex;align-items:center;gap:9px;color:#56647b;font-size:12px}
+input{accent-color:#5c61db}
+#action-status{margin-top:20px;padding:12px 14px;border-radius:10px;background:#f3f5f9;color:#737f95;font-size:12px}
+.action-target{margin-top:18px;padding:16px;border:1px solid #e8ebf2;border-radius:12px;background:#fafbfe;scroll-margin:24px}
+.action-target h3{margin:0 0 8px;font-size:14px}
+.action-target p,.action-target li{font-size:12px;color:#707d94;line-height:1.8}
+.action-target ol,.action-target ul{margin:8px 0 0;padding-left:20px}
+.sample-field{margin-top:20px;max-width:360px}
+.sample-field input{width:100%;margin-top:6px;padding:9px 11px;border:1px solid #e1e5ef;border-radius:9px;font:inherit}
+@media(max-width:700px){header{padding:0 14px}nav{margin-left:14px}main{margin-top:30px;padding:0 14px}.panel{padding:20px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">lo<span style="color:#283048">co.</span></div>
+  <nav aria-label="안내 화면">
+    <button type="button" data-page="S01" aria-current="page">조사 목록</button>
+    <button type="button" data-page="S02">조사 개요</button>
+    <button type="button" data-page="S03">작업·직접입력</button>
+    <button type="button" data-page="S04">사진 등록</button>
+    <button type="button" data-page="S05">분석 진행</button>
+    <button type="button" data-page="S06">사진·REBA 분석</button>
+    <button type="button" data-page="S07">검토</button>
+    <button type="button" data-page="S08">보고서</button>
+    <button type="button" data-page="S09">설정</button>
+  </nav>
+</header>
+<main id="main-content">
+  <div class="eyebrow">LOCO · FIELD GUIDE</div>
+  <h1>화면별 로코 안내</h1>
+  <p class="lead">첨부 HTML에서 로봇, 말풍선, 화면별 안내, 질문 답변, 이동과 설정 동작을 가져온 위젯 시연입니다. 로봇을 눌러 질문을 열고, 끌어서 위치를 옮길 수 있습니다. 입력란에 포커스가 가거나 Escape를 누르면 말풍선이 접힙니다.</p>
+  <section class="panel" aria-live="polite">
+    <h2 id="screen-title">조사 목록</h2>
+    <p id="screen-copy">로코가 화면에 맞는 입력·관찰 안내를 보여줍니다. 말풍선의 링크는 현재 화면에서 필요한 기능으로 이동합니다.</p>
+    <label class="sample-field">안내 접힘 동작을 확인할 예시 입력란<input type="text" placeholder="여기에 입력하면 말풍선이 접힙니다"></label>
+    <div class="actions">
+      <label><input id="pet-visible" type="checkbox" checked> 로코 표시</label>
+      <label><input id="pet-quiet" type="checkbox"> 조용한 모드</label>
+    </div>
+    <div id="action-status" role="status">S01 · 조사 목록 안내</div>
+    <section class="action-target" id="capture-guide" hidden tabindex="-1">
+      <h3>사진 등록 촬영 안내</h3>
+      <p>같은 조건의 정상 작업 3회에서 아래 다섯 순간을 촬영합니다. 일정한 시간 간격에 맞추지 않습니다.</p>
+      <ol><li>손 닿기 전: 상자는 바닥, 손이 닿기 직전</li><li>바닥 분리 직후: 상자바닥 전체가 처음 떨어지고 중량은 손이 받음</li><li>바닥면 절반 높이: 상자 바닥이 선반높이/2를 통과</li><li>선반 접촉 직전: 틈이 있고 아직 중량은 손이 받음</li><li>손 놓은 후: 선반에 완전히 놓고 양손을 놓음</li></ol>
+    </section>
+    <section class="action-target" id="manual-observation" hidden tabindex="-1">
+      <h3>현재 사진 관찰값 입력</h3>
+      <p>선택한 사진에서 몸통·목·위팔·아래팔·손목·다리 자세를 직접 확인합니다. 사진에서 판단할 수 없는 값은 비워 두고, REBA 점수 입력이 필요한 항목에 표시합니다.</p>
+    </section>
+    <section class="action-target" id="criterion-four" hidden tabindex="-1">
+      <h3>4호 합산 해석</h3>
+      <p>목·몸통·어깨·팔꿈치·손목·손의 부담 조건을 함께 살펴봅니다. 앱의 초안과 조사자 결론은 각각 남기며, 빠진 근거는 별도로 표시합니다.</p>
+    </section>
+    <section class="action-target" id="next-inputs" hidden tabindex="-1">
+      <h3>다음 입력 안내</h3>
+      <ul><li>사진 7번: 손목 각도와 비틀림 관찰값 확인</li><li>작업 조건: 하루 실제 작업시간과 해당 자세 노출시간 입력</li></ul>
+    </section>
+  </section>
+  <loco-guide id="loco-guide" page="S01"></loco-guide>
+</main>
+<script src="./loco-guide.js"></script>
+<script>
+const names = {S01:'조사 목록',S02:'조사 개요',S03:'작업·직접입력',S04:'사진 등록',S05:'분석 진행',S06:'사진·REBA 분석',S07:'조사자 확인',S08:'보고서 출력',S09:'설정'};
+const key='loco-guide-demo-preferences';
+const guide=document.querySelector('#loco-guide');
+const status=document.querySelector('#action-status');
+const visible=document.querySelector('#pet-visible');
+const quiet=document.querySelector('#pet-quiet');
+function showTarget(id,message){document.querySelectorAll('.action-target').forEach((node)=>{node.hidden=node.id!==id;});const target=document.getElementById(id);if(target){status.textContent=message;target.focus({preventScroll:true});target.scrollIntoView({behavior:'smooth',block:'nearest'});}}
+function selectPage(page){guide.page=page;document.querySelector('#screen-title').textContent=names[page];document.querySelectorAll('nav [data-page]').forEach((button)=>{if(button.dataset.page===page)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});document.querySelectorAll('.action-target').forEach((node)=>{node.hidden=true;});status.textContent=page+' · '+names[page]+' 안내';}
+try{const saved=JSON.parse(localStorage.getItem(key)||'{}');if(saved.visible===false){visible.checked=false;guide.visible=false;}if(saved.mode==='quiet'){quiet.checked=true;guide.mode='quiet';}}catch{}
+document.querySelectorAll('nav [data-page]').forEach((button)=>button.addEventListener('click',()=>selectPage(button.dataset.page)));
+visible.addEventListener('change',()=>{guide.visible=visible.checked;});
+quiet.addEventListener('change',()=>{guide.mode=quiet.checked?'quiet':'normal';});
+guide.addEventListener('loco-guide-preference-change',(event)=>{if(Object.prototype.hasOwnProperty.call(event.detail,'visible'))visible.checked=event.detail.visible;if(Object.prototype.hasOwnProperty.call(event.detail,'mode'))quiet.checked=event.detail.mode==='quiet';try{localStorage.setItem(key,JSON.stringify({visible:visible.checked,mode:quiet.checked?'quiet':'normal'}));}catch{}});
+guide.addEventListener('loco-guide-action',(event)=>{const {page,nextPage,action}=event.detail;if(nextPage&&nextPage!==page){selectPage(nextPage);return;}if(action==='guide')showTarget('capture-guide','촬영 안내를 열었습니다.');else if(action==='manual')showTarget('manual-observation','현재 사진의 직접 관찰 입력으로 이동했습니다.');else if(action==='criterion4')showTarget('criterion-four','4호 합산 해석 항목을 열었습니다.');else if(action==='next')showTarget('next-inputs','다음 입력이 필요한 항목으로 이동했습니다.');else if(action==='quiet')status.textContent='조용한 모드 '+(quiet.checked?'켜짐':'꺼짐');});
+</script>
+</body>
+</html>

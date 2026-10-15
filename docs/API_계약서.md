@@ -1,10 +1,10 @@
 # API 계약서
 
-> 문서 ID ERGO-API-001 · 설계 버전 1.4 · 기준일 2026-10-14 · 데모 개발 기준
+> 문서 ID ERGO-API-001 · 설계 버전 1.5 · 기준일 2026-10-15 · 데모 개발 기준
 
 ## 1. 경계·모듈
 
-Windows Electron renderer(UI)→preload→main→로컬 Python Application Service 계약이다. 아래 타입 표기는 설계이며 구현 코드가 아니다. 화면은 HTML/CSS/JavaScript 계열로 작성하고 계산·저장·Excel은 Python이 담당한다. 서비스는 모듈들을 순서대로 호출하고 storage에 저장한다. 계산 모듈은 DB를 직접 읽거나 서로의 내부 함수를 호출하지 않는다. 문서 버전1.4는 실행 연결을 구체화한 것이며 TaskSnapshot/ExportSnapshot.schema_version과 report_version은1.3이다.
+Windows Electron renderer(UI)→preload→main→로컬 Python Application Service 계약이다. 아래 타입 표기는 설계이며 구현 코드가 아니다. 화면은 HTML/CSS/JavaScript 계열로 작성하고 계산·저장·Excel은 Python이 담당한다. 서비스는 모듈들을 순서대로 호출하고 storage에 저장한다. 계산 모듈은 DB를 직접 읽거나 서로의 내부 함수를 호출하지 않는다. 문서 버전1.5는 로코 공통 안내 위젯과 설정 저장 계약까지 반영하며 TaskSnapshot/ExportSnapshot.schema_version과 report_version은1.3이다. `loco-guide-action`과 `loco-guide-preference-change`는 renderer 내부 이벤트로 Python API 메서드가 아니다. renderer가 화면 동작을 처리하고 설정 이벤트만 `update_settings` 호출로 저장한다.
 
 | 모듈 | 입력→출력 | 책임 |
 |---|---|---|
@@ -210,7 +210,7 @@ TagResult.slots는15슬롯×11태그, summary는11태그다. 서비스는 slots�
 | preview_excel | survey_id:ID,analysis_ids:ID[] | ReportOverview | S08 |
 | export_excel | survey_id:ID,spec:ExportSpec | ExportReceipt | S08 |
 | get_settings | 없음 | Settings | S09 |
-| update_settings | settings:Settings | Settings | S09 |
+| update_settings | settings:SettingsUpdate | Settings | S09 |
 
 set_manual_values는 현재15배정에 대한 전체 목록 교체다. S06의 선택사진 공통 편집/같은순간3회차 편집/사진별 편집은 UI가 현재 manual에 (slot_no,scope,field)로 합친 전체 배열을 보낸다. 대상의 현재 photo_id를 쓰고 선택하지 않은 값은 보존한다. 같은순간 그룹은1/6/11,2/7/12,3/8/13,4/9/14,5/10/15다. 자동 일괄 적용은 대상별 자신의 candidate를 사용하며 evidence.source=OTHER, text=근거 각도·측·최저confidence, observed_at=적용시각, ManualValue.source=AUTO_ACCEPTED다. 직접 관찰 복사는 사용자가 고른 필드/대상에만 기존 관찰 출처와 근거를 기록한다. 후보의 사진·카메라·작업맥락·모델/전처리 입력이 현재와 다르면 그 후보는null/재계산 안내로 취급한다. null 후보는 기존 수동값을 덮어쓰지 않고 자동 생성도 하지 않으며, 빈사진 슬롯도 manual을 만들지 않는다. 다른 값은 계속 저장한다. 별도 bulk/template 서비스나 DB 테이블은 없다.
 
@@ -232,10 +232,12 @@ type NumericBasis = {item_code:string,value:Number|Truth|null,unit:BasisItem['un
 type NumericCriterion = {criterion_no:Count,computed_status:JudgmentStatus|null,investigator_status:FinalStatus|null,effective_status:JudgmentStatus|null,effective_source:'COMPUTED'|'INVESTIGATOR'|null,exclusion:'SHORT_TERM'|'INTERMITTENT'|'BOTH'|null,missing_fields:string[],missing_count:Count|null,review_reasons:ReviewReason[],basis:NumericBasis[]};
 type NumericSummary = {purpose:AiPurpose,reba_status:'NOT_CALCULATED'|'INCOMPLETE'|'COMPLETE',judgment_status:'NOT_CALCULATED'|'CALCULATED',complete_reba_count:Count|null,total_slot_count:15,available_max:Count|null,full_max:Count|null,tag_counts:TagSummary[],criteria:NumericCriterion[]};
 type AiText = {purpose:AiPurpose,result:'GENERATED'|'FALLBACK'|'DISABLED',generated_text:string|null,edited_text:string|null,applied_text:string|null,applied_kind:'MODEL'|'INVESTIGATOR'|'FALLBACK'|null,model:string,prompt_version:string,created_at:Timestamp};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_key_present:boolean};
+type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_key_present:boolean,ui:UiPreferences};
+type SettingsUpdate = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,ui:UiPreferences};
 ```
 
-NumericSummary는 서비스가 계산결과에서 구성한다. BasisItem.source·근거·이름·사진·경로·좌표·내부 ID는 없다. 공개 기준 설명은 내장 문구다. explanation 모듈은 이 DTO로 문장을 요청하며 별도 보안 가드/수치검증기/승인 흐름은 없다. 키는 OPENAI_API_KEY 실행환경을 읽고 Settings에는 존재 여부만 반환한다. gpt_key_present는 읽기전용 파생값이다.
+NumericSummary는 서비스가 계산결과에서 구성한다. BasisItem.source·근거·이름·사진·경로·좌표·내부 ID는 없다. 공개 기준 설명은 내장 문구다. explanation 모듈은 이 DTO로 문장을 요청하며 별도 보안 가드/수치검증기/승인 흐름은 없다. 키는 OPENAI_API_KEY 실행환경을 읽고 Settings에는 존재 여부만 반환한다. gpt_key_present는 읽기전용 파생값이므로 SettingsUpdate에는 없다. update_settings는 변경 가능한 분석 설정·GPT 옵션·UI 선호 전체를 SettingsUpdate로 받고 Settings 응답을 돌려준다. ui.loco_visible 기본값은true, ui.loco_mode 기본값은normal이며 UI 설정은 `AnalysisSettings`/`TaskSnapshot`에 넣지 않고 분석 계산 입력으로 취급하지 않는다.
 
 reba=null이면 reba_status=NOT_CALCULATED, complete_reba_count/available_max/full_max=null이다. 계산 결과가 있으면 실제 status/complete_count를 옮기며 계산한0개와 미계산을 구분한다. judgment=null이면 judgment_status=NOT_CALCULATED, criteria는1..11의 자리를 유지하되 각 상태/effective_source/exclusion/missing_count=null, missing_fields/review_reasons/basis=[]다. 계산 결과가 있으면 CALCULATED이며 초안/조사자/effective 상태를 각각 옮긴다. effective_source는 investigator.status가 있으면INVESTIGATOR, 없으면COMPUTED다. missing_count는 중복 제거한 missing_fields 수다. missing_fields/item_code는 문서의 입력 필드·조건 코드이며 파일 경로나 자유입력 근거가 아니다.
 

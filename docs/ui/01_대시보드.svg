@@ -1,103 +1,206 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024">
+  <defs>
+    <filter id="locoCardShadow" x="-12%" y="-18%" width="124%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1D2B50" flood-opacity="0.035" />
+    </filter>
+    <linearGradient id="locoPetBody" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#edf0ff" />
+      <stop offset="1" stop-color="#c4cbea" />
+    </linearGradient>
+    <linearGradient id="locoPetHat" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#f1c779" />
+      <stop offset="1" stop-color="#dfab59" />
+    </linearGradient>
+  </defs>
   <title>LOCO 작업 자세 분석 공간</title>
-  <desc>LOCO dashboard aligned with demo design 1.3. Review, result freshness and missing inputs are independent. All data are examples.</desc>
-  <rect x="0" y="0" width="1440" height="1024" rx="0" fill="#EEF1F5" />
-  <rect x="0" y="0" width="1440" height="78" rx="0" fill="#172230" />
-  <rect x="40" y="25" width="6" height="28" rx="0" fill="#FF6B43" />
-  <text x="58" y="53" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="29" font-weight="700" fill="#FFFFFF">LOCO</text>
-  <text x="157" y="49" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" font-weight="400" fill="#B4C0CF">DEMO / 1.3</text>
-  <rect x="316" y="0" width="100" height="78" rx="0" fill="#223044" />
-  <rect x="316" y="74" width="100" height="4" rx="0" fill="#FF6B43" />
-  <text x="366" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">작업 공간</text>
-  <text x="478" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">조사 목록</text>
-  <text x="590" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">분석 기록</text>
-  <text x="702" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">설정</text>
-  <text x="814" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#C5CED9" text-anchor="middle" dominant-baseline="central">보고서</text>
-  <line x1="1090" y1="24" x2="1090" y2="54" stroke="#3A4655" />
-  <text x="1115" y="47" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#DAE1EA">한빛 제조 / 본사</text>
-  <circle cx="1360" cy="39" r="18" fill="#344255" />
-  <text x="1360" y="39" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">김</text>
-  <text x="40" y="152" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#1B2635">작업 자세 분석 공간</text>
-  <text x="40" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">상자 올리기 작업의 분석 결과와 조사자 검토 상태를 한곳에서 봅니다.</text>
-  <rect x="1220" y="210" width="180" height="42" rx="5" fill="#FF6B43" />
+  <desc>LOCO dashboard for screen design 1.5. Review, result freshness and missing inputs are independent. All data are examples.</desc>
+  <rect x="0" y="0" width="1440" height="1024" rx="0" fill="#F5F6FA" />
+  <rect x="0" y="0" width="1440" height="49" fill="#F9FAFE" />
+  <line x1="0" y1="48.5" x2="1440" y2="48.5" stroke="#EDF0F6" />
+  <path d="M30 13h10v10H30z M44 13h10v10H44z M30 27h10v10H30z M44 27h10v10H44z" fill="none" stroke="#5C61DB" stroke-width="1.8" />
+  <circle cx="34" cy="17" r="2" fill="#5C61DB" /><circle cx="50" cy="33" r="2" fill="#5C61DB" />
+  <text x="62" y="32" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="26" font-weight="800" fill="#283048">lo<tspan fill="#5C61DB">co</tspan><tspan fill="#AFB4D8" font-size="20">.</tspan></text>
+  <line x1="123" y1="15" x2="123" y2="34" stroke="#DFE4EE" />
+  <text x="137" y="31" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="650" fill="#56647B">현장 자세 분석</text>
+  <text x="278" y="31" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" fill="#8994A7"><tspan>조사 관리</tspan><tspan fill="#C5CCD9">  ›  </tspan><tspan fill="#6F7A90">조사 목록</tspan></text>
+  <circle cx="1036" cy="24" r="3" fill="#B97723" />
+  <text x="1046" y="28" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" fill="#8792A7">저장 상태 확인</text>
+  <rect x="1210" y="10" width="59" height="28" rx="6" fill="#EEEFFD" />
+  <text x="1239.5" y="28" text-anchor="middle" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" font-weight="600" fill="#6065C5">UI 데모</text>
+  <rect x="1380" y="10" width="32" height="29" rx="8" fill="#FFFFFF" stroke="#E8EBF2" />
+<text x="1396" y="30" text-anchor="middle" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="600" fill="#7B8496">?</text>
+  <rect x="0" y="49" width="1440" height="59" fill="#FFFFFF" />
+  <rect x="24" y="55" width="126" height="46" rx="12" fill="#EEEFFD" />
+  <rect x="38" y="102" width="98" height="3" rx="1.5" fill="#5C61DB" />
+  <g transform="translate(36 69)" fill="none" stroke="#5C61DB" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1" y="1" width="5.5" height="5.5" rx="1" />
+    <rect x="9.5" y="1" width="5.5" height="5.5" rx="1" />
+    <rect x="1" y="9.5" width="5.5" height="5.5" rx="1" />
+    <rect x="9.5" y="9.5" width="5.5" height="5.5" rx="1" />
+  </g>
+  <text x="59" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#5C61DB">조사 목록</text>
+  <text x="139" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#969AE1">01</text>
+  <g transform="translate(167 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="2.5" width="11" height="13" rx="1.6" />
+    <path d="M5.5 2.5v-1h5v1M5.5 7h5M5.5 10h5" />
+  </g>
+  <text x="190" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">조사 개요</text>
+  <text x="270" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">02</text>
+  <g transform="translate(298 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 4.5 8.5 1 16 4.5 8.5 8zM1 4.5v8l7.5 3.5V8M16 4.5v8l-7.5 3.5" />
+  </g>
+  <text x="321" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">작업·직접입력</text>
+  <text x="437" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">03</text>
+  <g transform="translate(465 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.5 5h3l1.6-2h4.8l1.6 2h2v9.5h-13z" />
+    <circle cx="8" cy="9.7" r="2.7" />
+  </g>
+  <text x="488" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">사진 등록</text>
+  <text x="568" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">04</text>
+  <g transform="translate(596 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 1.5H2a.5.5 0 0 0-.5.5v2.5M11 1.5h3a.5.5 0 0 1 .5.5v2.5M15.5 11.5V14a.5.5 0 0 1-.5.5h-3M5 14.5H2a.5.5 0 0 1-.5-.5v-2.5" />
+    <circle cx="8.5" cy="8" r="2.5" />
+  </g>
+  <text x="619" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">분석 진행</text>
+  <text x="699" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">05</text>
+  <g transform="translate(727 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8" cy="2.2" r="1.8" />
+    <path d="M8 4.2v5M8 5.5 3.5 8M8 5.5 12.5 8M8 9.2 4.5 15M8 9.2 12 15" />
+  </g>
+  <text x="750" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">사진·REBA 분석</text>
+  <text x="871" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">06</text>
+  <g transform="translate(899 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 1 14 3.2v4.2c0 3.5-2.4 5.8-6 7.6-3.6-1.8-6-4.1-6-7.6V3.2z" />
+    <path d="m5.2 7.7 1.8 1.8 3.7-3.7" />
+  </g>
+  <text x="922" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">11호 초안·검토</text>
+  <text x="1043" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">07</text>
+  <g transform="translate(1071 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 1.5h7l3 3v10H3zM10 1.5v3h3M5.5 7h5M5.5 9.5h5M5.5 12h3.5" />
+  </g>
+  <text x="1094" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">보고서 내보내기</text>
+  <text x="1211" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">08</text>
+  <line x1="1234" y1="67" x2="1234" y2="90" stroke="#E8EBF2" />
+  <g transform="translate(1261 69)" fill="none" stroke="#758198" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8" cy="8" r="2.8" />
+    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M13 3l-1.4 1.4M4.4 11.6 3 13" />
+  </g>
+  <text x="1285" y="83" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="500" fill="#758198">설정</text>
+  <text x="1366" y="82" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#ACB4C4">09</text>
+  <rect x="0" y="108" width="1440" height="25" fill="#F0F1FA" />
+  <line x1="0" y1="132.5" x2="1440" y2="132.5" stroke="#E9EBF5" />
+  <text x="720" y="124" text-anchor="middle" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="9" fill="#8B8FAB"><tspan font-weight="700" fill="#757BA8">INTERACTIVE PROTOTYPE</tspan><tspan>  ·  화면 예시이며 사진과 분석 수치는 가상 데이터입니다.</tspan></text>
+  <g transform="translate(0 30)">
+  <text x="40" y="152" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#242D41">작업 자세 분석 공간</text>
+  <text x="40" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#7B8496">상자 올리기 작업의 분석 결과와 조사자 검토 상태를 한곳에서 봅니다.</text>
+  <rect x="1220" y="210" width="180" height="42" rx="9" fill="#5C61DB" />
   <text x="1310.0" y="231.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">＋ 새 조사</text>
-  <rect x="40" y="263" width="328" height="105" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
-  <text x="60" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">등록된 조사</text>
-  <text x="60" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#1B2635">3</text>
-  <text x="115" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">조사 단위</text>
-  <rect x="384" y="263" width="328" height="105" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
-  <text x="404" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">등록된 상자 올리기 작업</text>
-  <text x="404" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#1B2635">9</text>
-  <text x="459" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">작업 단위</text>
-  <rect x="728" y="263" width="328" height="105" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
-  <text x="748" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">미검토 조사</text>
-  <text x="748" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#FF6B43">1</text>
-  <text x="803" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">계산 완전성과 별도 표시</text>
-  <rect x="1072" y="263" width="328" height="105" rx="8" fill="#FFFFFF" stroke="#DDE3EA" />
-  <text x="1092" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">이전 결과를 검토한 조사</text>
-  <text x="1092" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#1B2635">1</text>
-  <text x="1147" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">현재 입력으로 다시 확인 가능</text>
-  <text x="40" y="409" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="20" font-weight="700" fill="#1B2635">이어 할 조사</text>
-  <rect x="40" y="429" width="845" height="240" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
-  <text x="64" y="463" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">2026 물류팀 정기조사</text>
-  <rect x="750" y="450" width="110" height="26" rx="5" fill="#EDF1F5" />
-  <text x="805.0" y="463.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">미검토</text>
-  <text x="64" y="506" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">조사일 2026.10.12 · 조사자 김나리 · 단위작업 3개</text>
-  <text x="64" y="554" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">입력 부족 · 추가 검토 · REBA 미완료</text>
-  <text x="730" y="554" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">현재 결과</text>
-  <rect x="64" y="568" width="796" height="34" rx="5" fill="#F6F8FA" />
-  <text x="64" y="617" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#67788D">현재 결과 · 미완전 포함 · 부족한 항목이 있어도 검토와 초안 출력이 가능합니다.</text>
-  <rect x="600" y="619" width="260" height="34" rx="5" fill="#172230" />
+  <rect x="40" y="263" width="328" height="105" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="60" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">등록된 조사</text>
+  <text x="60" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#242D41">3</text>
+  <text x="115" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">조사 단위</text>
+  <rect x="384" y="263" width="328" height="105" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="404" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">등록된 상자 올리기 작업</text>
+  <text x="404" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#242D41">9</text>
+  <text x="459" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">작업 단위</text>
+  <rect x="728" y="263" width="328" height="105" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="748" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">미검토 조사</text>
+  <text x="748" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#5C61DB">1</text>
+  <text x="803" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">계산 완전성과 별도 표시</text>
+  <rect x="1072" y="263" width="328" height="105" rx="16" fill="#FFFFFF" stroke="#E8EBF2"  filter="url(#locoCardShadow)" />
+  <text x="1092" y="290" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">이전 결과를 검토한 조사</text>
+  <text x="1092" y="334" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="30" font-weight="700" fill="#242D41">1</text>
+  <text x="1147" y="331" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">현재 입력으로 다시 확인 가능</text>
+  <text x="40" y="409" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="20" font-weight="700" fill="#242D41">이어 할 조사</text>
+  <rect x="40" y="429" width="845" height="240" rx="16" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1"  filter="url(#locoCardShadow)" />
+  <text x="64" y="463" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#242D41">2026 물류팀 정기조사</text>
+  <rect x="750" y="450" width="110" height="26" rx="6" fill="#FAFBFD" />
+  <text x="805.0" y="463.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">미검토</text>
+  <text x="64" y="506" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#7B8496">조사일 2026.10.12 · 조사자 김나리 · 단위작업 3개</text>
+  <text x="64" y="554" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#242D41">입력 부족 · 추가 검토 · REBA 미완료</text>
+  <text x="730" y="554" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">현재 결과</text>
+  <rect x="64" y="568" width="796" height="34" rx="9" fill="#FAFBFD" />
+  <text x="64" y="617" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#7B8496">현재 결과 · 미완전 포함 · 부족한 항목이 있어도 검토와 초안 출력이 가능합니다.</text>
+  <rect x="600" y="619" width="260" height="34" rx="9" fill="#162239" />
   <text x="730.0" y="636.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">검토 이어가기 →</text>
-  <rect x="903" y="429" width="497" height="240" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
-  <text x="927" y="463" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">다음에 확인할 단위작업</text>
-  <text x="927" y="493" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="21" font-weight="700" fill="#1B2635">바닥 상자 → 앞 선반</text>
-  <rect x="927" y="509" width="104" height="26" rx="5" fill="#FFF5DC" />
-  <text x="938" y="527" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#8A5E00">4호 · 입력 필요</text>
-  <text x="927" y="563" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">4호: 허리 굽힘의 하루 누적시간을</text>
-  <text x="927" y="588" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#67788D">직접 입력하세요. 사진 비율로 계산하지 않습니다.</text>
-  <rect x="927" y="616" width="448" height="42" rx="5" fill="#FF6B43" />
+  <rect x="903" y="429" width="497" height="240" rx="16" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1"  filter="url(#locoCardShadow)" />
+  <text x="927" y="463" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#242D41">다음에 확인할 단위작업</text>
+  <text x="927" y="493" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="21" font-weight="700" fill="#242D41">바닥 상자 → 앞 선반</text>
+  <rect x="927" y="509" width="104" height="26" rx="6" fill="#FFF4DF" />
+  <text x="938" y="527" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#B97723">4호 · 입력 필요</text>
+  <text x="927" y="563" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#7B8496">4호: 허리 굽힘의 하루 누적시간을</text>
+  <text x="927" y="588" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="400" fill="#7B8496">직접 입력하세요. 사진 비율로 계산하지 않습니다.</text>
+  <rect x="927" y="616" width="448" height="42" rx="9" fill="#5C61DB" />
   <text x="1151.0" y="637.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">직접 입력 열기 →</text>
-  <rect x="40" y="697" width="845" height="225" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
-  <text x="64" y="731" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">최근 조사</text>
-  <rect x="60" y="745" width="805" height="38" rx="5" fill="#F6F8FA" />
-  <text x="76" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#67788D">조사명</text>
-  <text x="351" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#67788D">조사일</text>
-  <text x="516" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#67788D">단위작업</text>
-  <text x="636" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#67788D">상태</text>
-  <text x="76" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">물류팀 정기</text>
-  <text x="351" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">2026.10.12</text>
-  <text x="516" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">3</text>
-  <rect x="636" y="791.5" width="110" height="26" rx="5" fill="#EDF1F5" />
-  <text x="691.0" y="804.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">미검토</text>
-  <line x1="60" y1="826" x2="865" y2="826" stroke="#DDE3EA" stroke-width="1" />
-  <text x="76" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">조립팀 수시</text>
-  <text x="351" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">2026.10.10</text>
-  <text x="516" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">3</text>
-  <rect x="636" y="834.5" width="110" height="26" rx="5" fill="#FFF2CC" />
-  <text x="691.0" y="847.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#8A5E00" text-anchor="middle" dominant-baseline="central">이전 결과 검토</text>
-  <line x1="60" y1="869" x2="865" y2="869" stroke="#DDE3EA" stroke-width="1" />
-  <text x="76" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#1B2635">가공팀 정기</text>
-  <text x="351" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">2026.09.30</text>
-  <text x="516" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#1B2635">3</text>
-  <rect x="636" y="877.5" width="110" height="26" rx="5" fill="#E8F4ED" />
-  <text x="691.0" y="890.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#277253" text-anchor="middle" dominant-baseline="central">검토 완료</text>
-  <line x1="60" y1="912" x2="865" y2="912" stroke="#DDE3EA" stroke-width="1" />
-  <rect x="903" y="697" width="497" height="225" rx="8" fill="#FFFFFF" stroke="#DDE3EA" stroke-width="1" />
-  <text x="927" y="731" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#1B2635">촬영과 결과 안내</text>
-  <text x="927" y="768" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">한 사람의 바닥 상자 → 앞 선반 작업</text>
-  <text x="927" y="801" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="23" font-weight="700" fill="#1B2635">3회 × 5순간 = 15슬롯</text>
-  <text x="927" y="826" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#67788D">사진 빈도와 하루 직접 노출시간은 별도입니다.</text>
-  <rect x="927" y="846" width="448" height="46" rx="5" fill="#F0F4F8" stroke="#DDE3EA" stroke-width="1" />
+  <rect x="40" y="697" width="845" height="225" rx="16" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1"  filter="url(#locoCardShadow)" />
+  <text x="64" y="731" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#242D41">최근 조사</text>
+  <rect x="60" y="745" width="805" height="38" rx="9" fill="#FAFBFD" />
+  <text x="76" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#7B8496">조사명</text>
+  <text x="351" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#7B8496">조사일</text>
+  <text x="516" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#7B8496">단위작업</text>
+  <text x="636" y="770" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#7B8496">상태</text>
+  <text x="76" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#242D41">물류팀 정기</text>
+  <text x="351" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.10.12</text>
+  <text x="516" y="809.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="636" y="791.5" width="110" height="26" rx="6" fill="#FAFBFD" />
+  <text x="691.0" y="804.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">미검토</text>
+  <line x1="60" y1="826" x2="865" y2="826" stroke="#E8EBF2" stroke-width="1" />
+  <text x="76" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#242D41">조립팀 수시</text>
+  <text x="351" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.10.10</text>
+  <text x="516" y="852.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="636" y="834.5" width="110" height="26" rx="6" fill="#FFF4DF" />
+  <text x="691.0" y="847.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#B97723" text-anchor="middle" dominant-baseline="central">이전 결과 검토</text>
+  <line x1="60" y1="869" x2="865" y2="869" stroke="#E8EBF2" stroke-width="1" />
+  <text x="76" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="700" fill="#242D41">가공팀 정기</text>
+  <text x="351" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">2026.09.30</text>
+  <text x="516" y="895.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" font-weight="400" fill="#242D41">3</text>
+  <rect x="636" y="877.5" width="110" height="26" rx="6" fill="#EAF7F2" />
+  <text x="691.0" y="890.5" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#278E78" text-anchor="middle" dominant-baseline="central">검토 완료</text>
+  <line x1="60" y1="912" x2="865" y2="912" stroke="#E8EBF2" stroke-width="1" />
+  <rect x="903" y="697" width="497" height="225" rx="16" fill="#FFFFFF" stroke="#E8EBF2" stroke-width="1"  filter="url(#locoCardShadow)" />
+  <text x="927" y="731" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="18" font-weight="700" fill="#242D41">촬영과 결과 안내</text>
+  <text x="927" y="768" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">한 사람의 바닥 상자 → 앞 선반 작업</text>
+  <text x="927" y="801" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="23" font-weight="700" fill="#242D41">3회 × 5순간 = 15슬롯</text>
+  <text x="927" y="826" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#7B8496">사진 빈도와 하루 직접 노출시간은 별도입니다.</text>
+  <rect x="927" y="846" width="448" height="46" rx="9" fill="#FAFBFD" stroke="#E8EBF2" stroke-width="1" />
   <rect x="927" y="846" width="4" height="46" rx="5" fill="#8394A7" />
-  <text x="943" y="871" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#1B2635">검토 완료는 계산 완전성이나 법적 승인을 뜻하지 않습니다.</text>
-  <text x="80" y="590" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" fill="#1B2635">입력 부족 3개 기준 · 추가 검토 2개 기준 · REBA 미완료 4장 / 45슬롯</text>
-  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
-  <text x="40" y="109" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">LOCO / 작업 자세 분석</text>
-  <rect x="1220" y="121" width="180" height="26" rx="4" fill="#E6EBF1" />
-  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#506176" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
-  <text x="1220" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">화면설계 1.3</text>
-  <line x1="40" y1="978" x2="1400" y2="978" stroke="#DDE3EA" />
-  <text x="40" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">부담작업 해당 여부 결정과 조사 결과의 책임은 사업주와 조사자에게 있습니다.</text>
-  <text x="1220" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#67788D">LOCO / DEMO · 1.3</text>
+  <text x="943" y="871" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="400" fill="#242D41">검토 완료는 계산 완전성이나 법적 승인을 뜻하지 않습니다.</text>
+  <text x="80" y="590" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="13" fill="#242D41">입력 부족 3개 기준 · 추가 검토 2개 기준 · REBA 미완료 4장 / 45슬롯</text>
+  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="40" y="109" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#7B8496">LOCO / 작업 자세 분석</text>
+  <rect x="1220" y="121" width="180" height="26" rx="4" fill="#E8EBF2" />
+  <text x="1310.0" y="134.0" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="12" font-weight="700" fill="#56647B" text-anchor="middle" dominant-baseline="central">예시 화면 · 예시 데이터</text>
+  <text x="1220" y="183" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#7B8496">화면설계 1.5</text>
+  <line x1="40" y1="978" x2="1400" y2="978" stroke="#E8EBF2" />
+  <text x="40" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#7B8496">부담작업 해당 여부 결정과 조사 결과의 책임은 사업주와 조사자에게 있습니다.</text>
+  <text x="1220" y="1000" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" font-weight="400" fill="#7B8496">LOCO / DEMO · 1.5</text>
+  </g>
+<g aria-label="로코 안내 위젯 · S01">
+  <path d="M1083 810H1309A13 13 0 0 1 1322 823V972A3 3 0 0 1 1319 975H1083A13 13 0 0 1 1070 962V823A13 13 0 0 1 1083 810Z" fill="#FFFFFF" fill-opacity=".98" stroke="#E1E4F1" filter="url(#locoCardShadow)" />
+  <text x="1085" y="833" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" font-weight="650" fill="#686DA9">로코<tspan font-size="8" font-weight="400" fill="#AAB0C8"> · 현장 관찰 동료</tspan></text>
+  <text x="1300" y="833" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="14" fill="#B5BAC9">×</text>
+  <text x="1085" y="856" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" fill="#6F7C95">안녕하세요, 로코예요!</text>
+<text x="1085" y="874" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" fill="#6F7C95">현장의 움직임을 기록하는 동안</text>
+<text x="1085" y="892" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="11" fill="#6F7C95">옆에서 필요한 입력을 짚어드릴게요.</text>
+  <text x="1085" y="949" font-family="Malgun Gothic, Noto Sans KR, sans-serif" font-size="10" font-weight="600" fill="#5C61DB">진행 중인 조사 열기  →</text>
+  <svg x="1322" y="888" width="94" height="115" viewBox="0 0 104 126" role="img" aria-label="안전모를 쓴 작은 로봇 로코">
+    <title>안전모를 쓴 작은 로봇 로코</title>
+    <ellipse cx="52" cy="118" rx="28" ry="5" fill="#aeb9d7" opacity=".22" />
+    <path d="M28 74 18 84l4 17 8-5 4-15m42-7 12 10-4 17-8-5-4-15" fill="#bfc8e6" stroke="#a6b3d6" stroke-width="1" />
+    <path d="M35 99v11h-8v6h20v-17m11 0v11h-1v6h20v-6h-8V99" fill="#b8c2e1" />
+    <rect x="29" y="70" width="47" height="35" rx="14" fill="url(#locoPetBody)" stroke="#aebadb" />
+    <path d="M42 82h20v12H42z" fill="#f4f5ff" stroke="#b5bfde" />
+    <path d="m47 88 3 3 7-7" stroke="#8da79e" stroke-width="2" fill="none" stroke-linecap="round" />
+    <rect x="16" y="34" width="10" height="23" rx="5" fill="#9eaaca" />
+    <rect x="78" y="34" width="10" height="23" rx="5" fill="#9eaaca" />
+    <rect x="21" y="29" width="62" height="47" rx="19" fill="url(#locoPetBody)" stroke="#a9b7d9" />
+    <rect x="27" y="37" width="50" height="29" rx="12" fill="#344063" />
+    <g class="pet-eyes"><rect x="34" y="45" width="8" height="13" rx="4" fill="#959eee" /><rect x="61" y="45" width="8" height="13" rx="4" fill="#959eee" /><circle cx="37" cy="48" r="1.5" fill="#e9ecff" /><circle cx="64" cy="48" r="1.5" fill="#e9ecff" /></g>
+    <path d="M47 59q5 4 10 0" stroke="#8a95c5" stroke-width="1.4" fill="none" stroke-linecap="round" />
+    <path d="M26 29C27 13 37 8 52 8s25 5 26 21z" fill="url(#locoPetHat)" stroke="#d5a963" />
+    <path d="M47 10v14m10-14v14" stroke="#f8dfa8" stroke-width="3" stroke-linecap="round" />
+    <rect x="20" y="27" width="64" height="7" rx="3.5" fill="#dfb161" />
+    <path d="M76 16 82 8m-3 14 8-2" stroke="#d4b67d" stroke-width="1.4" stroke-linecap="round" opacity=".65" />
+  </svg>
+</g>
 </svg>
