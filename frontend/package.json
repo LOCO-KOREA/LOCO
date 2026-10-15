@@ -1,0 +1,15 @@
+{
+    "name": "loco-frontend",
+    "version": "0.1.0",
+    "private": true,
+    "main": "electron/main.cjs",
+    "description": "Original docs/ui layouts with the selected C logo",
+    "scripts": {
+        "build": "node build-designs.cjs",
+        "start": "electron .",
+        "preview": "node build-designs.cjs && node serve.cjs"
+    },
+    "devDependencies": {
+        "electron": "^44.7.2"
+    }
+}
