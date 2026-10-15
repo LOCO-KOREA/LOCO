@@ -1,5 +1,6 @@
 """REBA_TABLE_2000_V2 candidates and scores; pure DTO functions."""
 from .task_defaults import COMMON, ARM, PHASES, diagnostic
+import math
 
 TABLE_A = [[1,2,3,4,1,2,3,4,3,3,5,6],[2,3,4,5,3,4,5,6,4,5,6,7],[2,4,5,6,4,5,6,7,5,6,7,8],[3,5,6,7,5,6,7,8,6,7,8,9],[4,6,7,8,6,7,8,9,7,8,9,9]]
 TABLE_B = [[1,2,2,1,2,3],[1,2,3,2,3,4],[3,4,5,4,5,5],[4,5,5,5,6,7],[6,7,8,7,8,8],[7,8,8,8,9,9]]
@@ -10,12 +11,16 @@ def risk(total):
 
 def candidates(slot, pose, camera_side):
     angles = (pose or {}).get('angles', [])
+    observation=slot.get('observation') or {}
+    context_ok=(camera_side in ('LEFT','RIGHT') and slot.get('forward_direction') in ('SCREEN_RIGHT','SCREEN_LEFT') and
+        slot.get('side_view_verified')=='YES' and observation.get('single_person')=='YES' and
+        observation.get('full_frame')=='YES' and observation.get('normal_work')=='YES')
     specs = [('COMMON','trunk_base',[camera_side],'TRUNK_TILT_VERT'),('COMMON','knee_band',['LEFT','RIGHT'],'KNEE_FLEX')]
     specs += [(side,field,[side],code) for side in ['LEFT','RIGHT'] for field,code in [('upper_arm_base','UPPER_ARM_FLEX_TRUNK'),('lower_arm_base','ELBOW_FLEX')]]
     result=[]
     for scope,field,sides,code in specs:
         refs=[a for a in angles if a['side'] in sides and a['angle_code']==code]
-        usable=len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=0.5 for a in refs)
+        usable=context_ok and len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=0.5 for a in refs)
         value=None; reasons=[]
         if usable:
             angle=max(a['value_deg'] for a in refs)
@@ -24,15 +29,34 @@ def candidates(slot, pose, camera_side):
             elif field=='lower_arm_base': value=1 if 60<=angle<=100 else 2; bounds=[60,100]
             else: value='UNDER_30' if angle<30 else 'FROM_30_TO_60' if angle<=60 else 'OVER_60'; bounds=[30,60]
             if any(abs(a['value_deg']-b)<=5 for a in refs for b in bounds): reasons=['BOUNDARY_REVIEW']
-        result.append(dict(slot_no=slot['slot_no'],photo_id=slot['photo_id'],scope=scope,field=field,proposed_value=value,angles=refs,min_confidence=min(a['min_confidence'] for a in refs) if usable else None,review_reasons=reasons,diagnostics=[] if usable else [diagnostic('MISSING_ANGLE','후보에 필요한 관절·각도가 없습니다')]))
+        if not context_ok: note=diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·전방·단일 작업자·전신·통상 작업 확인이 필요합니다','capture.observation')
+        elif not usable: note=diagnostic('MISSING_ANGLE','후보에 필요한 관절·각도가 없습니다')
+        else: note=None
+        result.append(dict(slot_no=slot['slot_no'],photo_id=slot['photo_id'],scope=scope,field=field,proposed_value=value,angles=refs,min_confidence=min(a['min_confidence'] for a in refs) if usable else None,review_reasons=reasons,diagnostics=[note] if note else []))
     return result
 
 def calculate_reba(snapshot, pose):
-    output=[]
-    for slot in snapshot['capture']['slots']:
-        number=slot['slot_no']; obs=slot['observation']; expected='UNLOADED' if slot['phase'] in [PHASES[0],PHASES[4]] else 'FULL_BOX'
-        load=0 if expected=='UNLOADED' else snapshot['conditions'].get('box_mass_kg')
-        if obs['phase_verified']!='YES' or obs['load_state']!=expected: load=None
+    output=[]; legacy=snapshot.get('schema_version')!='2.0'
+    targets=[s for s in snapshot['capture']['slots'] if s.get('analysis_target',True) and s.get('photo_id') is not None]
+    for slot in targets:
+        number=slot['slot_no']; obs=slot['observation']
+        if legacy:
+            expected='UNLOADED' if slot.get('phase') in [PHASES[0],PHASES[4]] else 'FULL_BOX'
+            load=0 if expected=='UNLOADED' else snapshot['conditions'].get('box_mass_kg')
+            if obs.get('phase_verified')!='YES' or obs.get('load_state')!=expected: load=None
+        else:
+            expected='UNLOADED' if obs.get('load_state')=='UNLOADED' else 'MEASURED'
+            load=0 if expected=='UNLOADED' else obs.get('measured_load_kg') if obs.get('load_state')=='MEASURED' else None
+        load_conflict=False
+        if not legacy:
+            state=obs.get('load_state','UNKNOWN'); measured=obs.get('measured_load_kg')
+            if state not in ('UNLOADED','MEASURED','UNKNOWN') or state in ('UNLOADED','UNKNOWN') and measured is not None:
+                load=None; load_conflict=True
+            elif state=='MEASURED':
+                try: finite=isinstance(measured,(int,float)) and not isinstance(measured,bool) and math.isfinite(measured)
+                except OverflowError: finite=False
+                if not finite or measured<0:
+                    load=None; load_conflict=True
         current={ (v['scope'],v['field']):v['value'] for v in snapshot['manual'] if v['slot_no']==number and v['photo_id']==slot['photo_id'] }
         sides={}
         for side in ['LEFT','RIGHT']:
@@ -41,22 +65,34 @@ def calculate_reba(snapshot, pose):
                 for field in fields:
                     val=current.get((scope,field)); values[field]=val
                     if val is None or val=='UNKNOWN': missing.append(f'{scope.lower()}.{field}')
+            # Unknown members of an already-confirmed OR do not change its score.
+            irrelevant=set()
+            if values.get('trunk_twisted') == 'YES': irrelevant.add('trunk_side_bent')
+            if values.get('trunk_side_bent') == 'YES': irrelevant.add('trunk_twisted')
+            if values.get('neck_twisted') == 'YES': irrelevant.add('neck_side_bent')
+            if values.get('neck_side_bent') == 'YES': irrelevant.add('neck_twisted')
+            if values.get('seated') == 'YES': irrelevant.add('knee_band')
+            missing=[path for path in missing if path.split('.')[-1] not in irrelevant]
             if slot['photo_id'] is None: missing.append('photo_id')
             if load is None: missing.append('effective_load_kg')
             keys=['trunk','neck','legs','table_a','load_score','score_a','upper_arm','lower_arm','wrist','table_b','coupling_score','score_b','table_c','activity_score','total']
             score=dict.fromkeys(keys); score.update(side=side,risk=None,missing_fields=missing,review_reasons=reasons)
+            if load_conflict:
+                score['review_reasons']=['INPUT_CONFLICT']; score['missing_fields'].append('observation.load_state')
             if not missing:
                 try:
                     for field in COMMON+ARM:
                         value=values[field]
+                        if field in irrelevant: continue
                         if field in ['trunk_base','neck_base','upper_arm_base','lower_arm_base','wrist_base']:
                             limit={'trunk_base':4,'neck_base':2,'upper_arm_base':4,'lower_arm_base':2,'wrist_base':2}[field]
-                            if value not in range(1,limit+1): raise ValueError(field)
+                            if field=='neck_base' and value=='2_EXTENSION': value=2; values[field]=2
+                            if isinstance(value,bool) or not isinstance(value,int) or value not in range(1,limit+1): raise ValueError(field)
                         elif field=='legs_support' and value not in ['BILATERAL_STABLE','UNILATERAL_OR_UNSTABLE']: raise ValueError(field)
                         elif field=='knee_band' and value not in ['UNDER_30','FROM_30_TO_60','OVER_60']: raise ValueError(field)
-                        elif field=='coupling' and (value not in (['NOT_APPLICABLE'] if expected=='UNLOADED' else ['GOOD','FAIR','POOR','UNACCEPTABLE'])): raise ValueError(field)
+                        elif field=='coupling' and (value not in (['NOT_APPLICABLE'] if load==0 else ['GOOD','FAIR','POOR','UNACCEPTABLE'])): raise ValueError(field)
                         elif field not in ['legs_support','knee_band','coupling'] and field not in ['trunk_base','neck_base','upper_arm_base','lower_arm_base','wrist_base'] and value not in ['YES','NO']: raise ValueError(field)
-                    if load<0 or expected=='FULL_BOX' and load<=0: raise ValueError('box_mass_kg')
+                    if isinstance(load,bool) or not isinstance(load,(int,float)) or load<0 or not math.isfinite(load): raise ValueError('effective_load_kg')
                     yes=lambda f:int(values[f]=='YES')
                     trunk=values['trunk_base']+int(yes('trunk_twisted') or yes('trunk_side_bent'))
                     neck=values['neck_base']+int(yes('neck_twisted') or yes('neck_side_bent'))
@@ -64,7 +100,7 @@ def calculate_reba(snapshot, pose):
                     upper=max(1,values['upper_arm_base']+yes('arm_abducted_or_rotated')+yes('shoulder_raised')-yes('arm_supported_or_gravity_assisted'))
                     lower=values['lower_arm_base']; wrist=values['wrist_base']+yes('wrist_deviated_or_twisted')
                     a=TABLE_A[trunk-1][(neck-1)*4+legs-1]; ls=(0 if load<5 else 1 if load<=10 else 2)+yes('shock_force')
-                    b=TABLE_B[upper-1][(lower-1)*3+wrist-1]; cs=0 if expected=='UNLOADED' else ['GOOD','FAIR','POOR','UNACCEPTABLE'].index(values['coupling'])
+                    b=TABLE_B[upper-1][(lower-1)*3+wrist-1]; cs=0 if load==0 else ['GOOD','FAIR','POOR','UNACCEPTABLE'].index(values['coupling'])
                     c=TABLE_C[a+ls-1][b+cs-1]; activity=sum(yes(f) for f in ['static_over_1min','small_repeat_over_4min','rapid_change_or_unstable'])
                     score.update(trunk=trunk,neck=neck,legs=legs,table_a=a,load_score=ls,score_a=a+ls,upper_arm=upper,lower_arm=lower,wrist=wrist,table_b=b,coupling_score=cs,score_b=b+cs,table_c=c,activity_score=activity,total=c+activity,risk=risk(c+activity))
                 except (ValueError,IndexError,TypeError): score['review_reasons']=['INPUT_CONFLICT']; score['missing_fields'].append('범주·하중 입력 확인')
@@ -73,7 +109,15 @@ def calculate_reba(snapshot, pose):
         chosen=('LEFT' if sides['left']['total']>=sides['right']['total'] else 'RIGHT') if complete else None
         total=sides[chosen.lower()]['total'] if chosen else None
         ps=next((p for p in (pose or {}).get('slots',[]) if p['slot_no']==number),None)
-        output.append(dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,snapshot['capture']['camera_side']),load_state=obs['load_state'],effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields']))))
+        camera=slot.get('camera_side',snapshot['capture'].get('camera_side'))
+        output.append(dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,camera),load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields']))))
+    by_photo={}
+    for slot in output: by_photo.setdefault(slot['photo_id'],[]).append(slot)
+    for repeated in by_photo.values():
+        if len(repeated)>1:
+            for slot in repeated:
+                slot.update(status='INCOMPLETE',selected_side=None,total=None,risk=None)
+                slot['missing_fields']=sorted(set(slot['missing_fields']+['duplicate_photo_id']))
     done=[s for s in output if s['total'] is not None]; highest=max((s['total'] for s in done),default=None)
     representative=next((s['slot_no'] for s in done if s['total']==highest),None)
-    return dict(status='COMPLETE' if len(done)==15 else 'INCOMPLETE',slots=output,summary=dict(complete_count=len(done),total_slot_count=15,available_max=highest,full_max=highest if len(done)==15 else None,representative_slot_no=representative,selection='AUTO' if done else None))
+    return dict(status='COMPLETE' if len(done)==len(targets) and bool(targets) else 'INCOMPLETE',slots=output,summary=dict(complete_count=len(done),total_slot_count=len(targets),available_max=highest,full_max=highest if len(done)==len(targets) and bool(targets) else None,representative_slot_no=representative,selection='AUTO' if done else None))

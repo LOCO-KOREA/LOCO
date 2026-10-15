@@ -6,7 +6,7 @@ let window,worker,terminalError,sequence=0;
 const pending=new Map();
 function disconnect(error){terminalError=error;for(const request of pending.values())request.reject(error);pending.clear();}
 function startWorker(){
- const entry=process.env.LOCO_SERVICE_ENTRY||join(__dirname,'..','service','survey_service.py');
+ const entry=process.env.LOCO_SERVICE_ENTRY||join(__dirname,'..','..','ergo','service','json_lines.py');
  worker=spawn(process.env.LOCO_PYTHON||'python',['-u',resolve(entry)],{cwd:resolve(__dirname,'../..'),windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONDONTWRITEBYTECODE:'1'}});
  worker.on('error',error=>disconnect(new Error('Python 실행 실패: '+error.message)));
  worker.on('exit',code=>disconnect(new Error(`Python 서비스가 종료되었습니다 (${code}). 실행 경로를 확인하세요.`)));

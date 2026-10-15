@@ -31,6 +31,15 @@ def respond(request):
         print(json.dumps(dict(request_id=request.get('request_id'), result=result),
                          ensure_ascii=False, allow_nan=False), flush=True)
 
+
+def handle(request):
+    """Keep network-backed explanations from blocking subsequent IPC requests."""
+    if request.get('method') == 'generate_ai_text':
+        threading.Thread(target=respond, args=(request,), daemon=True).start()
+    else:
+        respond(request)
+
+
 def main():
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
@@ -41,7 +50,7 @@ def main():
         except json.JSONDecodeError:
             traceback.print_exc(file=sys.stderr)
             continue
-        respond(request)
+        handle(request)
 
 if __name__ == '__main__':
     main()

@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+models/*.tflite
 docs_src/.work/
 *.db
 *.db-wal

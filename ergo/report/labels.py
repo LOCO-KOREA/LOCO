@@ -13,6 +13,10 @@ def input_label(path):
     if exposure:
         return EXPOSURES[exposure] + ' 시간'
     field = parts[-1]
+    if field == 'rows_complete':
+        return '하루의 모든 해당 조건 행 기록 여부'
+    if field == 'value' and len(parts) >= 2 and parts[-2] == 'union':
+        return '적격 행의 중복 제거 합집합 수치'
     name = INPUTS.get(field, MANUAL.get(field, str(path)))
     scope = {'common':'공통', 'left':'왼쪽', 'right':'오른쪽'}.get(parts[0])
     return scope + ' · ' + name if scope else name

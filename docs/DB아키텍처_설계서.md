@@ -1,6 +1,6 @@
 # 데이터베이스 아키텍처 설계서
 
-> 문서 ID ERGO-ARCH-001 · 설계 버전 2.0 · 개정일 2026-10-15 · 완성 목표 2026-10-23(Asia/Seoul)
+> 문서 ID ERGO-ARCH-001 · 설계 버전 2.0 · 개정일 2026-10-16 · 완성 목표 2026-10-23(Asia/Seoul)
 
 ## 1. 구조와 구현 경계
 
@@ -8,22 +8,21 @@ Electron renderer → preload → main → Python Application Service → task_i
 
 상자 들기와 다른 작업에 동일한 일반 작업/가변 사진 경로를 사용한다. 입력 템플릿은 UI 설정이며 서비스·DB에 별도 상자 프로토콜을 추가하지 않는다. 이전 1.3 프로토콜은 호환 읽기 adapter에 한정한다.
 
-여섯 테이블의 기존 컬럼을 유지하고 2.0의 조건 행·분석 범위·모듈 상태·GPT 이력·전후 비교는 JSON에 넣는다. 세부 매핑은 [ERD](ERD_데이터설계서.md), 서비스 계약은 [API](API_계약서.md)를 따른다.
+여섯 테이블의 기존 컬럼을 유지하고 2.0의 조건 행·분석 범위·모듈 상태·GPT 이력·전후 비교와 조사 맥락·참여·증상 응답은 JSON에 넣는다. 물리 migration은 없다. 세부 매핑은 [ERD](ERD_데이터설계서.md), 서비스 계약은 [API](API_계약서.md)를 따른다.
 
 ## 2. 현재 실행 경로와 목표 배포
 
-| 항목 | 현재 코드에서 확인한 경로/동작 | 2.0 목표 |
+| 항목 | 기준 main e7b0cf1 | 현재 2.0 브랜치 |
 |---|---|---|
-| 통합 시작 | run-integrated.ps1 → frontend/start.ps1 → ergo/service/json_lines.py | 공통 서비스 단일 진입점 |
-| 업무 조정 | ergo/service/application.py | 일반 작업·범위·revision·비동기 조정 |
-| frontend 기본 실행 | electron/main.cjs는 별도 지정 없으면 service/survey_service.py | 배포에서 공통 서비스로 고정 |
-| 통합 DB 기본 | frontend/.local/loco_frontend.db | 선택 가능한 사용자 데이터 경로 |
-| 서비스 단독 DB 기본 | %LOCALAPPDATA%/LOCO/loco_demo.db | 실제 사용할 경로를 실행 안내에 명시 |
-| 모델 | LOCO_MOVENET_MODEL 또는 models/movenet_lightning.tflite | 배포 모델 파일·버전·경로 검증 |
-| GPT | application.py의 고정 텍스트 | 실제 API + 대체 설명 + 편집/적용 보존 |
-| 별도 desktop 샘플 | samples/desktop의 이전 backend | 이전 구조 참고, 새 구현 정본 아님 |
+| 통합 시작 | 별도 `survey_service.py` adapter와 공통 서비스가 공존 | run-integrated.ps1과 Electron 기본 경로가 `ergo/service/json_lines.py` 사용 |
+| 업무 조정 | 상자 작업과 고정 사진의 1.3 흐름 | 일반 작업·11개 기준·가변 사진·revision·분석 범위 |
+| 저장 경로 | 프론트 adapter 전용 DB 기본 경로 | frontend/.local/loco_frontend.db, `-DatabasePath`로 변경 가능 |
+| 모델 | 모델 설치·활성 추론 확인 없음 | 공식 Lightning float16 v4 다운로드·SHA-256 검증·CPU 추론 스모크 확인 |
+| GPT | 고정 문구 | 허용 수치 요약·실제 API client·대체 설명·편집/적용 보존; 실제 계정 호출은 미검증 |
+| 보고서 | 기존 1.3 출력 | 기본 4시트와 질환자 발생 수시조사의 별지 기반 2시트·미리보기·전후 비교 연결 |
+| 별도 desktop 샘플 | 이전 backend | 이전 구조 참고, 새 구현 정본 아님 |
 
-설계 변경은 현재 코드의 실행 완료를 의미하지 않는다. 10월 16일 첫 Windows 실행 묶음, 10월 22일 개발 환경 없는 PC 검증, 10월 23일 전달을 목표로 한다. 첫 묶음은 중간본이며 11개 기준 완성을 주장하지 않는다.
+2026-10-16 확인 범위: Python 전체 48개 시험, 5개 결함 주입 변이와 대조군, 공식 MoveNet 모델 CPU 추론, Electron UI의 입력·저장·분석·내보내기, 질환자 발생 수시조사의 6시트와 다른 사유의 4시트. CPython 3.12 x64, 실제 GPT API, 구형 1.3 사용자 자료 표본, 개발 환경 없는 PC 설치와 현장 조사자 사용은 아직 검증하지 않았다. 10월 22일 깨끗한 PC 확인과 10월 23일 전달은 계속 목표로 두며, 이 중간 확인만으로 전체 수용을 선언하지 않는다.
 
 ## 3. 파일과 런타임
 
@@ -36,7 +35,7 @@ Electron renderer → preload → main → Python Application Service → task_i
 | Excel | 사용자가 선택한 출력 경로; EXPORT_LOG에 당시 snapshot/receipt |
 | API 키 | Python 환경 OPENAI_API_KEY; DB/renderer/패키지에 저장하지 않음 |
 
-현재 requirements-desktop.txt는 Pillow, numpy, openpyxl, ai-edge-litert, opencv-python-headless를 사용한다. 목표 런타임은 CPython 3.12 x64다. 실제 GPT를 연결할 때 공식 SDK 의존성과 사용 버전을 명시하고 배포본에도 포함한다. 이번 문서 개정은 의존성 파일을 바꾸지 않는다.
+requirements-desktop.txt는 Pillow, numpy, openpyxl, ai-edge-litert, opencv-python-headless, OpenAI Python SDK를 선언한다. 목표 런타임은 CPython 3.12 x64다. MoveNet은 공식 버전 URL에서 받아 SHA-256 검증하며 모델 바이너리는 저장소에 넣지 않는다.
 
 DB·모델·사진·출력 경로에 공백/한글이 있어도 인자를 목록으로 전달한다. Python 프로세스는 windowsHide=true로 시작한다. 비밀키를 로그/예외 원문에 출력하지 않는다. 사진을 GPT에 업로드하지 않는다.
 
@@ -51,7 +50,7 @@ DB·모델·사진·출력 경로에 공백/한글이 있어도 인자를 목록
 | reba | 관찰 하중·수동 범주 → 좌우 점수·누락·집계 | 없음 |
 | burden | 직접시간·조건 행·제외 조건 → 11개 초안 | 없음 |
 | explanation | NumericSummary → 생성/대체 설명 | 없음 |
-| report | ExportSnapshot → overview·한글 4시트 | 없음 |
+| report | ExportSnapshot → overview·한글 기본 4시트와 조건부 별지 기반 2시트 | 없음 |
 | storage | DTO/부분 변경 → 여섯 테이블 | 있음 |
 
 명칭은 논리 책임이며 모든 파일이 이미 존재한다는 뜻은 아니다. 공통 DTO를 사용하고 샘플 backend를 공통 모듈의 런타임 의존성으로 삼지 않는다. DB 분기 개선은 base와 의존 경로를 확인해 필요한 부분만 포팅한다.
@@ -74,6 +73,8 @@ start_analysis는 snapshot·RUNNING 행과 핸들을 먼저 반환하고 분석�
 
 작업자/방법/작업 높이 변경, 촬영조건 변경, 모델/전처리 변경의 수동값 처리 범위는 기능정의서 §6을 따른다. 직접 관찰과 AUTO_ACCEPTED를 구분해 모델 변경이 현장 사실을 지우지 않게 한다.
 
+조사 메타 JSON에는 최초/정기/수시 유형, 수시 사유 유형, 작업장 상황의 설비·작업량·속도·업무형태 변화, 근로자 참여기록, 증상조사 방법·익명 응답·요약을 저장한다. 응답 이름은 선택이며 익명 응답 코드를 기본 사용한다. 과거 행의 빠진 필드는 UNKNOWN/빈 값으로 노출하고 명시 저장 전까지 기존 JSON을 바꾸지 않는다.
+
 ### 분석 시작·완료
 
 시작 트랜잭션에서 입력·PHOTO·설정의 snapshot, ANALYSIS 행, TASK.latest_analysis_id를 함께 저장한다. 계산은 snapshot만 읽는다. 완료는 해당 analysis_id의 계산 키·모듈 상태·시각을 갱신한다. 기존 RUNNING 결과를 새 FINISHED 행에 복사하지 않는다.
@@ -92,7 +93,7 @@ storage는 트랜잭션 안에서 최신 result_json을 읽어 소유한 경로�
 
 한 읽기 snapshot으로 현존 모든 작업, 작업별 선택 분석, 미분석 작업, 별도 비교 분석, 조사 메타·검토를 묶는다. report.build_overview(snapshot)를 UI·Excel·receipt가 공유한다. 미리보기는 출력 파일·로그를 만들지 않는다.
 
-렌더링은 같은 snapshot으로 한글 4시트를 만든다. 파일 쓰기 실패는 EXPORT_ERROR이며 성공 로그를 남기지 않는다. 파일 완료 후 EXPORT_LOG를 저장한다. 파일과 SQLite를 단일 원자 트랜잭션으로 보장하지 않는다. 파일은 생성됐지만 로그 저장이 실패하면 DB_ERROR와 생성 경로를 알려 준다. 이를 정상 출력 완료로 보고하지 않는다.
+렌더링은 같은 snapshot으로 기본 한글 4시트를 만든다. 근골격계질환자 발생/업무상 질병 인정에 따른 수시조사에는 입력 자료를 반영한 별지 1·2 기반 시트를 추가한다. 신규 작업·설비 또는 작업환경 변경 수시조사에는 별지 의무 시트를 붙이지 않고 조사 맥락·참여·증상 기록을 보조 보고서에 포함한다. 빈 항목을 완료로 채우지 않고 조사자에게 대조/검토 필요를 표시한다. 파일 쓰기 실패는 EXPORT_ERROR이며 성공 로그를 남기지 않는다. 파일 완료 후 EXPORT_LOG를 저장한다. 파일과 SQLite를 단일 원자 트랜잭션으로 보장하지 않는다. 파일은 생성됐지만 로그 저장이 실패하면 DB_ERROR와 생성 경로를 알려 준다. 이를 정상 출력 완료로 보고하지 않는다.
 
 비교 대상의 두 분석은 같은 조사에 속하는 서로 다른 ID여야 한다. 없는 ID를 최신 분석으로 몰래 대체하지 않는다. 호별 상태를 병기하고 REBA 규칙·프로토콜·대상 수·전체 완성이 맞을 때만 최대 점수 차이를 계산한다.
 

@@ -8,7 +8,7 @@ body:has(#photo-workspace:not([hidden])) .page-title h1{margin-bottom:8px}
 .photo-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:-10px;margin-bottom:12px;min-height:36px}
 .photo-heading h2{margin:0;font-size:18px}.photo-heading .primary{min-width:186px;min-height:36px;padding:8px 16px}
 .photo-grid{display:flex;flex-direction:column;gap:11px}
-.photo-grid-row{display:grid;grid-template-columns:minmax(145px,224fr) repeat(3,minmax(0,218fr));gap:16px;align-items:center;min-height:54px}
+.photo-grid-row{display:grid;grid-template-columns:minmax(42px,.65fr) minmax(70px,1.05fr) minmax(58px,.8fr) minmax(70px,.95fr) minmax(148px,2.15fr);gap:12px;align-items:center;min-height:54px}
 .photo-grid-head{min-height:24px;font-size:13px}.photo-grid-head>span{font-size:12px;color:#7b8496}.photo-grid-head>strong{text-align:center}
 .photo-phase strong,.photo-phase small{display:block}.photo-phase strong{font-size:13px}.photo-phase small{font-size:12px;color:#7b8496;margin-top:9px}
 .photo-slot{border:1px solid var(--line);border-radius:9px;background:#fafbfd;padding:5px 9px;min-width:0;height:54px}
@@ -37,4 +37,4 @@ body:has(#photo-workspace:not([hidden])) footer{margin-top:16px}
 .photo-file-path{font-size:12px;overflow-wrap:anywhere;color:#7b8496}.photo-detail-top{display:grid;grid-template-columns:180px minmax(0,1fr);gap:20px;align-items:center;margin:14px 0}.photo-detail-top strong{font-size:14px;overflow-wrap:anywhere}
 .photo-dialog>label,.photo-evidence-pair label{display:block;margin-top:16px;font-size:13px;font-weight:650}.photo-dialog textarea{height:70px}.photo-evidence-pair{display:grid;grid-template-columns:1fr 1fr;gap:20px}.photo-dialog>[data-photo-action="keep-details"]{margin-top:20px}
 .photo-full-guide{padding-left:22px;font-size:13px;line-height:1.8;color:#56647b}.photo-full-guide li{margin:12px 0}
-@media(max-width:1250px){.photo-columns{gap:14px;grid-template-columns:minmax(0,1fr) 300px}#photo-workspace .panel{padding:20px 16px}.photo-grid-row{grid-template-columns:140px repeat(3,minmax(0,1fr));gap:8px}.photo-slot{padding-left:5px;padding-right:5px}.photo-slot-actions{gap:4px}.photo-heading .primary{min-width:125px}.photo-heading h2{font-size:16px}.photo-candidate-line{align-items:flex-start}.photo-candidates{grid-template-columns:repeat(2,minmax(0,1fr))}.photo-camera{gap:16px}}
+@media(max-width:1250px){.photo-columns{gap:14px;grid-template-columns:minmax(0,1fr) 300px}#photo-workspace .panel{padding:20px 16px}.photo-grid-row{grid-template-columns:minmax(38px,.55fr) minmax(58px,.95fr) minmax(50px,.8fr) minmax(60px,.85fr) minmax(138px,1.95fr);gap:8px}.photo-slot{padding-left:5px;padding-right:5px}.photo-slot-actions{gap:4px}.photo-heading .primary{min-width:125px}.photo-heading h2{font-size:16px}.photo-candidate-line{align-items:flex-start}.photo-candidates{grid-template-columns:repeat(2,minmax(0,1fr))}.photo-camera{gap:16px}}

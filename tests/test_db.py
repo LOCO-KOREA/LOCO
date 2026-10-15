@@ -1,78 +1,65 @@
-"""DB: 연결 규칙 (ERD 6.1절)과 제약 시험 32개 (ERD 9절)."""
-import importlib.util
+"""Persistence tests for the canonical six-table JSON DTO store."""
+import json
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
-from ergo.db import SCHEMA_VERSION, open_db
+from ergo.db import open_db, storage
+from ergo.engine.task_defaults import task_input
 
-ROOT = Path(__file__).resolve().parents[1]
 
-
-class OpenDb(unittest.TestCase):
-    def test_in_memory_has_schema_seed_and_foreign_keys(self):
-        con = open_db()
+class StorageTests(unittest.TestCase):
+    def test_schema_contains_exactly_the_six_documented_tables(self):
+        connection = open_db(':memory:')
         try:
-            self.assertEqual(con.execute("PRAGMA foreign_keys").fetchone()[0], 1)
-            self.assertEqual(con.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
-            self.assertEqual(con.execute("SELECT MAX(version_no) FROM schema_version").fetchone()[0], SCHEMA_VERSION)
-            self.assertEqual(con.execute("SELECT COUNT(*) FROM criterion").fetchone()[0], 11)
-            with self.assertRaises(sqlite3.IntegrityError):          # 외래키가 실제로 켜져 있다
-                con.execute("INSERT INTO unit_task(survey_id,task_name,worker_cnt,period_type_cd) VALUES (999,'x',1,'ONGOING')")
+            tables = {row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         finally:
-            con.close()
+            connection.close()
+        self.assertEqual(tables, {'SURVEY', 'TASK', 'PHOTO', 'ANALYSIS', 'APP_SETTINGS', 'EXPORT_LOG'})
 
-    def test_file_db_uses_wal_and_reopens(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / "ergo_assist.db"
-            con = open_db(path)
-            self.assertEqual(con.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
-            con.execute("INSERT INTO survey(survey_type_cd,survey_date,investigator_name,dept_name,process_name,work_name)"
-                        " VALUES ('REGULAR','2026-10-23','홍길동','a','b','c')")
-            con.commit()
-            con.close()
-            again = open_db(path)
-            self.assertEqual(again.execute("SELECT COUNT(*) FROM survey").fetchone()[0], 1)
-            again.close()
+    def test_file_database_reopens_and_task_revision_increments_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = str(Path(root) / 'loco.db')
+            survey_id = storage.create_survey({'title': '조사'}, {'reviewed': False}, 'now', 'now', db_path=path)
+            task_id = storage.create_task(survey_id, task_input({'task_name': '상자 들기'}), 'now', 'now', db_path=path)
+            before = storage.get_task(task_id, db_path=path)
+            changed = task_input({'task_name': '조립 작업'})
+            revision = storage.update_task_input(task_id, changed, 'later', db_path=path)
+            after = storage.get_task(task_id, db_path=path)
+            self.assertEqual(revision, before['input_revision'] + 1)
+            self.assertEqual(after['input_revision'], revision)
+            self.assertEqual(after['task_name'], '조립 작업')
+            connection = open_db(path)
+            try:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM TASK').fetchone()[0], 1)
+            finally:
+                connection.close()
 
-    def test_old_sqlite_is_refused_with_a_clear_message(self):
-        from unittest import mock
-        with mock.patch.object(sqlite3, "sqlite_version_info", (3, 30, 0)), mock.patch.object(sqlite3, "sqlite_version", "3.30.0"):
-            with self.assertRaises(RuntimeError) as cm:
-                open_db()
-        self.assertIn("3.38.0", str(cm.exception))
-
-    def test_unknown_schema_version_is_refused(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / "x.db"
-            raw = sqlite3.connect(path)
-            raw.execute("PRAGMA user_version = 99")
-            raw.execute("CREATE TABLE t(a)")
-            raw.commit()
-            raw.close()
-            with self.assertRaises(RuntimeError):
-                open_db(path)
-
-
-class ConstraintTests(unittest.TestCase):
-    """docs_src/erd/build_and_test.py의 32개 시험을 그대로 돌린다 (통과해야 할 8개, DB가 막아야 할 24개)."""
-
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location("erd_build_and_test", ROOT / "docs_src" / "erd" / "build_and_test.py")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        cls.results = mod.results
-
-    def test_at_least_32_cases(self):
-        self.assertGreaterEqual(len(self.results), 32)
-
-    def test_every_case_behaves_as_expected(self):
-        for r in self.results:
-            with self.subTest(case=r["id"], name=r["name"]):
-                self.assertTrue(r["ok"], f"{r['id']} {r['name']}: {r['msg']}")
+    def test_deleting_photo_clears_v2_reference_observation_and_manual_input(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = str(Path(root) / 'loco.db')
+            survey_id = storage.create_survey({'title': '조사'}, {'reviewed': False}, 'now', 'now', db_path=path)
+            data = task_input({'task_name': '작업'})
+            task_id = storage.create_task(survey_id, data, 'now', 'now', db_path=path)
+            photo_id = storage.create_photo(task_id, {'file_path': 'photo.jpg', 'file_name': 'photo.jpg'}, db_path=path)
+            data['capture']['slots'] = [{'slot_no': 5, 'photo_id': photo_id, 'analysis_target': True,
+                'observation': {'load_state': 'MEASURED', 'measured_load_kg': 12, 'single_person': 'YES',
+                    'full_frame': 'YES', 'normal_work': 'YES'}}]
+            data['manual'] = [{'slot_no': 5, 'photo_id': photo_id, 'scope': 'COMMON', 'field': 'trunk_base', 'value': 2}]
+            storage.update_task_input(task_id, data, 'later', db_path=path)
+            before_revision = storage.get_task(task_id, db_path=path)['input_revision']
+            storage.delete_photo(photo_id, db_path=path)
+            after = storage.get_task(task_id, db_path=path)
+            slot = after['capture']['slots'][0]
+            self.assertEqual(after['input_revision'], before_revision + 1)
+            self.assertIsNone(slot['photo_id'])
+            self.assertFalse(slot['analysis_target'])
+            self.assertEqual(slot['observation']['load_state'], 'UNKNOWN')
+            self.assertEqual(after['manual'], [])
+            self.assertIsNone(storage.get_photo(photo_id, db_path=path))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

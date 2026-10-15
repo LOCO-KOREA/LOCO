@@ -1,6 +1,6 @@
 # API 계약서
 
-> 문서 ID ERGO-API-001 · 설계 버전 2.0 · 개정일 2026-10-15 · 완성 목표 2026-10-23(Asia/Seoul)
+> 문서 ID ERGO-API-001 · 설계 버전 2.0 · 개정일 2026-10-16 · 완성 목표 2026-10-23(Asia/Seoul)
 >
 > 구현할 계약이다. 검토 기준 main e7b0cf1의 코드·저장자료는 주로 1.3이며 이 문서의 구현·검증 완료를 뜻하지 않는다.
 
@@ -18,7 +18,7 @@ Electron renderer → preload → main → Python Application Service → 기능
 | reba | 관찰 하중·수동 범주·점수표 계산 |
 | burden | 직접입력으로 11개 기준 초안·비교근거·누락·모순 |
 | explanation | 허용 수치 요약으로 실제 GPT API/로컬 대체 설명 |
-| report | 같은 snapshot의 한글 4시트·상태·다음 입력·전후 비교 |
+| report | 같은 snapshot의 한글 기본 4시트·조사유형별 별지 시트·상태·다음 입력·전후 비교 |
 | storage | 여섯 테이블의 JSON 매핑·트랜잭션·부분 결과 저장 |
 
 신규 TaskInput/TaskSnapshot/ExportSnapshot.schema_version과 report_version은 '2.0'이다. 물리 테이블은 유지한다. 문서 1.5/저장 1.3/미병합 업무 양식 1.4는 이전 계약이며 기존 행을 일괄 변환하지 않는다.
@@ -61,15 +61,23 @@ null은 미입력이고 실제 0은 숫자 0이다. UI·Excel은 Asia/Seoul로 �
 ### 3.1 일반 작업
 
 ~~~typescript
-type SurveyDraft = {survey_type:'REGULAR'|'OCCASIONAL',survey_date:Date,investigator:string,department:string,process:string,title:string,occasional_reason:string|null};
+type SurveyType = 'INITIAL'|'REGULAR'|'OCCASIONAL';
+type OccasionalCause = 'DISEASE_CASE'|'NEW_TASK_OR_EQUIPMENT'|'WORK_ENVIRONMENT_CHANGE'|'OTHER';
+type WorkplaceSituation = {equipment_status:Truth,equipment_notes:string,workload_status:Truth,workload_notes:string,speed_status:Truth,speed_notes:string,work_pattern_status:Truth,work_pattern_notes:string};
+type WorkerParticipation = {status:Truth,role:'WORKER_REPRESENTATIVE'|'AFFECTED_WORKER'|'BOTH'|'UNKNOWN',participant_code:string,method:'INTERVIEW'|'MEETING'|'OBSERVATION'|'OTHER'|'UNKNOWN',date:Date|null,notes:string};
+type SymptomRegion = {side:'RIGHT'|'LEFT'|'BOTH'|'NONE'|'UNKNOWN',duration:'LT_1_DAY'|'DAY_TO_WEEK'|'WEEK_TO_MONTH'|'MONTH_TO_6_MONTHS'|'GE_6_MONTHS'|'UNKNOWN',severity:'MILD'|'MODERATE'|'SEVERE'|'VERY_SEVERE'|'UNKNOWN',last_week:Truth};
+type SymptomResponse = {response_code:string,name:string,age_years:Count|null,sex:'MALE'|'FEMALE'|'UNKNOWN',workplace_tenure_months:Count|null,department:string,job:string,current_work:string,current_work_months:Count|null,daily_work_hours:Count|null,rest_breaks:string,previous_work:string,previous_work_months:Count|null,leisure_activities:string,household_work:string,medical_history:Truth,injury_history:Truth,injury_sites:string[],physical_burden:1|2|3|4|5|null,work_related_symptoms_last_year:Truth,regions:Record<'neck'|'shoulder'|'arm_elbow'|'hand_wrist'|'back'|'leg_foot',SymptomRegion>};
+type SymptomSurvey = {method:'QUESTIONNAIRE'|'INTERVIEW'|'OTHER'|'NOT_DONE'|'UNKNOWN',date:Date|null,respondent_count:Count|null,summary:string,responses:SymptomResponse[]};
+type SurveyDraft = {survey_type:SurveyType,survey_date:Date,investigator:string,department:string,process:string,title:string,occasional_reason:string|null,occasional_cause:OccasionalCause|null,previous_survey_date:Date|null,workplace_situation:WorkplaceSituation,participation:WorkerParticipation,symptom_survey:SymptomSurvey};
 type ReviewMark = {reviewed:boolean,reviewed_analysis_ids:ID[],reviewed_metadata_revision:Count|null,reviewer:string|null,reviewed_at:Timestamp|null,note:string|null};
 type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp};
 type SurveySummary = {survey_id:ID,title:string,survey_date:Date,task_count:Count,reviewed:boolean,review_current:boolean};
 type InputTemplate = 'GENERAL'|'OFFICE'|'REPETITION'|'POSTURE'|'HAND_FORCE'|'LIFTING'|'IMPACT';
 type TaskConditions = {
-  worker_code:string,method_description:string,work_height_cm:Number|null,
-  daily_work_min:Number|null,one_off:Truth,planned_duration_months:Number|null,
-  annual_work_days:Count|null,evidence:Evidence
+  worker_code:string,method_description:string,work_posture:string,work_height_cm:Number|null,
+  daily_work_min:Number|null,work_intensity:1|2|3|4|5|null,work_frequency:1|2|3|4|5|null,
+  hazard_factors:string,hazard_causes:string,improvement_recommendations:string,
+  one_off:Truth,planned_duration_months:Number|null,annual_work_days:Count|null,evidence:Evidence
 };
 type AnalysisScope = {judgment:true,pose:boolean,tags:boolean,reba:boolean};
 type TaskDraft = {task_name:string,input_template:InputTemplate,conditions:TaskConditions};
@@ -261,7 +269,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | method | params | value |
 |---|---|---|
 | list_surveys | 없음 | SurveySummary[] |
-| create_survey / update_survey | draft / survey_id,draft | Survey |
+| create_survey / update_survey | draft / survey_id,draft. OCCASIONAL은 occasional_cause 필수 | Survey |
 | get_survey / delete_survey | survey_id | Survey / Ack |
 | set_survey_review | survey_id,review | Survey |
 | list_tasks | survey_id | Task[] |
@@ -306,7 +314,7 @@ delete_photo는 배정 해제·관찰 초기화·대상 manual 제거·PHOTO 삭
 ~~~typescript
 type ComparisonSpec = {before_analysis_id:ID,after_analysis_id:ID,note:string|null};
 type ExportSpec = {destination:string,analysis_ids:ID[],include_representative:boolean,comparisons:ComparisonSpec[]};
-type ReportState = {reviewed:boolean,review_current:boolean,has_incomplete:boolean,has_stale:boolean};
+type ReportState = {reviewed:boolean,review_current:boolean,has_incomplete:boolean,has_stale:boolean,survey_input_complete:boolean};
 type ReportCounts = {needs_input_count:Count|null,needs_review_count:Count|null,incomplete_reba_count:Count|null};
 type NextInputItem = {module:'ANALYSIS'|'POSE'|'TAGS'|'REBA'|'BURDEN'|'EXPLANATION',kind:'NOT_CALCULATED'|'MISSING_INPUT'|'REVIEW_REQUIRED',slot_no:Count|null,criterion_no:Count|null,field_paths:string[],reason_codes:string[],message:string};
 type ReportTaskOverview = {
@@ -320,7 +328,7 @@ type ComparisonOverview = {
   reba_max_delta:Number|null,criteria:{criterion_no:Count,before_computed_status:JudgmentStatus|null,before_investigator_status:FinalStatus|null,before_status:JudgmentStatus|null,after_computed_status:JudgmentStatus|null,after_investigator_status:FinalStatus|null,after_status:JudgmentStatus|null}[],
   condition_changes:{field_path:string,before:unknown,after:unknown}[],notes:string[]
 };
-type ReportOverview = {report_version:'2.0',state:ReportState,counts:ReportCounts,tasks:ReportTaskOverview[],comparisons:ComparisonOverview[]};
+type ReportOverview = {report_version:'2.0',state:ReportState,counts:ReportCounts,tasks:ReportTaskOverview[],comparisons:ComparisonOverview[],survey_followups:string[]};
 type ExportSnapshot = {
   schema_version:'2.0',report_version:'2.0',survey:Survey,tasks:Task[],analyses:Analysis[],unanalysed_task_ids:ID[],
   include_representative:boolean,comparison_specs:ComparisonSpec[],comparison_analyses:Analysis[],exported_at:Timestamp
@@ -334,7 +342,7 @@ type ExportLogItem = {export_id:ID,survey_id:ID,file_path:string,receipt:ExportR
 
 REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때만 full_max의 후−전을 reba_max_delta로 제공한다. 그 밖에는 null과 이유다. rule_compatible은 고시/REBA 규칙이 모두 같을 때 true다. REBA 차이에는 REBA 규칙 호환성과 sampling_compatible을 사용하고, 고시 버전 차이는 호별 비교 제한으로 별도 표시한다. sampling_compatible은 같은 프로토콜·동일한 양의 대상 수·양쪽 전 대상 REBA 완성이다. 조건 차이·사진 대표성 한계를 표시하며 질환/산재 감소의 증명으로 표현하지 않는다.
 
-시트는 요약/작업별 결과/확인사항/판정 근거의 네 개다. 아래는 내부 데이터 키 순서이며 한글 표시는 화면설계서 S08을 따른다.
+기본 시트는 요약/작업별 결과/확인사항/판정 근거의 네 개다. OCCASIONAL+DISEASE_CASE일 때만 `별지1 유해요인조사표`, `별지2 증상조사표` 기반 시트를 추가한다. 출력 영수증의 sheets에는 실제 생성된 시트를 그대로 저장한다. 이 시트는 입력 자료 기반 초안이며 누락·원본 서식 대조·서명/날인·조사자 검토를 대신하지 않는다. 아래는 기본 시트의 내부 데이터 키 순서이며 한글 표시는 화면설계서 S08을 따른다.
 
 | 시트 | 데이터 열 |
 |---|---|
@@ -343,7 +351,7 @@ REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때�
 | 확인사항 | task_id,analysis_id,module,slot_no,criterion_no,kind,message,source,reviewer_memo |
 | 판정 근거 | task_id,analysis_id,criterion_no,computed_status,investigator_status,effective_status,exclusion,comparison_values,missing_fields,review_reasons,source,investigator_reason,investigator_evidence,reviewer,reviewed_at |
 
-작업별 결과에는 조건별 행/15종 시간/수동값/사진별 좌표·각도·태그·REBA 구성점수/모델·규칙/설명 생성·수정·적용본을 section으로 펼친다. 분석 사진 상세는 N개, 근거 전용 사진은 별도 목록이다. 비교 블록은 정렬 표 밖에 두고 조건 차이/비교 제한은 확인사항에도 표시한다. 추가 시트를 만들지 않는다.
+작업별 결과에는 조사구분/작업장 상황/참여/증상조사와 조건별 행/15종 시간/수동값/사진별 좌표·각도·태그·REBA 구성점수/모델·규칙/설명 생성·수정·적용본을 section으로 펼친다. 분석 사진 상세는 N개, 근거 전용 사진은 별도 목록이다. 비교 블록은 정렬 표 밖에 두고 조건 차이/비교 제한은 확인사항에도 표시한다. 수시 사유가 질환자 발생/업무상 질병 인정이면 두 추가 시트를 생성한다.
 
 needs_input_count/needs_review_count는 computed_status별 기준 수(작업당 0~11)다. judgment 미계산이면 null이며 조사 집계에 null이 있으면 합계도 null이다. incomplete_reba_count는 요청하고 계산한 REBA의 N−complete_count다. 미계산/미요청은 null로 두고 상태로 구분한다. 요청 대상 0건은 0과 NO_ANALYSIS_TARGET을 함께 표시한다. REBA 조사 합계는 전체 미요청이면 null, 요청 작업 중 미계산이 있으면 null, 나머지는 요청·계산한 작업의 수를 더한다.
 

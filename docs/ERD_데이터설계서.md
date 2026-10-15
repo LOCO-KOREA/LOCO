@@ -1,6 +1,6 @@
 # ERD · 데이터 설계서
 
-> 문서 ID ERGO-DATA-001 · 설계 버전 2.0 · 개정일 2026-10-15 · 완성 목표 2026-10-23(Asia/Seoul)
+> 문서 ID ERGO-DATA-001 · 설계 버전 2.0 · 개정일 2026-10-16 · 완성 목표 2026-10-23(Asia/Seoul)
 
 ## 1. 저장 원칙과 논리 관계
 
@@ -34,7 +34,7 @@ ID는 양의 정수, 시각은 UTC ISO8601이다. UI·Excel은 Asia/Seoul로 표
 
 ### SURVEY
 
-metadata_json은 SurveyDraft의 조사종류·날짜·조사자·부서·공정·제목·수시 사유다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
+metadata_json은 SurveyDraft의 최초/정기/수시 유형·수시 사유·이전 조사일, 작업장 상황의 설비/작업량/속도/업무형태 변화, 근로자 참여기록, 증상조사 방법·익명 응답·요약을 저장한다. 응답 이름은 선택사항이며 익명 코드를 권장한다. 건강 관련 정보는 로컬 SQLite와 내보낸 파일에 평문으로 포함될 수 있으므로 파일 접근을 제한해야 한다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
 
 ### TASK.input_json
 
@@ -42,7 +42,7 @@ API의 TaskInput 전체를 저장한다. schema_version='2.0', task_kind='GENERA
 
 | JSON 영역 | 내용 |
 |---|---|
-| conditions | 작업자 코드·방법·작업 높이·하루 시간·일회성·예정 개월·연간 일수·근거 |
+| conditions | 작업자 코드·방법·자세·작업 높이·하루 시간·강도/빈도 자기평가·유해요인/원인·개선 제안·일회성·예정 개월·연간 일수·근거 |
 | legal.criteria | criterion_no 1~11을 각각 한 번; 공통 질적 확인과 기준별 조건 |
 | legal.exposures | 1~5호의 ExposureCode 15종 직접시간·근거 |
 | 기준 6~11 | 조건별 rows·rows_complete·적격 행 row_ids·중복 제거 union 또는 9호 totals |
@@ -90,7 +90,7 @@ snapshot_json은 ExportSnapshot 2.0 전체다. survey, 모든 현존 tasks, 작�
 
 비교 대상은 같은 조사의 서로 다른 분석이며 일반 출력의 “한 작업 한 분석” 선택과 별도로 복사한다. 같은 작업의 과거/현재 비교에서도 두 snapshot이 빠지지 않는다. 출력 파일을 나중에 삭제해도 로그의 수치 근거는 남으며 파일 존재를 보증하지 않는다.
 
-receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 한글 4시트와 receipt를 함께 만든다.
+receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 기본 4시트를 만들고 질환자 발생에 따른 수시조사에 별지 1·2 기반 시트를 조건부로 추가한다.
 
 ## 4. 불변성·현재성·트랜잭션
 

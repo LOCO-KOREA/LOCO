@@ -35,7 +35,7 @@ class DashboardWorkspace {
     const task = tasks?.[0];
     const counts = [
       ['등록된 조사', recent.length, '조사 단위'],
-      ['등록된 상자 올리기 작업', recent.reduce((sum,s)=>sum+s.task_count,0), '작업 단위'],
+      ['등록된 단위작업', recent.reduce((sum,s)=>sum+s.task_count,0), '작업 종류와 무관하게 기록'],
       ['미검토 조사', recent.filter(s=>!s.reviewed).length, '계산 완전성과 별도 표시'],
       ['이전 결과를 검토한 조사', recent.filter(s=>s.reviewed&&!s.review_current).length, '현재 입력으로 다시 확인 가능']
     ];
@@ -47,14 +47,14 @@ class DashboardWorkspace {
         <section class="panel dashboard-continue">
           <div class="dashboard-card-heading"><h2>${e(survey?.title || (survey ? '제목 없는 조사' : '새 조사를 시작해 보세요'))}</h2>${survey ? this.badge(survey) : ''}</div>
           <p>${survey ? `조사일 ${e(survey.survey_date || '미입력')} · 조사자 ${e(detail ? detail.investigator || '미입력' : '불러오는 중…')} · 단위작업 ${survey.task_count}개` : window.loco ? '아직 저장된 조사가 없습니다. 현장과 작업 정보를 기록해 주세요.' : 'Electron 앱에서 저장된 조사와 작업 현황을 확인할 수 있습니다.'}</p>
-          <div class="dashboard-result"><strong>${survey ? '조사 개요와 작업 입력을 이어서 작성하세요.' : '조사 개요 → 작업 정보 → 사진 등록'}</strong><span>분석 결과 연결 예정</span></div>
+          <div class="dashboard-result"><strong>${survey ? '조사 개요와 작업 입력을 이어서 작성하세요.' : '조사 개요 → 작업 정보 → 11개 기준 입력'}</strong><span>직접입력만으로 기준 초안을 계산할 수 있습니다.</span></div>
           <p class="dashboard-note">검토 표시는 입력·계산의 완전성과 별개입니다.</p>
           <div class="dashboard-card-actions">${survey ? `<button class="dark" data-survey="${survey.survey_id}">조사 이어가기 →</button>` : '<button class="dark" data-dashboard="new">첫 조사 만들기 →</button>'}</div>
         </section>
         <section class="panel dashboard-next">
           <h2>다음에 확인할 단위작업</h2>
           <h3>${e(task ? task.task_name || '이름 없는 작업' : survey ? tasks ? '등록된 작업이 없습니다' : '작업 불러오는 중…' : '조사를 먼저 등록하세요')}</h3>
-          <p>${task ? `사진 배정 ${task.capture.slots.filter(slot=>slot.photo_id!==null).length} / 15 · 작업 조건과 하루 노출시간을 확인하세요.` : '작업별 조건과 하루 누적시간을 직접 입력합니다.'}</p>
+          <p>${task ? `사진 배정 ${task.capture.slots.filter(slot=>slot.photo_id!==null).length}장 · 작업 조건과 하루 노출시간을 확인하세요.` : '작업별 조건과 하루 누적시간을 직접 입력합니다.'}</p>
           <p class="dashboard-note">사진 비율로 하루 노출시간을 계산하지 않습니다.</p>
           ${task ? `<button class="primary" data-survey="${survey.survey_id}" data-task="${task.task_id}">직접 입력 열기 →</button>` : '<button class="primary" data-dashboard="list">조사 개요 열기 →</button>'}
         </section>
@@ -62,7 +62,7 @@ class DashboardWorkspace {
           <div class="dashboard-card-heading"><h2>최근 조사</h2><button class="text-button" data-dashboard="list">전체 보기 →</button></div>
           <div class="table-wrap"><table><thead><tr><th>조사명</th><th>조사일</th><th>단위작업</th><th>상태</th></tr></thead><tbody>${recent.slice(0,3).map(s=>`<tr><td><button class="row-button" data-survey="${s.survey_id}"><strong>${e(s.title || '제목 없는 조사')}</strong></button></td><td>${e(s.survey_date || '미입력')}</td><td>${s.task_count}</td><td>${this.badge(s)}</td></tr>`).join('') || `<tr><td colspan="4" class="empty">${window.loco ? '등록된 조사가 없습니다.' : '브라우저 미리보기 · 실제 목록은 Electron에서 표시됩니다.'}</td></tr>`}</tbody></table></div>
         </section>
-        <section class="panel dashboard-guide"><h2>작업 자세 분석 안내</h2><ol><li>조사 개요와 작업 조건을 기록합니다.</li><li>같은 조건의 정상 작업 3회에서 사진 15장을 배정합니다.</li><li>분석 결과와 조사자 검토 상태를 구분해 확인합니다.</li></ol><p>모르는 값은 비워 두고 이어서 작성할 수 있습니다.</p></section>
+        <section class="panel dashboard-guide"><h2>작업 분석 안내</h2><ol><li>작업 종류와 관계없이 작업 조건을 기록합니다.</li><li>11개 기준의 관찰값과 근거를 입력합니다.</li><li>필요한 경우 사진 분석을 추가하고, 계산 결과와 조사자 결론을 나누어 검토합니다.</li></ol><p>모르는 값은 비워 두고 이어서 작성할 수 있습니다.</p></section>
       </div>`;
   }
 }

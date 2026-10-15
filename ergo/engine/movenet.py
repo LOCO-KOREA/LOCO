@@ -45,16 +45,22 @@ def process(slot,snapshot):
         square=max(width,height); ox,oy=(square-width)//2,(square-height)//2
         padded=cv2.copyMakeBorder(np.asarray(image),oy,square-height-oy,ox,square-width-ox,cv2.BORDER_CONSTANT,value=(0,0,0))
         resized=cv2.resize(padded,(192,192),interpolation=cv2.INTER_LINEAR)
-        values=resized.astype(info['dtype'])[None,...]
-        if list(info['shape'])!=[1,192,192,3]: raise RuntimeError('192×192 Lightning 모델이 아닙니다')
+        if list(info['shape'])!=[1,192,192,3] or info['dtype']!=np.uint8: raise RuntimeError('입력 192×192 uint8 Lightning 모델이 아닙니다')
+        values=resized.astype(np.uint8)[None,...]
         model.set_tensor(info['index'],values); model.invoke(); raw=model.get_tensor(model.get_output_details()[0]['index']).reshape(17,3)
+        if not np.isfinite(raw).all(): raise RuntimeError('관절 출력에 유한하지 않은 값이 있습니다')
         for index,(y,x,score) in enumerate(raw):
             px=float(x)*square-ox; py=float(y)*square-oy
             result['points'].append(dict(point_no=index,name=NAMES[index],x_px=px,y_px=py,confidence=float(score)))
-        result['angles']=angles(result['points'],snapshot['capture']['forward_direction'],width,height)
-        side=snapshot['capture']['camera_side']; direction=snapshot['capture']['forward_direction']
-        if not side or not direction: result['diagnostics']=[diagnostic('MISSING_CAMERA','카메라 측면과 작업자 진행 방향을 입력하세요')]
-        elif all(p['confidence']>=0.5 and 0<=p['x_px']<width and 0<=p['y_px']<height for p in result['points'] if p['name'] in [side.lower()+'_'+j for j in ['ear','shoulder','elbow','wrist','hip','knee','ankle']]): result['status']='VALID'
-        else: result['diagnostics']=[diagnostic('LOW_CONFIDENCE','가까운 쪽 관절 가림·프레임·신뢰도를 확인하세요')]
+        side=slot.get('camera_side',snapshot['capture'].get('camera_side')); direction=slot.get('forward_direction',snapshot['capture'].get('forward_direction'))
+        observation=slot.get('observation') or {}
+        result['angles']=angles(result['points'],direction,width,height)
+        context_ok=side in ('LEFT','RIGHT') and direction in ('SCREEN_RIGHT','SCREEN_LEFT') and slot.get('side_view_verified')=='YES' and observation.get('single_person')=='YES' and observation.get('full_frame')=='YES' and observation.get('normal_work')=='YES'
+        if side not in ('LEFT','RIGHT') or direction not in ('SCREEN_RIGHT','SCREEN_LEFT'):
+            result['diagnostics']=[diagnostic('INVALID_CAMERA','측면 카메라와 작업자 전방 방향을 확인하세요','capture.camera_side')]
+        elif not context_ok:
+            result['diagnostics']=[diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·단일 작업자·전신·통상 작업 확인을 마쳐야 분석대상으로 사용할 수 있습니다','capture.observation')]
+        elif any(angle['value_deg'] is not None for angle in result['angles']): result['status']='VALID'
+        else: result['diagnostics']=[diagnostic('LOW_CONFIDENCE','관절 가림·프레임·신뢰도를 확인하세요')]
     except Exception as error: result.update(status='ERROR',diagnostics=[diagnostic('MODEL_ERROR',str(error))])
     return result
