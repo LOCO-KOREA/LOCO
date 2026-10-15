@@ -86,6 +86,6 @@ TASK 입력 변경 시 input_revision만 증가한다. 별도 입력 revision �
 
 작업 생성 시 빈15슬롯·11기준·20시간을 TASK JSON에 만든다. 분석 시작은15결과 자리를 ANALYSIS JSON에 만든다. 수동값은 빈 배열, 아직 결과가 없으면null이다. 조회 currentness는 서비스가 DTO에서 계산하고 보고서의 완전성/선택 분석 검토현재성은 report.build_overview가 산출한다. DB가 별도로 판정하지 않는다.
 
-delete_photo는 현재 capture의 배정을 비우고 해당 manual/관찰을 비운 뒤 PHOTO행을 삭제한다. 역사 snapshot의 메타/수치는 남기며 이미지가 없으면 못 읽음 표시다. delete_task는 PHOTO→ANALYSIS→TASK 순서로 서비스가 삭제한다. delete_survey는 소속 작업과 EXPORT_LOG→SURVEY를 삭제한다. 원본 사진/외부 Excel은 삭제하지 않는다.
+delete_photo는 한 트랜잭션에서 대상 PHOTO를 참조하는 모든 현재 capture 슬롯의 photo_id와 관찰을 API 계약의 UNKNOWN/null 초기값으로 바꾸고, TASK.manual에서 대상 photo_id 항목을 제거한 뒤 PHOTO행을 삭제한다. 현재 TASK 입력이 바뀐 경우 input_revision을 한 번 증가시키고 updated_at을 갱신한다. 미배정 사진이고 참조 manual이 없으면 input_revision은 유지한다. 역사 snapshot의 메타/수치는 남기며 이미지가 없으면 못 읽음 표시다. delete_task는 PHOTO→ANALYSIS→TASK 순서로 storage가 삭제한다. delete_survey는 소속 작업과 EXPORT_LOG→SURVEY를 삭제한다. 원본 사진/외부 Excel은 삭제하지 않는다.
 
 여러 행 삭제·입력/버전 저장은 짧은 기본 트랜잭션으로 묶는다. DB 차단장치가 아니라 저장 중 오류에 대한 일관성 처리다. trigger/FK cascade/복잡한 감사로그는 만들지 않는다. 상세 운영·보존·보안은 데모 구현 이후 검토한다.
