@@ -219,6 +219,9 @@ def dispatch(method,p):
         return dict(photo_id=photo['photo_id'],data_url='data:image/png;base64,'+base64.b64encode(output.getvalue()).decode('ascii'),width_px=image.width,height_px=image.height)
     if method=='update_photo':
         photo=require('photo',p['photo_id']); path_changed=photo['file_path']!=p['file_path']
+        if path_changed:
+            with read_image(p['file_path']) as image:
+                photo.update(file_name=Path(p['file_path']).name,width_px=image.width,height_px=image.height,notes=[])
         photo.update(file_path=p['file_path'],consent=p['consent']); store('update_photo',photo['photo_id'],{k:v for k,v in photo.items() if k not in ['photo_id','task_id']})
         task=require('task',photo['task_id'])
         if path_changed and any(s['photo_id']==photo['photo_id'] for s in task['capture']['slots']):

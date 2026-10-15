@@ -13,32 +13,53 @@ function remember(){state.drafts.set(state.editorId??'new',draft());}
 function fill(data){for(const key of Object.keys(blank())){if(key==='survey_type'){const radio=$(`#survey-form input[name="survey_type"][value="${data[key]==='OCCASIONAL'?'OCCASIONAL':'REGULAR'}"]`);radio.checked=true;}else $('#survey-form').elements.namedItem(key).value=data[key]??'';}$('#form-title').textContent=state.editorId?'조사개요 수정':'조사개요 입력';$('#save-survey').textContent=state.editorId?'조사 저장하고 작업 등록 →':'조사 만들고 작업 등록 →';}
 function status(s){return s.review_current?'current':s.reviewed?'history':'none';}
 function rows(){const keyword=$('#search').value.trim().toLowerCase(),filter=$('#review-filter').value,sign=$('#sort').value==='asc'?1:-1;const list=state.surveys.filter(s=>(filter==='all'||status(s)===filter)&&s.title.toLowerCase().includes(keyword)).sort((a,b)=>sign*((a.survey_date||'').localeCompare(b.survey_date||'')||a.survey_id-b.survey_id));$('#survey-rows').innerHTML=list.map(s=>`<tr data-id="${s.survey_id}" class="${s.survey_id===state.selected?'selected':''}"><td class="row-title"><button class="row-button" data-id="${s.survey_id}"><strong>${esc(s.title||'제목 없는 조사')}</strong></button><small>조사 #${s.survey_id}</small></td><td>${esc(s.survey_date||'미입력')}</td><td>${s.task_count}</td><td><span class="badge ${status(s)}">${s.review_current?'검토 완료':s.reviewed?'이전 결과 검토':'미검토'}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty">'+(state.surveys.length?'조건에 맞는 조사가 없습니다.':'저장된 조사가 없습니다.<br>오른쪽에서 첫 조사를 만들어 주세요.')+'</td></tr>';const chosen=state.surveys.find(s=>s.survey_id===state.selected);$('#selection').textContent=chosen?`선택 조사 · ${chosen.title||'제목 없음'} / 조사 #${chosen.survey_id}`:'선택한 조사가 없습니다.';}
-async function refresh(){state.surveys=await api('list_surveys');rows();$('#connection').textContent='Python 연결됨';$('#connection').classList.add('connected');}
+async function refresh(){state.surveys=await api('list_surveys');rows();if(state.page==='S01')await dashboardUI.open(state.surveys,state.selected);$('#connection').textContent='Python 연결됨';$('#connection').classList.add('connected');}
 async function selectSurvey(id){if(state.busy)return;remember();const survey=await api('get_survey',{survey_id:id});state.selected=id;state.editorId=id;state.details.set(id,survey);fill(state.drafts.get(id)||survey);rows();clearError();}
-function page(id){state.page=id;if(['S01','S02','S03'].includes(id))analysisUI.suspend();$('#survey-workspace').hidden=!['S01','S02'].includes(id);$('#analysis-workspace').hidden=['S01','S02','S03'].includes(id);$('#task-workspace').hidden=id!=='S03';if(['S01','S02'].includes(id)){$('#title').textContent='조사 목록과 새 조사';$('.page-title p').textContent='조사를 만들고 저장된 조사를 최신순으로 다시 엽니다.';}$('#navigation').innerHTML=names.map((name,i)=>`<button data-nav="S0${i+1}" class="${id==='S0'+(i+1)?'active':''}" ${id==='S0'+(i+1)?'aria-current="page"':''}><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[i]}</svg>${name}<em>${String(i+1).padStart(2,'0')}</em></button>`).join('');$('#breadcrumb-page').textContent=names[Number(id.slice(1))-1];$('loco-guide').setAttribute('page',id);}
-async function tasks(){if(state.selected)await refresh();if(!state.selected){if(!window.loco){page('S03');taskUI.preview();return;}return notify('조사를 먼저 선택해 주세요.');}await taskUI.open(state.selected);page('S03');window.scrollTo({top:0});}
+function page(id){state.page=id;if(!/^S0[5-9]$/.test(id))analysisUI.suspend();$('#analysis-workspace').hidden=!/^S0[5-9]$/.test(id);$('#dashboard-workspace').hidden=id!=='S01';$('#survey-workspace').hidden=id!=='S02';$('#task-workspace').hidden=id!=='S03';$('#photo-workspace').hidden=id!=='S04';if(id==='S01'){$('#title').textContent='작업 자세 분석 공간';$('.page-title p').textContent='상자 올리기 작업의 분석 결과와 조사자 검토 상태를 한곳에서 봅니다.';perform(()=>dashboardUI.open(state.surveys,state.selected));}else if(id==='S02'){$('#title').textContent='조사 목록과 새 조사';$('.page-title p').textContent='조사를 만들고 저장된 조사를 최신순으로 다시 엽니다.';}$('#navigation').innerHTML=names.map((name,i)=>`<button data-nav="S0${i+1}" class="${id==='S0'+(i+1)?'active':''}" ${id==='S0'+(i+1)?'aria-current="page"':''}><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[i]}</svg>${name}<em>${String(i+1).padStart(2,'0')}</em></button>`).join('');$('#breadcrumb-page').textContent=names[Number(id.slice(1))-1];$('loco-guide').setAttribute('page',id);}
+async function tasks(skipPhotoFlush=false){if(state.page==='S04'&&!skipPhotoFlush)await photoUI.flush();if(!state.selected){if(!window.loco){page('S03');taskUI.preview();return;}return notify('조사를 먼저 선택해 주세요.');}await taskUI.open(state.selected);page('S03');window.scrollTo({top:0});}
+async function photos(taskId){
+  if(!window.loco&&!state.selected){page('S04');photoUI.preview();return;}
+  if(!state.selected)return notify('조사를 먼저 선택해 주세요.');
+  if(state.page==='S04'&&(!taskId||photoUI.task?.task_id===taskId))return;
+  if(state.page==='S04')await photoUI.flush();
+  const selected=taskId??(/^S0[5-9]$/.test(state.page)?analysisUI.currentTask(state.selected):undefined);
+  if(taskUI.surveyId!==state.selected||!taskUI.current)await taskUI.open(state.selected);
+  if(selected&&taskUI.current?.task_id!==selected)await taskUI.load(selected);
+  if(!taskUI.current.task_id||taskUI.isDirty())await taskUI.save();
+  await photoUI.open(taskUI.current.task_id);page('S04');window.scrollTo({top:0});
+}
+async function openAnalysis(id,taskId,analysisId,skipPhotoFlush=false){
+  if(id==='S04')return photos(taskId);
+  if(state.page==='S04'&&!skipPhotoFlush)await photoUI.flush();
+  taskUI.remember();
+  if(id!=='S09'&&!state.selected)return notify('조사를 먼저 선택해 주세요.');
+  const selectedTask=taskId??(state.page==='S04'?photoUI.task?.task_id:/^S0[5-9]$/.test(state.page)?analysisUI.currentTask(state.selected):taskUI.current?.task_id);
+  await analysisUI.open({page:id,surveyId:state.selected,taskId:selectedTask,analysisId});
+  window.scrollTo({top:0});
+}
+async function startPhotoAnalysis(taskId){
+  const handle=await api('start_analysis',{task_id:taskId});
+  await openAnalysis('S05',taskId,handle.analysis_id,true);
+}
 async function perform(action){try{clearError();await action();}catch(error){showError(error);}}
 $('#survey-form').addEventListener('input',remember);$('#survey-form').addEventListener('change',remember);
 $('#survey-form').addEventListener('submit',event=>{event.preventDefault();if(state.busy)return;perform(async()=>{state.busy=true;$('#save-survey').disabled=true;try{const value=draft();remember();const saved=await api(state.editorId?'update_survey':'create_survey',state.editorId?{survey_id:state.editorId,draft:value}:{draft:value});state.selected=saved.survey_id;state.editorId=saved.survey_id;state.details.set(saved.survey_id,saved);state.drafts.delete('new');state.drafts.set(saved.survey_id,value);fill(saved);await refresh();notify('조사를 SQLite에 저장했습니다.');await tasks();}finally{state.busy=false;$('#save-survey').disabled=false;}});});
 $('#survey-rows').addEventListener('click',event=>{const row=event.target.closest('[data-id]');if(row)perform(()=>selectSurvey(Number(row.dataset.id)));});
-$('#new-survey').addEventListener('click',()=>{if(state.busy)return;remember();state.editorId=null;state.selected=null;fill(state.drafts.get('new')||blank());rows();page('S02');$('#survey-form').elements.namedItem('title').focus();});
+function newSurvey(){if(state.busy)return;remember();state.editorId=null;state.selected=null;fill(state.drafts.get('new')||blank());rows();page('S02');$('#survey-form').elements.namedItem('title').focus();}
+$('#new-survey').addEventListener('click',newSurvey);
 $('#open-survey').addEventListener('click',()=>perform(tasks));
 $('#delete-survey').addEventListener('click',()=>{if(!state.selected||state.busy)return notify('삭제할 조사를 선택해 주세요.');perform(async()=>{const id=state.selected;await api('delete_survey',{survey_id:id});taskUI.resetSurvey(id);state.drafts.delete(id);state.details.delete(id);state.selected=null;state.editorId=null;fill(blank());page('S01');await refresh();notify('선택 조사를 삭제했습니다. 원본 사진과 Excel은 삭제하지 않습니다.');});});
 for(const selector of ['#search','#review-filter','#sort'])$(selector).addEventListener(selector==='#search'?'input':'change',rows);
-$('#navigation').addEventListener('click',event=>{const id=event.target.closest('[data-nav]')?.dataset.nav;if(!id)return;if(['S01','S02'].includes(id)){taskUI.remember();page(id);window.scrollTo({top:0});if(id==='S02')$('#survey-form').elements.namedItem('title').focus();}else if(id==='S03')perform(tasks);else perform(()=>openAnalysis(id));});
-$('#home').addEventListener('click',()=>{page('S01');window.scrollTo({top:0});});
-$('#help').addEventListener('click',()=>{$('#dialog-title').textContent='LOCO · 첫 기능 연결';$('#dialog-text').textContent='조사·작업 입력에 사진 등록, 자세 분석, REBA 관찰값, 조사자 검토와 Excel 출력을 연결했습니다. 공용 서비스 실행은 저장소 루트의 run-integrated.ps1을 사용하세요. 기존 SVG 목업은 index.html에서 확인할 수 있습니다.';$('#dialog').showModal();});$('#close-dialog').addEventListener('click',()=>$('#dialog').close());
-document.addEventListener('loco-guide-action',event=>{const {action}=event.detail;if(action==='S02'){page('S02');$('#survey-form').elements.namedItem('title').focus();}else if(action==='S03')perform(tasks);else if(/^S0[4-9]$/.test(action))perform(()=>openAnalysis(action));else perform(()=>analysisUI.guide(action));});
+$('#navigation').addEventListener('click',event=>{const id=event.target.closest('[data-nav]')?.dataset.nav;if(!id)return;if(['S01','S02'].includes(id)){perform(async()=>{if(state.page==='S04')await photoUI.flush();taskUI.remember();page(id);window.scrollTo({top:0});if(id==='S02')$('#survey-form').elements.namedItem('title').focus();});}else if(id==='S03')perform(()=>tasks());else if(id==='S04')perform(()=>photos());else perform(()=>openAnalysis(id));});
+$('#home').addEventListener('click',()=>perform(async()=>{if(state.page==='S04')await photoUI.flush();taskUI.remember();page('S01');window.scrollTo({top:0});}));
+$('#help').addEventListener('click',()=>{$('#dialog-title').textContent='LOCO · 첫 기능 연결';$('#dialog-text').textContent='조사·작업 입력과 사진 등록·15슬롯 배정·촬영 관찰 저장을 연결했습니다. 분석·REBA·조사자 검토와 Excel은 공용 서비스로 연결했습니다. 통합 실행은 run-integrated.ps1을 사용하세요. 기존 SVG 목업은 index.html에서 확인할 수 있습니다.';$('#dialog').showModal();});$('#close-dialog').addEventListener('click',()=>$('#dialog').close());
+document.addEventListener('loco-guide-action',event=>{const {action}=event.detail;if(action==='S02'){perform(async()=>{if(state.page==='S04')await photoUI.flush();page('S02');$('#survey-form').elements.namedItem('title').focus();});}else if(action==='S03')perform(()=>tasks());else if(action==='S04')perform(()=>photos());else if(action==='guide'&&state.page==='S04')photoUI.showGuide();else if(/^S0[5-9]$/.test(action))perform(()=>openAnalysis(action));else perform(()=>analysisUI.guide(action));});
 document.addEventListener('loco-guide-preference-change',event=>perform(()=>analysisUI.preferences(event.detail)));
-const taskUI=new TaskWorkspace({api,notify,onError:showError,onChanged:refresh,onBack:()=>page('S02'),onOpenPhotos:taskId=>openAnalysis('S04',taskId),onOpenPage:(id,taskId)=>openAnalysis(id,taskId),surveyTitle:()=>state.details.get(state.selected)?.title||'',setTitle:(title,description)=>{$('#title').textContent=title;$('.page-title p').textContent=description;}});
-const analysisUI=createAnalysisWorkspace({element:$('#analysis-workspace'),api,notify,onLeave:id=>{if(id==='S03')perform(tasks);else page(id);},onNavigate:(id,info)=>{page(id);$('#title').textContent=info[0];$('.page-title p').textContent=info[2];}});
-async function openAnalysis(id,taskId){
- taskUI.remember();
- if(id!=='S09'&&!state.selected)return notify('조사를 먼저 선택해 주세요.');
- const selectedTask=taskId??(['S01','S02','S03'].includes(state.page)?taskUI.current?.task_id:analysisUI.currentTask(state.selected));
- await analysisUI.open({page:id,surveyId:state.selected,taskId:selectedTask});
- window.scrollTo({top:0});
-}
+const taskUI=new TaskWorkspace({api,notify,onOpenPhotos:taskId=>photos(taskId),onOpenPage:(id,taskId)=>openAnalysis(id,taskId),onError:showError,onChanged:refresh,onBack:()=>page('S02'),surveyTitle:()=>state.details.get(state.selected)?.title||'',setTitle:(title,description)=>{$('#title').textContent=title;$('.page-title p').textContent=description;}});
+const photoUI=new PhotoWorkspace({api,notify,clearError,onError:showError,onBack:()=>tasks(true),onAnalyze:startPhotoAnalysis,surveyTitle:()=>state.details.get(state.selected)?.title||'',setTitle:(title,description)=>{$('#title').textContent=title;$('.page-title p').textContent=description;},onSaved:task=>{if(taskUI.current?.task_id===task.task_id){taskUI.current=structuredClone(task);taskUI.saved=structuredClone(task);taskUI.buffers.delete(task.task_id);}}});
+const dashboardUI=new DashboardWorkspace({api,onError:showError,onNew:newSurvey,onList:()=>page('S02'),onOpen:(surveyId,taskId)=>perform(async()=>{await selectSurvey(surveyId);if(taskId){await tasks();await taskUI.load(taskId);taskUI.screen='conditions';taskUI.render();}else page('S02');window.scrollTo({top:0});})});
+const analysisUI=createAnalysisWorkspace({element:$('#analysis-workspace'),api,notify,onLeave:id=>{if(id==='S03')perform(()=>tasks());else if(id==='S04')perform(()=>photos());else page(id);},onNavigate:(id,info)=>{page(id);$('#title').textContent=info[0];$('.page-title p').textContent=info[2];}});
 fill(blank());page('S01');rows();
+if(!window.loco&&new URLSearchParams(location.search).get('screen')==='photos'){page('S04');photoUI.preview();}
 if(!window.loco&&new URLSearchParams(location.search).get('screen')==='task'){page('S03');taskUI.preview();}
 if(!window.loco){$('#connection').textContent='브라우저 미리보기';$('#environment').textContent='화면 미리보기 · 실제 저장과 조회는 Electron 앱에서 실행하세요.';}else perform(async()=>{await refresh();await analysisUI.initialize();});

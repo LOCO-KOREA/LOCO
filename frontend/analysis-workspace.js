@@ -74,7 +74,7 @@ function modal(title,body){$('#overlay-root').innerHTML=`<div class="modal-backd
 function context(){return `<div class="note">${e(s.survey?.title||'조사 미선택')} ${s.bundle?' / '+e(s.bundle.task.task_name)+' · 입력 r'+s.bundle.task.input_revision:''}</div>`;}
 function selectedIds(){return Object.values(s.exportSelections).filter(Boolean).map(Number);}
 async function refreshTask(){if(!s.bundle)return;s.bundle=await api('get_task',{task_id:s.bundle.task.task_id});s.history=await api('list_analysis_history',{task_id:s.bundle.task.task_id});const chosen=s.history.find(a=>a.analysis_id===s.selectedAnalysis)||s.history.find(a=>a.analysis_id===s.bundle.task.latest_analysis_id);s.analysis=chosen||null;s.selectedAnalysis=s.analysis?.analysis_id??null;s.tasks=await api('list_tasks',{survey_id:s.survey.survey_id});}
-async function navigate(page){if(['S01','S02','S03'].includes(page)){host.onLeave(page);return;}clearInterval(s.poll);s.poll=null;s.page=page;
+async function navigate(page){if(['S01','S02','S03','S04'].includes(page)){host.onLeave(page);return;}clearInterval(s.poll);s.poll=null;s.page=page;
   if(page==='S01')s.surveys=await api('list_surveys');
   if(s.bundle&&['S05','S06','S07'].includes(page))await refreshTask();
   if(page==='S08'&&s.survey){s.tasks=await api('list_tasks',{survey_id:s.survey.survey_id});s.overview=await api('preview_excel',{survey_id:s.survey.survey_id,analysis_ids:selectedIds()});}
@@ -238,7 +238,7 @@ document.addEventListener('keydown',event=>{if(host.active&&event.key==='Escape'
 
 return {
  currentTask(surveyId){return s.survey?.survey_id===surveyId?s.bundle?.task.task_id:undefined;},
- async open({page,surveyId,taskId}){
+ async open({page,surveyId,taskId,analysisId}){
   this.suspend();host.active=true;
   s.settings=await api('get_settings');
   if(s.survey?.survey_id!==surveyId){s.bundle=null;s.analysis=null;s.selectedAnalysis=null;s.exportSelections={};s.selectedSlots.clear();}
@@ -247,7 +247,7 @@ return {
   const chosen=s.tasks.find(t=>t.task_id===taskId)||s.tasks[0];
   if(chosen){
    if(s.bundle?.task.task_id!==chosen.task_id){s.selectedAnalysis=null;s.slot=1;s.selectedSlots.clear();}
-   s.bundle=await api('get_task',{task_id:chosen.task_id});await refreshTask();
+   s.bundle=await api('get_task',{task_id:chosen.task_id});if(analysisId)s.selectedAnalysis=analysisId;await refreshTask();
   }else{s.bundle=null;s.analysis=null;s.selectedAnalysis=null;}
   await navigate(page);if(page==='S08'&&s.survey)await populateExportChoices();
  },
