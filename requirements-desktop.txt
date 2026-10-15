@@ -1,0 +1,6 @@
+# Shared desktop backend (CPython 3.12 x64 on Windows).
+Pillow>=10,<13
+numpy>=1.26,<3
+openpyxl>=3.1,<4
+ai-edge-litert==2.3.0
+opencv-python-headless==5.0.0.93
