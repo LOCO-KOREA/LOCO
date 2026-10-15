@@ -216,9 +216,9 @@ set_manual_values는 현재15배정에 대한 전체 목록 교체다. S06의 �
 
 start_analysis는 snapshot을 만들고 pose/tag/reba/burden을 수행한다. 재계산 명령은 요청 모듈만 실행해 새 ANALYSIS행을 만들고 다른 모듈은 관련 입력이 같은 기존 출력만 복사한다. 다른 모듈의 입력도 바뀌었다면 그 출력은 null(태그는 빈 배열)과 재계산 안내를 반환한다. 과거 계산을 현재로 복사하지 않는다. recalculate_judgments는 pose 없이도 실행 가능하다. 취소는 요청 후 get_analysis로 처리 상태를 읽는다. 이미 끝난 분석이면 같은 상태를 반환한다.
 
-update_photo는 같은 원본 경로 재연결/동의 기록이다. 내용이 다른 사진은 새 등록 후 set_capture로 교체한다. delete_photo는 현재배정을 비우고 history snapshot의 메타/수치를 남긴다. 역사이미지는 파일이 없으면 표시하지 않는다. snapshot은 원본 바이트를 고정하지 않으며 외부에서 원본을 바꾸는 자동감지는 데모에 없다.
+update_photo는 같은 원본 경로 재연결/동의 기록이다. 내용이 다른 사진은 새 등록 후 set_capture로 교체한다. delete_photo는 대상 photo_id가 배정된 모든 현재 슬롯을 photo_id=null로 바꾸고 observation을 phase_verified/load_state/single_person/full_frame/camera_fixed/normal_cycle='UNKNOWN', evidence={source:null,text:null,observed_at:null}로 초기화하며, TASK.manual에서 해당 photo_id의 항목을 제거한다. 이 변경이 있으면 input_revision을 한 번 증가시키고 updated_at을 갱신한 뒤 PHOTO행을 삭제한다. 미배정 사진이고 참조 manual도 없으면 PHOTO행만 삭제해 input_revision은 바꾸지 않는다. ANALYSIS snapshot의 메타/수치는 남기며 역사이미지는 원본 파일이 없으면 표시하지 않는다. snapshot은 원본 바이트를 고정하지 않으며 외부에서 원본을 바꾸는 자동감지는 데모에 없다.
 
-조건/고시/배정/수동값/작업명/배정사진 경로·관찰 저장은 input_revision 증가, 현재/과거 표시를 갱신한다. 미배정 후보사진 등록/삭제는 계산 입력을 바꾸지 않는다. 조사자 결론/대표/설명/검토는 해당 분석의 표시값을 수정하며 계산 입력 revision을 올리지 않는다. 새 분석행에는 조사자 결론/설명/검토를 자동 승계하지 않는다. 조사 메타는 metadata_revision만 증가한다. 작업명 변경 시 계산은 재사용할 수 있지만 새 표시snapshot이 필요하다.
+조건/고시/배정/수동값/작업명/배정사진 경로·관찰 저장은 input_revision 증가, 현재/과거 표시를 갱신한다. delete_photo가 현재 배정 또는 manual 값을 비우면 input_revision을 한 번 증가시킨다. 미배정 후보사진 등록/삭제는 계산 입력을 바꾸지 않는다. 조사자 결론/대표/설명/검토는 해당 분석의 표시값을 수정하며 계산 입력 revision을 올리지 않는다. 새 분석행에는 조사자 결론/설명/검토를 자동 승계하지 않는다. 조사 메타는 metadata_revision만 증가한다. 작업명 변경 시 계산은 재사용할 수 있지만 새 표시snapshot이 필요하다.
 
 같은 분석의 조사자 결론을 변경/해제하면SURVEY.review.reviewed=false로 갱신한다. 대표사진/설명문만 바꾸면 계산검토 표시는 유지한다. 검토는 조작 가능한 표시이며 변경/미완전 때문에 기능을 막지 않는다.
 
