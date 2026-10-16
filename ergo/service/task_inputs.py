@@ -145,14 +145,18 @@ def validate_task_input_shape(ctx, value):
         seen.add(key)
 
 def handle_delete_survey(ctx, method, p):
-    identity = p['survey_id'] if method == 'delete_survey' else p['task_id']
-    ctx.require('survey' if method == 'delete_survey' else 'task', identity)
-    tasks = ctx.store('list_tasks', identity) if method == 'delete_survey' else [ctx.require('task', identity)]
-    for t in tasks:
-        for a in ctx.store('list_analyses', t['task_id']):
-            if a['analysis_id'] in ctx.cancels:
-                ctx.cancels[a['analysis_id']].set()
-    ctx.store(method, identity)
+    with ctx.db_lock:
+        identity = p['survey_id'] if method == 'delete_survey' else p['task_id']
+        ctx.require('survey' if method == 'delete_survey' else 'task', identity)
+        tasks = ctx.store('list_tasks', identity) if method == 'delete_survey' else [ctx.require('task', identity)]
+        analyses = [a for task in tasks for a in ctx.store('list_analyses', task['task_id'])]
+        for a in analyses:
+            cancel = ctx.cancels.get(a['analysis_id'])
+            if cancel:
+                cancel.set()
+        ctx.store(method, identity)
+        for a in analyses:
+            ctx.forget_analysis(a['analysis_id'])
     return dict(message='기록을 삭제했습니다. 원본 사진과 Excel은 유지됩니다.')
 
 def handle_list_tasks(ctx, method, p):

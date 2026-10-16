@@ -19,7 +19,7 @@ def analysis(ctx, identity):
 def snapshot(ctx, task):
     return dict(schema_version=task.get('schema_version', '1.3'), task_id=task['task_id'], input_revision=task['input_revision'], task_name=task['task_name'], task_kind=task.get('task_kind'), input_template=task.get('input_template'), worker_count=task.get('worker_count'), conditions=copy.deepcopy(task['conditions']), legal=copy.deepcopy(task['legal']), capture=copy.deepcopy(task['capture']), manual=copy.deepcopy(task['manual']), analysis_scope=copy.deepcopy(task.get('analysis_scope')), legacy_input=copy.deepcopy(task.get('legacy_input')), photos=ctx.store('list_photos', task['task_id']), settings=ctx.settings()['analysis'])
 
-def persist_analysis(ctx, a):
+def persist_analysis(ctx, a, *, token=None):
     """Calculation worker writes calculation fields, never AI or display edits."""
 
     def update(latest):
@@ -39,17 +39,48 @@ def persist_analysis(ctx, a):
         for key in ('module_states', 'pose', 'slot_tags', 'tags', 'notes'):
             latest[key] = copy.deepcopy(a[key])
         latest.update(judgment=judgment, reba=reba)
-    ctx.store('update_analysis_result', a['analysis_id'], update, job=(a['status'], a['finished_at']))
+    with ctx.db_lock:
+        if token is not None and not ctx.analysis_is_current(a['analysis_id'], token):
+            return False
+        return ctx.store('update_analysis_result', a['analysis_id'], update, job=(a['status'], a['finished_at']))
 
-def edit_result(ctx, identity, update, *, invalidate_review=False):
-    if not ctx.store('update_analysis_result', identity, update, invalidate_review=invalidate_review):
-        raise LookupError(f'analysis {identity}를 찾을 수 없습니다')
+def edit_result(ctx, identity, update, *, invalidate_review=False, token=None):
+    with ctx.db_lock:
+        if token is not None:
+            ctx.require_analysis_token(identity, token)
+        if not ctx.store('update_analysis_result', identity, update, invalidate_review=invalidate_review):
+            raise LookupError(f'analysis {identity}를 찾을 수 없습니다')
 
 def pose_inputs(ctx, snap):
-    """Only dependencies of inference; load observations do not change coordinates."""
+    """Inference and validity dependencies; load observations are excluded."""
     cap = snap['capture']
     assigned = {s['photo_id'] for s in cap['slots'] if s['photo_id'] is not None and s.get('analysis_target', True)}
-    return dict(slots=[(s['slot_no'], s['photo_id'], s.get('analysis_target'), s.get('camera_side'), s.get('forward_direction')) for s in cap['slots']], photos=sorted(((p['photo_id'], p['file_path'], p.get('width_px'), p.get('height_px')) for p in snap['photos'] if p['photo_id'] in assigned)), context={k: snap['conditions'].get(k) for k in ['worker_code', 'method_description', 'work_height_cm']}, model=snap['settings']['pose_model'])
+    slots = []
+    for slot in cap['slots']:
+        observation = slot.get('observation') or {}
+        slots.append((
+            slot['slot_no'], slot['photo_id'], slot.get('analysis_target'),
+            slot.get('camera_side'), slot.get('forward_direction'),
+            slot.get('side_view_verified'),
+            observation.get('single_person'), observation.get('full_frame'),
+            observation.get('normal_work'),
+        ))
+    return dict(
+        slots=slots,
+        photos=sorted(
+            (
+                p['photo_id'], p['file_path'],
+                p.get('width_px'), p.get('height_px'),
+            )
+            for p in snap['photos']
+            if p['photo_id'] in assigned
+        ),
+        context={
+            k: snap['conditions'].get(k)
+            for k in ['worker_code', 'method_description', 'work_height_cm']
+        },
+        model=snap['settings']['pose_model'],
+    )
 
 def handle_get_analysis(ctx, method, p):
     return ctx.analysis(p['analysis_id'])

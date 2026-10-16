@@ -9,13 +9,14 @@ async function main(){
  assert.equal(SCREENS.find(s=>s.id==='S05').view,'photo');
  assert.equal(isAnalysisScreen('S09'),true);assert.equal(isAnalysisScreen('S10'),true);assert.equal(isAnalysisScreen('S04'),false);
  const {createController}=await import('../frontend/analysis/controller.js');
+ const {createAnalysisState}=await import('../frontend/analysis/state.js');
  global.document={addEventListener(){}};
  const {SCREEN_INFO}=await import('../frontend/screens.js');
  const nodes={'#content':{innerHTML:''},'#overlay-root':{innerHTML:''}};
  const visited=[];
- const host={element:{addEventListener(){}},active:true,onNavigate(id){visited.push(id);},async onLeave(id){await Promise.resolve();visited.push('leave:'+id);}};
- const s={poll:null,bundle:null,survey:null,tasks:[],selectedSlots:new Set(),comparisonPool:[],exportSelections:{}};
- const ctx={host,s,pages:SCREEN_INFO,$:key=>nodes[key],api:async method=>{assert.equal(method,'get_settings');return {};},actions:{},syncGuidePreferences(){},progressPage:()=>'<p>progress view</p>',settingsPage:()=>'<p>settings view</p>'};
+ const host={element:{addEventListener(){},querySelectorAll(){return [];}},active:true,onNavigate(id){visited.push(id);},async onLeave(id){await Promise.resolve();visited.push('leave:'+id);}};
+ const s=createAnalysisState();
+ const ctx={host,s,pages:SCREEN_INFO,$:key=>nodes[key],api:async method=>{assert.equal(method,'get_settings');return {};},actions:{},toast(message){throw Error(message);},syncGuidePreferences(){},progressPage:()=>'<p>progress view</p>',settingsPage:()=>'<p>settings view</p>'};
  const controller=createController(ctx);
  await controller.open({page:'S09',surveyId:null});assert.match(nodes['#content'].innerHTML,/progress view/);
  await controller.open({page:'S10',surveyId:null});assert.match(nodes['#content'].innerHTML,/settings view/);

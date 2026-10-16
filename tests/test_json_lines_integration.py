@@ -15,38 +15,63 @@ from openpyxl import load_workbook
 
 from ergo.engine.task_defaults import task_input
 from ergo.service import json_lines
+from ergo.service.application import create_service
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class JsonLinesIntegration(unittest.TestCase):
     def test_gpt_request_does_not_block_a_later_service_response(self):
-        started = threading.Event()
-        release = threading.Event()
-        output = io.StringIO()
+        # Real service/storage and request preparation; only the external call is delayed.
+        with tempfile.TemporaryDirectory() as temporary:
+            service = create_service(str(Path(temporary) / "async-gpt.db"))
+            survey = service.dispatch("create_survey", {"draft": {"title": "async fixture"}})
+            task = service.dispatch("create_task", {"survey_id": survey["survey_id"], "draft": {}})
+            analysis = service.dispatch("recalculate_judgments", {"task_id": task["task_id"]})
+            settings = service.settings()
+            settings["gpt_enabled"] = True
+            service.dispatch("update_settings", {"settings": settings})
+            started, release = threading.Event(), threading.Event()
+            output = io.StringIO()
+            workers = []
+            real_thread = threading.Thread
 
-        def delayed_dispatch(method, params):
-            if method == "generate_ai_text":
+            def delayed_generate(*args):
                 started.set()
-                release.wait(timeout=3)
-                return {"text": {"result": "GENERATED"}}
-            return []
+                if not release.wait(timeout=3):
+                    raise RuntimeError("test synchronization timeout")
+                return None, "INJECTED_API_FAILURE"
 
-        with patch.object(json_lines, "dispatch", side_effect=delayed_dispatch), patch("sys.stdout", output):
-            try:
-                json_lines.handle({"request_id": 1, "method": "generate_ai_text", "params": {}})
-                self.assertTrue(started.wait(timeout=1), "GPT 작업 스레드가 시작되지 않았습니다")
-                json_lines.handle({"request_id": 2, "method": "list_surveys", "params": {}})
-                lines = output.getvalue().splitlines()
-                self.assertEqual(len(lines), 1)
-                self.assertEqual(json.loads(lines[0])["request_id"], 2)
-            finally:
-                release.set()
-            deadline = time.monotonic() + 2
-            while len(output.getvalue().splitlines()) < 2 and time.monotonic() < deadline:
-                time.sleep(0.01)
-            responses = [json.loads(line) for line in output.getvalue().splitlines()]
-            self.assertEqual({item["request_id"] for item in responses}, {1, 2})
+            def track_thread(*args, **kwargs):
+                worker = real_thread(*args, **kwargs)
+                workers.append(worker)
+                return worker
+
+            with patch.object(json_lines, "dispatch", service.dispatch), \
+                    patch.object(json_lines, "prepare_dispatch", service.prepare_dispatch), \
+                    patch("ergo.gpt.client.generate", side_effect=delayed_generate), \
+                    patch.object(json_lines.threading, "Thread", side_effect=track_thread), \
+                    patch("sys.stdout", output):
+                try:
+                    json_lines.handle({"request_id": 1, "method": "generate_ai_text", "params": {
+                        "analysis_id": analysis["analysis_id"], "purpose": "TASK_EXPLANATION"}})
+                    self.assertTrue(started.wait(timeout=1), "GPT 작업 스레드가 시작되지 않았습니다")
+                    json_lines.handle({"request_id": 2, "method": "list_surveys", "params": {}})
+                    lines = output.getvalue().splitlines()
+                    self.assertEqual(len(lines), 1)
+                    self.assertEqual(json.loads(lines[0])["request_id"], 2)
+                finally:
+                    release.set()
+                    for worker in workers:
+                        worker.join(timeout=3)
+                self.assertTrue(all(not worker.is_alive() for worker in workers))
+                responses = [json.loads(line) for line in output.getvalue().splitlines()]
+                self.assertEqual({item["request_id"] for item in responses}, {1, 2})
+                self.assertEqual([item["request_id"] for item in responses], [2, 1])
+                self.assertTrue(all(item["result"]["ok"] for item in responses), responses)
+                self.assertEqual(responses[1]["result"]["value"]["text"]["result"], "FALLBACK")
+            saved = service.analysis(analysis["analysis_id"])
+            self.assertEqual(saved["ai"][0]["fallback_reason"], "INJECTED_API_FAILURE")
 
     def test_lifting_task_runs_through_service_process_and_exports_four_sheets(self):
         with tempfile.TemporaryDirectory() as temporary:
