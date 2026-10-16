@@ -12,22 +12,22 @@ export function createController(ctx){
  const {actions}=ctx;
 async function refreshTask(){if(!s.bundle)return;s.bundle=await api('get_task',{task_id:s.bundle.task.task_id});s.history=await api('list_analysis_history',{task_id:s.bundle.task.task_id});const chosen=s.history.find(a=>a.analysis_id===s.selectedAnalysis)||s.history.find(a=>a.analysis_id===s.bundle.task.latest_analysis_id);s.analysis=chosen||null;s.selectedAnalysis=s.analysis?.analysis_id??null;s.tasks=await api('list_tasks',{survey_id:s.survey.survey_id});}
 
-async function navigate(page){if(['S01','S02','S03','S04'].includes(page)){host.onLeave(page);return;}clearInterval(s.poll);s.poll=null;s.page=page;
+async function navigate(page){if(['S01','S02','S03','S04','S05'].includes(page)){await host.onLeave(page);return;}clearInterval(s.poll);s.poll=null;s.page=page;
   if(page==='S01')s.surveys=await api('list_surveys');
-  if(s.bundle&&['S05','S06','S07'].includes(page))await refreshTask();
+  if(s.bundle&&['S09','S06','S07'].includes(page))await refreshTask();
   if(page==='S08'&&s.survey){s.tasks=await api('list_tasks',{survey_id:s.survey.survey_id});s.overview=await api('preview_excel',{survey_id:s.survey.survey_id,analysis_ids:selectedIds(),comparisons:comparisonSpecs()});}
-  render();if(page==='S05'&&s.analysis?.status==='RUNNING')s.poll=setInterval(pollAnalysis,800);
+  render();if(page==='S09'&&s.analysis?.status==='RUNNING')s.poll=setInterval(pollAnalysis,800);
 }
 
 function render(){
   if(!host.active)return;
   host.onNavigate(s.page,pages[s.page]);
   syncGuidePreferences();
-  $('#content').innerHTML=(s.survey&&s.page!=='S09'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S05:progressPage,S06:rebaPage,S07:criteriaPage,S08:exportPage,S09:settingsPage}[s.page])();
+  $('#content').innerHTML=(s.survey&&s.page!=='S10'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S09:progressPage,S06:rebaPage,S07:criteriaPage,S08:exportPage,S10:settingsPage}[s.page])();
   if(s.page==='S06')drawPhoto();
 }
 
-async function pollAnalysis(){if(!s.analysis)return;try{s.analysis=await api('get_analysis',{analysis_id:s.analysis.analysis_id});if(s.page==='S05')render();if(s.analysis.status!=='RUNNING'){clearInterval(s.poll);s.poll=null;toast('분석 요청 처리가 끝났습니다. 사진별 진단과 입력 부족을 확인하세요.');}}catch(error){clearInterval(s.poll);toast(error.message);}}
+async function pollAnalysis(){if(!s.analysis)return;try{s.analysis=await api('get_analysis',{analysis_id:s.analysis.analysis_id});if(s.page==='S09')render();if(s.analysis.status!=='RUNNING'){clearInterval(s.poll);s.poll=null;toast('분석 요청 처리가 끝났습니다. 사진별 진단과 입력 부족을 확인하세요.');}}catch(error){clearInterval(s.poll);toast(error.message);}}
 
 async function populateExportChoices(){const entries=await Promise.all(s.tasks.map(async task=>({task,history:await api('list_analysis_history',{task_id:task.task_id})})));s.comparisonPool=entries.flatMap(({task,history})=>history.map(a=>({...a,task_name:task.task_name})));for(const {task,history} of entries){const select=$(`[data-export-task="${task.task_id}"]`);if(select?.isConnected)select.innerHTML=options([['','최신 분석 / 미분석'],...history.map(a=>[a.analysis_id,`#${a.analysis_id} · r${a.input_revision} · ${statusNames[a.currentness]}`])],s.exportSelections[task.task_id]||'');}const choices=[['','분석 선택'],...s.comparisonPool.map(a=>[a.analysis_id,`#${a.analysis_id} · ${a.task_name} · r${a.input_revision}`])];for(const id of ['comparison-before','comparison-after']){const select=$(`[data-field="${id}"]`);if(select?.isConnected)select.innerHTML=options(choices,id==='comparison-before'?s.comparisonBefore:s.comparisonAfter);}}
 

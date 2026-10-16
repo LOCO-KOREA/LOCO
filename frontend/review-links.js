@@ -12,7 +12,7 @@ export const LocoReview={
  },
  evidence(ai){
   if(!ai?.content)return '';
-  const e=this.escape,links=refs=>(refs||[]).map(ref=>{const match=/^C(\d+)-B(\d+)$/.exec(ref);return `<button type="button" class="basis-link" data-action="show-basis" data-ref="${e(ref)}" data-text-id="${e(ai.text_id)}">${match?`${Number(match[1])}호 계산 근거 ${Number(match[2])}`:'계산 근거 확인'}</button>`;}).join(' ');
+  const e=this.escape,links=refs=>(refs||[]).length?'<div class="basis-links button-group section-actions">'+refs.map(ref=>{const match=/^C(\d+)-B(\d+)$/.exec(ref);return `<button type="button" class="basis-link" data-action="show-basis" data-ref="${e(ref)}" data-text-id="${e(ai.text_id)}">${match?`${Number(match[1])}호 계산 근거 ${Number(match[2])}`:'계산 근거 확인'}</button>`;}).join('')+'</div>':'';
   return `<details class="explanation-evidence"><summary>기준별 설명과 연결된 계산 근거</summary>${ai.content.criteria.map(item=>`<article><h3>${item.criterion_no}호</h3><p>${e(item.explanation)}</p>${links(item.basis_refs)}</article>`).join('')}<h3>현장 확인이 필요한 개선 선택지</h3>${ai.content.improvement_options.map(item=>`<article><p>${e(item.proposal)}</p>${links(item.basis_refs)}<small>현장 적용 가능성과 효과를 조사자가 확인해야 합니다.</small></article>`).join('')}</details>`;
  },
  basis(ai,analysis,ref){

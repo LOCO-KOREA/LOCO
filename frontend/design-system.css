@@ -1,0 +1,291 @@
+/* Shared visual language. Workspace files keep their screen-specific layouts. */
+:root {
+  --color-page: #f5f6fa;
+  --color-surface: #fff;
+  --color-surface-soft: #fafbfd;
+  --color-text: #242d41;
+  --color-secondary: #56647b;
+  --color-muted: #707b8e;
+  --color-line: #e8ebf2;
+  --color-primary: #5c61db;
+  --color-primary-hover: #4e53c3;
+  --color-primary-soft: #eeeffd;
+  --color-primary-line: #c9cbef;
+  --color-focus: #afb4d8;
+  --color-success: #278e78;
+  --color-success-soft: #eaf7f2;
+  --color-warning: #956520;
+  --color-warning-soft: #fff7e8;
+  --color-danger: #b54d3d;
+  --color-danger-soft: #fff2ed;
+  --color-danger-line: #efd9d1;
+  --color-toast: #283048;
+  --color-backdrop: #28304844;
+  --radius-control: 9px;
+  --radius-card: 16px;
+  --space-card: 24px;
+  --height-control: 42px;
+  --shadow-card: 0 5px 18px #1d2b5009;
+  --shadow-dialog: 0 16px 48px #16223926;
+  --line: var(--color-line);
+  --accent: var(--color-primary);
+}
+
+body { color: var(--color-text); background: var(--color-page); font-size: 14px; line-height: 1.6; }
+body:has(main) main { padding-top: 32px; }
+.page-title h1 { font-size: 28px; line-height: 1.3; margin-bottom: 10px; }
+body:has(main) .page-title h1 { margin-bottom: 10px; }
+.page-title p { font-size: 14px; line-height: 1.7; }
+
+button, #analysis-workspace button {
+  min-height: 36px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+button:focus-visible, #analysis-workspace button:focus-visible {
+  outline: 2px solid var(--color-focus); outline-offset: 2px;
+}
+button:disabled, #analysis-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.primary, .dark, #analysis-workspace button.primary {
+  background: var(--color-primary); border-color: var(--color-primary); color: #fff;
+  min-height: var(--height-control); font-size: 14px; font-weight: 700;
+}
+.primary:hover, .dark:hover, #analysis-workspace button.primary:hover {
+  background: var(--color-primary-hover); border-color: var(--color-primary-hover);
+}
+.danger, #analysis-workspace button.danger { color: var(--color-danger); }
+.delete-actions button.danger { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
+.text-button, #help, #home, .photo-slot-name, .photo-guide-copy button { min-height: 0; }
+.photo-slot-actions button, .photo-details-button, #analysis-workspace button.small { min-height: 28px; }
+.photo-slot { height: auto; min-height: 64px; }
+
+input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), select, textarea,
+#task-workspace input:not([type=checkbox]):not([type=radio]), #task-workspace select, #task-workspace textarea,
+#photo-workspace select, #analysis-workspace input:not([type=checkbox]):not([type=radio]),
+#analysis-workspace select, #analysis-workspace textarea {
+  border-color: var(--color-line); border-radius: var(--radius-control);
+  color: var(--color-text); font-size: 14px; padding: 10px 12px;
+}
+input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), select,
+#task-workspace input:not([type=checkbox]):not([type=radio]), #task-workspace select,
+#photo-workspace select, #analysis-workspace input:not([type=checkbox]):not([type=radio]), #analysis-workspace select {
+  height: var(--height-control);
+}
+textarea, #task-workspace textarea, #analysis-workspace textarea { line-height: 1.7; }
+input:focus, select:focus, textarea:focus,
+#analysis-workspace input:focus, #analysis-workspace select:focus, #analysis-workspace textarea:focus {
+  outline: 2px solid var(--color-focus); outline-offset: 1px;
+}
+input[type=checkbox], input[type=radio] { accent-color: var(--color-primary); }
+#analysis-workspace .grid label, #analysis-workspace .manual-grid label { font-size: 13px; font-weight: 700; }
+
+.panel, #analysis-workspace .card {
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  border-radius: var(--radius-card); padding: var(--space-card); box-shadow: var(--shadow-card);
+}
+#analysis-workspace .card { margin-top: 24px; }
+h2, #task-workspace h2, .photo-heading h2, .photo-observation h2, #analysis-workspace .card h2 {
+  font-size: 18px; line-height: 1.5; font-weight: 700;
+}
+.task-context, .photo-context { border: 1px solid var(--color-line); border-radius: var(--radius-control); padding: 12px 18px; }
+tr.selected td, .task-card.selected, .criterion-item.selected, .photo-slot.selected {
+  background: var(--color-primary-soft); border-color: var(--color-primary-line);
+}
+.task-card.selected strong, .criterion-item.selected, .photo-slot.selected .photo-slot-name { color: var(--color-primary); }
+.task-steps .active { color: var(--color-primary); }
+.type-switch input:checked + span { background: var(--color-primary-soft); border-color: var(--color-primary-line); color: var(--color-primary); }
+
+table, #analysis-workspace table { font-size: 13px; }
+th, #analysis-workspace th { background: var(--color-surface-soft); color: var(--color-muted); font-size: 12px; font-weight: 700; }
+#analysis-workspace td { cursor: default; }
+.badge, #analysis-workspace .badge { padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.task-note, .photo-notice, #analysis-workspace .note { border-radius: var(--radius-control); font-size: 13px; line-height: 1.8; padding: 12px 16px; }
+.form-note, .task-hint, .photo-drop-hint, .photo-guide-copy p, #analysis-workspace .input-guide { font-size: 12px; line-height: 1.8; }
+dialog, .photo-dialog, #analysis-workspace .modal { border-radius: var(--radius-card); padding: var(--space-card); box-shadow: var(--shadow-dialog); }
+dialog::backdrop, #analysis-workspace .modal-backdrop { background: var(--color-backdrop); }
+#toast, #analysis-workspace #toast { top: 120px; bottom: auto; font-size: 14px; line-height: 1.6; border-radius: var(--radius-control); }
+
+/* Dense evidence cells retain the compact controls required by the table layout. */
+#task-workspace .exposure-table input { padding: 4px 8px; }
+@media (prefers-reduced-motion: reduce) {
+  button, #analysis-workspace button { transition: none; }
+}
+
+/* Form rhythm: label 8px control, field rows 20px, columns 16px. */
+:root {
+  --space-label: 8px;
+  --space-field: 20px;
+  --space-column: 16px;
+  --space-check: 8px;
+  --size-check: 16px;
+}
+#survey-form { gap: var(--space-field); }
+.pair, .task-pair, .intake-grid, .photo-evidence-pair,
+#analysis-workspace .grid, #analysis-workspace .manual-grid {
+  row-gap: var(--space-field); column-gap: var(--space-column);
+}
+.criterion-numbers { gap: var(--space-field) var(--space-column); margin: var(--space-field) 0; }
+.criterion-options { gap: var(--space-column); }
+.photo-observation-group { gap: var(--space-column); margin: 0 0 var(--space-field); }
+.criterion-evidence { gap: var(--space-column); }
+.criterion-evidence > label { margin-bottom: 0; }
+
+/* Apply to controls inside labels; filters, table rows and inline tools keep zero margins. */
+:is(#survey-workspace, #task-workspace, #photo-workspace, #analysis-workspace, dialog) label > :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  margin: var(--space-label) 0 0;
+}
+#analysis-workspace .modal > label { gap: 0; }
+#task-workspace .task-basic > label,
+#task-workspace .task-period > label,
+.photo-dialog > label { margin: var(--space-field) 0 0; }
+.task-basic > .task-pair { margin-top: var(--space-field); }
+.photo-observation > label { margin: 0 0 var(--space-field); }
+.photo-evidence-pair label { margin-top: var(--space-field); }
+.intake-panel, .questionnaire-form { gap: var(--space-field); }
+#analysis-workspace .card > .grid { margin-top: var(--space-field); }
+.filters :is(input, select), .photo-slot > input,
+#analysis-workspace .toolbar select { margin: 0; }
+
+/* Check controls never inherit text-input width, padding or vertical margins. */
+input[type=checkbox],
+#task-workspace input[type=checkbox],
+#analysis-workspace input[type=checkbox],
+#analysis-workspace .manual-grid input[type=checkbox] {
+  display: inline-block; width: var(--size-check); height: var(--size-check);
+  min-width: var(--size-check); padding: 0; margin: 0;
+  flex: 0 0 var(--size-check); vertical-align: middle;
+}
+:is(#survey-workspace, #task-workspace, #photo-workspace, #analysis-workspace, dialog) label:has(> input[type=checkbox]):not(:has(> select, > textarea, > input:not([type=checkbox]))) {
+  display: flex !important; flex-direction: row; align-items: center;
+  gap: var(--space-check); line-height: 1.6; white-space: normal;
+}
+#task-workspace .task-period > label.check { margin: 12px 0 0; }
+/* Manual review labels contain both a check and a separate value selector. */
+#analysis-workspace .manual-grid label:has(> input[type=checkbox]) {
+  display: grid; grid-template-columns: var(--size-check) minmax(0, 1fr);
+  column-gap: var(--space-check); align-items: center;
+}
+#analysis-workspace .manual-grid label:has(> input[type=checkbox]) > select { grid-column: 1 / -1; }
+
+/* Complete form spacing in nested survey rows, condition cards and popups. */
+.situation-row { gap: var(--space-column); padding-top: var(--space-field); }
+.symptom-region { column-gap: var(--space-column); row-gap: var(--space-field); }
+.symptom-regions { gap: var(--space-field); }
+.questionnaire-form { padding-top: var(--space-field); }
+.criterion-evidence { row-gap: var(--space-field); }
+#task-workspace .condition-row > label,
+#task-workspace .condition-row > label + .task-pair,
+#task-workspace .task-basic > label + .task-pair { margin-top: var(--space-field); }
+#task-workspace .criterion-detail > .task-pair { margin: var(--space-field) 0; }
+#task-workspace .condition-completeness > .task-hint { margin: var(--space-field) 0 var(--space-label); }
+#analysis-workspace .modal > label { margin-top: var(--space-field); }
+#analysis-workspace #export-choices { margin-top: var(--space-field) !important; }
+.photo-consent-summary { margin-top: var(--space-field); }
+.photo-consent-summary button { margin-top: var(--space-label); }
+/* Dialog fields can be inserted into either a native dialog or the shared help dialog. */
+#dialog-text label, .photo-dialog > label { margin-top: var(--space-field); }
+#analysis-workspace .guide-controls label { gap: var(--space-check); }
+
+/* Export follow-ups: separate notice/task groups from their internal content. */
+#analysis-workspace #next-inputs { display: grid; gap: var(--space-field); }
+#analysis-workspace #next-inputs > .note { margin: 0; }
+#analysis-workspace .next-input-task { display: grid; gap: var(--space-label); min-width: 0; }
+#analysis-workspace .next-input-task h3 { margin: 0; overflow-wrap: anywhere; }
+#analysis-workspace .next-input-task .next-list { display: grid; gap: var(--space-check); margin: 0; padding-left: 20px; }
+#analysis-workspace .next-input-task .next-list li { margin: 0; }
+
+/* Survey list stays compact; creation/editing uses a centered section editor. */
+#survey-workspace { grid-template-columns: minmax(0, 1fr); }
+.survey-list-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.survey-list-heading h2 { margin: 0; }
+.survey-panel { min-height: 400px; }
+#survey-editor { width: min(1180px, calc(100vw - 64px)); max-width: none; height: min(850px, calc(100dvh - 64px)); max-height: calc(100dvh - 64px); padding: 0; overflow: hidden; }
+.survey-editor-shell { height: 100%; display: flex; flex-direction: column; }
+.survey-editor-heading { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--color-line); flex: none; }
+.survey-editor-heading h2 { margin: 0; }
+#survey-editor #survey-form { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0; }
+.survey-editor-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); flex: 1; min-height: 0; }
+.survey-editor-nav { padding: 24px 12px; border-right: 1px solid var(--color-line); background: var(--color-surface-soft); overflow-y: auto; }
+.survey-editor-nav button { display: block; width: 100%; text-align: left; border: 0; background: none; margin-bottom: 8px; }
+.survey-editor-nav button.active { color: var(--color-primary); background: var(--color-primary-soft); }
+.survey-editor-content { overflow-y: auto; padding: 24px 32px; overscroll-behavior: contain; min-width: 0; }
+.survey-editor-basic { display: grid; gap: var(--space-field); }
+#survey-editor #survey-intake { gap: 0; }
+#survey-editor .intake-panel { padding: 0; border: 0; box-shadow: none; }
+#survey-editor .symptom-region { grid-template-columns: 88px repeat(4, minmax(0, 1fr)); }
+#survey-editor .symptom-region select { padding-left: 6px; padding-right: 4px; font-size: 12px; }
+.survey-editor-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--color-line); flex: none; }
+.survey-editor-footer span { margin-right: auto; color: var(--color-muted); font-size: 12px; max-width: 380px; }
+#survey-editor-error { color: var(--color-danger); margin: 0; padding: 0 24px; white-space: pre-wrap; }
+#survey-editor-error:empty { display: none; }
+#page-top { position: fixed; left: 28px; bottom: 24px; z-index: 60; border-color: var(--color-primary-line); color: var(--color-primary); box-shadow: var(--shadow-card); }
+@media (max-height: 650px) { #survey-editor { height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); } }
+
+/* Space the first conditions card below the survey/task context bar. */
+#task-workspace .task-context + #task-conditions-form { margin-top: var(--space-field); }
+
+/* Preview/dialog audit: override legacy selectors with matching scope. */
+#analysis-workspace .modal h2 { font-size: 18px; line-height: 1.5; }
+#survey-editor .form-note { margin: 0; }
+#survey-editor .intake-panel > h2 { margin: 0; }
+.type-switch { gap: var(--space-column); }
+dialog { background: var(--color-surface); color: var(--color-text); border-color: var(--color-line); }
+dialog:not(#survey-editor) > h2 { margin: 0 0 var(--space-field); }
+.photo-dialog-heading { margin-bottom: var(--space-field); }
+.photo-thumbnail, .photo-large-preview {
+  background: var(--color-surface-soft); border: 1px solid var(--color-line);
+  border-radius: var(--radius-control); overflow: hidden;
+}
+#analysis-workspace :is(.input-link, .basis-link) {
+  color: var(--color-primary); background: var(--color-primary-soft);
+  border-color: var(--color-primary-line);
+}
+/* Action spacing: normal 12px, compact rows 8px, content-to-action 20px. */
+:root {
+  --space-action: 12px;
+  --space-action-compact: 8px;
+  --space-action-block: 20px;
+}
+.button-group, .panel-actions, .task-bottom, .delete-actions,
+.survey-editor-footer, .dashboard-actions, .dashboard-card-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-action);
+}
+.button-group.compact { gap: var(--space-action-compact); }
+.section-actions { margin-top: var(--space-action-block); }
+#analysis-workspace .toolbar { gap: var(--space-action); row-gap: var(--space-action); }
+#analysis-workspace .toolbar.section-actions { margin-top: var(--space-action-block); }
+#analysis-workspace .modal .toolbar { margin-top: var(--space-action-block); }
+#analysis-workspace .empty button { margin-top: var(--space-action-block); }
+#analysis-workspace .divider { margin-top: var(--space-action-block); margin-bottom: var(--space-action-block); }
+#analysis-workspace .explanation-form { display: grid; gap: var(--space-field); margin-top: var(--space-field); }
+#analysis-workspace .explanation-form > :is(.note, textarea, .toolbar) { margin: 0; }
+#analysis-workspace .explanation-form > .explanation-evidence > summary { margin-top: 0; }
+#analysis-workspace .basis-links { align-items: flex-start; }
+#analysis-workspace .basis-links button { white-space: normal; overflow-wrap: anywhere; }
+
+#photo-workspace .photo-heading { flex-wrap: wrap; margin-top: 0; margin-bottom: var(--space-field); gap: var(--space-column); }
+#photo-workspace .photo-heading > .button-group { justify-content: flex-end; margin-left: auto; }
+#photo-workspace .photo-slot-actions { flex-wrap: wrap; gap: var(--space-action-compact); margin-top: 0; }
+#photo-workspace .photo-slot-actions button { flex: 1 1 auto; height: auto; min-height: 28px; }
+.photo-candidate > .button-group.compact { flex-wrap: wrap; gap: var(--space-action-compact); margin-top: var(--space-action); }
+.photo-candidate > .button-group button { flex: 1 1 auto; }
+#photo-workspace .photo-observation > .photo-guide-copy { margin-bottom: var(--space-action); }
+#photo-workspace .photo-observation > button[data-photo-action="guide"] { margin-bottom: var(--space-action-block); }
+#photo-workspace .photo-consent-summary + .photo-details-button { margin-top: var(--space-action-block); }
+#photo-workspace .photo-board > .photo-candidate-line { margin-bottom: 0; }
+#photo-workspace .photo-board > button[data-photo-action="candidates"] { margin-top: var(--space-action-block); }
+
+#task-workspace .task-sidebar { gap: var(--space-action); }
+#task-workspace .condition-rows { display: grid; gap: var(--space-field); }
+#task-workspace .condition-rows + button[data-add-row] { margin-top: var(--space-action-block); }
+#task-workspace .condition-row .task-pair > button { align-self: end; min-height: var(--height-control); }
+.symptom-response { gap: var(--space-action); }
+.survey-editor-nav { display: flex; flex-direction: column; gap: var(--space-action-compact); }
+.survey-editor-nav button { margin-bottom: 0; flex-shrink: 0; }
+#dialog #close-dialog { margin-top: var(--space-action-block); }
+
+#photo-workspace .photo-observation > p:has(+ button[data-photo-action="guide"]) { margin-bottom: 0; }
+#photo-workspace .photo-observation > button[data-photo-action="guide"] { margin-top: var(--space-action-block); }

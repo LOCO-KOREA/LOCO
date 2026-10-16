@@ -66,7 +66,7 @@ function candidateValueText(candidate){
   return candidate.proposed_value+' 범주';
 }
 
-const pages={S01:['조사 목록','SURVEY WORKSPACE','조사를 만들고 현장의 기록을 이어갑니다.'],S02:['조사 개요','SURVEY OVERVIEW','현장과 조사자 정보를 기록합니다. 모르는 항목은 비워둘 수 있습니다.'],S03:['작업·직접입력','TASK & EXPOSURE','작업 종류에 관계없이 같은 11개 기준과 하루 수치를 기록합니다.'],S04:['사진·분석대상','GENERAL STILLS','가변 사진 행에서 분석대상을 선택합니다.'],S05:['분석 진행','LOCAL ANALYSIS','시작 시점의 입력을 기준으로 로컬 분석을 진행합니다.'],S06:['자세·REBA','POSTURE & REBA','각도는 후보입니다. 현장 관찰값과 함께 확인하고 적용하세요.'],S07:['조사자 확인','CRITERIA REVIEW','앱 초안과 조사자의 결론은 별도로 보존됩니다.'],S08:['Excel 보고서','REPORT EXPORT','선택한 분석의 입력과 결과를 같은 보고서에 담습니다.'],S09:['설정','WORKSPACE SETTINGS','분석 규칙과 로코 안내 설정을 확인합니다.']};
+import {SCREEN_INFO as pages} from '../screens.js';
 
 const statusNames={CURRENT:'현재 입력 기준',STALE:'이전 입력/분석 기준',NONE:'분석 없음',NEEDS_INPUT:'입력 필요',NEEDS_REVIEW:'추가 검토',APPLICABLE:'해당 초안',NOT_APPLICABLE:'비해당 초안',UNREVIEWED:'미검토',NO_ANALYSIS:'분석 없음',REVIEWED_CURRENT:'조사자 검토완료',REVIEWED_HISTORY:'이전결과 검토',VALID:'유효',INVALID:'확인 필요',ERROR:'오류',PENDING:'대기',CANCELED:'취소',NOT_PROCESSED:'미처리',FINISHED:'요청 처리 완료',RUNNING:'처리 중',FAILED:'분석 실패',COMPLETE:'완전',INCOMPLETE:'입력 필요',DONE:'포즈 완료',PARTIAL_REVIEW:'일부 사진 확인 필요'};
 

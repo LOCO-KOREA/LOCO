@@ -39,16 +39,19 @@ async function launch(){
 }
 async function main(){
  await fs.mkdir(runDir,{recursive:true});await launch();
- await navigate('S02');
+ await navigate('S02');await page.locator('#new-survey').click();
  await page.locator('[name="title"]').fill('로컬 검증 · 합성 조사');
  await page.locator('[name="investigator"]').fill('검증용 조사자');
  await page.locator('[name="department"]').fill('검증 부서');
  await page.locator('[name="process"]').fill('검증 공정');
+ await page.locator('.survey-editor-nav button').nth(2).click();
  for(const key of ['equipment','workload','speed','work_pattern'])await page.locator(`[data-intake="${key}_status"]`).selectOption('NO');
+ await page.locator('.survey-editor-nav button').nth(3).click();
  await page.locator('[data-intake="participation_status"]').selectOption('YES');
  await page.locator('[data-intake="participation_role"]').selectOption('AFFECTED_WORKER');
  await page.locator('[data-intake="participant_code"]').fill('검증-001');
  await page.locator('[data-intake="participation_method"]').selectOption('INTERVIEW');
+ await page.locator('.survey-editor-nav button').nth(4).click();
  await page.locator('[data-intake="symptom_method"]').selectOption('INTERVIEW');
  await page.locator('[data-intake="symptom_respondent_count"]').fill('1');
  await page.locator('[data-intake="symptom_summary"]').fill('합성 검증 응답. 실제 건강자료가 아닙니다.');
@@ -94,7 +97,7 @@ async function main(){
  await page.locator('[data-do="info"]').first().click();
  for(const key of ['pose','tags','reba'])await field('analysis_scope.'+key).check();
  await page.locator('#task-info-form button[type="submit"]').click();
- await navigate('S04');
+ await navigate('S05');
  await page.locator('[data-photo-action="add-slot"]').click();
  await electron.evaluate(({dialog},photo)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[photo]});},sample);
  await page.locator('[data-photo-action="import"]').click();
@@ -156,7 +159,7 @@ async function main(){
  const changed=await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.judgment?.judgments[0].computed_status==='NOT_APPLICABLE','changed direct exposure');
  assert.equal(changed.analysis.reba.summary.full_max,1);assert.equal((await api('get_analysis',{analysis_id:a.analysis_id})).snapshot.legal.exposures[0].minutes,240);
  check('changed direct exposure produces a new result while the prior snapshot stays immutable');
- await navigate('S09');await page.locator('[data-field="gpt_enabled"]').selectOption('YES');await page.locator('[data-action="save-gpt-settings"]').click();
+ await navigate('S10');await page.locator('[data-field="gpt_enabled"]').selectOption('YES');await page.locator('[data-action="save-gpt-settings"]').click();
  await navigate('S06');await page.locator('[data-action="generate-explanation"]').click();
  await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.ai?.length>0,'GPT fallback');
  await page.locator('#explanation-text').fill('조사자가 검토한 로컬 대체 설명');await page.locator('[data-action="edit-explanation"]').click();
@@ -189,7 +192,9 @@ async function main(){
  await navigate('S02');await page.locator('#new-survey').click();
  await page.locator('[name="survey_type"][value="OCCASIONAL"]').check();
  await page.locator('[name="title"]').fill('수시조사 · 합성 증상 응답');
+ await page.locator('.survey-editor-nav button').nth(1).click();
  await page.locator('[data-intake="occasional_cause"]').selectOption('DISEASE_CASE');
+ await page.locator('.survey-editor-nav button').nth(4).click();
  await page.locator('[data-intake="symptom_method"]').selectOption('QUESTIONNAIRE');
  await page.locator('.questionnaire-details summary').click();
  await page.locator('[data-intake="response_work_related"]').selectOption('YES');
@@ -203,7 +208,7 @@ async function main(){
  assert.ok(disease);const diseaseData=await api('get_survey',{survey_id:disease.survey_id});
  assert.equal(diseaseData.symptom_survey.responses[0].name,'');assert.equal(diseaseData.symptom_survey.responses[0].regions.neck.side,'BOTH');
  for(const [cause,filename,expected] of [['DISEASE_CASE','disease-report.xlsx',6],['NEW_TASK_OR_EQUIPMENT','new-equipment-report.xlsx',4],['WORK_ENVIRONMENT_CHANGE','changed-environment-report.xlsx',4],['OTHER','other-report.xlsx',4]]){
-  if(cause!=='DISEASE_CASE'){await navigate('S02');await page.locator('[data-intake="occasional_cause"]').selectOption(cause);await page.locator('#save-survey').click();await page.locator('#task-workspace:not([hidden])').waitFor();}
+  if(cause!=='DISEASE_CASE'){await navigate('S02');await page.locator('#edit-survey').click();await page.locator('.survey-editor-nav button').nth(1).click();await page.locator('[data-intake="occasional_cause"]').selectOption(cause);await page.locator('#save-survey').click();await page.locator('#task-workspace:not([hidden])').waitFor();}
   await navigate('S08');const file=path.join(runDir,filename);
   await electron.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},file);
   await page.locator('[data-action="export"]').click();await until(()=>fs.stat(file).catch(()=>null),Boolean,'type-specific export');
@@ -221,8 +226,8 @@ async function main(){
  check('initial/regular/occasional surveys remain separate and anonymous responses persist');
  await navigate('S02');
  await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();
- await page.locator('#open-survey').click();
- await navigate('S09');
+ await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();
+ await navigate('S10');
  const settingsBefore=(await api('get_task',{task_id:task.task_id})).task.input_revision;
  await page.locator('[data-field="analysis-confidence"]').fill('0.6');
  await page.locator('[data-action="save-analysis-settings"]').click();
@@ -241,7 +246,7 @@ async function main(){
  assert.ok(purposeTexts.some(a=>a.purpose==='TASK_EXPLANATION'&&a.is_active));
  assert.ok(purposeTexts.some(a=>a.purpose==='IMPROVEMENT_ADVICE'&&a.is_active&&a.input_summary.purpose==='IMPROVEMENT_ADVICE'));
  check('both explanation purposes can be edited and independently applied through the UI');
- await navigate('S04');await page.locator('[data-photo-field="load_state"]').selectOption('UNKNOWN');
+ await navigate('S05');await page.locator('[data-photo-field="load_state"]').selectOption('UNKNOWN');
  await page.locator('[data-photo-action="save"]').click();
  await api('recalculate_reba',{task_id:task.task_id});await navigate('S08');
  await page.locator('[data-action="open-next-input"][data-path="effective_load_kg"]').first().click();
@@ -250,12 +255,12 @@ async function main(){
  await page.locator('[data-photo-field="load_state"]').selectOption('UNLOADED');
  await page.locator('[data-photo-action="save"]').click();
  check('missing photo load navigates from the report to the exact observation control');
- await page.locator('[data-photo-action="open-page"][data-photo-page="S07"]').click();
+ await navigate('S07');
  await page.locator('#analysis-workspace:not([hidden])').waitFor();
  await page.locator('[data-action="calculate-criteria"]').waitFor();
- check('photo step navigation is connected to the investigator review screen');
+ check('top navigation connects photos to investigator review');
  const secondSample=path.join(runDir,'second-public-example.jpeg');await fs.copyFile(sample,secondSample);
- await navigate('S04');
+ await navigate('S05');
  await electron.evaluate(({dialog},paths)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:paths});},[secondSample,path.join(runDir,'missing-file.jpg')]);
  await page.locator('[data-photo-action="import"]').first().click();
  await page.locator('.photo-notice').filter({hasText:'등록하지 못한 사진'}).waitFor();
@@ -281,18 +286,18 @@ async function main(){
  await page.locator('#task-info-form button[type="submit"]').click();
  const multiple=await api('list_tasks',{survey_id:survey.survey_id});assert.equal(multiple.length,2);
  const extra=multiple.find(t=>t.task_id!==task.task_id);assert.ok(extra);
- await navigate('S05');await page.locator('[data-action="start-analysis"]').click();
+ await navigate('S09');await page.locator('[data-action="start-analysis"]').click();
  const zero=await until(()=>api('get_task_result',{task_id:extra.task_id}),x=>x.analysis?.status==='FINISHED','zero target analysis');
  assert.equal(zero.analysis.module_states.pose,'FAILED');assert.equal(zero.analysis.pose.total_slot_count,0);
  check('requested zero-photo analysis stays failed while direct judgments remain available in the UI');
- await navigate('S03');await page.locator('[data-do="delete"]').click();
+ await navigate('S03');await page.locator('[data-do="delete"]').click();await page.locator('.delete-confirmation [data-confirm]').click();
  await until(()=>api('list_tasks',{survey_id:survey.survey_id}),items=>items.length===1,'delete extra task');
  assert.equal((await api('get_task',{task_id:task.task_id})).task.manual.length,manualCount);
  check('multiple tasks can be created and deleted through the UI without changing the retained task');
  await navigate('S02');await page.locator('#new-survey').click();
  await page.locator('[name="title"]').fill('삭제 전용 합성 조사');await page.locator('#save-survey').click();
  await page.locator('#task-workspace:not([hidden])').waitFor();await navigate('S02');
- await page.locator('#delete-survey').click();
+ await page.locator('#delete-survey').click();await page.locator('.delete-confirmation [data-confirm]').click();
  await until(()=>api('list_surveys'),items=>items.length===3&&!items.some(x=>x.title==='삭제 전용 합성 조사'),'delete extra survey');
  assert.equal((await api('get_task',{task_id:task.task_id})).task.manual.length,manualCount);
  check('survey deletion through the UI preserves the independent surveys and stored work');

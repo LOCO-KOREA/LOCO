@@ -33,7 +33,7 @@ async function main(){
  const task=await api('create_task',{survey_id:survey.survey_id,draft:{task_name:'private task',conditions:{worker_code:'private worker'}}});
  const original=await api('recalculate_judgments',{task_id:task.task_id});
  const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';await api('update_settings',{settings});
- await page.reload();await page.locator('#connection.connected').waitFor();await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
+ await page.reload();await page.locator('#connection.connected').waitFor();await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
  await page.locator('[data-action="generate-explanation"]').click();
  let generated=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===1);
  assert.equal(generated.ai[0].result,'GENERATED');assert.deepEqual(generated.judgment,original.judgment);

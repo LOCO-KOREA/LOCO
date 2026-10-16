@@ -25,11 +25,11 @@ const actions={
  'show-basis':async button=>{
   const ai=s.analysis?.ai.find(x=>x.text_id===button.dataset.textId),basis=LocoReview.basis(ai,s.analysis,button.dataset.ref);
   if(!basis)return toast('저장된 설명에서 해당 근거를 찾을 수 없습니다.');
-  modal(`${basis.number}호 · 설명 생성 당시 계산 근거`,`${ai.source_current?'':'<p class="note warn">이전 계산 요약에 대한 설명입니다.</p>'}<p>${basis.path?e(inputLabel(basis.path)):e(button.dataset.ref)}</p><table><tbody>${Object.entries(basis.value).map(([key,value])=>`<tr><th>${e({item_code:'참조',value:'입력값',unit:'단위',operator:'비교',threshold:'문턱'}[key]||key)}</th><td>${value===null?'미입력':e(value)}</td></tr>`).join('')}</tbody></table>${basis.path?`<button data-action="open-next-input" data-task="${s.bundle.task.task_id}" data-module="BURDEN" data-path="${e(basis.path)}">현재 입력 항목으로 이동</button>`:''}`);
+  modal(`${basis.number}호 · 설명 생성 당시 계산 근거`,`${ai.source_current?'':'<p class="note warn">이전 계산 요약에 대한 설명입니다.</p>'}<p>${basis.path?e(inputLabel(basis.path)):e(button.dataset.ref)}</p><table><tbody>${Object.entries(basis.value).map(([key,value])=>`<tr><th>${e({item_code:'참조',value:'입력값',unit:'단위',operator:'비교',threshold:'문턱'}[key]||key)}</th><td>${value===null?'미입력':e(value)}</td></tr>`).join('')}</tbody></table>${basis.path?`<div class="toolbar section-actions"><button data-action="open-next-input" data-task="${s.bundle.task.task_id}" data-module="BURDEN" data-path="${e(basis.path)}">현재 입력 항목으로 이동</button></div>`:''}`);
  },
  'view-history':async b=>{s.selectedAnalysis=Number(b.dataset.id);s.analysis=s.history.find(a=>a.analysis_id===s.selectedAnalysis)||null;render();},
  'capture-guide':async()=>modal('사진·관찰 입력 안내',`<p>사진은 작업 특성에 따라 0장 이상 등록하고, 각 사진을 분석대상으로 쓸지 직접 선택합니다. 순서나 파일명만으로 작업 단계·하중을 추정하지 않습니다.</p><ul class="next-list"><li>대상 사진마다 카메라 좌우, 화면에서 작업자가 향한 방향, 측면 촬영 확인을 기록합니다.</li><li>단일 작업자·전신·통상 작업 여부를 확인하고, 모르는 관찰값은 미확인으로 둡니다.</li><li>관찰 하중은 무하중, 측정값, 미확인을 구분하고 측정 출처를 남깁니다.</li><li>상자 들기도 다른 작업과 같은 일반 작업·가변 사진·조건별 입력을 사용합니다.</li></ul><p>사진의 자세 비율은 하루 노출시간이나 법정 기준 해당 확률이 아닙니다.</p>`),
- 'start-analysis':async()=>{if(!s.bundle)return toast('작업을 먼저 선택하세요.');const handle=await api('start_analysis',{task_id:s.bundle.task.task_id});s.selectedAnalysis=handle.analysis_id;await navigate('S05');},
+ 'start-analysis':async()=>{if(!s.bundle)return toast('작업을 먼저 선택하세요.');const handle=await api('start_analysis',{task_id:s.bundle.task.task_id});s.selectedAnalysis=handle.analysis_id;await navigate('S09');},
  'cancel-analysis':async()=>{if(s.analysis){await api('cancel_analysis',{analysis_id:s.analysis.analysis_id});toast('취소를 요청했습니다.');}},
  'select-slot':async b=>{s.slot=Number(b.dataset.slot);render();},
  'apply-candidates':async()=>saveManual(true),
@@ -64,7 +64,7 @@ function syncGuidePreferences(){
   widget.setAttribute('mode',ui.loco_mode);
 
 
-  if(s.page==='S09'){
+  if(s.page==='S10'){
     const visible=$('[data-field="loco_visible"]'),mode=$('[data-field="loco_mode"]');
     if(visible)visible.value=ui.loco_visible?'YES':'NO';
     if(mode)mode.value=ui.loco_mode;
