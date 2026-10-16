@@ -74,10 +74,10 @@ export function createController(ctx){
  }
  async function navigate(page,{refresh=true}={}){
   invalidate();
-  if(['S01','S02','S03','S04'].includes(page)){host.onLeave(page);return false;}
+  if(['S01','S02','S03','S04','S05'].includes(page)){await host.onLeave(page);return false;}
   s.page=page;const t=token();
   try{
-  if(refresh&&s.bundle&&['S05','S06','S07'].includes(page)){if(!await refreshTask(t))return false;}
+  if(refresh&&s.bundle&&['S09','S06','S07'].includes(page)){if(!await refreshTask(t))return false;}
   if(page==='S08'&&s.survey){
    const surveyId=t.surveyId,ids=[...ctx.selectedIds()],comparisons=structuredClone(ctx.comparisonSpecs());
    const [tasks,overview]=await Promise.all([api('list_tasks',{survey_id:surveyId}),api('preview_excel',{survey_id:surveyId,analysis_ids:ids,comparisons})]);
@@ -89,11 +89,11 @@ export function createController(ctx){
  function render(){
   if(!host.active)return;
   host.onNavigate(s.page,pages[s.page]);ctx.syncGuidePreferences();
-  $('#content').innerHTML=(s.survey&&s.page!=='S09'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S05:ctx.progressPage,S06:ctx.rebaPage,S07:ctx.criteriaPage,S08:ctx.exportPage,S09:ctx.settingsPage}[s.page])();
+  $('#content').innerHTML=(s.survey&&s.page!=='S10'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S09:ctx.progressPage,S06:ctx.rebaPage,S07:ctx.criteriaPage,S08:ctx.exportPage,S10:ctx.settingsPage}[s.page])();
   if(s.page==='S06')ctx.drawPhoto();syncBusy();
  }
  function startPoll(){
-  stopPoll();if(s.page!=='S05'||s.analysis?.status!=='RUNNING'||!host.active)return;
+  stopPoll();if(s.page!=='S09'||s.analysis?.status!=='RUNNING'||!host.active)return;
   const owner={token:token({analysis:true}),analysisId:s.analysis.analysis_id,stopped:false,inFlight:false};s.pollOwner=owner;
   s.poll=timers.setTimeout(()=>pollAnalysis(owner),800);
  }

@@ -2,51 +2,16 @@
    Load with <script src="./loco-guide.js"></script> and mount with <loco-guide page="S01"></loco-guide>.
    Listen for "loco-guide-action" to connect navigation, capture guide, and review actions. */
 const PET_GUIDES = Object.freeze({
-  S01: {
-    message: '안녕하세요, 로코예요! 현장의 움직임을 기록하는 동안 옆에서 필요한 입력을 짚어드릴게요.',
-    cta: '진행 중인 조사 열기',
-    action: 'S02'
-  },
-  S02: {
-    message: '어떤 현장인지 먼저 알려주세요. 모르는 항목은 비워둬도 괜찮아요. 기록은 차근차근 채워가요.',
-    cta: '작업 조건 살펴보기',
-    action: 'S03'
-  },
-  S03: {
-    message: '하루 작업시간과 자세에 노출된 시간은 달라요. 사진 비율로 시간을 채우지 않도록 함께 살펴봐요.',
-    cta: '사진 등록으로',
-    action: 'S04'
-  },
-  S04: {
-    message: '가운데 순간의 기준은 상자 “바닥면”이에요! 사진을 놓은 뒤, 순간과 하중을 직접 확인해 주세요.',
-    cta: '촬영 안내 다시 보기',
-    action: 'guide'
-  },
-  S05: {
-    message: '포즈 처리 완료와 점수 계산 완료는 달라요. 가려진 관절이나 빈 슬롯도 결과에서 확인할 수 있어요.',
-    cta: '사진·REBA 살펴보기',
-    action: 'S06'
-  },
-  S06: {
-    message: '부분 최대와 전체 최대는 다르게 읽어요. 점수가 없는 사진은 0점이 아니라, 아직 입력이 필요한 사진이에요.',
-    cta: '현재 사진 관찰값 보기',
-    action: 'manual'
-  },
-  S07: {
-    message: '앱의 초안과 조사자의 결론은 나란히 남아요. 결론을 적어도 부족한 입력을 숨기지는 않아요.',
-    cta: '4호 합산 해석 살펴보기',
-    action: 'criterion4'
-  },
-  S08: {
-    message: '빠진 항목도 보고서의 일부예요. 아래 “다음 입력 안내”에는 어느 사진, 어느 기준인지 모두 적어두었어요.',
-    cta: '다음 입력으로 이동',
-    action: 'next'
-  },
-  S09: {
-    message: '저는 작고 조용한 현장 동료예요. 바쁠 땐 조용한 모드를 켜 주세요. 판단은 늘 조사자의 몫이에요.',
-    cta: '조용한 모드 전환',
-    action: 'quiet'
-  }
+  S01:{message:'저장한 조사를 열거나 새 조사를 시작해요. 작업의 근거를 차근차근 기록할 수 있어요.',cta:'조사 목록 열기',action:'S02'},
+  S02:{message:'조사 개요와 현장 상황을 기록해 주세요. 모르는 항목은 비워도 괜찮아요.',cta:'작업 개요 살펴보기',action:'S03'},
+  S03:{message:'작업 종류와 관계없이 같은 11개 기준을 확인해요. 입력 서식은 질문 순서만 바꿔요.',cta:'작업 조건 입력으로',action:'S04'},
+  S04:{message:'하루 시간·중량·힘·횟수는 관찰과 면담으로 기록해요. 사진 없이도 기준 초안을 계산할 수 있어요.',cta:'기준 초안 계산·검토',action:'calculate'},
+  S05:{message:'사진은 필요한 만큼 선택해요. 각 사진의 촬영조건과 실제 관찰 하중을 확인해 주세요.',cta:'촬영 안내 다시 보기',action:'guide'},
+  S06:{message:'각도는 후보이며 총점이 없는 사진은 0점이 아니에요. 누락된 관찰값을 확인해 주세요.',cta:'현재 사진 관찰값 보기',action:'manual'},
+  S07:{message:'계산 초안과 조사자의 결론은 별도로 남아요. 결론을 적어도 부족한 입력을 숨기지 않아요.',cta:'4호 합산 해석 살펴보기',action:'criterion4'},
+  S08:{message:'출력할 분석과 전후 비교를 선택해요. 다음 입력 안내에서 부족한 근거로 이동할 수 있어요.',cta:'다음 입력으로 이동',action:'next'},
+  S09:{message:'전체 처리 종료와 계산의 완전성은 달라요. 요청 범위와 사진별 진단을 확인해 주세요.',cta:'자세·REBA 결과 보기',action:'S06'},
+  S10:{message:'분석 규칙과 모델·설명·안내 설정을 확인해요. 조용한 모드는 반복 안내를 줄여줘요.',cta:'조용한 모드 전환',action:'quiet'}
 });
 
 const PET_ANSWERS = Object.freeze({

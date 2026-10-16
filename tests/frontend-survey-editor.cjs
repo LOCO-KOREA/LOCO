@@ -1,0 +1,33 @@
+const assert = require('node:assert/strict');
+async function main() {
+  const {SurveyEditor} = await import('../frontend/survey-editor.js');
+  const editor = Object.create(SurveyEditor.prototype);
+  const values = [{value:'조사 제목'}, {value:'미저장 참여 기록'}, {value:'0'}];
+  editor.sections = values.map(value => ({hidden:false, input:value}));
+  editor.nav = {children:values.map(() => ({classList:{toggle(){}},setAttribute(){}}))};
+  const scrolls = []; editor.content = {scrollTo: value => scrolls.push(value)};
+  editor.select(1);
+  assert.deepEqual(editor.sections.map(s => s.hidden), [true,false,true]);
+  editor.select(2); editor.select(0);
+  assert.deepEqual(values.map(v => v.value), ['조사 제목','미저장 참여 기록','0']);
+  let busy = true, remembered = 0, closes = 0, opens = 0, focused = 0;
+  editor.isBusy = () => busy; editor.remember = () => remembered++;
+  editor.dialog = {open:true,close(){closes++;this.open=false;},showModal(){opens++;this.open=true;}};
+  editor.close(); assert.equal(closes,0); assert.equal(remembered,0);
+  busy = false; editor.close(); assert.equal(closes,1); assert.equal(remembered,1);
+  editor.form = {elements:{namedItem(name){assert.equal(name,'title');return {focus(){focused++;}};}}};
+  editor.open(); assert.equal(opens,1); assert.equal(focused,1);
+  busy = true; editor.close(true); assert.equal(closes,2); assert.equal(remembered,1);
+  editor.sections.forEach((section, index) => { section.contains = input => input === values[index]; });
+  const details = {tagName:'DETAILS', open:false, parentElement:editor.form};
+  values[1].parentElement = details;
+  editor.select(0); editor.revealInvalid(values[1]); editor.revealInvalid(values[2]);
+  assert.deepEqual(editor.sections.map(s => s.hidden), [true,false,true]);
+  assert.equal(details.open,true);
+  await Promise.resolve(); editor.revealInvalid(values[2]);
+  assert.deepEqual(editor.sections.map(s => s.hidden), [true,true,false]);
+  const fs=require('node:fs'),path=require('node:path');
+  for(const name of ['task/views.js','photo/views.js']) assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'../frontend',name),'utf8'),/class="task-steps"/);
+  console.log('PASS survey sections retain inputs/zero, busy-close protection, saved-close, reopen focus, first invalid field reveal, and duplicate tab removal');
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

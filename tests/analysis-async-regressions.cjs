@@ -54,7 +54,7 @@ async function fixture(){
  const host={element,active:true,api,notify(message){messages.push(message);},onNavigate(){renders++;},onLeave(){host.active=false;},onInput:async()=>{},onPhotoInput:async()=>{}};
  const messages=[],s=createAnalysisState();
  Object.assign(s,{page:'S06',survey:structuredClone(surveys[1]),tasks:Object.values(bundles).map(b=>b.task),bundle:structuredClone(bundles[1]),analysis:structuredClone(histories[1][0]),selectedAnalysis:11,aiTextId:'old1',settings:structuredClone(settings),slot:1,exportSelections:{1:11},comparisonBefore:11,comparisonAfter:22,comparisonNote:'original'});
- const ctx={host,s,$,$$:selector=>selector==='[data-manual-use]:checked'?[{dataset:{manualUse:'COMMON.trunk_base'}}]:selector==='[data-auto-candidate]:checked'?[{dataset:{autoCandidate:'COMMON.trunk_base'}}]:[],api,toast:m=>messages.push(m),pages:{S05:['progress'],S06:['reba'],S07:['criteria'],S08:['export'],S09:['settings']},statusNames:{},options:()=>'',card:()=>'',modal:()=>{},field:()=>'',select:()=>'',e:String,number:()=>.5,text:key=>$(key).value||'',inputLabel:String,LocoReview:{basis:()=>null},selectedIds:()=>Object.values(s.exportSelections).filter(Boolean),comparisonSpecs:()=>[{before_analysis_id:s.comparisonBefore,after_analysis_id:s.comparisonAfter,note:s.comparisonNote}],timers,
+ const ctx={host,s,$,$$:selector=>selector==='[data-manual-use]:checked'?[{dataset:{manualUse:'COMMON.trunk_base'}}]:selector==='[data-auto-candidate]:checked'?[{dataset:{autoCandidate:'COMMON.trunk_base'}}]:[],api,toast:m=>messages.push(m),pages:{S09:['progress'],S06:['reba'],S07:['criteria'],S08:['export'],S10:['settings']},statusNames:{},options:()=>'',card:()=>'',modal:()=>{},field:()=>'',select:()=>'',e:String,number:()=>.5,text:key=>$(key).value||'',inputLabel:String,LocoReview:{basis:()=>null},selectedIds:()=>Object.values(s.exportSelections).filter(Boolean),comparisonSpecs:()=>[{before_analysis_id:s.comparisonBefore,after_analysis_id:s.comparisonAfter,note:s.comparisonNote}],timers,
   progressPage:()=>'',rebaPage:()=>'',criteriaPage:()=>'',exportPage:()=>'',settingsPage:()=>'',drawPhoto:()=>{}};
  $('[data-manual="COMMON.trunk_base"]').value='2';$('#include-representative').checked=true;
  Object.assign(ctx,createActions(ctx));const workspace=createController(ctx);
@@ -66,7 +66,7 @@ async function fixture(){
 const cases=[];
 function test(name,run){cases.push({name,run});}
 
-for(const page of ['S06','S09'])test('first open from S01 reaches '+page,async h=>{
+for(const page of ['S06','S09','S10'])test('first open from S01 reaches '+page,async h=>{
  h.s.page='S01';h.s.survey=null;h.s.bundle=null;h.s.analysis=null;h.s.selectedAnalysis=null;
  await h.workspace.open({page,surveyId:1,taskId:1});
  assert.equal(h.s.page,page);assert.equal(h.s.bundle.task.task_id,1);assert.ok(h.renders()>0);
@@ -103,13 +103,13 @@ test('refreshTask commits captured task only if still selected',async h=>{
  assert.equal(h.s.bundle.task.task_id,2);assert.equal(h.s.analysis.task_id,2);
 });
 test('poll requests are single flight',async h=>{
- const d=deferred();h.s.page='S05';h.s.analysis.status='RUNNING';h.hooks.get_analysis=()=>d.promise;
+ const d=deferred();h.s.page='S09';h.s.analysis.status='RUNNING';h.hooks.get_analysis=()=>d.promise;
  h.ctx.startPoll?.();const p=h.ctx.pollAnalysis(),q=h.ctx.pollAnalysis();await tick();
  const count=h.calls.filter(x=>x.method==='get_analysis').length;
  d.resolve({...structuredClone(h.histories[1][0]),status:'FINISHED'});await Promise.all([p,q]);assert.equal(count,1);
 });
 test('old poll completion cannot stop new task poll or overwrite it',async h=>{
- const d=deferred();h.s.page='S05';h.s.analysis.status='RUNNING';h.histories[2][0].status='RUNNING';
+ const d=deferred();h.s.page='S09';h.s.analysis.status='RUNNING';h.histories[2][0].status='RUNNING';
  h.hooks.get_analysis=()=>d.promise;h.ctx.startPoll?.();const p=h.ctx.pollAnalysis();await h.choose(2);
  const owner=h.s.pollOwner,timer=h.s.poll;d.resolve({...structuredClone(h.histories[1][0]),status:'FINISHED'});await p;
  assert.equal(h.s.analysis.task_id,2);
