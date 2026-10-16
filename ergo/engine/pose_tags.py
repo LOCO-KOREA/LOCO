@@ -22,8 +22,26 @@ def calculate_tags(snapshot,pose):
                     left=(manual.get('LEFT') or {}).get(field); right=(manual.get('RIGHT') or {}).get(field)
                     value='YES' if 'YES' in (left,right) else 'NO' if left=='NO' and right=='NO' else 'UNKNOWN'
                     source='MANUAL' if value in ('YES','NO') else 'UNKNOWN'
+            elif tag == 'UPPER_ARM_RAISE':
+                arm_angles = {
+                    angle['side']: angle['value_deg']
+                    for angle in ps.get('angles', [])
+                    if ps.get('status') == 'VALID'
+                    and angle['angle_code'] == 'UPPER_ARM_RAISE_VERT'
+                    and angle['side'] in ('LEFT', 'RIGHT')
+                    and angle['value_deg'] is not None
+                }
+                raised = {
+                    side: angle >= profile['upper_arm_raise_deg']
+                    for side, angle in arm_angles.items()
+                }
+                if any(raised.values()):
+                    value = 'YES'
+                elif set(raised) == {'LEFT', 'RIGHT'}:
+                    value = 'NO'
+                source = 'ANGLE' if value in ('YES', 'NO') else 'UNKNOWN'
             else:
-                code,threshold,reverse={'NECK_FORWARD_PROXY':('NECK_TILT_VERT_PROXY',profile['neck_forward_deg'],False),'TRUNK_FLEX':('TRUNK_TILT_VERT',profile['trunk_flex_deg'],False),'TRUNK_EXT':('TRUNK_TILT_VERT',profile['trunk_extension_deg'],True),'UPPER_ARM_RAISE':('UPPER_ARM_RAISE_VERT',profile['upper_arm_raise_deg'],False)}[tag]
+                code,threshold,reverse={'NECK_FORWARD_PROXY':('NECK_TILT_VERT_PROXY',profile['neck_forward_deg'],False),'TRUNK_FLEX':('TRUNK_TILT_VERT',profile['trunk_flex_deg'],False),'TRUNK_EXT':('TRUNK_TILT_VERT',profile['trunk_extension_deg'],True)}[tag]
                 if aa.get(code) is not None: value='YES' if (aa[code]<=threshold if reverse else aa[code]>=threshold) else 'NO'; source='ANGLE'
             slots.append(dict(slot_no=slot['slot_no'],tag=tag,value=value,source=source))
     for tag in TAGS:

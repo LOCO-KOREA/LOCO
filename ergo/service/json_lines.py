@@ -9,13 +9,16 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from ergo.service.application import dispatch
+from ergo.service.application import dispatch, prepare_dispatch, RECALCULATION_METHODS
 
 _write_lock = threading.Lock()
 
-def respond(request):
+def respond(request, operation=None, preparation_error=None):
     try:
-        result = dict(ok=True, value=dispatch(request['method'], request.get('params', {})))
+        if preparation_error is not None:
+            raise preparation_error
+        value = operation() if operation is not None else dispatch(request['method'], request.get('params', {}))
+        result = dict(ok=True, value=value)
     except Exception as error:
         traceback.print_exc(file=sys.stderr)
         code = ('DB_ERROR' if isinstance(error, sqlite3.Error) else
@@ -29,9 +32,23 @@ def respond(request):
 
 
 def handle(request):
-    """Keep network-backed explanations from blocking subsequent IPC requests."""
-    if request.get('method') == 'generate_ai_text':
-        threading.Thread(target=respond, args=(request,), daemon=True).start()
+    """Capture background request targets in IPC order before running workers."""
+    method = request.get('method')
+    if isinstance(method, str) and (method in RECALCULATION_METHODS or method == 'generate_ai_text'):
+        try:
+            operation = prepare_dispatch(method, request.get('params', {}))
+        except Exception as error:
+            respond(request, preparation_error=error)
+            return
+        try:
+            threading.Thread(target=respond, args=(request, operation), daemon=True).start()
+        except Exception as error:
+            try:
+                operation.start_failed(error)
+            except Exception as save_error:
+                respond(request, preparation_error=save_error)
+                return
+            respond(request, preparation_error=error)
     else:
         respond(request)
 

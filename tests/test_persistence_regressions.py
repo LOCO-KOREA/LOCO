@@ -90,6 +90,7 @@ class PersistenceRegressions(unittest.TestCase):
         config = app.settings(); config['gpt_enabled'] = True
         app.dispatch('update_settings', {'settings': config})
         a = app.new_analysis(self.task, ['judgment'])
+        token = app._context.analysis_token(a['analysis_id'])
         entered, release = threading.Event(), threading.Event()
         errors, response = [], []
         def delayed(*args):
@@ -104,7 +105,7 @@ class PersistenceRegressions(unittest.TestCase):
             worker.start()
             try:
                 self.assertTrue(entered.wait(5))
-                app.run(a, ['judgment'], threading.Event())
+                app.run(a, ['judgment'], threading.Event(), token)
             finally:
                 release.set(); worker.join(5)
         self.assertFalse(worker.is_alive())
