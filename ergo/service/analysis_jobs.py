@@ -76,9 +76,41 @@ def _new_analysis(ctx, task, modules):
     if len(ids) != len(set(ids)):
         result['notes'].append(diagnostic('DUPLICATE_PHOTO', '같은 사진이 여러 분석대상 슬롯에 배정되었습니다.'))
     identity = ctx.store('create_analysis', task['task_id'], task['input_revision'], 'RUNNING', snap, now(), result=result)
+    ctx.analysis_token(identity, renew=True)
     return ctx.require('analysis', identity)
 
-def run(ctx, a, modules, cancel):
+def _fail_analysis(ctx, a, error, token, *, code='ANALYSIS_ERROR'):
+    """Fail unfinished modules while keeping completed or reused results."""
+    pose_running = a.get('module_states', {}).get('pose') == 'RUNNING'
+    a['status'] = 'FAILED'
+    a['finished_at'] = now()
+    a['notes'].append(diagnostic(code, str(error)))
+    for key, state in a.get('module_states', {}).items():
+        if state == 'RUNNING':
+            a['module_states'][key] = 'FAILED'
+    if pose_running and a['pose']:
+        a['pose']['status'] = 'FAILED'
+        a['pose']['terminal_error'] = str(error)
+        for slot in a['pose']['slots']:
+            if slot['status'] == 'PENDING':
+                slot.update(status='NOT_PROCESSED', diagnostics=[diagnostic(code, str(error))])
+    return ctx.persist_analysis(a, token=token)
+
+
+def _release_cancel(ctx, identity, cancel):
+    with ctx.db_lock:
+        if ctx.cancels.get(identity) is cancel:
+            ctx.cancels.pop(identity, None)
+
+
+def fail_recalculation_start(ctx, a, cancel, token, error):
+    try:
+        return _fail_analysis(ctx, a, error, token, code='ANALYSIS_START_ERROR')
+    finally:
+        _release_cancel(ctx, a['analysis_id'], cancel)
+
+
+def run(ctx, a, modules, cancel, token):
     try:
         with ctx.analysis_lock:
             targets = [s for s in a['snapshot']['capture']['slots'] if s.get('analysis_target') and s.get('photo_id') is not None]
@@ -95,7 +127,7 @@ def run(ctx, a, modules, cancel):
                         a['pose']['slots'][i]['status'] = 'INVALID'
                         a['pose']['slots'][i].setdefault('diagnostics', []).append(diagnostic('DUPLICATE_PHOTO', '같은 사진이 다른 분석대상 행에도 배정되어 별도 표본으로 계산하지 않습니다'))
                     a['pose']['valid_count'] = sum((p['status'] == 'VALID' for p in a['pose']['slots']))
-                    ctx.persist_analysis(a)
+                    ctx.persist_analysis(a, token=token)
                 count = a['pose']['valid_count']
                 statuses = [p['status'] for p in a['pose']['slots']]
                 all_errors = not targets or all((status == 'ERROR' for status in statuses))
@@ -107,7 +139,7 @@ def run(ctx, a, modules, cancel):
                         a['module_states'][key] = 'CANCELED'
                 a['status'] = 'CANCELED'
                 a['finished_at'] = now()
-                ctx.persist_analysis(a)
+                ctx.persist_analysis(a, token=token)
                 return
             if 'tags' in modules:
                 tags = calculate_tags(a['snapshot'], a['pose'])
@@ -121,7 +153,7 @@ def run(ctx, a, modules, cancel):
                         a['module_states'][key] = 'CANCELED'
                 a['status'] = 'CANCELED'
                 a['finished_at'] = now()
-                ctx.persist_analysis(a)
+                ctx.persist_analysis(a, token=token)
                 return
             if 'reba' in modules:
                 a['reba'] = calculate_reba(a['snapshot'], a['pose'])
@@ -132,43 +164,38 @@ def run(ctx, a, modules, cancel):
                         a['module_states'][key] = 'CANCELED'
                 a['status'] = 'CANCELED'
                 a['finished_at'] = now()
-                ctx.persist_analysis(a)
+                ctx.persist_analysis(a, token=token)
                 return
             if 'judgment' in modules:
                 a['judgment'] = burden.calculate(a['snapshot']['conditions'], a['snapshot']['legal'], a['snapshot'].get('schema_version', '1.3'))
                 a['module_states']['judgment'] = 'INCOMPLETE' if any((j['computed_status'] in ['NEEDS_INPUT', 'NEEDS_REVIEW'] for j in a['judgment']['judgments'])) else 'COMPLETE'
             a['status'] = 'CANCELED' if cancel.is_set() else 'FINISHED'
             a['finished_at'] = now()
-            ctx.persist_analysis(a)
+            ctx.persist_analysis(a, token=token)
     except Exception as error:
         traceback.print_exc(file=sys.stderr)
-        a['status'] = 'FAILED'
-        a['finished_at'] = now()
-        a['notes'].append(diagnostic('ANALYSIS_ERROR', str(error)))
-        for key, state in a.get('module_states', {}).items():
-            if state == 'RUNNING':
-                a['module_states'][key] = 'FAILED'
-        if a['pose']:
-            a['pose']['status'] = 'FAILED'
-            a['pose']['terminal_error'] = str(error)
-            for slot in a['pose']['slots']:
-                if slot['status'] == 'PENDING':
-                    slot.update(status='NOT_PROCESSED', diagnostics=[diagnostic('ANALYSIS_ERROR', str(error))])
         try:
-            ctx.persist_analysis(a)
+            _fail_analysis(ctx, a, error, token)
         except Exception:
             traceback.print_exc(file=sys.stderr)
     finally:
-        ctx.cancels.pop(a['analysis_id'], None)
+        _release_cancel(ctx, a['analysis_id'], cancel)
+
 
 def handle_start_analysis(ctx, method, p):
-    task = ctx.require('task', p['task_id'])
-    scope = task.get('analysis_scope') or dict(judgment=True, pose=False, tags=False, reba=False)
-    modules = [key for key in ['pose', 'tags', 'reba', 'judgment'] if scope.get(key)]
-    a = ctx.new_analysis(task, modules)
-    cancel = threading.Event()
-    ctx.cancels[a['analysis_id']] = cancel
-    threading.Thread(target=ctx.run, args=(a, modules, cancel), daemon=True).start()
+    with ctx.db_lock:
+        task = ctx.require('task', p['task_id'])
+        scope = task.get('analysis_scope') or dict(judgment=True, pose=False, tags=False, reba=False)
+        modules = [key for key in ['pose', 'tags', 'reba', 'judgment'] if scope.get(key)]
+        a = ctx.new_analysis(task, modules)
+        cancel = threading.Event()
+        ctx.cancels[a['analysis_id']] = cancel
+        token = ctx.analysis_token(a['analysis_id'])
+    try:
+        threading.Thread(target=ctx.run, args=(a, modules, cancel, token), daemon=True).start()
+    except Exception as error:
+        fail_recalculation_start(ctx, a, cancel, token, error)
+        raise
     return dict(analysis_id=a['analysis_id'], task_id=a['task_id'], status='RUNNING')
 
 def handle_cancel_analysis(ctx, method, p):
@@ -178,12 +205,34 @@ def handle_cancel_analysis(ctx, method, p):
         cancel.set()
     return dict(analysis_id=a['analysis_id'], task_id=a['task_id'], status=a['status'])
 
-def handle_recalculate_reba(ctx, method, p):
+RECALCULATION_METHODS = frozenset({
+    'recalculate_reba', 'recalculate_judgments', 'recalculate_tags',
+})
+
+
+def prepare_recalculation(ctx, method, p):
+    """Capture inputs before the IPC loop accepts another input write."""
     modules = {'recalculate_reba': ['reba'], 'recalculate_judgments': ['judgment'], 'recalculate_tags': ['tags']}[method]
-    task = ctx.require('task', p['task_id'])
-    if not task['analysis_scope'].get(modules[0]):
-        task['analysis_scope'][modules[0]] = True
-        task = ctx.save_task(task)
-    a = ctx.new_analysis(task, modules)
-    ctx.run(a, modules, threading.Event())
-    return ctx.analysis(a['analysis_id'])
+    with ctx.db_lock:
+        task = ctx.require('task', p['task_id'])
+        if not task['analysis_scope'].get(modules[0]):
+            task['analysis_scope'][modules[0]] = True
+            task = ctx.save_task(task)
+        a = ctx.new_analysis(task, modules)
+        cancel = threading.Event()
+        ctx.cancels[a['analysis_id']] = cancel
+        token = ctx.analysis_token(a['analysis_id'])
+    return a, modules, cancel, token
+
+
+def finish_recalculation(ctx, a, modules, cancel, token):
+    """Save and return only the analysis lifetime captured during preparation."""
+    ctx.run(a, modules, cancel, token)
+    with ctx.db_lock:
+        ctx.require_analysis_token(a['analysis_id'], token)
+        return ctx.analysis(a['analysis_id'])
+
+
+def handle_recalculate_reba(ctx, method, p):
+    a, modules, cancel, token = prepare_recalculation(ctx, method, p)
+    return finish_recalculation(ctx, a, modules, cancel, token)

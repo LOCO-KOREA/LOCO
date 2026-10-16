@@ -46,7 +46,8 @@ class RuntimeEdges(unittest.TestCase):
     def test_zero_targets_are_not_reported_as_completed_optional_modules(self):
         self.app.dispatch('set_analysis_scope',{'task_id':self.task['task_id'],'scope':dict(judgment=True,pose=True,tags=True,reba=True)})
         modules=['pose','tags','reba','judgment']; a=self.app.new_analysis(self.task,modules)
-        self.app.run(a,modules,threading.Event()); saved=self.app.analysis(a['analysis_id'])
+        token=self.app.analysis_token(a['analysis_id'])
+        self.app.run(a,modules,threading.Event(),token); saved=self.app.analysis(a['analysis_id'])
         self.assertEqual(saved['module_states']['pose'],'FAILED')
         self.assertEqual(saved['module_states']['tags'],'INCOMPLETE')
         self.assertEqual(saved['module_states']['reba'],'INCOMPLETE')
@@ -77,8 +78,11 @@ class RuntimeEdges(unittest.TestCase):
 
     def test_late_analysis_does_not_restore_the_previous_latest_pointer(self):
         old=self.app.new_analysis(self.task,['judgment']);original=copy.deepcopy(old['snapshot'])
+        old_token=self.app.analysis_token(old['analysis_id'])
         latest=self.app.new_analysis(self.task,['judgment'])
-        self.app.run(latest,['judgment'],threading.Event());self.app.run(old,['judgment'],threading.Event())
+        latest_token=self.app.analysis_token(latest['analysis_id'])
+        self.app.run(latest,['judgment'],threading.Event(),latest_token)
+        self.app.run(old,['judgment'],threading.Event(),old_token)
         self.assertEqual(self.app.require('task',self.task['task_id'])['latest_analysis_id'],latest['analysis_id'])
         self.assertEqual(self.app.analysis(old['analysis_id'])['currentness'],'STALE')
         self.assertEqual(self.app.analysis(old['analysis_id'])['snapshot'],original)
