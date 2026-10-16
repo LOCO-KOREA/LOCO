@@ -1,2 +1,0 @@
--- The current ERD stores reference inputs inside DTO JSON.
--- No lookup-table seed data is part of the six-table demo schema.

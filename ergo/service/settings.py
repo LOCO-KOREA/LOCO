@@ -1,0 +1,86 @@
+"""LOCO 2.0 settings service. Dependencies are supplied by Runtime."""
+import copy
+import os
+import math
+from ergo.legacy.v13 import upgrade_task
+from ergo.engine.task_defaults import default_settings, PREPROCESS_VERSION
+
+def settings(ctx):
+    value = ctx.store('get_settings')
+    if value is None:
+        value = default_settings()
+        ctx.store('update_settings', value)
+    # An old settings record is read without rewriting user data. New snapshots
+    # always name the actual current engine and preprocessing implementation.
+    current = default_settings()
+    for key in ('gpt_enabled','gpt_model'):
+        if key in value: current[key]=value[key]
+    ui=value.get('ui') or {}
+    if type(ui.get('loco_visible')) is bool: current['ui']['loco_visible']=ui['loco_visible']
+    if ui.get('loco_mode') in ('normal','quiet'): current['ui']['loco_mode']=ui['loco_mode']
+    old=value.get('analysis') or {}
+    confidence=(old.get('pose_model') or {}).get('confidence_min')
+    if isinstance(confidence,(int,float)) and not isinstance(confidence,bool) and math.isfinite(confidence) and 0<=confidence<=1:
+        current['analysis']['pose_model']['confidence_min']=confidence
+    profile=old.get('posture_profile') or {}
+    for key in current['analysis']['posture_profile']:
+        v=profile.get(key)
+        if key!='version' and isinstance(v,(int,float)) and not isinstance(v,bool) and math.isfinite(v):
+            current['analysis']['posture_profile'][key]=v
+    return dict(current, gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')))
+
+def validate_settings(ctx, value):
+    if not isinstance(value, dict) or not isinstance(value.get('analysis'), dict):
+        raise ValueError('2.0 분석 설정이 필요합니다')
+    config = value['analysis']
+    baseline = default_settings()['analysis']
+    if set(config) != set(baseline):
+        raise ValueError('분석 설정 키가 2.0 계약과 다릅니다')
+    for key in ('burden_rule', 'reba_rule'):
+        if config[key] != baseline[key]:
+            raise ValueError('지원하지 않는 계산 규칙 버전입니다')
+    model = config['pose_model']
+    profile = config['posture_profile']
+    if not isinstance(model, dict) or set(model) != set(baseline['pose_model']):
+        raise ValueError('MoveNet 설정 계약이 다릅니다')
+    for key in ('name', 'version', 'input_size', 'point_count', 'preprocess_version'):
+        if model[key] != baseline['pose_model'][key]:
+            raise ValueError('포함된 공식 MoveNet 모델/전처리와 다른 설정입니다')
+    confidence = model['confidence_min']
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or (not math.isfinite(confidence)) or (not 0 <= confidence <= 1):
+        raise ValueError('관절 신뢰도 문턱은 0~1이어야 합니다')
+    if not isinstance(profile, dict) or set(profile) != set(baseline['posture_profile']) or profile['version'] != baseline['posture_profile']['version']:
+        raise ValueError('자세 기술태그 설정 계약이 다릅니다')
+    if any((isinstance(v, bool) or not isinstance(v, (int, float)) or (not math.isfinite(v)) for k, v in profile.items() if k != 'version')):
+        raise ValueError('기술각도는 유한 수여야 합니다')
+    if type(value.get('gpt_enabled')) is not bool or not isinstance(value.get('gpt_model'), str):
+        raise ValueError('GPT 설정 형식이 올바르지 않습니다')
+    ui = value.get('ui')
+    if not isinstance(ui, dict) or type(ui.get('loco_visible')) is not bool or ui.get('loco_mode') not in ('normal', 'quiet'):
+        raise ValueError('안내 위젯 설정 형식이 올바르지 않습니다')
+
+def handle_get_settings(ctx, method, p):
+    return ctx.settings()
+
+def handle_update_settings(ctx, method, p):
+    ctx.validate_settings(p['settings'])
+    value = copy.deepcopy(p['settings'])
+    old = ctx.settings()
+    changed = {key for key in old['analysis'] if value['analysis'].get(key) != old['analysis'][key]}
+    affected = {}
+    if changed:
+        for s in ctx.store('list_surveys'):
+            for raw in ctx.store('list_tasks', s['survey_id']):
+                t = upgrade_task(raw)
+                if t.get('schema_version') != '2.0' or raw.get('schema_version') != '2.0':
+                    continue
+                scope = t.get('analysis_scope') or {}
+                relevant = 'burden_rule' in changed and scope.get('judgment') or ('reba_rule' in changed and scope.get('reba')) or ('posture_profile' in changed and scope.get('tags')) or ('pose_model' in changed and any((scope.get(k) for k in ('pose', 'tags', 'reba'))))
+                if 'pose_model' in changed:
+                    manual = [m for m in t['manual'] if m.get('source') != 'AUTO_ACCEPTED']
+                    relevant = relevant or manual != t['manual']
+                    t['manual'] = manual
+                if relevant:
+                    affected[t['task_id']] = ctx.task_input(t)
+    ctx.store('update_settings', value, task_inputs=affected)
+    return ctx.settings()

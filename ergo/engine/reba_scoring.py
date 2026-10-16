@@ -1,5 +1,5 @@
 """REBA_TABLE_2000_V2 candidates and scores; pure DTO functions."""
-from .task_defaults import COMMON, ARM, PHASES, diagnostic
+from .task_defaults import COMMON, ARM, diagnostic
 import math
 
 TABLE_A = [[1,2,3,4,1,2,3,4,3,3,5,6],[2,3,4,5,3,4,5,6,4,5,6,7],[2,4,5,6,4,5,6,7,5,6,7,8],[3,5,6,7,5,6,7,8,6,7,8,9],[4,6,7,8,6,7,8,9,7,8,9,9]]
@@ -9,7 +9,7 @@ TABLE_C = [[1,1,1,2,3,3,4,5,6,7,7,7],[1,2,2,3,4,4,5,6,6,7,7,8],[2,3,3,3,4,5,6,7,
 def risk(total):
     return 'NEGLIGIBLE' if total == 1 else 'LOW' if total <= 3 else 'MEDIUM' if total <= 7 else 'HIGH' if total <= 10 else 'VERY_HIGH'
 
-def candidates(slot, pose, camera_side):
+def candidates(slot, pose, camera_side, confidence_min=0.5):
     angles = (pose or {}).get('angles', [])
     observation=slot.get('observation') or {}
     context_ok=(camera_side in ('LEFT','RIGHT') and slot.get('forward_direction') in ('SCREEN_RIGHT','SCREEN_LEFT') and
@@ -20,7 +20,7 @@ def candidates(slot, pose, camera_side):
     result=[]
     for scope,field,sides,code in specs:
         refs=[a for a in angles if a['side'] in sides and a['angle_code']==code]
-        usable=context_ok and len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=0.5 for a in refs)
+        usable=context_ok and len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=confidence_min for a in refs)
         value=None; reasons=[]
         if usable:
             angle=max(a['value_deg'] for a in refs)
@@ -36,27 +36,22 @@ def candidates(slot, pose, camera_side):
     return result
 
 def calculate_reba(snapshot, pose):
-    output=[]; legacy=snapshot.get('schema_version')!='2.0'
+    if snapshot.get('schema_version')!='2.0': raise ValueError('과거 REBA는 저장된 결과로 읽으세요. 새 계산에는 2.0 입력이 필요합니다')
+    output=[]
     targets=[s for s in snapshot['capture']['slots'] if s.get('analysis_target',True) and s.get('photo_id') is not None]
     for slot in targets:
         number=slot['slot_no']; obs=slot['observation']
-        if legacy:
-            expected='UNLOADED' if slot.get('phase') in [PHASES[0],PHASES[4]] else 'FULL_BOX'
-            load=0 if expected=='UNLOADED' else snapshot['conditions'].get('box_mass_kg')
-            if obs.get('phase_verified')!='YES' or obs.get('load_state')!=expected: load=None
-        else:
-            expected='UNLOADED' if obs.get('load_state')=='UNLOADED' else 'MEASURED'
-            load=0 if expected=='UNLOADED' else obs.get('measured_load_kg') if obs.get('load_state')=='MEASURED' else None
+        expected='UNLOADED' if obs.get('load_state')=='UNLOADED' else 'MEASURED'
+        load=0 if expected=='UNLOADED' else obs.get('measured_load_kg') if obs.get('load_state')=='MEASURED' else None
         load_conflict=False
-        if not legacy:
-            state=obs.get('load_state','UNKNOWN'); measured=obs.get('measured_load_kg')
-            if state not in ('UNLOADED','MEASURED','UNKNOWN') or state in ('UNLOADED','UNKNOWN') and measured is not None:
+        state=obs.get('load_state','UNKNOWN'); measured=obs.get('measured_load_kg')
+        if state not in ('UNLOADED','MEASURED','UNKNOWN') or state in ('UNLOADED','UNKNOWN') and measured is not None:
+            load=None; load_conflict=True
+        elif state=='MEASURED':
+            try: finite=isinstance(measured,(int,float)) and not isinstance(measured,bool) and math.isfinite(measured)
+            except OverflowError: finite=False
+            if not finite or measured<0:
                 load=None; load_conflict=True
-            elif state=='MEASURED':
-                try: finite=isinstance(measured,(int,float)) and not isinstance(measured,bool) and math.isfinite(measured)
-                except OverflowError: finite=False
-                if not finite or measured<0:
-                    load=None; load_conflict=True
         current={ (v['scope'],v['field']):v['value'] for v in snapshot['manual'] if v['slot_no']==number and v['photo_id']==slot['photo_id'] }
         sides={}
         for side in ['LEFT','RIGHT']:
@@ -109,8 +104,8 @@ def calculate_reba(snapshot, pose):
         chosen=('LEFT' if sides['left']['total']>=sides['right']['total'] else 'RIGHT') if complete else None
         total=sides[chosen.lower()]['total'] if chosen else None
         ps=next((p for p in (pose or {}).get('slots',[]) if p['slot_no']==number),None)
-        camera=slot.get('camera_side',snapshot['capture'].get('camera_side'))
-        output.append(dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,camera),load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields']))))
+        camera=slot.get('camera_side'); confidence=(snapshot.get('settings') or {}).get('pose_model',{}).get('confidence_min',0.5)
+        output.append(dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,camera,confidence),load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields']))))
     by_photo={}
     for slot in output: by_photo.setdefault(slot['photo_id'],[]).append(slot)
     for repeated in by_photo.values():

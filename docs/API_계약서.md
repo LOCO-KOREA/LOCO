@@ -2,9 +2,11 @@
 
 > 문서 ID ERGO-API-001 · 설계 버전 2.0 · 개정일 2026-10-16 · 완성 목표 2026-10-23(Asia/Seoul)
 >
-> 구현할 계약이다. 검토 기준 main e7b0cf1의 코드·저장자료는 주로 1.3이며 이 문서의 구현·검증 완료를 뜻하지 않는다.
+> 실행 계약의 기준이다. main e7b0cf1은 설계 출발점이며 현재 구현·실행 증거와 남은 제약은 [검증 대조표](local-verification.md)를 따른다. 문서 존재와 전체 수용을 구분한다.
 
 ## 1. 모듈·버전·연결
+
+실행 계약은 `ergo/contracts.py`의 2.0 메서드 목록과 이 문서의 §7을 함께 검증한다. Electron과 개발 실행은 `ergo/service/json_lines.py`만 사용한다. 이전 0.3 Protocol/StubService, 별도 샘플 서버, 이전 프론트 저장 adapter는 실행 경로에서 제거한다. 알 수 없는 메서드·누락 매개변수·이전 DTO 버전은 저장 전에 거부한다. 1.3은 `ergo/legacy/v13.py`의 읽기 adapter와 저장된 snapshot 열람에 한정하며 이전 규칙으로 새 계산을 만들지 않는다.
 
 모든 작업에 동일한 일반 작업 계약을 사용한다. 상자 들기도 조건별 직접입력, 가변 사진, 사진별 촬영조건·관찰 하중으로 처리한다. 신규 작업에는 15슬롯·3회차·5순간·사건별 자동 하중을 사용하지 않는다. 이전 상자 프로토콜은 §10의 호환 읽기에만 남긴다.
 
@@ -69,7 +71,8 @@ type SymptomRegion = {side:'RIGHT'|'LEFT'|'BOTH'|'NONE'|'UNKNOWN',duration:'LT_1
 type SymptomResponse = {response_code:string,name:string,age_years:Count|null,sex:'MALE'|'FEMALE'|'UNKNOWN',workplace_tenure_months:Count|null,department:string,job:string,current_work:string,current_work_months:Count|null,daily_work_hours:Count|null,rest_breaks:string,previous_work:string,previous_work_months:Count|null,leisure_activities:string,household_work:string,medical_history:Truth,injury_history:Truth,injury_sites:string[],physical_burden:1|2|3|4|5|null,work_related_symptoms_last_year:Truth,regions:Record<'neck'|'shoulder'|'arm_elbow'|'hand_wrist'|'back'|'leg_foot',SymptomRegion>};
 type SymptomSurvey = {method:'QUESTIONNAIRE'|'INTERVIEW'|'OTHER'|'NOT_DONE'|'UNKNOWN',date:Date|null,respondent_count:Count|null,summary:string,responses:SymptomResponse[]};
 type SurveyDraft = {survey_type:SurveyType,survey_date:Date,investigator:string,department:string,process:string,title:string,occasional_reason:string|null,occasional_cause:OccasionalCause|null,previous_survey_date:Date|null,workplace_situation:WorkplaceSituation,participation:WorkerParticipation,symptom_survey:SymptomSurvey};
-type ReviewMark = {reviewed:boolean,reviewed_analysis_ids:ID[],reviewed_metadata_revision:Count|null,reviewer:string|null,reviewed_at:Timestamp|null,note:string|null};
+type ReviewRecord = {reviewed:boolean,reviewed_analysis_ids:ID[],reviewed_metadata_revision:Count|null,reviewer:string|null,reviewed_at:Timestamp|null,note:string|null};
+type ReviewMark = ReviewRecord & {history?: (ReviewRecord & {archived_at:Timestamp,reason:string})[]};
 type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp};
 type SurveySummary = {survey_id:ID,title:string,survey_date:Date,task_count:Count,reviewed:boolean,review_current:boolean};
 type InputTemplate = 'GENERAL'|'OFFICE'|'REPETITION'|'POSTURE'|'HAND_FORCE'|'LIFTING'|'IMPACT';
@@ -215,7 +218,7 @@ type Analysis = AnalysisV2 | LegacyAnalysisV13; // §10의 이전 계약에서 �
 type TaskResult = {task:Task,currentness:Currentness,analysis:Analysis|null,warnings:Warning[],review_current:boolean};
 ~~~
 
-Analysis는 AnalysisV2 또는 §10 링크의 이전 Analysis 타입에 별칭을 붙인 LegacyAnalysisV13이다. 실행 FINISHED는 요청 처리 종료이며 계산 완전성·조사자 검토와 별개다.
+Analysis는 AnalysisV2 또는 §10의 이전 Analysis 읽기 타입에 별칭을 붙인 LegacyAnalysisV13이다. 실행 FINISHED는 요청 처리 종료이며 계산 완전성·조사자 검토와 별개다.
 
 scope=false는 NOT_REQUESTED, scope=true이며 결과가 없으면 NOT_CALCULATED다. 요청한 pose의 대상 0건은 FAILED, 요청한 reba/tags의 대상 0건은 INCOMPLETE와 NO_ANALYSIS_TARGET 진단이다. 빈 배열을 완성으로 처리하지 않는다. judgment는 11개 초안에 입력/검토 필요가 없으면 COMPLETE, 있으면 INCOMPLETE다. pose/tags/reba의 완전성 판정은 기능정의서 §6을 따른다. scope는 서로 독립적이다. pose 없이 reba를 요청하면 확인된 수동값으로 평가하고, tags는 직접 관찰 태그만 사용한다. 의존 기능을 조용히 자동 요청하지 않는다.
 
@@ -274,6 +277,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | set_survey_review | survey_id,review | Survey |
 | list_tasks | survey_id | Task[] |
 | create_task | survey_id,draft:TaskDraft | Task |
+| save_task_input | task_id,input:TaskInput,expected_revision?:Count | Task |
 | get_task / delete_task | task_id | TaskInputBundle / Ack |
 | rename_task | task_id,task_name | Task |
 | set_task_conditions | task_id,conditions:TaskConditions | Task |
@@ -293,7 +297,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | get_task_result | task_id | TaskResult |
 | select_representative | analysis_id,slot_no | Analysis |
 | set_investigator_conclusion | analysis_id,conclusion:InvestigatorConclusion | Analysis |
-| generate_ai_text | analysis_id,purpose:AiPurpose | AiTextView |
+| generate_ai_text | analysis_id,purpose?:AiPurpose (기본 TASK_EXPLANATION) | AiTextView |
 | edit_ai_text | analysis_id,text_id,text | AiTextView |
 | apply_ai_text | analysis_id,text_id,use_edited:boolean | AiTextView |
 | preview_excel | survey_id,analysis_ids:ID[],comparisons:ComparisonSpec[] | ReportOverview |
@@ -369,10 +373,17 @@ report.build_overview(snapshot)의 같은 집계/안내를 UI·Excel·receipt에
 
 ## 10. 1.3 호환·현재 구현
 
-LegacyTaskV13/LegacyAnalysisV13/LegacyExportSnapshotV13은 [개정 전 계약](https://github.com/LOCO-KOREA/LOCO/blob/e7b0cf1205b7860fc4b755e43176ede77dc517d8/docs/API_%EA%B3%84%EC%95%BD%EC%84%9C.md)의 Task/Analysis/ExportSnapshot에 붙이는 읽기 전용 별칭이다. 저장된 1.3 snapshot의 15슬롯·회차·순간·사건 하중·당시 규칙은 그대로 읽고 과거 의미로 표시한다. 새 일반 프로토콜의 결과로 라벨을 바꾸지 않는다.
+LegacyTaskV13/LegacyAnalysisV13/LegacyExportSnapshotV13은 [기존 자료 읽기 계약](legacy-compatibility.md)의 읽기 전용 JSON 별칭이다. 이전 실행 서버나 가짜 Protocol을 호출하지 않는다. 저장된 1.3 snapshot의 15슬롯·회차·순간·사건 하중·당시 규칙은 그대로 읽고 과거 의미로 표시한다. 새 일반 프로토콜의 결과로 라벨을 바꾸지 않는다.
 
 get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_schema_version을 함께 반환한다. 기존 사진과 알려진 수동값을 보존하고 사건명은 사진 label의 역사 정보로 남긴다. 기존 중량·조건·20종 시간의 관련값은 조건 행/union으로 옮긴다. 이전 TASK.input_json 전체를 legacy_input에 복사해 변환하지 않은 원문도 보존한다. 사진 비율 등 환산값은 새 직접수치에 null을 넣고 이전 원문과 재확인 진단으로 남긴다. 새 측면 확인·행 망라성·일반 사진 실제 하중은 UNKNOWN/null로 둔다. 과거 사진 하중을 새 측정값으로 추측하지 않는다.
 
 명시 저장 때에만 TASK 입력을 2.0으로 쓰고 revision을 한 번 올린다. 새 분석은 2.0이며 과거 조사자 결론·설명·검토를 자동 승계하지 않는다. 과거 분석 열람/출력은 legacy adapter와 당시 버전을 사용한다. 호환되지 않는 비교는 null과 이유다. 물리 DB 일괄 migration은 하지 않는다.
 
-현재 main은 일반 조건 행·가변 사진·module_states·실제 GPT API·전후 비교·한글 4시트를 구현하지 않았다. 코드 수정과 독립 검증은 10/23 개발 범위이며 문서 수정만으로 완료 처리하지 않는다.
+검토 출발점 e7b0cf1의 main은 일반 조건 행·가변 사진·module_states·실제 GPT API·전후 비교·한글 4시트를 구현하지 않았다. 코드 수정과 독립 검증은 10/23 개발 범위이며 문서 수정만으로 완료 처리하지 않는다.
+
+
+로컬 구현 보완: save_task_input의 expected_revision을 지정하면 최신 revision과 다를 때 저장하지 않고 최신 입력 재확인을 안내한다. 작업 편집기는 조건·법령·분석 범위 등 자신이 편집하는 필드만 최신 DTO에 합치며 사진·수동값은 해당 화면의 최신값을 보존한다. 검토 기록의 history는 JSON에 추가 보존하며 물리 migration은 없다. 자세한 실행·검증 증거는 local-verification.md를 따른다.
+
+모듈 구성과 의존 방향은 [모듈 지도](module-map.md)를 따른다. 설정 화면에서 관절 신뢰도와 기술각도를 명시 저장하면 관련 2.0 작업 revision이 한 번 증가한다. 계산 규칙/공식 모델 식별값은 구현과 다른 문자열로 바꿀 수 없다. 설명 목적은 생성·현재성·활성 적용을 각각 분리한다.
+
+전후 비교의 condition_changes는 작업 조건·분석 범위·법령 입력뿐 아니라 사진 배정/관찰, 수동 확인값, 분석 설정의 차이를 포함한다. 같은 프로토콜·양의 대상 수·양쪽 전체 완성·호환 REBA 규칙일 때만 후−전 점수 차이를 표시한다. 수동값/관찰/설정 변경을 생략해 동일 조건의 효과로 오인하게 하지 않는다.

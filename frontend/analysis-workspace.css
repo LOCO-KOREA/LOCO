@@ -155,3 +155,7 @@
 
 #analysis-workspace input[type=checkbox]{display:inline-block;width:auto;height:auto;}
 #analysis-workspace .modal>label{font-weight:500;}
+/* Review links retain their target text when printed or used with a keyboard. */
+.input-link,.basis-link{white-space:normal;text-align:left;max-width:100%;color:#24538a;background:#edf4fc;border:1px solid #b8cce5;border-radius:6px;padding:8px 12px;cursor:pointer}
+.input-link:focus-visible,.basis-link:focus-visible{outline:3px solid #225cc2;outline-offset:3px}
+.comparison-detail{margin-top:20px}.comparison-detail td{white-space:pre-wrap;overflow-wrap:anywhere}.comparison-detail th{min-width:100px}.explanation-evidence article{padding:12px 0;border-bottom:1px solid #dae2ec}.explanation-evidence small{display:block;margin-top:8px}

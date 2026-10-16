@@ -1,7 +1,7 @@
 """Signed original-pixel joint angles from functional specification section 3."""
 import math
 
-def angles(points, forward, width, height):
+def angles(points, forward, width, height, confidence_min=0.5):
     sign=1 if forward=='SCREEN_RIGHT' else -1
     p={point['name']:point for point in points}; result=[]
     norm=lambda a:(a+180)%360-180
@@ -20,7 +20,7 @@ def angles(points, forward, width, height):
         for code,joints,compute in specs:
             confidence=min(p[prefix+j]['confidence'] for j in joints); value=None; note=None
             in_frame=all(0<=p[prefix+j]['x_px']<width and 0<=p[prefix+j]['y_px']<height for j in joints)
-            if confidence<0.5 or not in_frame: note='관절 신뢰도 부족 또는 프레임 밖'
+            if confidence<confidence_min or not in_frame: note='관절 신뢰도 부족 또는 프레임 밖'
             elif forward is None: note='작업자 진행 방향 미입력'
             else:
                 try: value=compute()

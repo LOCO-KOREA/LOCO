@@ -1,6 +1,7 @@
 """Optional real MoveNet inference. Missing models yield diagnostics, never fake poses."""
 import os
 import sys
+import hashlib
 from pathlib import Path
 from .task_defaults import diagnostic
 from .images import read_image
@@ -25,7 +26,14 @@ def interpreter():
         except ImportError:
             try: from tensorflow.lite.python.interpreter import Interpreter
             except ImportError as error: raise RuntimeError('TFLite 추론 런타임이 설치되지 않았습니다.') from error
-        _interpreter=Interpreter(model_path=path); _interpreter.allocate_tensors()
+        # Native Windows file APIs in LiteRT may reject non-ASCII paths.
+        # Python reads the exact configured model; no path rewrite or copy is needed.
+        model_bytes=Path(path).read_bytes()
+        if hashlib.sha256(model_bytes).hexdigest()!='0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab':
+            raise RuntimeError('공식 MoveNet Lightning v4 모델 SHA-256이 일치하지 않습니다')
+        model=Interpreter(model_content=model_bytes)
+        model.allocate_tensors()
+        _interpreter=model
     return _interpreter
 
 def process(slot,snapshot):
@@ -35,7 +43,7 @@ def process(slot,snapshot):
     photo=next((p for p in snapshot['photos'] if p['photo_id']==slot['photo_id']),None)
     try: image=read_image(photo['file_path'] if photo else '')
     except Exception as error:
-        result.update(status='ERROR',diagnostics=[diagnostic('UNREADABLE_FILE',str(error))]); return result
+        result.update(status='ERROR',diagnostics=[diagnostic('UNREADABLE_FILE',str(error),f"photos.{slot['photo_id']}.file_path")]); return result
     try:
         import numpy as np
         import cv2
@@ -52,14 +60,18 @@ def process(slot,snapshot):
         for index,(y,x,score) in enumerate(raw):
             px=float(x)*square-ox; py=float(y)*square-oy
             result['points'].append(dict(point_no=index,name=NAMES[index],x_px=px,y_px=py,confidence=float(score)))
-        side=slot.get('camera_side',snapshot['capture'].get('camera_side')); direction=slot.get('forward_direction',snapshot['capture'].get('forward_direction'))
+        side=slot.get('camera_side'); direction=slot.get('forward_direction')
         observation=slot.get('observation') or {}
-        result['angles']=angles(result['points'],direction,width,height)
+        confidence=(snapshot.get('settings') or {}).get('pose_model',{}).get('confidence_min',0.5)
+        result['angles']=angles(result['points'],direction,width,height,confidence)
         context_ok=side in ('LEFT','RIGHT') and direction in ('SCREEN_RIGHT','SCREEN_LEFT') and slot.get('side_view_verified')=='YES' and observation.get('single_person')=='YES' and observation.get('full_frame')=='YES' and observation.get('normal_work')=='YES'
+        prefix=f"capture.slots.{slot['slot_no']}."
         if side not in ('LEFT','RIGHT') or direction not in ('SCREEN_RIGHT','SCREEN_LEFT'):
-            result['diagnostics']=[diagnostic('INVALID_CAMERA','측면 카메라와 작업자 전방 방향을 확인하세요','capture.camera_side')]
+            field='camera_side' if side not in ('LEFT','RIGHT') else 'forward_direction'
+            result['diagnostics']=[diagnostic('INVALID_CAMERA','측면 카메라와 작업자 전방 방향을 확인하세요',prefix+field)]
         elif not context_ok:
-            result['diagnostics']=[diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·단일 작업자·전신·통상 작업 확인을 마쳐야 분석대상으로 사용할 수 있습니다','capture.observation')]
+            field='side_view_verified' if slot.get('side_view_verified')!='YES' else 'observation.'+next(k for k in ('single_person','full_frame','normal_work') if observation.get(k)!='YES')
+            result['diagnostics']=[diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·단일 작업자·전신·통상 작업 확인을 마쳐야 분석대상으로 사용할 수 있습니다',prefix+field)]
         elif any(angle['value_deg'] is not None for angle in result['angles']): result['status']='VALID'
         else: result['diagnostics']=[diagnostic('LOW_CONFIDENCE','관절 가림·프레임·신뢰도를 확인하세요')]
     except Exception as error: result.update(status='ERROR',diagnostics=[diagnostic('MODEL_ERROR',str(error))])

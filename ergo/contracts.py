@@ -1,608 +1,69 @@
-"""ergo.contracts — 화면 ↔ 앱 코어 계약 v0.3 (API 계약서 ERGO-API-001)
+"""Executable method boundary for docs/API_계약서.md, design 2.0.
 
-규칙
-- 값(Enum)은 ERD(ERGO-DD-001)의 코드값과 같다.
-- 필드 이름은 ERD의 컬럼 이름과 같다.
-- None은 '아직 입력하지 않음'이다. 0으로 채우지 않는다 (기능정의서 F02-02).
+SQLite rows are JSON DTOs, not the removed 0.3 relational Protocol.
 """
-from __future__ import annotations
-
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
-from typing import Callable, Optional, Protocol, Sequence
-
-CONTRACT_VERSION = "0.3"
-
-
-# ---------------------------------------------------------------- 코드 (ERD 4.4)
-class SurveyType(str, Enum):
-    REGULAR = "REGULAR"
-    OCCASIONAL = "OCCASIONAL"
-    INITIAL = "INITIAL"
-
-
-class OccasionalReason(str, Enum):
-    MSD_CASE = "MSD_CASE"
-    NEW_TASK = "NEW_TASK"
-    ENV_CHANGE = "ENV_CHANGE"
-
-
-class SurveyStatus(str, Enum):
-    DRAFT = "DRAFT"
-    CONFIRMED = "CONFIRMED"
-
-
-class ParticipantType(str, Enum):
-    REPRESENTATIVE = "REPRESENTATIVE"
-    WORKER = "WORKER"
-
-
-class PeriodType(str, Enum):
-    ONGOING = "ONGOING"
-    SHORT_TERM = "SHORT_TERM"
-    INTERMITTENT = "INTERMITTENT"
-
-
-class BodyPart(str, Enum):
-    NECK = "NECK"
-    SHOULDER = "SHOULDER"
-    ELBOW = "ELBOW"
-    WRIST = "WRIST"
-    HAND = "HAND"
-
-
-class LiftPosition(str, Enum):
-    BELOW_KNEE = "BELOW_KNEE"
-    ABOVE_SHOULDER = "ABOVE_SHOULDER"
-    ARM_EXTENDED = "ARM_EXTENDED"
-
-
-class Coupling(str, Enum):
-    GOOD = "GOOD"
-    FAIR = "FAIR"
-    POOR = "POOR"
-    UNACCEPTABLE = "UNACCEPTABLE"
-
-
-class WristFlex(str, Enum):
-    LE15 = "LE15"
-    GT15 = "GT15"
-
-
-class LegsSupport(str, Enum):
-    BILATERAL = "BILATERAL"
-    UNILATERAL = "UNILATERAL"
-
-
-class ThresholdCode(str, Enum):
-    NECK_FLEX = "NECK_FLEX"
-    WAIST_FLEX = "WAIST_FLEX"
-    WAIST_EXT = "WAIST_EXT"
-    NECK_TWIST = "NECK_TWIST"
-    WAIST_TWIST = "WAIST_TWIST"
-    UPPER_ARM_RAISE = "UPPER_ARM_RAISE"
-
-
-class RunStatus(str, Enum):
-    RUNNING = "RUNNING"
-    DONE = "DONE"
-    FAILED = "FAILED"
-    CANCELED = "CANCELED"
-
-
-class Stage(str, Enum):
-    DECODE = "DECODE"
-    KEYPOINT = "KEYPOINT"
-    ANGLE = "ANGLE"
-    JUDGE = "JUDGE"
-    SAVE = "SAVE"
-    DONE = "DONE"
-    FAILED = "FAILED"
-    CANCELED = "CANCELED"
-
-
-class RiskLevel(str, Enum):
-    NEGLIGIBLE = "NEGLIGIBLE"
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-    VERY_HIGH = "VERY_HIGH"
-
-
-class JudgmentStatus(str, Enum):
-    APPLICABLE = "APPLICABLE"
-    NOT_APPLICABLE = "NOT_APPLICABLE"
-    NEEDS_REVIEW = "NEEDS_REVIEW"
-    NEEDS_INPUT = "NEEDS_INPUT"
-
-
-class FinalStatus(str, Enum):
-    APPLICABLE = "APPLICABLE"
-    NOT_APPLICABLE = "NOT_APPLICABLE"
-
-
-class ReviewReason(str, Enum):
-    JITTER = "JITTER"
-    INVALID_STILLS = "INVALID_STILLS"
-    INTERPRETATION = "INTERPRETATION"
-    LEGS_CUT = "LEGS_CUT"
-    KNEE_ON_FLOOR = "KNEE_ON_FLOOR"
-    SMALL_SAMPLE = "SMALL_SAMPLE"        # 표본(사진)이 TP-12보다 적어 자세 비율을 믿기 어려움
-
-
-class Exclusion(str, Enum):
-    SHORT_TERM = "SHORT_TERM"
-    INTERMITTENT = "INTERMITTENT"
-
-
-class ThresholdSource(str, Enum):
-    NOTICE = "NOTICE"
-    MOEL_NOTE = "MOEL_NOTE"
-    INVESTIGATOR = "INVESTIGATOR"
-
-
-class AiPurpose(str, Enum):
-    WARNING_ADVICE = "WARNING_ADVICE"
-    REPORT_SUMMARY = "REPORT_SUMMARY"
-
-
-class AiResult(str, Enum):
-    OK = "OK"
-    DISABLED = "DISABLED"
-    NO_WARNING = "NO_WARNING"            # 보고서 요약: 열린 경고가 없어 GPT를 부르지 않음
-    FALLBACK_NO_KEY = "FALLBACK_NO_KEY"
-    FALLBACK_OFFLINE = "FALLBACK_OFFLINE"
-    FALLBACK_TIMEOUT = "FALLBACK_TIMEOUT"
-    FALLBACK_ERROR = "FALLBACK_ERROR"
-    FALLBACK_NUMBER_MISMATCH = "FALLBACK_NUMBER_MISMATCH"
-
-
-# ---------------------------------------------------------------- 오류와 알림 (8절)
-# 기존 프로토타입 서비스의 오류·알림 코드. 설계 문서는 docs/API_계약서.md에서 직접 관리한다.
-ERROR_CODES = frozenset({
-    "E-INPUT-001", "E-INPUT-002", "E-INPUT-003", "E-NOTFOUND-001",
-    "E-STILL-001", "W-STILL-002", "E-STILL-003", "E-STILL-004",
-    "E-ANALYSIS-001", "W-ANALYSIS-003", "E-ANALYSIS-004", "I-ANALYSIS-005", "E-ANALYSIS-009",
-    "E-CONFIRM-001", "E-CONFIRM-002", "E-CONFIRM-003", "E-THRESHOLD-001",
-    "E-EXPORT-001", "E-DB-001", "E-DB-002", "W-GPT-001",
-})
-
-
-class ErgoError(Exception):
-    """처리를 멈추는 오류. code는 8절 오류 코드 (E-…)."""
-
-    def __init__(self, code: str, message: str, detail: Optional[dict] = None):
-        super().__init__(f"{code}: {message}")
-        self.code = code
-        self.message = message
-        self.detail = detail or {}
-
-
-@dataclass(frozen=True)
-class Notice:
-    """처리는 계속하되 화면에 알릴 것 (W-…, I-…)."""
-    code: str
-    message: str
-
-
-# ---------------------------------------------------------------- 조사
-@dataclass(frozen=True)
-class SurveyCreate:
-    survey_type_cd: SurveyType
-    survey_date: str                      # YYYY-MM-DD
-    investigator_name: str
-    dept_name: str
-    process_name: str
-    work_name: str
-    occasional_reasons: tuple[OccasionalReason, ...] = ()
-
-
-@dataclass(frozen=True)
-class SurveyUpdate:
-    survey_date: Optional[str] = None
-    investigator_name: Optional[str] = None
-    dept_name: Optional[str] = None
-    process_name: Optional[str] = None
-    work_name: Optional[str] = None
-    occasional_reasons: Optional[tuple[OccasionalReason, ...]] = None
-
-
-@dataclass(frozen=True)
-class SurveySummary:                      # v_survey_list
-    survey_id: int
-    survey_date: str
-    survey_type_cd: SurveyType
-    process_name: str
-    work_name: str
-    status_cd: SurveyStatus
-    task_cnt: int
-    draft_judgment_cnt: int
-    next_regular_due_date: Optional[str]
-
-
-@dataclass(frozen=True)
-class Participant:
-    participant_id: int
-    participant_type_cd: ParticipantType
-    display_name: str
-
-
-@dataclass(frozen=True)
-class UnitTask:
-    unit_task_id: int
-    task_name: str
-    task_desc: Optional[str]
-    worker_cnt: int
-    period_type_cd: PeriodType
-    sort_no: int
-
-
-@dataclass(frozen=True)
-class SurveyDetail:
-    survey_id: int
-    survey_type_cd: SurveyType
-    survey_date: str
-    investigator_name: str
-    dept_name: str
-    process_name: str
-    work_name: str
-    status_cd: SurveyStatus
-    confirmed_at: Optional[str]
-    occasional_reasons: tuple[OccasionalReason, ...]
-    participants: tuple[Participant, ...]
-    unit_tasks: tuple[UnitTask, ...]
-
-
-# ---------------------------------------------------------------- 단위작업과 입력
-@dataclass(frozen=True)
-class UnitTaskCreate:
-    task_name: str
-    worker_cnt: int
-    period_type_cd: PeriodType
-    task_desc: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class TaskInputs:                         # task_input
-    daily_work_h: Optional[float] = None
-    unsupported_posture_yn: Optional[bool] = None
-    neck_twist_h: Optional[float] = None
-    waist_twist_h: Optional[float] = None
-    keyboard_h: Optional[float] = None
-    keyboard_self_paced_yn: Optional[bool] = None
-    finger_pinch_kg: Optional[float] = None
-    finger_grip_kg: Optional[float] = None
-    finger_h: Optional[float] = None
-    finger_unsupported_yn: Optional[bool] = None
-    onehand_kg: Optional[float] = None
-    onehand_h: Optional[float] = None
-    onehand_unsupported_yn: Optional[bool] = None
-    lift_kg: Optional[float] = None
-    lift_people_cnt: Optional[int] = None
-    lift_cnt_per_day: Optional[int] = None
-    freq_lift_kg: Optional[float] = None
-    freq_lift_per_min: Optional[float] = None
-    freq_lift_h: Optional[float] = None
-    impact_h: Optional[float] = None
-    impact_per_hour: Optional[int] = None
-
-
-@dataclass(frozen=True)
-class RepetitionInput:                    # repetition_input (2호)
-    body_part_cd: BodyPart
-    repeat_h: float
-
-
-@dataclass(frozen=True)
-class LiftPositionInput:                  # lift_position_input (9호)
-    position_cd: LiftPosition
-    lift_cnt_per_day: int
-    weight_kg: float
-
-
-@dataclass(frozen=True)
-class RebaInputs:                         # reba_input. None = '사람 확인'
-    load_kg: Optional[float] = None
-    shock_yn: Optional[bool] = None
-    coupling_cd: Optional[Coupling] = None
-    wrist_flex_cd: Optional[WristFlex] = None
-    wrist_twist_yn: Optional[bool] = None
-    neck_twist_side_yn: Optional[bool] = None
-    trunk_twist_side_yn: Optional[bool] = None
-    legs_support_cd: Optional[LegsSupport] = None
-    shoulder_raised_yn: Optional[bool] = None
-    arm_abducted_yn: Optional[bool] = None
-    arm_supported_yn: Optional[bool] = None
-    act_static_yn: Optional[bool] = None
-    act_repeat_yn: Optional[bool] = None
-    act_rapid_yn: Optional[bool] = None
-
-
-@dataclass(frozen=True)
-class TaskInputBundle:                    # S03 화면을 채우는 값 (get_task_inputs)
-    unit_task_id: int
-    inputs: TaskInputs
-    repetitions: tuple[RepetitionInput, ...]
-    lift_positions: tuple[LiftPositionInput, ...]
-
-
-# ---------------------------------------------------------------- 사진과 분석
-@dataclass(frozen=True)
-class StillInfo:                          # still. MVP의 분석 입력은 사진(스틸샷)이다 (기능정의서 D-MVP-01)
-    still_id: Optional[int]               # inspect_still은 None (아직 저장 전)
-    still_no: Optional[int]               # 단위작업 안의 사진 순번 (1부터). inspect_still은 None
-    file_path: str
-    file_name: str
-    width_px: int
-    height_px: int
-    rotation_deg: int                     # 사진에 적힌 회전 정보 (EXIF). 분석은 똑바로 세워서 한다
-    consent_yn: bool
-    notices: tuple[Notice, ...] = ()
-
-
-@dataclass(frozen=True)
-class RunHandle:
-    run_id: int
-    unit_task_id: int
-    model_id: int
-    still_cnt: int                        # 이번 분석에 쓰는 사진 수 (표본 수)
-
-
-@dataclass(frozen=True)
-class Progress:
-    run_id: int
-    stage: Stage
-    processed_stills: int
-    total_stills: int
-    percent: float                        # 0 ~ 100
-    eta_s: Optional[float] = None
-    error_code: Optional[str] = None      # stage == FAILED일 때
-    error_message: Optional[str] = None
-
-
-ProgressCallback = Callable[[Progress], None]
-
-
-@dataclass(frozen=True)
-class StillResult:                        # S06 사진 목록의 한 장 (get_still_results). 저장하지 않고 계산한다
-    still_id: int
-    still_no: int
-    valid_yn: bool                        # 판별에 쓸 관절이 보이는 사진인가. False면 표본에서 뺀다
-    flagged_items: tuple[str, ...]        # 이 사진에서 해당한 자세 항목. 예: WAIST_FLEX, NECK_FLEX, P3_UNION, SQUAT
-    reba_score: Optional[int]             # 이 사진 한 장의 REBA (valid_yn이 False면 None)
-    is_key_yn: bool                       # 대표 사진인가
-
-
-# ---------------------------------------------------------------- 결과와 판정
-@dataclass(frozen=True)
-class RebaScore:                          # reba_result
-    side_cd: str
-    neck_score: int
-    trunk_score: int
-    legs_score: int
-    table_a_score: int
-    load_score: int
-    score_a: int
-    upper_arm_score: int
-    lower_arm_score: int
-    wrist_score: int
-    table_b_score: int
-    coupling_score: int
-    score_b: int
-    table_c_score: int
-    activity_score: int
-    reba_score: int
-    risk_level_cd: RiskLevel
-    provisional_yn: bool
-    needs_review_items: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class PostureShare:
-    item_cd: str                          # 예: WAIST_FLEX, P3_UNION, SQUAT
-    share_ratio: float
-    exposure_h: Optional[float]           # 하루 작업시간이 없으면 None
-    threshold_value: Optional[float]
-    threshold_source_cd: Optional[ThresholdSource]
-
-
-@dataclass(frozen=True)
-class JudgmentBasis:                      # judgment_basis
-    item_cd: str
-    share_ratio: Optional[float] = None
-    exposure_h: Optional[float] = None
-    input_value: Optional[float] = None
-    unit_cd: Optional[str] = None
-    threshold_value: Optional[float] = None
-    threshold_source_cd: Optional[ThresholdSource] = None
-
-
-@dataclass(frozen=True)
-class Judgment:                           # v_judgment_sheet + judgment_basis
-    unit_task_id: int
-    criterion_no: int
-    short_name: str
-    computed_status_cd: JudgmentStatus
-    final_status_cd: Optional[FinalStatus]
-    confirmed_yn: bool
-    review_reason_cd: Optional[ReviewReason]
-    exclusion_cd: Optional[Exclusion]
-    basis_text: str
-    source_text: str
-    basis: tuple[JudgmentBasis, ...]
-    confirmed_by: Optional[str] = None
-    confirmed_at: Optional[str] = None
-    confirm_reason_text: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class WarningItem:                        # warning + 최신 ai_text
-    warning_id: int
-    criterion_no: int
-    message_text: str
-    basis_text: str
-    raised_at: str
-    ai_text: Optional[str] = None
-    ai_result_cd: Optional[AiResult] = None
-
-
-@dataclass(frozen=True)
-class TaskResult:                         # S06
-    unit_task_id: int
-    run: Optional[RunHandle]
-    run_status_cd: Optional[RunStatus]
-    still_cnt: int                        # 분석한 사진 수 (표본 수). 분석 전이면 0
-    valid_still_cnt: int                  # 그중 판별에 쓴 사진 수
-    invalid_ratio: Optional[float]        # 판별 불가 사진 ÷ 전체 사진
-    reba: Optional[RebaScore]
-    key_still_id: Optional[int]           # 대표 사진
-    key_still_jpeg: Optional[bytes]       # 대표 사진 JPEG
-    shares: tuple[PostureShare, ...]
-    judgments: tuple[Judgment, ...]
-    warnings: tuple[WarningItem, ...]
-    notices: tuple[Notice, ...] = ()
-
-
-@dataclass(frozen=True)
-class JudgmentChange:
-    criterion_no: int
-    before: JudgmentStatus
-    after: JudgmentStatus
-    unconfirmed: bool                     # 확정이 풀렸는지 (기능정의서 3.2절 규칙 3)
-
-
-@dataclass(frozen=True)
-class RecalcResult:
-    changes: tuple[JudgmentChange, ...]
-    warnings_raised: tuple[int, ...]      # criterion_no
-    warnings_cleared: tuple[int, ...]
-    result: TaskResult
-
-
-@dataclass(frozen=True)
-class ConfirmAllResult:
-    confirmed: tuple[int, ...]            # criterion_no
-    needs_decision: tuple[int, ...]       # '사람 확인'이라 조사자 결정이 필요
-    blocked: tuple[int, ...]              # '입력 필요'라 확정할 수 없음
-
-
-@dataclass(frozen=True)
-class Threshold:                          # v_effective_threshold
-    threshold_cd: ThresholdCode
-    criterion_no: int
-    measure_cd: str
-    value_deg: float
-    overridden_yn: bool
-    source_label: str
-
-
-@dataclass(frozen=True)
-class EditLogEntry:                       # v_edit_log
-    logged_at: str
-    actor_name: str
-    target_cd: str
-    target_key: str
-    action_cd: str
-    old_value: Optional[str]
-    new_value: Optional[str]
-    reason_text: Optional[str]
-    unit_task_id: Optional[int]
-
-
-# ---------------------------------------------------------------- 보고서, AI, 설정
-@dataclass(frozen=True)
-class ExportResult:
-    file_path: str
-    draft_cell_cnt: int
-    backup_path: Optional[str]
-    notices: tuple[Notice, ...] = ()
-
-
-@dataclass(frozen=True)
-class AiTextResult:
-    ai_text_id: int
-    purpose_cd: AiPurpose
-    text: str                             # GPT 문장 또는 기본 문구
-    result_cd: AiResult
-    is_ai: bool                           # True면 화면에 'AI 작성' 표시
-
-
-@dataclass(frozen=True)
-class PoseModel:
-    model_id: int
-    model_name: str
-    model_version: str
-    keypoint_cnt: int
-
-
-@dataclass(frozen=True)
-class Settings:
-    pose_model_id: int
-    gpt_enabled: bool
-    gpt_model: Optional[str]
-    has_gpt_key: bool                     # 키 자체는 돌려주지 않는다
-    last_export_dir: Optional[str]
-
-
-# ---------------------------------------------------------------- 서비스 API (4절)
-class ServiceAPI(Protocol):
-    # 4.1 조사
-    def create_survey(self, data: SurveyCreate) -> SurveyDetail: ...
-    def list_surveys(self) -> Sequence[SurveySummary]: ...
-    def get_survey(self, survey_id: int) -> SurveyDetail: ...
-    def update_survey(self, survey_id: int, data: SurveyUpdate, actor: str) -> SurveyDetail: ...
-    def delete_survey(self, survey_id: int, actor: str) -> None: ...
-    def add_participant(self, survey_id: int, participant_type_cd: ParticipantType, display_name: str) -> Participant: ...
-    def remove_participant(self, participant_id: int) -> None: ...
-    def confirm_survey(self, survey_id: int, actor: str) -> SurveyDetail: ...
-
-    # 4.2 단위작업과 입력
-    def create_unit_task(self, survey_id: int, data: UnitTaskCreate) -> UnitTask: ...
-    def update_unit_task(self, unit_task_id: int, data: UnitTaskCreate, actor: str) -> RecalcResult: ...
-    def delete_unit_task(self, unit_task_id: int, actor: str) -> None: ...
-    def save_task_inputs(self, unit_task_id: int, inputs: TaskInputs, actor: str) -> RecalcResult: ...
-    def save_repetition_inputs(self, unit_task_id: int, items: Sequence[RepetitionInput], actor: str) -> RecalcResult: ...
-    def save_lift_position_inputs(self, unit_task_id: int, items: Sequence[LiftPositionInput], actor: str) -> RecalcResult: ...
-    def save_reba_inputs(self, unit_task_id: int, inputs: RebaInputs, actor: str) -> RecalcResult: ...
-    def get_task_inputs(self, unit_task_id: int) -> TaskInputBundle: ...
-    def get_reba_inputs(self, unit_task_id: int) -> RebaInputs: ...
-
-    # 4.3 사진과 분석
-    def inspect_still(self, path: Path) -> StillInfo: ...
-    def list_stills(self, unit_task_id: int) -> Sequence[StillInfo]: ...
-    def attach_still(self, unit_task_id: int, path: Path, consent: bool, actor: str) -> StillInfo: ...
-    def detach_still(self, still_id: int, actor: str) -> None: ...
-    def confirm_consent(self, still_id: int, actor: str) -> StillInfo: ...
-    def start_analysis(self, unit_task_id: int, on_progress: ProgressCallback) -> RunHandle: ...
-    def cancel_analysis(self, run_id: int) -> None: ...
-
-    # 4.4 결과와 판정
-    def get_task_result(self, unit_task_id: int) -> TaskResult: ...
-    def get_still_preview(self, run_id: int, still_id: int) -> bytes: ...
-    def get_still_results(self, unit_task_id: int) -> Sequence[StillResult]: ...
-    def set_key_still(self, unit_task_id: int, still_id: int, actor: str) -> TaskResult: ...
-    def confirm_judgment(self, unit_task_id: int, criterion_no: int, final_status: FinalStatus,
-                         reason: Optional[str], actor: str) -> Judgment: ...
-    def confirm_all(self, unit_task_id: int, actor: str) -> ConfirmAllResult: ...
-    def unconfirm_judgment(self, unit_task_id: int, criterion_no: int, reason: str, actor: str) -> Judgment: ...
-    def list_edit_log(self, survey_id: int) -> Sequence[EditLogEntry]: ...
-
-    # 4.5 각도 기준
-    def get_thresholds(self, survey_id: int) -> Sequence[Threshold]: ...
-    def set_threshold(self, survey_id: int, threshold_cd: ThresholdCode, value_deg: float,
-                      reason: str, actor: str) -> Sequence[RecalcResult]: ...
-    def reset_threshold(self, survey_id: int, threshold_cd: ThresholdCode, actor: str) -> Sequence[RecalcResult]: ...
-
-    # 4.6 보고서와 AI 문장
-    def export_excel(self, survey_id: int, path: Path, actor: str, with_db_backup: bool = True) -> ExportResult: ...
-    def request_warning_advice(self, warning_id: int) -> AiTextResult: ...
-    def request_report_summary(self, survey_id: int) -> AiTextResult: ...
-    def edit_ai_text(self, ai_text_id: int, text: str, actor: str) -> AiTextResult: ...
-
-    # 4.7 설정
-    def get_settings(self) -> Settings: ...
-    def save_settings(self, pose_model_id: int, gpt_enabled: bool, gpt_model: Optional[str]) -> Settings: ...
-    def set_gpt_api_key(self, key: str) -> None: ...
-    def delete_gpt_api_key(self) -> None: ...
-    def list_models(self) -> Sequence[PoseModel]: ...
+CONTRACT_VERSION = '2.0'
+# method: (required parameter names, optional parameter names)
+SERVICE_METHODS = {
+    'list_surveys': ((), ()), 'get_settings': ((), ()),
+    'create_survey': (('draft',), ()),
+    'update_survey': (('survey_id','draft'), ()),
+    'get_survey': (('survey_id',), ()), 'delete_survey': (('survey_id',), ()),
+    'set_survey_review': (('survey_id','review'), ()),
+    'list_tasks': (('survey_id',), ()),
+    'create_task': (('survey_id','draft'), ()),
+    'save_task_input': (('task_id','input'), ('expected_revision',)),
+    'get_task': (('task_id',), ()), 'delete_task': (('task_id',), ()),
+    'rename_task': (('task_id','task_name'), ()),
+    'set_task_conditions': (('task_id','conditions'), ()),
+    'set_task_profile': (('task_id','input_template'), ('worker_count',)),
+    'set_legal_inputs': (('task_id','legal'), ()),
+    'set_analysis_scope': (('task_id','scope'), ()),
+    'import_photos': (('task_id','file_paths'), ()),
+    'get_photo_preview': (('photo',), ()),
+    'update_photo': (('photo_id','file_path','consent'), ()),
+    'delete_photo': (('photo_id',), ()),
+    'set_capture': (('task_id','capture'), ()),
+    'set_manual_values': (('task_id','manual'), ()),
+    'start_analysis': (('task_id',), ()),
+    'get_analysis': (('analysis_id',), ()),
+    'cancel_analysis': (('analysis_id',), ()),
+    'recalculate_reba': (('task_id',), ()),
+    'recalculate_judgments': (('task_id',), ()),
+    'recalculate_tags': (('task_id',), ()),
+    'list_analysis_history': (('task_id',), ()),
+    'get_task_result': (('task_id',), ()),
+    'select_representative': (('analysis_id','slot_no'), ()),
+    'set_investigator_conclusion': (('analysis_id','conclusion'), ()),
+    'generate_ai_text': (('analysis_id',), ('purpose',)),
+    'edit_ai_text': (('analysis_id','text_id','text'), ()),
+    'apply_ai_text': (('analysis_id','text_id','use_edited'), ()),
+    'preview_excel': (('survey_id',), ('analysis_ids','comparisons')),
+    'export_excel': (('survey_id','spec'), ()),
+    'list_export_logs': (('survey_id',), ()),
+    'update_settings': (('settings',), ()),
+}
+
+
+def validate_request(method, params):
+    if not isinstance(method, str) or method not in SERVICE_METHODS:
+        raise LookupError('연결되지 않은 2.0 서비스 메서드: '+str(method))
+    if not isinstance(params, dict): raise ValueError('params는 객체여야 합니다')
+    required, optional = SERVICE_METHODS[method]
+    missing=set(required)-params.keys(); extra=params.keys()-set(required)-set(optional)
+    if missing or extra: raise ValueError(f'2.0 매개변수 불일치: 누락 {sorted(missing)}, 지원하지 않음 {sorted(extra)}')
+    for key in ('survey_id','task_id','photo_id','analysis_id','slot_no'):
+        if key in params and (type(params[key]) is not int or params[key]<1):
+            raise ValueError(f'{key}는 양의 정수여야 합니다')
+    if 'expected_revision' in params and (type(params['expected_revision']) is not int or params['expected_revision']<0):
+        raise ValueError('expected_revision은 0 이상 정수여야 합니다')
+    if 'purpose' in params and params['purpose'] not in ('TASK_EXPLANATION','IMPROVEMENT_ADVICE'):
+        raise ValueError('지원하지 않는 설명 목적입니다')
+    if method=='apply_ai_text' and type(params['use_edited']) is not bool:
+        raise ValueError('use_edited는 참/거짓이어야 합니다')
+    if method=='edit_ai_text' and not isinstance(params['text'],str):
+        raise ValueError('설명 편집문은 문자열이어야 합니다')
+    if method=='update_photo' and (params['consent'] not in ('YES','NO','UNKNOWN') or not isinstance(params['file_path'],str)):
+        raise ValueError('사진 경로는 문자열, 동의는 YES/NO/UNKNOWN이어야 합니다')
+    if method=='set_survey_review' and (not isinstance(params['review'],dict) or type(params['review'].get('reviewed')) is not bool):
+        raise ValueError('검토 여부는 참/거짓이어야 합니다')

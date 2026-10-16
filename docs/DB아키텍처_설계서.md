@@ -4,6 +4,8 @@
 
 ## 1. 구조와 구현 경계
 
+로컬 정리 기준: 실행 진입점은 공통 JSON Lines 서비스 하나다. 낡은 가짜 서비스·별도 샘플 서버·프론트 저장 adapter·DB 계산 뷰 검사기는 제거한다. 기존 1.3 입력의 읽기 변환은 `ergo/legacy/v13.py`에 격리한다. 물리 여섯 테이블과 기존 JSON·분석·출력 snapshot을 변경하거나 일괄 변환하지 않는다. 배포 패키지는 실제 화면·공통 서비스·모델만 포함한다.
+
 Electron renderer → preload → main → Python Application Service → task_input/capture/pose/tags/reba/burden/explanation/report → storage → SQLite다. 기능 모듈은 계산·출력을 담당하고 서비스가 순서를 조정한다. SQLite는 근거·snapshot·결과를 저장하며 계산 규칙을 실행하지 않는다.
 
 상자 들기와 다른 작업에 동일한 일반 작업/가변 사진 경로를 사용한다. 입력 템플릿은 UI 설정이며 서비스·DB에 별도 상자 프로토콜을 추가하지 않는다. 이전 1.3 프로토콜은 호환 읽기 adapter에 한정한다.
@@ -16,13 +18,13 @@ Electron renderer → preload → main → Python Application Service → task_i
 |---|---|---|
 | 통합 시작 | 별도 `survey_service.py` adapter와 공통 서비스가 공존 | run-integrated.ps1과 Electron 기본 경로가 `ergo/service/json_lines.py` 사용 |
 | 업무 조정 | 상자 작업과 고정 사진의 1.3 흐름 | 일반 작업·11개 기준·가변 사진·revision·분석 범위 |
-| 저장 경로 | 프론트 adapter 전용 DB 기본 경로 | frontend/.local/loco_frontend.db, `-DatabasePath`로 변경 가능 |
+| 저장 경로 | 프론트 adapter 전용 DB 기본 경로 | 통합 스크립트: frontend/.local/loco_frontend.db; 직접/포터블: %LOCALAPPDATA%/LOCO/loco_demo.db; 명시 경로로 변경 가능 |
 | 모델 | 모델 설치·활성 추론 확인 없음 | 공식 Lightning float16 v4 다운로드·SHA-256 검증·CPU 추론 스모크 확인 |
 | GPT | 고정 문구 | 허용 수치 요약·실제 API client·대체 설명·편집/적용 보존; 실제 계정 호출은 미검증 |
 | 보고서 | 기존 1.3 출력 | 기본 4시트와 질환자 발생 수시조사의 별지 기반 2시트·미리보기·전후 비교 연결 |
-| 별도 desktop 샘플 | 이전 backend | 이전 구조 참고, 새 구현 정본 아님 |
+| 별도 desktop 샘플 | 이전 backend | 제거; 1.3 자료는 읽기 adapter로 보존 |
 
-2026-10-16 확인 범위: Python 전체 48개 시험, 5개 결함 주입 변이와 대조군, 공식 MoveNet 모델 CPU 추론, Electron UI의 입력·저장·분석·내보내기, 질환자 발생 수시조사의 6시트와 다른 사유의 4시트. CPython 3.12 x64, 실제 GPT API, 구형 1.3 사용자 자료 표본, 개발 환경 없는 PC 설치와 현장 조사자 사용은 아직 검증하지 않았다. 10월 22일 깨끗한 PC 확인과 10월 23일 전달은 계속 목표로 두며, 이 중간 확인만으로 전체 수용을 선언하지 않는다.
+2026-10-16 현재 로컬 구현과 검증은 [요구사항별 검증 대조표](local-verification.md)를 따른다. CPython 3.12 x64·공식 모델·실제 Electron 업무 흐름·포터블 실행과 외부 GPT 계정·깨끗한 별도 PC·실제 사용자 자료·현장 성과를 구분한다. 날짜별 계획은 전체 수용이나 완료 선언이 아니다.
 
 ## 3. 파일과 런타임
 
@@ -108,3 +110,12 @@ storage는 트랜잭션 안에서 최신 result_json을 읽어 소유한 경로�
 10/16 저장 충돌·사진 재연결·공통 실행 연결 → 10/17~18 일반 입력·가변 사진·11개 규칙·실제 GPT → 10/19 전체 통합 → 10/20 출력/비교 → 10/21 독립 반례 검토 → 10/22 수정·깨끗한 PC 검증 → 10/23 전달 순서다.
 
 검증은 base/ancestry·변경 범위를 먼저 확인하고 정상·실패·경계·누락·통합을 독립 대조한다. 현재 정적 검토의 사진 재연결 소실·AI 편집 덮어쓰기 경로를 최소 반례로 재현하고 수정 후 회귀 확인한다. 스키마·문서 정합성 확인만으로 실행 안전성·법률 해석·배포 성공을 완료로 선언하지 않는다.
+
+
+## 로컬 구현 보완 기록
+
+계산 worker는 계산 필드만 쓰고, AI 생성/편집/적용·조사자 결론·대표 사진은 최신 result_json의 해당 경로만 트랜잭션으로 편집한다. 결론 변경과 검토 해제는 같은 트랜잭션이며 검토 history를 JSON에 보존한다. 출력 snapshot은 하나의 SQLite 읽기 트랜잭션에서 구성한다. 설정과 영향을 받는 2.0 입력 revision 갱신도 같은 쓰기 트랜잭션이다.
+
+Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비스·공식 모델을 포함한다. 빌드 명령은 scripts/build_windows.py이며 설치된 Python/Node를 찾아 실행하지 않는다. DB는 쓰기 가능한 사용자 앱 데이터 경로에 유지한다. 빌드/실행 검증과 외부 검증 경계는 local-verification.md를 따른다.
+
+모듈별 책임과 단방향 의존은 [모듈 지도](module-map.md)를 따른다. 서비스와 저장/보고서는 facade와 entity/domain 모듈로 분리하고 앱별 Runtime에 DB·잠금·취소 상태를 주입한다. 여섯 JSON 테이블과 불변 snapshot 계약은 유지한다. 전체 결과 덮어쓰기와 최신 분석 포인터를 임의로 바꾸는 폐기된 저장 API는 제거했다.

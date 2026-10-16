@@ -29,6 +29,10 @@ def open_db(path: str | Path | None = None) -> sqlite3.Connection:
     connection = sqlite3.connect(db_name)
     connection.row_factory = sqlite3.Row
     try:
+        existing={row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+        expected={'SURVEY','TASK','PHOTO','ANALYSIS','APP_SETTINGS','EXPORT_LOG'}
+        if existing and existing!=expected:
+            raise sqlite3.DatabaseError('지원하지 않는 DB 구조입니다. 기존 파일을 변경하지 않았습니다. LOCO 1.3/2.0의 여섯 JSON 테이블이 필요합니다.')
         connection.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
     except Exception:
         connection.close()

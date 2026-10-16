@@ -56,7 +56,7 @@ class GptBoundary(unittest.TestCase):
         self.assertFalse(payload.validate_content(content, summary))
 
     def test_missing_key_returns_fallback_without_creating_an_api_client(self):
-        content, reason = client.generate({}, 'gpt-6-luna', None)
+        content, reason = client.generate({}, 'test-model', None)
         self.assertIsNone(content)
         self.assertEqual(reason, 'NO_API_KEY')
 

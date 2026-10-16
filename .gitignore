@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
 .venv/
+.local/
+frontend/node_modules/
+dist/
+build/
+*.spec
 models/*.tflite
 docs_src/.work/
 *.db

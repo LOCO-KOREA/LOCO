@@ -17,7 +17,7 @@ PUBLIC_RULE_TEXT=[
  '사진 표본 비율은 하루 노출시간이나 법적 해당 확률이 아니다. GPT는 수치나 조사자 판정을 변경할 수 없다.'
 ]
 
-def build_numeric_summary(analysis):
+def build_numeric_summary(analysis,purpose='TASK_EXPLANATION'):
     snapshot=analysis['snapshot']; result=analysis.get('judgment') or {}; pose=analysis.get('pose') or {}; reba=analysis.get('reba') or {}
     scope=snapshot.get('analysis_scope') or dict(judgment=True,pose=True,tags=True,reba=True)
     targets=[s for s in (snapshot.get('capture') or {}).get('slots',[]) if s.get('analysis_target',snapshot.get('schema_version')!='2.0') and s.get('photo_id') is not None]
@@ -28,14 +28,19 @@ def build_numeric_summary(analysis):
         for index,item in enumerate((judgment or {}).get('basis',[]),1):
             # Replace paths containing row IDs with stable, anonymous references.
             ref=f'C{number:02d}-B{index:02d}'; refs.append(ref); all_refs.add(ref)
-            basis.append(dict(item_code=ref,value=item.get('value'),unit=item.get('unit'),operator=item.get('operator'),threshold=item.get('threshold')))
+            def safe_value(value):
+                if value is None or value in ('YES','NO','UNKNOWN'): return value
+                if isinstance(value,bool) or not isinstance(value,(int,float)): return None
+                try: return value if math.isfinite(value) else None
+                except OverflowError: return None
+            basis.append(dict(item_code=ref,value=safe_value(item.get('value')),unit=item.get('unit'),operator=item.get('operator'),threshold=safe_value(item.get('threshold'))))
         fields=['criteria.'+str(number)+'.input_needed'] if (judgment or {}).get('missing_fields') else []
         criteria.append(dict(criterion_no=number,computed_status=(judgment or {}).get('computed_status'),investigator_status=(judgment or {}).get('investigator',{}).get('status'),effective_status=(judgment or {}).get('effective_status'),effective_source='INVESTIGATOR' if (judgment or {}).get('investigator',{}).get('status') else 'COMPUTED' if judgment else None,exclusion=(judgment or {}).get('exclusion'),missing_fields=fields,review_reasons=(judgment or {}).get('review_reasons',[]),basis=basis))
     tags=[]
     for tag in analysis.get('tags') or []:
         tags.append(dict(tag=tag.get('tag'),yes_count=tag.get('yes_count'),observed_count=tag.get('observed_count'),valid_pose_count=tag.get('valid_pose_count'),total_slot_count=tag.get('total_slot_count')))
     settings=snapshot.get('settings') or {}
-    return dict(schema_version='2.0',purpose='TASK_EXPLANATION',rule_version='|'.join(str(x) for x in [settings.get('burden_rule'),settings.get('reba_rule'),(settings.get('posture_profile') or {}).get('version')]),module_states=analysis.get('module_states') or {},requested_scope=scope,
+    return dict(schema_version='2.0',purpose=purpose,rule_version='|'.join(str(x) for x in [settings.get('burden_rule'),settings.get('reba_rule'),(settings.get('posture_profile') or {}).get('version')]),module_states=analysis.get('module_states') or {},requested_scope=scope,
         pose_quality=dict(target_count=len(targets),valid_count=pose.get('valid_count') if pose else None),
         reba=dict(complete_count=(reba.get('summary') or {}).get('complete_count'),available_max=(reba.get('summary') or {}).get('available_max'),full_max=(reba.get('summary') or {}).get('full_max')),
         tag_counts=tags,criteria=criteria,public_rule_text=PUBLIC_RULE_TEXT)

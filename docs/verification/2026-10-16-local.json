@@ -1,0 +1,584 @@
+{
+  "status": "LOCAL_VALIDATED / OVERALL_NOT_ACCEPTED",
+  "source_commit": "a4213ebfb4478a7cf882b94c0f1046701cdcd7dc",
+  "branch": "feat/loco-2.0-oct23",
+  "source_has_local_changes": true,
+  "automated_python_tests": 96,
+  "python_runtime": "3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]",
+  "frontend_regression_cases": 4,
+  "mutations_detected": 10,
+  "contract_audit": {
+    "contract_version": "2.0",
+    "documented_methods": 40,
+    "implemented_methods": 40,
+    "renderer_methods": 31,
+    "obsolete_entrypoints_removed": true
+  },
+  "runtime_source_files": 90,
+  "runtime_source_hash_match": true,
+  "physical_schema_preserved": true,
+  "model_sha256": "0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab",
+  "photo_sha256": "4dbdf2f342597a2415c96e82052217e083e61d72500c711b2cd0eebaeb8a58c6",
+  "external_gpt_account_tested": false,
+  "clean_separate_pc_tested": false,
+  "user_legacy_db_tested": false,
+  "field_study_tested": false,
+  "development_evidence": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4",
+  "portable_evidence": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137",
+  "sdk_evidence": "<repository>\\.local\\explanation-1792117395363",
+  "package_path": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T021609102534Z",
+  "electron_workflow": {
+    "started_at": "2026-10-16T02:22:08.926Z",
+    "kind": "real Electron/Python/SQLite with public example photo and synthetic survey",
+    "checks": [
+      {
+        "name": "LIFTING reorders all eleven criteria without changing their values"
+      },
+      {
+        "name": "direct-input-only calculation through the UI",
+        "analysis_id": 1
+      },
+      {
+        "name": "investigator conclusion can be created, changed and cleared"
+      },
+      {
+        "name": "next-input link navigates to the exact criterion field"
+      },
+      {
+        "name": "official MoveNet model runs through Electron -> service -> SQLite",
+        "status": "VALID",
+        "points": 17
+      },
+      {
+        "name": "only the selected automatic candidate is applied",
+        "chosen": "RIGHT.upper_arm_base"
+      },
+      {
+        "name": "compatible complete REBA snapshots report the measured score difference and manual changes",
+        "before": 2,
+        "after": 1,
+        "delta": -1
+      },
+      {
+        "name": "bilateral REBA is complete and manual values survive editor return/save",
+        "manual_count": 34
+      },
+      {
+        "name": "changed direct exposure produces a new result while the prior snapshot stays immutable"
+      },
+      {
+        "name": "missing API key produces editable/applicable fallback without changing calculations"
+      },
+      {
+        "name": "comparison UI displays eleven before/after criterion results and input changes"
+      },
+      {
+        "name": "detailed comparison UI includes the changed manual observation values"
+      },
+      {
+        "name": "four-sheet Excel exported by the UI",
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\regular-report.xlsx"
+      },
+      {
+        "name": "app restart reopens the same SQLite survey, task and manual records"
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "DISEASE_CASE",
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\disease-report.xlsx",
+        "expected_sheets": 6
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "NEW_TASK_OR_EQUIPMENT",
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\new-equipment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "WORK_ENVIRONMENT_CHANGE",
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\changed-environment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "OTHER",
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\other-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "reviewer/note/history survive conclusion invalidation"
+      },
+      {
+        "name": "initial/regular/occasional surveys remain separate and anonymous responses persist"
+      },
+      {
+        "name": "analysis settings UI invalidates affected results and preserves historical snapshots"
+      },
+      {
+        "name": "both explanation purposes can be edited and independently applied through the UI"
+      },
+      {
+        "name": "missing photo load navigates from the report to the exact observation control"
+      },
+      {
+        "name": "photo step navigation is connected to the investigator review screen"
+      },
+      {
+        "name": "variable photos preserve stable rows and manual values while failed imports and incomplete targets stay explicit"
+      },
+      {
+        "name": "historical result view retains snapshot photo rows after a current row is deleted"
+      },
+      {
+        "name": "requested zero-photo analysis stays failed while direct judgments remain available in the UI"
+      },
+      {
+        "name": "multiple tasks can be created and deleted through the UI without changing the retained task"
+      },
+      {
+        "name": "survey deletion through the UI preserves the independent surveys and stored work"
+      }
+    ],
+    "errors": [],
+    "runtime": {
+      "packaged": false,
+      "executable": "<repository>\\frontend\\node_modules\\electron\\dist\\electron.exe",
+      "resources": "<repository>\\frontend\\node_modules\\electron\\dist\\resources"
+    },
+    "survey_id": 1,
+    "task_id": 1,
+    "completed_at": "2026-10-16T02:22:30.590Z"
+  },
+  "portable_execution": {
+    "started_at": "2026-10-16T02:22:40.184Z",
+    "kind": "real Electron/Python/SQLite with public example photo and synthetic survey",
+    "checks": [
+      {
+        "name": "LIFTING reorders all eleven criteria without changing their values"
+      },
+      {
+        "name": "direct-input-only calculation through the UI",
+        "analysis_id": 1
+      },
+      {
+        "name": "investigator conclusion can be created, changed and cleared"
+      },
+      {
+        "name": "next-input link navigates to the exact criterion field"
+      },
+      {
+        "name": "official MoveNet model runs through Electron -> service -> SQLite",
+        "status": "VALID",
+        "points": 17
+      },
+      {
+        "name": "only the selected automatic candidate is applied",
+        "chosen": "RIGHT.upper_arm_base"
+      },
+      {
+        "name": "compatible complete REBA snapshots report the measured score difference and manual changes",
+        "before": 2,
+        "after": 1,
+        "delta": -1
+      },
+      {
+        "name": "bilateral REBA is complete and manual values survive editor return/save",
+        "manual_count": 34
+      },
+      {
+        "name": "changed direct exposure produces a new result while the prior snapshot stays immutable"
+      },
+      {
+        "name": "missing API key produces editable/applicable fallback without changing calculations"
+      },
+      {
+        "name": "comparison UI displays eleven before/after criterion results and input changes"
+      },
+      {
+        "name": "detailed comparison UI includes the changed manual observation values"
+      },
+      {
+        "name": "four-sheet Excel exported by the UI",
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\regular-report.xlsx"
+      },
+      {
+        "name": "app restart reopens the same SQLite survey, task and manual records"
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "DISEASE_CASE",
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\disease-report.xlsx",
+        "expected_sheets": 6
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "NEW_TASK_OR_EQUIPMENT",
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\new-equipment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "WORK_ENVIRONMENT_CHANGE",
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\changed-environment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "OTHER",
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\other-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "reviewer/note/history survive conclusion invalidation"
+      },
+      {
+        "name": "initial/regular/occasional surveys remain separate and anonymous responses persist"
+      },
+      {
+        "name": "analysis settings UI invalidates affected results and preserves historical snapshots"
+      },
+      {
+        "name": "both explanation purposes can be edited and independently applied through the UI"
+      },
+      {
+        "name": "missing photo load navigates from the report to the exact observation control"
+      },
+      {
+        "name": "photo step navigation is connected to the investigator review screen"
+      },
+      {
+        "name": "variable photos preserve stable rows and manual values while failed imports and incomplete targets stay explicit"
+      },
+      {
+        "name": "historical result view retains snapshot photo rows after a current row is deleted"
+      },
+      {
+        "name": "requested zero-photo analysis stays failed while direct judgments remain available in the UI"
+      },
+      {
+        "name": "multiple tasks can be created and deleted through the UI without changing the retained task"
+      },
+      {
+        "name": "survey deletion through the UI preserves the independent surveys and stored work"
+      }
+    ],
+    "errors": [],
+    "runtime": {
+      "packaged": true,
+      "executable": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T021609102534Z\\LOCO.exe",
+      "resources": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T021609102534Z\\resources"
+    },
+    "survey_id": 1,
+    "task_id": 1,
+    "completed_at": "2026-10-16T02:23:02.124Z"
+  },
+  "responses_sdk_loopback_fixture": {
+    "kind": "local Responses HTTP fixture; not a real GPT account",
+    "checks": [
+      "strict SDK response renders linked criterion grounds and navigates to the source field",
+      "invalid basis references fall back and preserve the active edited text and calculations",
+      "network-backed generation does not block other service requests",
+      "SDK timeout returns a diagnostic fallback without automatic retries"
+    ],
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "valid",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "invalid",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "delayed",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "timeout",
+        "strict": true
+      }
+    ],
+    "runtime": {
+      "packaged": true,
+      "executable": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T021609102534Z\\LOCO.exe"
+    },
+    "completed_at": "2026-10-16T02:23:31.179Z"
+  },
+  "development_sqlite_excel": {
+    "kind": "read-only independent SQLite/XLSX comparison",
+    "records": {
+      "ANALYSIS": 10,
+      "APP_SETTINGS": 1,
+      "EXPORT_LOG": 5,
+      "PHOTO": 2,
+      "SURVEY": 3,
+      "TASK": 1
+    },
+    "exports": [
+      {
+        "export_id": 1,
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\regular-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 1,
+        "metadata_revision": 0,
+        "comparisons": [
+          {
+            "before_analysis_id": 6,
+            "after_analysis_id": 7,
+            "before_max": 2,
+            "after_max": 1,
+            "delta": -1
+          }
+        ]
+      },
+      {
+        "export_id": 2,
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\disease-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거",
+          "별지1 유해요인조사표",
+          "별지2 증상조사표"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 0,
+        "comparisons": []
+      },
+      {
+        "export_id": 3,
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\new-equipment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 1,
+        "comparisons": []
+      },
+      {
+        "export_id": 4,
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\changed-environment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 2,
+        "comparisons": []
+      },
+      {
+        "export_id": 5,
+        "file": "<repository>\\.local\\final-development-4457093fca644fa3838a6c2744f1bdc4\\other-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 3,
+        "comparisons": []
+      }
+    ],
+    "model_results": [
+      {
+        "analysis_id": 2,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 3,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 4,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 5,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 6,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 7,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 8,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 9,
+        "slot": 1,
+        "status": "VALID"
+      }
+    ]
+  },
+  "portable_sqlite_excel": {
+    "kind": "read-only independent SQLite/XLSX comparison",
+    "records": {
+      "ANALYSIS": 10,
+      "APP_SETTINGS": 1,
+      "EXPORT_LOG": 5,
+      "PHOTO": 2,
+      "SURVEY": 3,
+      "TASK": 1
+    },
+    "exports": [
+      {
+        "export_id": 1,
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\regular-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 1,
+        "metadata_revision": 0,
+        "comparisons": [
+          {
+            "before_analysis_id": 6,
+            "after_analysis_id": 7,
+            "before_max": 2,
+            "after_max": 1,
+            "delta": -1
+          }
+        ]
+      },
+      {
+        "export_id": 2,
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\disease-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거",
+          "별지1 유해요인조사표",
+          "별지2 증상조사표"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 0,
+        "comparisons": []
+      },
+      {
+        "export_id": 3,
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\new-equipment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 1,
+        "comparisons": []
+      },
+      {
+        "export_id": 4,
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\changed-environment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 2,
+        "comparisons": []
+      },
+      {
+        "export_id": 5,
+        "file": "<repository>\\.local\\final-portable-a3f20e703fe744c89ae243726091d137\\other-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 3,
+        "comparisons": []
+      }
+    ],
+    "model_results": [
+      {
+        "analysis_id": 2,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 3,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 4,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 5,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 6,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 7,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 8,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 9,
+        "slot": 1,
+        "status": "VALID"
+      }
+    ]
+  },
+  "unverified": [
+    "External GPT account success and content accuracy",
+    "Separate clean Windows PC installation",
+    "Real user 1.3 DB samples",
+    "Field performance and actual-work representativeness",
+    "Current legal interpretation or clinical effect"
+  ],
+  "source_manifest": "2026-10-16-source-manifest.json"
+}

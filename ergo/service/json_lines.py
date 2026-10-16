@@ -1,8 +1,4 @@
-"""UTF-8 JSON Lines entrypoint for Electron's LOCO_SERVICE_ENTRY.
-
-Run from the repository root: python -m ergo.service.json_lines
-Or pass this file's absolute path to frontend/start.ps1 -ServiceEntry.
-"""
+"""Single UTF-8 JSON Lines entrypoint for the LOCO 2.0 Electron application."""
 import json
 import sqlite3
 import sys

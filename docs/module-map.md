@@ -1,0 +1,23 @@
+# LOCO 2.0 모듈 지도
+
+외부 실행 경로는 Electron → preload → JSON Lines → Application Service → 기능 모듈 → SQLite다. `ergo/contracts.py`의 40개 메서드와 API 계약서 §7을 대조한다. 새 구현과 불변 저장자료의 읽기 호환을 분리한다.
+
+| 경계 | 모듈 | 책임 |
+|---|---|---|
+| 서비스 조립 | `ergo/service/application.py`, `runtime.py` | 메서드 연결, DB 주입, 앱별 잠금·취소 상태. `create_service(path)`는 독립 앱 인스턴스다. |
+| 작업 입력 | `service/task_inputs.py` | 2.0 입력 검증·사진 배정 변경·revision·수동값 보존 |
+| 조사 검토 | `service/surveys.py` | 조사 CRUD·참여/증상 입력·검토 이력 |
+| 사진 | `service/photos.py` | 등록·재연결·미리보기·삭제 |
+| 분석 기록/실행 | `service/analysis_records.py`, `analysis_jobs.py` | 불변 snapshot·부분 저장·결론·대표 선택 / 재사용·추론·취소 |
+| 설명 | `service/explanations.py`, `gpt/client.py`, `gpt/payload.py` | 생성/편집/적용 이력 / SDK 호출 / 비식별 허용 요약과 응답 검증 |
+| 설정·출력 | `service/settings.py`, `reports.py` | 실제 엔진 설정·현재성 / 단일 읽기 snapshot·출력 영수증 |
+| 순수 계산 | `engine/burden_rules.py`, `reba_scoring.py`, `movenet.py`, `joint_angles.py`, `pose_tags.py` | 11개 기준·좌우 REBA·공식 모델·관절 각도·표본 태그. DB/화면을 참조하지 않는다. |
+| 저장 | `db/storage.py`, `storage_common.py`, `surveys.py`, `tasks.py`, `photos.py`, `analyses.py`, `settings.py`, `exports.py` | 기존 여섯 테이블의 entity별 CRUD, 짧은 트랜잭션, JSON 행 변환 |
+| 보고서 | `report/workbook.py`, `common.py`, `overview.py`, `comparisons.py`, `renderer.py`, `statutory_forms.py`, `labels.py` | 공통 열·상태/누락·전후 비교·Excel 렌더링·조건부 2시트·한글 표시 |
+| 이전 자료 | `legacy/v13.py` | 저장된 1.3 입력을 메모리에서 편집 DTO로 읽는다. 이전 규칙을 실행하지 않는다. |
+
+서비스의 domain 모듈은 조립 진입점을 import하지 않고 `Runtime`을 인자로 받는다. 저장 모듈은 engine/GPT/service를 import하지 않는다. 분석 완료와 AI·조사자 편집은 각자 담당 필드만 저장하며 snapshot을 수정하지 않는다.
+
+프론트는 네이티브 ES module이다. `desktop.js`가 작업·사진·조사·대시보드·분석 workspace를 조립한다. `task/`, `photo/`, `survey/`에는 입력 상태·화면 렌더링·이벤트 모듈이 있다. `analysis/`에는 공유 표시/DOM 도구, 상태, 진행·REBA·판정·설명·출력·설정 view, 사진 canvas, actions, navigation controller가 있다. 각 분석 workspace는 별도 상태와 명시적 의존 객체를 갖는다. 전역 가짜 서비스나 SVG 목업을 실행하지 않는다.
+
+`scripts/check_frontend.cjs`는 실제 Electron 페이지·ES module import·문법을 확인한다. `scripts/audit_contract.py`는 정본/registry/dispatch/renderer 호출을 대조한다. `tests/test_modularity.py`는 앱 인스턴스 분리와 역방향 의존을 검증한다. 실제 업무 흐름과 배포본 검증은 `local-verification.md`를 따른다.

@@ -1,4 +1,0 @@
-# Inference environment: CPython 3.12, Windows x64.
--r requirements.txt
-ai-edge-litert==2.3.0
-opencv-python-headless==5.0.0.93

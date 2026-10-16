@@ -1,0 +1,8 @@
+export const definitions={};
+definitions.editableKeys=['task_name','input_template','worker_count','conditions','legal','analysis_scope'];
+definitions.templateOrder={GENERAL:[1,2,3,4,5,6,7,8,9,10,11],OFFICE:[1,2,4,3,6,7,5,8,9,10,11],REPETITION:[2,10,11,6,7,1,3,4,5,8,9],POSTURE:[3,4,5,2,1,6,7,8,9,10,11],HAND_FORCE:[6,7,11,2,10,1,3,4,5,8,9],LIFTING:[8,9,10,7,6,3,4,5,2,1,11],IMPACT:[11,6,7,2,10,1,3,4,5,8,9]};
+definitions.templateHelp={GENERAL:'모든 기준을 순서대로 확인합니다.',OFFICE:'집중 입력·반복 동작·목과 허리 자세부터 확인합니다.',REPETITION:'같은 동작·반복 들기·충격의 실제 하루 노출량부터 확인합니다.',POSTURE:'손과 팔·목과 허리·쪼그림 자세부터 확인합니다.',HAND_FORCE:'한 손 손가락 집기·한 손 힘·실제 충격부터 확인합니다.',LIFTING:'중량·위치별 들기·분당 빈도를 같은 조건 행에 기록합니다.',IMPACT:'손 또는 무릎의 실제 충격과 빈도부터 확인합니다.'};
+definitions.criteria=['키보드·마우스 집중 입력','같은 동작 반복','손·팔의 부담 자세','목·허리 굽힘·비틀림','쪼그림·무릎 굽힘','한 손 손가락 집기·쥐기','한 손 들기·쥐기','25kg 이상 들기','10kg 이상 불편한 위치 들기','반복 들기','손·무릎으로 물체 충격'];
+definitions.exposures=[['C1_KEYBOARD_FOCUSED'],['C2_NECK'],['C2_SHOULDER'],['C2_ELBOW'],['C2_WRIST'],['C2_HAND'],['C3_UNION'],['C4_NECK_FLEX'],['C4_TRUNK_FLEX'],['C4_NECK_TWIST'],['C4_TRUNK_TWIST'],['C4_UNION'],['C5_SQUAT'],['C5_KNEEL'],['C5_UNION']];
+definitions.exposureNames=Object.fromEntries([['C1_KEYBOARD_FOCUSED','집중 키보드·마우스'],['C2_NECK','목 반복'],['C2_SHOULDER','어깨 반복'],['C2_ELBOW','팔꿈치 반복'],['C2_WRIST','손목 반복'],['C2_HAND','손 반복'],['C3_UNION','3호 중복 제거'],['C4_NECK_FLEX','목 굽힘'],['C4_TRUNK_FLEX','허리 앞굽힘'],['C4_NECK_TWIST','목 비틀림'],['C4_TRUNK_TWIST','허리 비틀림'],['C4_UNION','4호 중복 제거'],['C5_SQUAT','쪼그림'],['C5_KNEEL','무릎 굽힘'],['C5_UNION','5호 중복 제거']]);
+definitions.rowLabels={below_knee_count_day:'무릎 아래 횟수',above_shoulder_count_day:'어깨 위 횟수',extended_arm_count_day:'팔 뻗음 횟수',union_count_day:'중복 제거 횟수'};

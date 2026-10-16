@@ -34,7 +34,7 @@ ID는 양의 정수, 시각은 UTC ISO8601이다. UI·Excel은 Asia/Seoul로 표
 
 ### SURVEY
 
-metadata_json은 SurveyDraft의 최초/정기/수시 유형·수시 사유·이전 조사일, 작업장 상황의 설비/작업량/속도/업무형태 변화, 근로자 참여기록, 증상조사 방법·익명 응답·요약을 저장한다. 응답 이름은 선택사항이며 익명 코드를 권장한다. 건강 관련 정보는 로컬 SQLite와 내보낸 파일에 평문으로 포함될 수 있으므로 파일 접근을 제한해야 한다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
+metadata_json은 SurveyDraft의 최초/정기/수시 유형·수시 사유·이전 조사일, 작업장 상황의 설비/작업량/속도/업무형태 변화, 근로자 참여기록, 증상조사 방법·익명 응답·요약을 저장한다. 응답 이름은 선택사항이며 익명 코드를 권장한다. 건강 관련 정보는 로컬 SQLite와 내보낸 파일에 평문으로 포함될 수 있으므로 파일 접근을 제한해야 한다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note와 선택적 history다. history는 이전 검토 기록과 archived_at·무효화/변경 사유를 보존하며 기존 history 없는 자료도 읽는다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
 
 ### TASK.input_json
 
@@ -104,7 +104,7 @@ receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete
 
 ## 5. 1.3 호환 읽기
 
-schema_version이 1.3인 기존 TASK·ANALYSIS·EXPORT_LOG를 일괄 재작성하지 않는다. 구체 타입은 API 계약서의 고정 이전 계약을 따른다. 과거 15슬롯·회차·사건 하중은 당시 의미로 읽고 이전 형식임을 표시한다.
+schema_version이 1.3인 기존 TASK·ANALYSIS·EXPORT_LOG를 일괄 재작성하지 않는다. 구체 타입은 API 계약서 §10과 legacy-compatibility.md의 읽기 계약을 따른다. 과거 15슬롯·회차·사건 하중은 당시 의미로 읽고 이전 형식임을 표시한다.
 
 get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다. 사진·알려진 수동값을 보존하고 사건명은 역사적 사진 label로 남긴다. 기존 중량/시간의 관련값은 조건 행으로 옮기되 새로운 망라성·측면 확인·실제 사진 하중을 추정하지 않는다. 이전 TASK.input_json 전체는 legacy_input에 보존한다. C4_TRUNK_EXT는 새 법령 입력에 포함하지 않는다. 사진 비율 등 환산값은 새 직접수치에 null을 넣고 이전 원문·변환 출처·진단으로 남겨 재확인한다.
 

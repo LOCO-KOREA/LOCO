@@ -1,0 +1,291 @@
+{
+  "status": "IN_PROGRESS / NOT ACCEPTED",
+  "baseline_commit": "a4213ebfb4478a7cf882b94c0f1046701cdcd7dc",
+  "scope_note": "Recorded runs used evolving local changes; latest final-commit GUI/package replay and full requirements audit remain pending.",
+  "automated_python_tests": 65,
+  "frontend_regression_cases": 3,
+  "mutations_detected": 10,
+  "external_gpt_account_tested": false,
+  "clean_separate_pc_tested": false,
+  "user_legacy_db_tested": false,
+  "field_study_tested": false,
+  "electron_workflow": {
+    "started_at": "2026-10-16T01:16:55.550Z",
+    "kind": "real Electron/Python/SQLite with public example photo and synthetic survey",
+    "checks": [
+      {
+        "name": "LIFTING reorders all eleven criteria without changing their values"
+      },
+      {
+        "name": "direct-input-only calculation through the UI",
+        "analysis_id": 1
+      },
+      {
+        "name": "investigator conclusion can be created, changed and cleared"
+      },
+      {
+        "name": "next-input link navigates to the exact criterion field"
+      },
+      {
+        "name": "official MoveNet model runs through Electron -> service -> SQLite",
+        "status": "VALID",
+        "points": 17
+      },
+      {
+        "name": "only the selected automatic candidate is applied",
+        "chosen": "RIGHT.upper_arm_base"
+      },
+      {
+        "name": "bilateral REBA is complete and manual values survive editor return/save",
+        "manual_count": 34
+      },
+      {
+        "name": "changed direct exposure produces a new result while the prior snapshot stays immutable"
+      },
+      {
+        "name": "missing API key produces editable/applicable fallback without changing calculations"
+      },
+      {
+        "name": "comparison UI displays eleven before/after criterion results and input changes"
+      },
+      {
+        "name": "four-sheet Excel exported by the UI",
+        "file": "<repository>\\.local\\verify-1792113415550\\regular-report.xlsx"
+      },
+      {
+        "name": "app restart reopens the same SQLite survey, task and manual records"
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "DISEASE_CASE",
+        "file": "<repository>\\.local\\verify-1792113415550\\disease-report.xlsx",
+        "expected_sheets": 6
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "NEW_TASK_OR_EQUIPMENT",
+        "file": "<repository>\\.local\\verify-1792113415550\\new-equipment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "WORK_ENVIRONMENT_CHANGE",
+        "file": "<repository>\\.local\\verify-1792113415550\\changed-environment-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "type-specific Excel through the UI",
+        "cause": "OTHER",
+        "file": "<repository>\\.local\\verify-1792113415550\\other-report.xlsx",
+        "expected_sheets": 4
+      },
+      {
+        "name": "initial/regular/occasional surveys remain separate and anonymous responses persist"
+      }
+    ],
+    "errors": [],
+    "runtime": {
+      "packaged": false,
+      "executable": "<repository>\\frontend\\node_modules\\electron\\dist\\electron.exe",
+      "resources": "<repository>\\frontend\\node_modules\\electron\\dist\\resources"
+    },
+    "survey_id": 1,
+    "task_id": 1,
+    "completed_at": "2026-10-16T01:17:08.503Z"
+  },
+  "sqlite_excel": {
+    "kind": "read-only independent SQLite/XLSX comparison",
+    "records": {
+      "ANALYSIS": 6,
+      "APP_SETTINGS": 1,
+      "EXPORT_LOG": 5,
+      "PHOTO": 1,
+      "SURVEY": 3,
+      "TASK": 1
+    },
+    "exports": [
+      {
+        "export_id": 1,
+        "file": "<repository>\\.local\\verify-1792113415550\\regular-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 1,
+        "metadata_revision": 0
+      },
+      {
+        "export_id": 2,
+        "file": "<repository>\\.local\\verify-1792113415550\\disease-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거",
+          "별지1 유해요인조사표",
+          "별지2 증상조사표"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 0
+      },
+      {
+        "export_id": 3,
+        "file": "<repository>\\.local\\verify-1792113415550\\new-equipment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 1
+      },
+      {
+        "export_id": 4,
+        "file": "<repository>\\.local\\verify-1792113415550\\changed-environment-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 2
+      },
+      {
+        "export_id": 5,
+        "file": "<repository>\\.local\\verify-1792113415550\\other-report.xlsx",
+        "sheets": [
+          "요약",
+          "작업별 결과",
+          "확인사항",
+          "판정 근거"
+        ],
+        "analysis_count": 0,
+        "metadata_revision": 3
+      }
+    ],
+    "model_results": [
+      {
+        "analysis_id": 2,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 3,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 4,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 5,
+        "slot": 1,
+        "status": "VALID"
+      },
+      {
+        "analysis_id": 6,
+        "slot": 1,
+        "status": "VALID"
+      }
+    ]
+  },
+  "responses_sdk_loopback_fixture": {
+    "kind": "local Responses HTTP fixture; not a real GPT account",
+    "checks": [
+      "strict SDK response renders linked criterion grounds and navigates to the source field",
+      "invalid basis references fall back and preserve the active edited text and calculations",
+      "network-backed generation does not block other service requests",
+      "SDK timeout returns a diagnostic fallback without automatic retries"
+    ],
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "valid",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "invalid",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "delayed",
+        "strict": true
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses",
+        "mode": "timeout",
+        "strict": true
+      }
+    ],
+    "completed_at": "2026-10-16T01:15:43.512Z"
+  },
+  "portable_execution": {
+    "started_at": "2026-10-16T01:11:09.905Z",
+    "kind": "real Electron/Python/SQLite with public example photo and synthetic survey",
+    "checks": [
+      {
+        "name": "LIFTING reorders all eleven criteria without changing their values"
+      },
+      {
+        "name": "direct-input-only calculation through the UI",
+        "analysis_id": 1
+      },
+      {
+        "name": "investigator conclusion can be created, changed and cleared"
+      },
+      {
+        "name": "next-input link navigates to the exact criterion field"
+      },
+      {
+        "name": "official MoveNet model runs through Electron -> service -> SQLite",
+        "status": "VALID",
+        "points": 17
+      },
+      {
+        "name": "only the selected automatic candidate is applied",
+        "chosen": "RIGHT.upper_arm_base"
+      },
+      {
+        "name": "bilateral REBA is complete and manual values survive editor return/save",
+        "manual_count": 34
+      },
+      {
+        "name": "changed direct exposure produces a new result while the prior snapshot stays immutable"
+      },
+      {
+        "name": "missing API key produces editable/applicable fallback without changing calculations"
+      },
+      {
+        "name": "comparison UI displays eleven before/after criterion results and input changes"
+      },
+      {
+        "name": "four-sheet Excel exported by the UI",
+        "file": "<repository>\\.local\\verify-1792113069905\\regular-report.xlsx"
+      },
+      {
+        "name": "app restart reopens the same SQLite survey, task and manual records"
+      }
+    ],
+    "errors": [],
+    "runtime": {
+      "packaged": true,
+      "executable": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T010844421829Z\\LOCO.exe",
+      "resources": "<repository>\\dist\\LOCO-2.0-windows-x64-20261016T010844421829Z\\resources"
+    },
+    "survey_id": 1,
+    "task_id": 1,
+    "completed_at": "2026-10-16T01:11:20.048Z"
+  }
+}

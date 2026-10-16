@@ -20,12 +20,11 @@ if ($DatabasePath) {
 if (-not $DatabasePath) {
     $DatabasePath = Join-Path $PSScriptRoot 'frontend/.local/loco_frontend.db'
 }
-$serviceEntry = Join-Path $PSScriptRoot 'ergo/service/json_lines.py'
 $previousModel = $env:LOCO_MOVENET_MODEL
 try {
     if ($ModelPath) { $env:LOCO_MOVENET_MODEL = $ModelPath }
     & (Join-Path $PSScriptRoot 'frontend/start.ps1') `
-        -PythonPath $PythonPath -ServiceEntry $serviceEntry -DatabasePath $DatabasePath
+        -PythonPath $PythonPath -DatabasePath $DatabasePath
 } finally {
     $env:LOCO_MOVENET_MODEL = $previousModel
 }

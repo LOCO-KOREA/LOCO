@@ -1,5 +1,5 @@
-// S01 layout: docs/ui/01_대시보드.svg. Counts use persisted SurveySummary data.
-class DashboardWorkspace {
+// Survey dashboard: counts come from persisted SurveySummary data.
+export class DashboardWorkspace {
   constructor({api, onOpen, onNew, onList, onError}) {
     Object.assign(this, {api, onOpen, onNew, onList, onError});
     this.host = document.querySelector('#dashboard-workspace');
