@@ -18,8 +18,16 @@ async function main() {
   editor.form = {elements:{namedItem(name){assert.equal(name,'title');return {focus(){focused++;}};}}};
   editor.open(); assert.equal(opens,1); assert.equal(focused,1);
   busy = true; editor.close(true); assert.equal(closes,2); assert.equal(remembered,1);
+  editor.sections.forEach((section, index) => { section.contains = input => input === values[index]; });
+  const details = {tagName:'DETAILS', open:false, parentElement:editor.form};
+  values[1].parentElement = details;
+  editor.select(0); editor.revealInvalid(values[1]); editor.revealInvalid(values[2]);
+  assert.deepEqual(editor.sections.map(s => s.hidden), [true,false,true]);
+  assert.equal(details.open,true);
+  await Promise.resolve(); editor.revealInvalid(values[2]);
+  assert.deepEqual(editor.sections.map(s => s.hidden), [true,true,false]);
   const fs=require('node:fs'),path=require('node:path');
   for(const name of ['task/views.js','photo/views.js']) assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'../frontend',name),'utf8'),/class="task-steps"/);
-  console.log('PASS survey sections retain inputs/zero, busy-close protection, saved-close, reopen focus, and duplicate tab removal');
+  console.log('PASS survey sections retain inputs/zero, busy-close protection, saved-close, reopen focus, first invalid field reveal, and duplicate tab removal');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

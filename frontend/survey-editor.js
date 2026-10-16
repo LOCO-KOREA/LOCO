@@ -38,7 +38,19 @@ export class SurveyEditor {
     form.append(layout, footer);
     document.querySelector('#close-survey-editor').addEventListener('click', () => this.close());
     this.dialog.addEventListener('cancel', event => { event.preventDefault(); this.close(); });
+    this.form.addEventListener('invalid', event => this.revealInvalid(event.target), true);
     this.select(0);
+  }
+  revealInvalid(input) {
+    const index = this.sections.findIndex(section => section.contains(input));
+    if (index < 0 || this.invalidBatch) return;
+    // Native validation reports every invalid control before focusing the first.
+    this.invalidBatch = true;
+    queueMicrotask(() => { this.invalidBatch = false; });
+    for (let parent = input.parentElement; parent && parent !== this.form; parent = parent.parentElement) {
+      if (parent.tagName === 'DETAILS') parent.open = true;
+    }
+    this.select(index);
   }
   select(index) {
     this.sections.forEach((section, i) => { section.hidden = i !== index; });
