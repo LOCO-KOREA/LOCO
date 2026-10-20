@@ -1,3 +1,4 @@
+import {inputPlaceholder} from '../input-placeholders.js';
 /* ui; dependencies are composed by analysis-workspace.js. */
 export function createUi(ctx){
  const {host, s, statusNames}=ctx;
@@ -17,7 +18,7 @@ async function api(method,params={}){return host.api(method,params);}
 
 function options(values,value){return values.map(item=>{const [key,label]=Array.isArray(item)?item:[item,item];return `<option value="${e(key)}" ${String(value??'')===String(key)?'selected':''}>${e(label)}</option>`;}).join('');}
 
-function field(label,path,value,type='text'){return `<label>${e(label)}<input data-field="${e(path)}" type="${type}" value="${e(value)}" ${type==='number'?'step="any"':''}></label>`;}
+function field(label,path,value,type='text'){const hint=inputPlaceholder(label,type,path);return `<label>${e(label)}<input data-field="${e(path)}" type="${type}" ${hint?`placeholder="${e(hint)}"`:""} value="${e(value)}" ${type==='number'?'step="any"':''}></label>`;}
 
 function select(label,path,value,values){return `<label>${e(label)}<select data-field="${e(path)}">${options(values,value)}</select></label>`;}
 

@@ -289,3 +289,8 @@ dialog:not(#survey-editor) > h2 { margin: 0 0 var(--space-field); }
 
 #photo-workspace .photo-observation > p:has(+ button[data-photo-action="guide"]) { margin-bottom: 0; }
 #photo-workspace .photo-observation > button[data-photo-action="guide"] { margin-top: var(--space-action-block); }
+
+/* Empty input hints use the same muted style as field guidance. */
+input::placeholder, textarea::placeholder { color: var(--color-muted); opacity: 1; font-weight: 400; }
+/* Keep the writing instruction and example visible in narrative fields. */
+:is(#survey-editor, #task-workspace, #analysis-workspace, .photo-dialog) textarea[placeholder] { min-height: 96px; }
