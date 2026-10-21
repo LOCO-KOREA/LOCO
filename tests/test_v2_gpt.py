@@ -66,6 +66,8 @@ class GptBoundary(unittest.TestCase):
     def test_prompt_demands_all_eleven_criteria_and_bare_basis_codes(self):
         self.assertIn('1호부터 11호까지 11개', client.SYSTEM_PROMPT)
         self.assertIn('근거 코드', client.SYSTEM_PROMPT)
+        self.assertIn('초안', client.SYSTEM_PROMPT)
+        self.assertIn('단정하지', client.SYSTEM_PROMPT)
 
     def test_missing_key_returns_fallback_without_creating_an_api_client(self):
         content, reason = client.generate({}, 'test-model', None)
