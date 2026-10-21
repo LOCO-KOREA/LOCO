@@ -1,7 +1,7 @@
 // Survey dashboard: counts come from persisted SurveySummary data.
 export class DashboardWorkspace {
-  constructor({api, onOpen, onNew, onList, onError}) {
-    Object.assign(this, {api, onOpen, onNew, onList, onError});
+  constructor({api, onOpen, onNew, onList, onSample, onError}) {
+    Object.assign(this, {api, onOpen, onNew, onList, onSample, onError});
     this.host = document.querySelector('#dashboard-workspace');
     this.revision = 0;
     this.host.addEventListener('click', event => {
@@ -9,6 +9,7 @@ export class DashboardWorkspace {
       if (!button) return;
       if (button.dataset.dashboard === 'new') onNew();
       else if (button.dataset.dashboard === 'list') onList();
+      else if (button.dataset.dashboard === 'sample') onSample();
       else if (button.dataset.survey) onOpen(Number(button.dataset.survey), button.dataset.task ? Number(button.dataset.task) : null);
     });
   }
@@ -40,7 +41,7 @@ export class DashboardWorkspace {
       ['이전 결과를 검토한 조사', recent.filter(s=>s.reviewed&&!s.review_current).length, '현재 입력으로 다시 확인 가능']
     ];
     this.host.innerHTML = `
-      <div class="dashboard-actions"><button class="primary" data-dashboard="new">＋ 새 조사</button></div>
+      <div class="dashboard-actions"><button class="primary" data-dashboard="new">＋ 새 조사</button><button data-dashboard="sample" title="실제 자료가 아닌 합성 예시 조사를 만들어 둘러봅니다">샘플 조사 불러오기</button></div>
       <div class="dashboard-stats">${counts.map(([label,value,note])=>`<section class="panel"><h2>${label}</h2><div><strong>${window.loco ? value : '—'}</strong><span>${note}</span></div></section>`).join('')}</div>
       <h2 class="dashboard-heading">이어 할 조사</h2>
       <div class="dashboard-columns">
