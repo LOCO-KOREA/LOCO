@@ -32,15 +32,15 @@ class V2Acceptance(unittest.TestCase):
             destination = str(Path(root) / 'loco_report.xlsx')
             result = application.dispatch('export_excel', {'survey_id': survey['survey_id'], 'spec': {
                 'analysis_ids': [], 'include_representative': False, 'comparisons': [], 'destination': destination}})
-            self.assertEqual(result['sheets'], ['요약', '기준별 결과', '입력한 값', '사진 자세', '확인사항'])
+            self.assertEqual(result['sheets'], ['유해요인조사표', '부담작업 해당 여부', '체크리스트', '자세 분석(REBA)', '입력한 값', '확인사항'])
             workbook = load_workbook(destination, data_only=False)
             try:
-                self.assertEqual(workbook.sheetnames, ['요약', '기준별 결과', '입력한 값', '사진 자세', '확인사항'])
+                self.assertEqual(workbook.sheetnames, ['유해요인조사표', '부담작업 해당 여부', '체크리스트', '자세 분석(REBA)', '입력한 값', '확인사항'])
                 # A task name that looks like a formula must stay text everywhere it is written.
                 formula_like = [cell for sheet in workbook for row in sheet.iter_rows() for cell in row if cell.value == '=2+2']
                 self.assertTrue(formula_like)
                 self.assertTrue(all(cell.data_type == 's' for cell in formula_like))
-                self.assertTrue(any(cell.value == '=2+2' for row in workbook['요약'].iter_rows() for cell in row))
+                self.assertTrue(any(cell.value == '=2+2' for row in workbook['유해요인조사표'].iter_rows() for cell in row))
             finally:
                 workbook.close()
 

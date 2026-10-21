@@ -94,3 +94,25 @@ def unit_for(code):
     if leaf == 'annual_work_days':
         return 'COUNT_YEAR'
     return None
+
+
+# What each of the eleven items asks, in the words of 고용노동부고시 제2020-12호 제3조 (numbers checked against the preserved notice text in the tests).
+CRITERION_RULE = {
+    1: '하루 4시간 이상 집중적으로 키보드·마우스 조작',
+    2: '하루 총 2시간 이상 같은 동작 반복',
+    3: '하루 총 2시간 이상 손이 머리 위·팔꿈치가 어깨 위·몸통에서 들림·몸통 뒤',
+    4: '하루 총 2시간 이상 목·허리를 구부리거나 틂 (지지되지 않거나 자세를 바꿀 수 없을 때)',
+    5: '하루 총 2시간 이상 쪼그려 앉거나 무릎을 굽힘',
+    6: '하루 총 2시간 이상 1kg 이상 집기 또는 2kg 이상에 상응하는 힘으로 쥐기',
+    7: '하루 총 2시간 이상 4.5kg 이상을 한 손으로 들거나 같은 힘으로 쥐기',
+    8: '하루 10회 이상 25kg 이상 들기',
+    9: '하루 25회 이상 10kg 이상을 무릎 아래·어깨 위·팔을 뻗어 들기',
+    10: '하루 총 2시간 이상, 분당 2회 이상 4.5kg 이상 들기',
+    11: '하루 총 2시간 이상, 시간당 10회 이상 손·무릎으로 충격 주기',
+}
+# The same eleven items as the hazard kind the form lists in its 원인분석 table (KOSHA GUIDE 부록 예시).
+HAZARD_KIND = {1: '반복동작', 2: '반복동작', 3: '부적절한 자세', 4: '부적절한 자세', 5: '부적절한 자세', 6: '과도한 힘(집기)', 7: '과도한 힘(잡기)',
+               8: '과도한 힘(들기)', 9: '과도한 힘·부적절한 자세', 10: '과도한 힘·반복성', 11: '접촉스트레스'}
+# Standard REBA action levels worded for the form's 판정 column. They interpret the score; they are not a legal judgment.
+REBA_ACTION = {'NEGLIGIBLE': '조치가 필요 없어요', 'LOW': '변화가 필요할 수 있어요', 'MEDIUM': '더 조사하고 곧 개선해야 해요',
+               'HIGH': '조사하고 개선해야 해요', 'VERY_HIGH': '바로 개선해야 해요'}

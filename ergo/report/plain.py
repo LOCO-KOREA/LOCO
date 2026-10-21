@@ -2,12 +2,12 @@
 
 The same sheet descriptions feed the Excel file and the in-app preview, so what people preview is what they get.
 Nothing is recalculated here: every value comes from the stored snapshot, and codes are shown as everyday Korean words.
-A sheet is {name, title, lead, tables:[{heading, columns, rows, widths}], notes}.
+A sheet is {name, title, lead, tables:[{heading, columns, rows, widths, ...}], notes}; form.py adds the sheets that follow the official forms.
 """
 import json
 from datetime import datetime, timedelta, timezone
 
-from .display import CURRENTNESS, EXCLUSION, KIND, OPERATOR, REVIEW, SOURCE, STATUS, UNIT, VALUE
+from .display import KIND, SOURCE, STATUS, UNIT, VALUE
 from .labels import CRITERIA, EXPOSURES, MANUAL, RESULT_LABELS, criterion_name, input_label, reason_label, unit_for
 
 KST = timezone(timedelta(hours=9))
@@ -109,8 +109,9 @@ def _source(evidence):
     return SOURCE_PLAIN.get(code, code or '')
 
 
-def _table(columns, rows, widths=None, heading=None):
-    return dict(heading=heading, columns=list(columns), rows=[[_plain_cell(v) for v in row] for row in rows], widths=list(widths or []))
+def _table(columns, rows, widths=None, heading=None, **extra):
+    """A table description. Extra keys (header, labels, merges, bordered, ...) ask the writer and the preview for form-style drawing."""
+    return dict(heading=heading, columns=list(columns), rows=[[_plain_cell(v) for v in row] for row in rows], widths=list(widths or []), **extra)
 
 
 def _plain_cell(value):
@@ -157,90 +158,6 @@ def _reba_text(a):
     slot = next((s for s in reba.get('slots', []) if s.get('total') == top), {})
     text = f'{top}점' + (f" ({say(slot['risk'])})" if slot.get('risk') else '')
     return f'일부 사진만 계산 · 최대 {text}' if partial else text
-
-
-def _applicable(a):
-    judgments = ((a or {}).get('judgment') or {}).get('judgments')
-    if judgments is None:
-        return '계산 전'
-    names = [CRITERIA.get(j.get('criterion_no'), '') for j in judgments if j.get('effective_status') == 'APPLICABLE']
-    return ', '.join(names) if names else '없음'
-
-
-def _count(value):
-    return '계산 전' if value is None else (f'{value}개' if value else '없음')
-
-
-def _summary(c):
-    survey = c['survey']
-    info = [['조사 이름', survey.get('title')], ['조사 종류', say(survey.get('survey_type'))], ['조사일', kst(survey.get('survey_date'), True)],
-            ['조사자', survey.get('investigator')], ['부서', survey.get('department')], ['공정', survey.get('process')]]
-    if survey.get('survey_type') == 'OCCASIONAL':
-        info.append(['수시 조사 사유', ' / '.join(x for x in (say(survey.get('occasional_cause')), survey.get('occasional_reason')) if x)])
-    info.append(['출력한 때', kst(c['snapshot'].get('exported_at'))])
-    rows = []
-    for t in c['tasks']:
-        item, a = t['item'], t['analysis']
-        counts = item.get('counts') or {}
-        first = item['next_inputs'][0]['message'] if item['next_inputs'] else '없음'
-        rows.append([t['name'], _reba_text(a), _applicable(a), _count(counts.get('needs_input_count')), _count(counts.get('needs_review_count')), first,
-                     CURRENTNESS.get(item.get('currentness'), item.get('currentness')), REVIEW.get(item.get('review_status'), item.get('review_status'))])
-    return _sheet('요약', '이번 조사 결과를 한눈에 볼 수 있어요. 자세한 내용은 뒤쪽 시트에 있어요.', [
-        _table(['항목', '내용'], info, [18, 60], '조사 정보'),
-        _table(['작업', '최종 REBA 점수', '해당 기준(초안)', '입력이 더 필요한 기준', '검토가 필요한 기준', '가장 먼저 할 일', '결과 기준', '검토 상태'], rows,
-               [24, 22, 36, 18, 18, 48, 16, 14], '작업별 결과')], SHEET_NOTES)
-
-
-# ----- 기준별 결과
-def _basis_lines(j, criterion):
-    rows = (criterion or {}).get('rows') or []
-    order = {r.get('row_id'): i for i, r in enumerate(rows, 1)}
-    basis = j.get('basis') or []
-    answer = next((b.get('value') for b in basis if str(b.get('item_code', '')).endswith('condition_present')), None)
-    if answer == 'NO':
-        return '이 작업을 하지 않는다고 답함'
-    lines = []
-    for b in basis:
-        code = b.get('item_code') or ''
-        parts = code.split('.')
-        if parts[-1] == 'rows_complete' or (parts[-2:] == ['union', 'value'] and b.get('value') is None):
-            continue
-        if parts[-1] == 'condition_present':
-            lines.append('이 작업을 한다고 답함' if b.get('value') == 'YES' else '이 작업을 하는지 아직 답하지 않음')
-            continue
-        label = input_label(code)
-        if 'rows' in parts and parts.index('rows') + 2 < len(parts) and len(rows) > 1 and parts[parts.index('rows') + 1] in order:
-            label += f" (조건 {order[parts[parts.index('rows') + 1]]})"
-        shown = '입력 안 됨' if b.get('value') is None else with_unit(b['value'], b.get('unit'))
-        line = f'{label}: {shown}'
-        if b.get('threshold') is not None:
-            line += f" (기준: {with_unit(b['threshold'], b.get('unit'))} {OPERATOR.get(b.get('operator'), '')})".replace(' )', ')')
-        lines.append(line)
-    return '\n'.join(lines)
-
-
-def _criteria(c):
-    rows = []
-    for t in c['tasks']:
-        judgments = ((t['analysis'] or {}).get('judgment') or {}).get('judgments') or []
-        if not judgments:
-            rows.append([t['name'], '판정 결과가 없어요', '계산 전', '', '', '', '', '', '', '', ''])
-            continue
-        legal = {x.get('criterion_no'): x for x in (t['source'].get('legal') or {}).get('criteria', [])}
-        for no in range(1, 12):
-            j = next((x for x in judgments if x.get('criterion_no') == no), {})
-            inv = j.get('investigator') or {}
-            ev = inv.get('evidence') or {}
-            checks = [reason_label(x) for x in j.get('review_reasons', [])]
-            if j.get('exclusion'):
-                checks.insert(0, '제외 사유: ' + EXCLUSION.get(j['exclusion'], str(j['exclusion'])))
-            memo = ' / '.join(x for x in (inv.get('reason'), note(ev.get('text')), SOURCE_PLAIN.get(ev.get('source'))) if x)
-            rows.append([t['name'], criterion_name(no), STATUS.get(j.get('computed_status'), j.get('computed_status') or ''), STATUS.get(inv.get('status'), inv.get('status') or ''),
-                         STATUS.get(j.get('effective_status'), j.get('effective_status') or ''), _basis_lines(j, legal.get(no)),
-                         '\n'.join(input_label(x) for x in j.get('missing_fields', [])), '\n'.join(checks), memo, inv.get('reviewer') or '', kst(inv.get('reviewed_at')) or ''])
-    return _sheet('기준별 결과', '법정 기준 11가지를 입력한 값으로 계산한 결과예요. "조사자 결론"이 있으면 그것이 "최종 결과"가 되고, 없으면 "계산 초안"이 그대로 최종 결과예요.', [
-        _table(['작업', '기준', '계산 초안', '조사자 결론', '최종 결과', '입력한 값과 기준 비교', '더 필요한 입력', '확인할 점', '조사자 사유·근거', '검토자', '검토한 때'], rows,
-               [22, 34, 14, 14, 14, 54, 34, 30, 34, 12, 18])], [])
 
 
 # ----- 입력한 값
@@ -412,7 +329,7 @@ def _posture(c):
         _table(['작업', '자세', '보인 사진 수', '확인한 사진 수', '비율'], tag_rows, [22, 30, 14, 16, 10], '자세 표시 (사진 몇 장에서 보였는지, 하루 시간이 아니에요)') if tag_rows else None]
     if not reba_rows:
         tables[0] = _table(['안내'], [['사진으로 계산한 자세 점수가 아직 없어요.']], [60])
-    return _sheet('사진 자세', '사진에서 읽은 자세와 REBA 점수예요. REBA는 몸의 각 부위 자세를 점수로 매겨 몸에 가는 부담을 보는 방법이에요.', tables, [])
+    return _sheet('자세 분석(REBA)', '사진에서 읽은 자세와 REBA 점수를 자세히 적은 표예요. REBA는 몸의 각 부위 자세를 점수로 매겨 몸에 가는 부담을 보는 방법이고, 유해요인조사표의 3-1 결과표가 이 값을 요약해요.', tables, [])
 
 
 # ----- 확인사항
@@ -524,8 +441,9 @@ def _comparisons(c):
 
 
 def plain_sheets(snapshot, ov):
-    """The sheets of the workbook, in order. The app previews exactly these."""
+    """The sheets of the workbook, in order: the ones that follow the official forms first, then the supporting sheets. The app previews exactly these."""
+    from .form import form_sheets
     c = _context(snapshot, ov)
-    sheets = [_summary(c), _criteria(c), _inputs(c), _posture(c), _checks(c)]
+    sheets = form_sheets(c) + [_posture(c), _inputs(c), _checks(c)]
     sheets += [s for s in (_explanations(c), _comparisons(c)) if s]
     return sheets

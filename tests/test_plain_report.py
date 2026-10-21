@@ -1,8 +1,6 @@
 """The workbook for ordinary readers: everyday words only, no detailed record for experts, and a preview that matches the file."""
 import os
-import re
 import tempfile
-import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,37 +11,23 @@ from ergo.engine.quick_assess import NO_BURDEN
 from ergo.engine.task_defaults import ARM, COMMON, task_input
 from ergo.report import workbook
 from ergo.service import application
+from tests.report_helpers import CODE, lifting_input, make_survey, run_analysis, update_survey
 
-PLAIN_SHEETS = ['요약', '기준별 결과', '입력한 값', '사진 자세', '확인사항']
-CODE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z_]+\.[a-z0-9_.-]+\b|MoveNet|기술태그|스키마|None|null|UNKNOWN')
-
-
-def make_survey(title='일반 보고서 검증'):
-    return application.dispatch('create_survey', {'draft': {
-        'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자', 'department': '팀', 'process': '공정', 'title': title, 'occasional_reason': None}})
+PLAIN_SHEETS = ['유해요인조사표', '부담작업 해당 여부', '체크리스트', '자세 분석(REBA)', '입력한 값', '확인사항']
 
 
-def run_analysis(task, scope=('judgment',)):
-    analysis = application.new_analysis(task, list(scope))
-    application.run(analysis, list(scope), threading.Event(), application._context.analysis_token(analysis['analysis_id']))
-    return analysis
-
-
-def lifting_input(task_name='상자 들기'):
-    """Keyboard work 240 min/day and lifting a 20 kg box 30 times a day, entered directly (no photo needed)."""
-    draft = task_input({'task_name': task_name, 'input_template': 'LIFTING'})
-    draft['conditions'].update(one_off='NO', daily_work_min=480, annual_work_days=220)
-    note = {'source': 'INTERVIEW', 'text': '빠른 분석 질문: 무거운 물건을 드는 작업', 'observed_at': '2026-10-23T01:00:00Z'}
-    for criterion in draft['legal']['criteria']:
-        criterion['condition_present'] = 'NO'
-        if criterion['criterion_no'] >= 6:
-            criterion['rows_complete'] = 'YES'
-    keyboard = draft['legal']['criteria'][0]
-    keyboard.update(condition_present='YES', evidence=dict(note))
-    next(e for e in draft['legal']['exposures'] if e['condition_code'] == 'C1_KEYBOARD_FOCUSED').update(minutes=240, evidence=dict(note))
-    lift = draft['legal']['criteria'][7]
-    lift.update(condition_present='YES', evidence=dict(note), rows=[{'row_id': 'quick-1', 'label': '빠른 분석 입력', 'evidence': dict(note), 'load_mass_kg': 20, 'lift_count_day': 30}], rows_complete='YES')
-    return draft
+def blocks(sheet):
+    """{heading: the rows under it} for the 부담작업 해당 여부 sheet. A block runs until the next empty row."""
+    result, rows = {}, list(sheet.iter_rows(values_only=True))
+    for index, row in enumerate(rows):
+        if row[0] and '→ 최종 판단:' in str(row[0]):
+            body = []
+            for later in rows[index + 2:]:
+                if all(value in (None, '') for value in later):
+                    break
+                body.append(later)
+            result[row[0]] = body
+    return result
 
 
 class PlainWorkbook(unittest.TestCase):
@@ -79,27 +63,27 @@ class PlainWorkbook(unittest.TestCase):
                     self.assertIsNone(CODE.search(value), f'{name}: {value!r}')
 
     def test_no_ids_versions_or_schema_on_the_first_sheet(self):
-        text = ' '.join(str(v) for v in self.cells(self.export(), '요약'))
+        text = ' '.join(str(v) for v in self.cells(self.export(), '유해요인조사표'))
         for word in ('조사 ID', '분석 ID', '작업 ID', '스키마', '보고서 버전', 'T0', '.000000'):
             self.assertNotIn(word, text)
 
-    def test_criteria_sheet_has_eleven_everyday_named_rows_with_the_values_behind_each_status(self):
-        sheet = self.export()['기준별 결과']
-        rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=6, max_row=16)]
-        self.assertEqual(len(rows), 11)
-        names = [r[1] for r in rows]
+    def test_criteria_blocks_hold_the_values_behind_each_status(self):
+        found = blocks(self.export()['부담작업 해당 여부'])
+        self.assertEqual(len(found), 11)
+        names = [h.split(' → ')[0] for h in found]
         self.assertEqual(names[0], '키보드·마우스 집중 입력(법정 1호)')
         self.assertEqual(names[7], '25kg 이상 들기(법정 8호)')
-        by = {r[1]: r for r in rows}
-        keyboard = by['키보드·마우스 집중 입력(법정 1호)']
-        self.assertEqual(keyboard[2], '해당')
-        self.assertIn('240 분/일', keyboard[5])
-        self.assertIn('기준: 240 분/일 이상', keyboard[5])
-        lift = by['25kg 이상 들기(법정 8호)']
-        self.assertEqual(lift[2], '비해당')
-        self.assertIn('물체 중량: 20 kg (기준: 25 kg 이상)', lift[5])
-        no = by['같은 동작 반복(법정 2호)']
-        self.assertEqual(no[5], '이 작업을 하지 않는다고 답함', 'a "no" answer does not list empty time boxes')
+        by = {h.split(' → ')[0]: (h, rows) for h, rows in found.items()}
+        heading, rows = by['키보드·마우스 집중 입력(법정 1호)']
+        self.assertTrue(heading.endswith('최종 판단: 부담작업'))
+        self.assertEqual(rows[0][0], '기준: 하루 4시간 이상 집중적으로 키보드·마우스 조작')
+        self.assertEqual(rows[1][:4], ('집중 키보드·마우스 사용', '240 분/일', '240 분/일 이상', '○'))
+        heading, rows = by['25kg 이상 들기(법정 8호)']
+        self.assertTrue(heading.endswith('최종 판단: 부담작업 아님'))
+        self.assertEqual(rows[1][:4], ('물체 중량', '20 kg', '25 kg 이상', 'X'), 'a value under the rule is marked X')
+        self.assertEqual(rows[2][:4], ('하루 들기 횟수', '30 회/일', '10 회/일 이상', '○'))
+        _, rows = by['같은 동작 반복(법정 2호)']
+        self.assertEqual(rows[1][0], '이 작업을 하지 않는다고 답함', 'a "no" answer does not list empty time boxes')
 
     def test_inputs_sheet_lists_what_was_entered_with_units_and_how(self):
         values = {tuple('' if c.value is None else str(c.value) for c in row[2:5]) for row in self.export()['입력한 값'].iter_rows(min_row=6)}
@@ -108,8 +92,9 @@ class PlainWorkbook(unittest.TestCase):
         self.assertIn(('하루 실제 작업시간', '480 분/일', ''), values)
 
     def test_time_is_written_as_korean_wall_time_not_iso_text(self):
+        import re
         book = self.export()
-        text = ' '.join(str(v) for v in self.cells(book, '요약'))
+        text = ' '.join(str(v) for v in self.cells(book, '유해요인조사표'))
         self.assertRegex(text, r'20\d\d-\d\d-\d\d \d\d:\d\d')
         self.assertNotIn('T', ' '.join(re.findall(r'\d{4}-\d\d-\d\dT\S+', text)))
 
@@ -117,13 +102,8 @@ class PlainWorkbook(unittest.TestCase):
         text = '\n'.join(str(v) for v in self.cells(self.export(), '확인사항'))
         self.assertNotIn('MoveNet', text)
         self.assertNotIn('기술태그', text)
-        survey = application.dispatch('get_survey', {'survey_id': self.survey['survey_id']})
-        survey['workplace_situation'].update(equipment_status='YES', workload_status='YES', speed_status='YES', work_pattern_status='YES')
-        for key in ('equipment_notes', 'workload_notes', 'speed_notes', 'work_pattern_notes'):
-            survey['workplace_situation'][key] = ''
-        application.dispatch('update_survey', {'survey_id': self.survey['survey_id'], 'draft': {k: v for k, v in survey.items() if k in (
-            'survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date',
-            'workplace_situation', 'participation', 'symptom_survey')}})
+        update_survey(self.survey['survey_id'], workplace_situation=dict(equipment_status='YES', workload_status='YES', speed_status='YES', work_pattern_status='YES',
+                                                                       equipment_notes='', workload_notes='', speed_notes='', work_pattern_notes=''))
         text = '\n'.join(str(v) for v in self.cells(self.export(), '확인사항'))
         for phrase in ('작업설비가 변경되었다고', '작업량이 변경되었다고', '작업속도가 변경되었다고', '업무형태가 변경되었다고'):
             self.assertIn(phrase, text)
@@ -132,6 +112,7 @@ class PlainWorkbook(unittest.TestCase):
         preview = application.dispatch('preview_excel_sheets', {'survey_id': self.survey['survey_id']})
         self.assertEqual([s['name'] for s in preview['sheets']], PLAIN_SHEETS)
         self.assertNotIn('expert_sheet', preview)
+        self.assertNotIn('form_sheets', preview)
         book = self.export()
         for sheet in preview['sheets']:
             in_file = {str(v) for v in self.cells(book, sheet['name'])}
@@ -160,8 +141,6 @@ class PlainWorkbook(unittest.TestCase):
         self.assertIn('기본 설명(AI를 쓰지 못했어요)', self.cells(book, '쉬운 설명'))
 
     def test_before_after_sheet_is_in_words_and_hides_bookkeeping_changes(self):
-        after_input = lifting_input()
-        after_input['legal']['exposures'][0]['minutes'] = 60
         task = application.dispatch('get_task', {'task_id': self.task['task_id']})['task']
         updated = application.task_input(task)
         updated['legal']['exposures'][0]['minutes'] = 60
@@ -183,7 +162,7 @@ class PlainWorkbook(unittest.TestCase):
 @unittest.skipUnless(os.path.isfile(Path(__file__).resolve().parents[1] / '.local' / 'fixtures' / 'tensorflow-movenet-example.jpeg')
                      and os.path.isfile(Path(__file__).resolve().parents[1] / 'models' / 'movenet_lightning.tflite'), 'public example photo and official model required')
 class PhotoWorkbook(unittest.TestCase):
-    def test_photo_posture_sheet_names_the_body_parts_and_places_the_representative_photo(self):
+    def test_photo_workbook_names_the_body_parts_places_the_photo_and_summarizes_the_reba_score(self):
         fixture = Path(__file__).resolve().parents[1] / '.local' / 'fixtures' / 'tensorflow-movenet-example.jpeg'
         with tempfile.TemporaryDirectory() as root, patch.object(application, 'DB', str(Path(root) / 'photo.db')):
             survey = make_survey('사진 보고서')
@@ -201,11 +180,16 @@ class PhotoWorkbook(unittest.TestCase):
             application.dispatch('export_excel', {'survey_id': survey['survey_id'], 'spec': {
                 'analysis_ids': [analysis['analysis_id']], 'include_representative': True, 'comparisons': [], 'destination': destination}})
             book = load_workbook(destination)
-            sheet = book['사진 자세']
+            sheet = book['자세 분석(REBA)']
             values = [c.value for row in sheet.iter_rows() for c in row if c.value not in (None, '')]
             for word in ('사진별 REBA 점수 (점수가 높을수록 몸에 부담이 커요)', '몸통', '위팔', '손목', '오른쪽 사진'):
                 self.assertTrue(any(isinstance(v, str) and word in v for v in values), word)
-            self.assertEqual(len(sheet._images), 1, 'the representative photo is embedded')
+            main = book['유해요인조사표']
+            self.assertEqual(len(main._images), 1, 'the representative photo is embedded where the form asks for it')
+            self.assertEqual(len(sheet._images), 0)
+            text = '\n'.join(str(c.value) for row in main.iter_rows() for c in row if c.value not in (None, ''))
+            for phrase in ('3-1. 인간공학적 작업·분석 평가 결과표', 'REBA(전신 자세 평가)', '대표 사진: 오른쪽 사진'):
+                self.assertIn(phrase, text)
             for value in values:
                 if isinstance(value, str):
                     self.assertIsNone(CODE.search(value), value)

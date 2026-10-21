@@ -137,4 +137,10 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-sheet td.missing { background: #fce4d6 !important; }
 .quick-sheet td.review { background: #fff2cc !important; }
 .quick-sheet td.empty { color: var(--color-muted); text-align: center; }
+.quick-sheet.form td { border: 1px solid var(--color-line); }
+.quick-sheet.form tbody tr:nth-child(even) td { background: transparent; }
+.quick-sheet.form td.missing { background: #fce4d6 !important; }
+.quick-sheet.form td.review { background: #fff2cc !important; }
+.quick-sheet td.label { background: #e6ebf2 !important; color: #1f3a5f; font-weight: 600; vertical-align: middle; }
+.quick-sheet.wide th { white-space: normal; min-width: 72px; }
 .quick-sheet-heading { margin: 16px 0 4px; font-size: 14px; color: var(--color-primary); }

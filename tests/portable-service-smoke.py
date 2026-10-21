@@ -159,10 +159,10 @@ def main():
         worker.call('edit_ai_text', analysis_id=analysis['analysis_id'], text_id=ai['text_id'], text='합성 자료 · 현장 확인 필요')
         worker.call('apply_ai_text', analysis_id=analysis['analysis_id'], text_id=ai['text_id'], use_edited=True)
         check('disabled explanation cannot be applied; no-key local fallback can be edited/applied without external GPT call')
-        assert export(worker, survey['survey_id'], [analysis['analysis_id']], 'regular-4-sheets') == 4
+        assert export(worker, survey['survey_id'], [analysis['analysis_id']], 'regular-7-sheets') == 7
         occasional = worker.call('create_survey', draft=dict(title='수시 합성 검증', survey_type='OCCASIONAL', occasional_cause='DISEASE_CASE'))
         assert export(worker, occasional['survey_id'], [], 'occasional-6-sheets') == 6
-        check('frozen service exports readable 4-sheet and disease-case 6-sheet Excel files')
+        check('frozen service exports readable official-form workbooks (7 sheets with the applied explanation, 6 without tasks)')
         saved = worker.call('get_analysis', analysis_id=analysis['analysis_id'])
     finally:
         worker.close()

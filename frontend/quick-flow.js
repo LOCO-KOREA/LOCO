@@ -1047,11 +1047,27 @@ export class QuickFlow {
     const index = Math.min(this.excelTab, p.sheets.length - 1), sheet = p.sheets[index];
     const cellClass = value => value === '입력 필요' ? 'missing' : value === '검토 필요' ? 'review' : '';
     const cell = value => esc(value).replace(/\n/g, '<br>');
-    const table = t => `${t.heading ? `<h4 class="quick-sheet-heading">${esc(t.heading)}</h4>` : ''}<div class="quick-sheet-wrap"><table class="quick-sheet"><thead><tr>${t.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-      <tbody>${t.rows.length ? t.rows.map(row => `<tr>${row.map(value => `<td class="${cellClass(value)}">${cell(value)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${t.columns.length}" class="empty">내용이 없어요</td></tr>`}</tbody></table></div>`;
-    const forms = (p.form_sheets || []).length ? ` 이 조사에는 ${p.form_sheets.join(', ')} 시트도 들어가요.` : '';
+    // Form-style tables (no dark header, label cells, merged cells) come from the same description the Excel file is written from.
+    const table = t => {
+      const labels = new Set(t.labels || []), labelRows = new Set(t.label_rows || []), labelCells = new Set((t.label_cells || []).map(([r, c]) => `${r}:${c}`));
+      const starts = new Map(), covered = new Set();
+      (t.merges || []).forEach(([r1, c1, r2, c2]) => {
+        starts.set(`${r1}:${c1}`, [r2 - r1 + 1, c2 - c1 + 1]);
+        for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) covered.add(`${r}:${c}`);
+      });
+      const head = t.header === false ? '' : `<thead><tr>${t.columns.map(c => `<th>${cell(c)}</th>`).join('')}</tr></thead>`;
+      const row = (values, r) => `<tr>${values.map((value, c) => {
+        if (covered.has(`${r}:${c}`)) return '';
+        const span = starts.get(`${r}:${c}`) || [1, 1];
+        const classes = [cellClass(value), labels.has(c) || labelRows.has(r) || labelCells.has(`${r}:${c}`) ? 'label' : ''].filter(Boolean).join(' ');
+        return `<td class="${classes}"${span[0] > 1 ? ` rowspan="${span[0]}"` : ''}${span[1] > 1 ? ` colspan="${span[1]}"` : ''}>${cell(value)}</td>`;
+      }).join('')}</tr>`;
+      const body = t.rows.length ? t.rows.map(row).join('') : `<tr><td colspan="${t.columns.length}" class="empty">내용이 없어요</td></tr>`;
+      const kind = `${t.bordered ? ' form' : ''}${t.columns.length > 8 ? ' wide' : ''}`;
+      return `${t.heading ? `<h4 class="quick-sheet-heading">${esc(t.heading)}</h4>` : ''}<div class="quick-sheet-wrap"><table class="quick-sheet${kind}">${head}<tbody>${body}</tbody></table></div>`;
+    };
     return `<div class="quick-tabs" role="tablist">${p.sheets.map((x, i) => `<button type="button" role="tab" aria-selected="${i === index}" class="${i === index ? 'selected' : ''}" data-quick="excel-tab" data-tab="${i}">${esc(x.name)}</button>`).join('')}</div>
       ${sheet.lead ? `<p class="quick-note">${esc(sheet.lead)}</p>` : ''}${sheet.tables.map(table).join('')}${(sheet.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
-      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요.${forms} 대표 사진 이미지는 파일에만 들어가요.</p>`;
+      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요. 대표 사진 이미지는 파일에만 들어가요.</p>`;
   }
 }

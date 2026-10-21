@@ -7,24 +7,47 @@ from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-PLAIN = ['요약', '기준별 결과', '입력한 값', '사진 자세', '확인사항']
+MARK = {'APPLICABLE': '○', 'NOT_APPLICABLE': 'X', 'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요', 'EXCLUDED': '제외'}
 
 
 def expected_sheets(snap):
-    """The sheet list a snapshot must have produced: plain sheets, the optional ones, the legal forms, then the detailed record."""
-    names = list(PLAIN)
+    """The sheet list a snapshot must have produced: the sheets that follow the official forms (the symptom sheet only with responses), the supporting ones, the optional ones."""
+    names = ['유해요인조사표', '부담작업 해당 여부', '체크리스트']
+    if (snap['survey'].get('symptom_survey') or {}).get('responses'):
+        names.append('증상조사표')
+    names += ['자세 분석(REBA)', '입력한 값', '확인사항']
     if any(ai.get('is_active') and ai.get('applied_text') for a in snap.get('analyses', []) for ai in a.get('ai') or []):
         names.append('쉬운 설명')
     if snap.get('comparison_specs'):
         names.append('개선 전후 비교')
-    if snap['survey']['survey_type'] == 'OCCASIONAL' and snap['survey'].get('occasional_cause') == 'DISEASE_CASE':
-        names += ['별지1 유해요인조사표', '별지2 증상조사표']
     return names
 
 
-def verify(directory):
-    from ergo.report.display import STATUS
+def checklist_marks(workbook, task_name):
+    """The 11 marks the checklist sheet shows for one task (columns 1 to 11 of its row)."""
+    rows = list(workbook['체크리스트'].iter_rows(values_only=True))
+    header = next(i for i, row in enumerate(rows) if row[0] == '작업\n(단위작업)')
+    matches = [row for row in rows[header + 2:] if row[0] == task_name]
+    assert len(matches) == 1, (task_name, len(matches))
+    return {number: matches[0][number] for number in range(1, 12)}
+
+
+def conclusion_row(workbook, task_name, many_tasks, number):
+    """The 조사자 결론 row under one rule's block of the 부담작업 해당 여부 sheet (None when the block has none)."""
     from ergo.report.labels import criterion_name
+    rows = list(workbook['부담작업 해당 여부'].iter_rows(values_only=True))
+    heading = (f'[{task_name}] ' if many_tasks else '') + criterion_name(number) + ' → 최종 판단: '
+    start = next(i for i, row in enumerate(rows) if isinstance(row[0], str) and row[0].startswith(heading))
+    for row in rows[start + 2:]:
+        if all(value in (None, '') for value in row):
+            return None
+        if row[0] == '조사자 결론':
+            return row
+    return None
+
+
+def verify(directory):
+    from ergo.report.form import FINAL
     from ergo.report.plain import change_label, change_value
     directory = Path(directory).resolve()
     db = sqlite3.connect('file:' + (directory/'loco.db').as_posix() + '?mode=ro', uri=True)
@@ -60,14 +83,18 @@ def verify(directory):
             stored=json.loads(db.execute('SELECT snapshot_json FROM ANALYSIS WHERE analysis_id=?',(analysis['analysis_id'],)).fetchone()[0])
             assert analysis['snapshot']==stored
             task_name=analysis['snapshot']['task_name']
-            for judgment in (analysis.get('judgment') or {}).get('judgments',[]):
-                rows=[[cell.value for cell in row] for row in workbook['기준별 결과'].iter_rows(min_row=6,max_col=11)
-                      if row[0].value==task_name and row[1].value==criterion_name(judgment['criterion_no'])]
-                assert len(rows)==1, (task_name, judgment['criterion_no'], len(rows))
+            judgments=(analysis.get('judgment') or {}).get('judgments',[])
+            marks=checklist_marks(workbook,task_name) if judgments else {}
+            for judgment in judgments:
+                number=judgment['criterion_no']
+                assert marks[number]==MARK[judgment['effective_status']], (task_name, number, marks[number], judgment['effective_status'])
                 investigator=judgment['investigator'].get('status')
-                assert rows[0][2]==STATUS.get(judgment['computed_status'],judgment['computed_status'])
-                assert (rows[0][3] or '')==(STATUS.get(investigator,investigator) or '')
-                assert rows[0][4]==STATUS.get(judgment['effective_status'],judgment['effective_status'])
+                found=conclusion_row(workbook,task_name,len(snap['tasks'])>1,number)
+                if investigator:
+                    assert found is not None, (task_name, number, 'the investigator conclusion is missing from the sheet')
+                    assert found[1].startswith(FINAL[investigator]) and f"계산 초안은 {FINAL[judgment['computed_status']]}" in found[1], (task_name, number, found[1])
+                else:
+                    assert found is None, (task_name, number, 'a conclusion appears that was never saved')
         for sheet in workbook:
             assert all(cell.data_type!='f' for row in sheet for cell in row), 'Unexpected Excel formula'
         outputs.append(dict(export_id=log['export_id'],file=log['file_path'],sheets=expected,
