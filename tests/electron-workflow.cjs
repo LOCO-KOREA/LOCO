@@ -297,6 +297,8 @@ async function main(){
  check('requested zero-photo analysis stays failed while direct judgments remain available in the UI');
  await navigate('S03');await page.locator('[data-do="delete"]').click();await page.locator('.delete-confirmation [data-confirm]').click();
  await until(()=>api('list_tasks',{survey_id:survey.survey_id}),items=>items.length===1,'delete extra task');
+ // The screen keeps refreshing after the service answers and then opens the task workspace; moving on before its notice appears can be undone by that late refresh.
+ await page.locator('text=작업을 삭제했습니다.').first().waitFor({timeout:15000});
  assert.equal((await api('get_task',{task_id:task.task_id})).task.manual.length,manualCount);
  check('multiple tasks can be created and deleted through the UI without changing the retained task');
  await navigate('S02');await page.locator('#new-survey').click();
