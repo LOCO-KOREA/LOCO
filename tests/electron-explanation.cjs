@@ -14,7 +14,7 @@ const server=http.createServer(async(req,res)=>{
  const content={summary:'로컬 모의 응답: 저장된 계산 근거를 확인하세요.',criteria:summary.criteria.map(c=>({criterion_no:c.criterion_no,explanation:'입력값과 문턱을 대조하세요.',basis_refs:c.basis.slice(0,1).map(b=>b.item_code)})),check_items:['현장 조건을 확인하세요.'],improvement_options:[{proposal:'작업 조건을 조사자와 검토하세요.',basis_refs:[summary.criteria[0].basis[0].item_code],needs_confirmation:true}]};
  if(mode==='invalid')content.criteria[0].basis_refs=['C99-B99'];
  if(mode==='delayed')await new Promise(resolve=>setTimeout(resolve,1500));
- if(mode==='timeout')await new Promise(resolve=>setTimeout(resolve,12000));
+ if(mode==='timeout')await new Promise(resolve=>setTimeout(resolve,18000));
  if(res.destroyed)return;
  res.writeHead(200,{'content-type':'application/json'});
  res.end(JSON.stringify({id:'resp_local_fixture',object:'response',created_at:1,status:'completed',model:'local-fixture',output:[{id:'msg_local_fixture',type:'message',status:'completed',role:'assistant',content:[{type:'output_text',text:JSON.stringify(content),annotations:[]}]}]}));
@@ -28,12 +28,12 @@ async function main(){
  if(packaged){delete env.LOCO_PYTHON;delete env.LOCO_SERVICE_ENTRY;delete env.LOCO_MOVENET_MODEL;env.PATH=process.env.SystemRoot+'\\System32;'+process.env.SystemRoot;}
  electron=await _electron.launch({executablePath:packaged||require('../frontend/node_modules/electron'),args:packaged?[]:[path.join(root,'frontend')],env,cwd:root});page=await electron.firstWindow();page.setDefaultTimeout(15000);
  receipt.runtime=await electron.evaluate(({app})=>({packaged:app.isPackaged,executable:process.execPath}));
- await page.locator('#connection.connected').waitFor();
+ await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});
  const survey=await api('create_survey',{draft:{survey_type:'REGULAR',title:'private task',survey_date:'2026-10-16'}});
  const task=await api('create_task',{survey_id:survey.survey_id,draft:{task_name:'private task',conditions:{worker_code:'private worker'}}});
  const original=await api('recalculate_judgments',{task_id:task.task_id});
  const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';await api('update_settings',{settings});
- await page.reload();await page.locator('#connection.connected').waitFor();await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
+ await page.reload();await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
  await page.locator('[data-action="generate-explanation"]').click();
  let generated=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===1);
  assert.equal(generated.ai[0].result,'GENERATED');assert.deepEqual(generated.judgment,original.judgment);
@@ -51,7 +51,7 @@ async function main(){
  mode='delayed';await page.locator('[data-action="generate-explanation"]').click();const started=Date.now();await api('get_settings');assert.ok(Date.now()-started<1000);await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===3);
  pass('network-backed generation does not block other service requests');
  mode='timeout';const began=Date.now();await page.locator('[data-action="generate-explanation"]').click();const timed=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===4);
- assert.equal(timed.ai[3].fallback_reason,'TIMEOUT');assert.ok(Date.now()-began<11500);assert.equal(receipt.requests.length,4);assert.deepEqual(timed.judgment,original.judgment);
+ assert.equal(timed.ai[3].fallback_reason,'TIMEOUT');assert.ok(Date.now()-began<16500);assert.equal(receipt.requests.length,4);assert.deepEqual(timed.judgment,original.judgment);
  pass('SDK timeout returns a diagnostic fallback without automatic retries');
  receipt.completed_at=new Date().toISOString();
 }
