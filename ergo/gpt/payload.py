@@ -85,7 +85,15 @@ def validate_content(content,summary):
 
 def numbers_in_text_are_allowed(sentences,payload):
     allowed=set()
+    pattern=re.compile(r'(?<![\w])[-+]?\d+(?:[.,]\d+)?%?')
+    def add_text_numbers(text):
+        # The summary's own public criterion sentences quote thresholds (e.g. 4.5kg); quoting them is not inventing.
+        for token in pattern.findall(text):
+            try: number=float(token.rstrip('%').replace(',','.'))
+            except ValueError: continue
+            if math.isfinite(number): allowed.add(round(number,6))
     def walk(value):
+        if isinstance(value,str): add_text_numbers(value); return
         if isinstance(value,bool) or value is None: return
         if isinstance(value,(int,float)) and math.isfinite(value):
             allowed.add(round(float(value),6)); allowed.add(round(float(value)*100,6)); return
@@ -94,7 +102,6 @@ def numbers_in_text_are_allowed(sentences,payload):
         elif isinstance(value,list):
             for child in value: walk(child)
     walk(payload)
-    pattern=re.compile(r'(?<![\w])[-+]?\d+(?:[.,]\d+)?%?')
     for sentence in sentences:
         for token in pattern.findall(sentence):
             percent=token.endswith('%'); raw=token[:-1] if percent else token

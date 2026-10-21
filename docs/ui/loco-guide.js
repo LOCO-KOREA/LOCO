@@ -137,6 +137,7 @@ class LocoGuide extends HTMLElement {
     close.addEventListener('click', () => {
       this.state.open = false;
       this.state.dismissedPage = this.page;
+      if (this.mode !== 'quiet') this.mode = 'quiet'; // closing once keeps the guide small on every screen
       this.render();
     });
     this.shell.querySelector('[data-action="toggle"]').addEventListener('click', () => {
@@ -248,7 +249,7 @@ class LocoGuide extends HTMLElement {
   onFocusIn(event) {
     const target = event.target;
     if (target && typeof target.matches === 'function' &&
-        target.matches('#main-content input,#main-content textarea,#main-content select')) {
+        target.matches('#main-content input,#main-content textarea,#main-content select,main input,main textarea,main select')) {
       this.state.dismissedPage = this.page;
       this.state.open = false;
       this.render();

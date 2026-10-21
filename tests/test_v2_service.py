@@ -156,7 +156,7 @@ class AppCase(unittest.TestCase):
             return {'slot_no': slot['slot_no'], 'photo_id': slot['photo_id'], 'status': 'VALID',
                     'diagnostics': [], 'points': [], 'angles': []}
         with patch.object(application.pose, 'process', side_effect=process):
-            application.run(analysis, modules, cancel)
+            application.run(analysis, modules, cancel, application._context.analysis_token(analysis['analysis_id']))
         result = application.analysis(analysis['analysis_id'])
         self.assertEqual(calls, [1])
         self.assertEqual(result['status'], 'CANCELED')

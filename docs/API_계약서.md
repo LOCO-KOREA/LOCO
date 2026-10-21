@@ -269,7 +269,7 @@ type SettingsUpdate = Omit<Settings,'gpt_key_present'>;
 Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모든 응답 필드를 required, additionalProperties=false로 정의한다. 설명 응답에 판정·점수 변경 필드를 두지 않는다. criteria는 1~11호를 각각 한 번 포함한다. 잘못된/중복/누락 호 번호·basis_refs·스키마는 대체 설명으로 처리한다. Responses API의 text.format에 type=json_schema, strict=true와 스키마를 지정한다. 구조 적합이 내용 정확성을 보장하지 않으므로 생성문은 조사자가 편집·적용한다.
 [OpenAI 공식 문서](https://developers.openai.com/api/docs/guides/structured-outputs)
 
-요청 전체 상한은 10초이며 SDK 자동 재시도는 끈다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
+요청 전체 상한은 15초이며 SDK 자동 재시도는 끈다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
 
 ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교해 source_current를 반환한다. 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
@@ -312,6 +312,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | export_excel | survey_id,spec:ExportSpec | ExportReceipt |
 | list_export_logs | survey_id | ExportLogItem[] |
 | get_settings / update_settings | 없음 / settings:SettingsUpdate | Settings |
+| quick_preview | task_id,views:{LEFT?,FRONT?,RIGHT?:ID} | QuickPreview (저장하지 않음: 사진별 관절·방향 추정, 측면 근측 범주, 정면·후면 기울임 제안, 부담 없음 가정 1차 REBA, 규칙 기반 질문) |
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
 

@@ -104,7 +104,7 @@ class ContractCleanup(unittest.TestCase):
 
     def test_stale_running_object_cannot_roll_finished_job_back(self):
         a=app.new_analysis(self.task,['judgment']); stale=copy.deepcopy(a)
-        app.run(a,['judgment'],threading.Event()); app.persist_analysis(stale)
+        app.run(a,['judgment'],threading.Event(),app._context.analysis_token(a['analysis_id'])); app.persist_analysis(stale)
         self.assertEqual(app.analysis(a['analysis_id'])['status'],'FINISHED')
 
     def test_historical_scores_are_read_without_an_old_calculation_entrypoint(self):

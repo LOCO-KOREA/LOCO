@@ -55,6 +55,20 @@ class GptBoundary(unittest.TestCase):
         content['criteria'][0]['explanation'] = '999분이 확인됐습니다.'
         self.assertFalse(payload.validate_content(content, summary))
 
+    def test_numbers_quoted_from_the_summarys_own_criterion_text_are_allowed(self):
+        summary = summary_fixture(); content = content_fixture(summary)
+        summary['public_criteria'] = ['7호: 한 손 중량이 4.5kg 이상, 하루 120분 이상인지 확인한다.']
+        content['criteria'][0]['explanation'] = '4.5kg 이상이고 120분 이상인지 확인하세요.'
+        self.assertTrue(payload.validate_content(content, summary))
+        content['criteria'][0]['explanation'] = '4.6kg 이상이고 120분 이상인지 확인하세요.'
+        self.assertFalse(payload.validate_content(content, summary))
+
+    def test_prompt_demands_all_eleven_criteria_and_bare_basis_codes(self):
+        self.assertIn('1호부터 11호까지 11개', client.SYSTEM_PROMPT)
+        self.assertIn('근거 코드', client.SYSTEM_PROMPT)
+        self.assertIn('초안', client.SYSTEM_PROMPT)
+        self.assertIn('단정하지', client.SYSTEM_PROMPT)
+
     def test_missing_key_returns_fallback_without_creating_an_api_client(self):
         content, reason = client.generate({}, 'test-model', None)
         self.assertIsNone(content)

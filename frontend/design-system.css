@@ -122,6 +122,14 @@ dialog::backdrop, #analysis-workspace .modal-backdrop { background: var(--color-
   --space-check: 8px;
   --size-check: 16px;
 }
+.next-step {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 40px; background: var(--color-primary-soft); color: var(--color-text);
+  border-bottom: 1px solid var(--color-primary-line); font-size: 14px;
+}
+.next-step[hidden] { display: none; }
+.next-step button { border: 1px solid var(--color-primary-line); background: var(--color-surface); color: var(--color-primary); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+#navigation [data-nav].step-done::after { content: '✓'; margin-left: 6px; color: var(--color-success); font-weight: 700; }
 #survey-form { gap: var(--space-field); }
 .pair, .task-pair, .intake-grid, .photo-evidence-pair,
 #analysis-workspace .grid, #analysis-workspace .manual-grid {

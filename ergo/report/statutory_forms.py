@@ -3,6 +3,7 @@ def _append_statutory_forms(workbook, snapshot):
     """Add form-oriented appendices only for the Article 657(2)(1) survey trigger."""
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
+    from .display import STATUS
     survey = snapshot['survey']
     situation = survey.get('workplace_situation') or {}
     participation = survey.get('participation') or {}
@@ -25,7 +26,7 @@ def _append_statutory_forms(workbook, snapshot):
         conditions = task.get('conditions') or {}
         statuses = []
         for item in ((analysis or {}).get('judgment') or {}).get('judgments', []):
-            statuses.append(f'{item.get('criterion_no')}호 {item.get('effective_status') or item.get('computed_status')}')
+            statuses.append(f'{item.get('criterion_no')}호 {STATUS.get(item.get('effective_status') or item.get('computed_status'), item.get('effective_status') or item.get('computed_status'))}')
         intensity = conditions.get('work_intensity')
         frequency = conditions.get('work_frequency')
         score = intensity * frequency if isinstance(intensity, int) and isinstance(frequency, int) else None
