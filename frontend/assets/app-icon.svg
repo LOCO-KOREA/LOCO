@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="181 3 96 96" fill="none">
+  <title>LOCO 앱 아이콘 — 기존 로고의 원형 심볼</title>
+  <circle cx="229" cy="51" r="29" stroke="#5C61DB" stroke-width="18"/>
+  <path d="m228 52 19-20" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <path d="m228 52 19-20" stroke="#AFB4D8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="249" cy="29" r="11" fill="#AFB4D8" stroke="white" stroke-width="4"/>
+  <circle cx="249" cy="29" r="4" fill="#5C61DB"/>
+</svg>
