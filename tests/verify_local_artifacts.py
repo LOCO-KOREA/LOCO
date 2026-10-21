@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from openpyxl import load_workbook
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 def verify(directory):
     directory = Path(directory).resolve()
@@ -30,15 +32,16 @@ def verify(directory):
             bmax=(before.get('reba') or {}).get('summary',{}).get('full_max');amax=(after.get('reba') or {}).get('summary',{}).get('full_max')
             if bmax is not None and amax is not None:
                 delta=amax-bmax
-                messages=[row[6] for row in workbook['확인사항'].iter_rows(min_row=6,values_only=True) if row[2]=='COMPARISON' and row[5]=='SUMMARY']
+                messages=[row[6] for row in workbook['확인사항'].iter_rows(min_row=6,values_only=True) if row[2]=='전후 비교' and row[5]=='요약']
                 assert any(f'후−전 최대 점수 {delta}' in str(message) for message in messages)
                 bm={(m['slot_no'],m['scope'],m['field']):m.get('value') for m in before['snapshot']['manual']}
                 am={(m['slot_no'],m['scope'],m['field']):m.get('value') for m in after['snapshot']['manual']}
-                changes=[row[6] for row in workbook['확인사항'].iter_rows(min_row=6,values_only=True) if row[2]=='COMPARISON' and row[5]=='CONDITION_CHANGE']
+                changes=[row[6] for row in workbook['확인사항'].iter_rows(min_row=6,values_only=True) if row[2]=='전후 비교' and row[5]=='입력값 변경']
                 for key in bm.keys()&am.keys():
                     if bm[key]!=am[key]:
                         field=f'manual.{key[0]}.{key[1]}.{key[2]}.value'
-                        assert f'{field}: {bm[key]} → {am[key]}' in changes
+                        from ergo.report.display import value_text
+                        assert any(f'({field}): {value_text(bm[key])} → {value_text(am[key])}' in str(change) for change in changes)
                 comparison_checks.append(dict(before_analysis_id=before['analysis_id'],after_analysis_id=after['analysis_id'],before_max=bmax,after_max=amax,delta=delta))
         for analysis in snap['analyses']:
             stored=json.loads(db.execute('SELECT snapshot_json FROM ANALYSIS WHERE analysis_id=?',(analysis['analysis_id'],)).fetchone()[0])
@@ -47,9 +50,10 @@ def verify(directory):
                 rows=[row for row in workbook['판정 근거'].iter_rows(min_row=6,values_only=True)
                       if row[0]==analysis['task_id'] and row[1]==analysis['analysis_id'] and row[2]==judgment['criterion_no']]
                 assert len(rows)==1
-                assert rows[0][3]==judgment['computed_status']
-                assert rows[0][4]==judgment['investigator'].get('status')
-                assert rows[0][5]==judgment['effective_status']
+                from ergo.report.display import STATUS
+                assert rows[0][3]==STATUS.get(judgment['computed_status'],judgment['computed_status'])
+                assert rows[0][4]==STATUS.get(judgment['investigator'].get('status'),judgment['investigator'].get('status'))
+                assert rows[0][5]==STATUS.get(judgment['effective_status'],judgment['effective_status'])
         for sheet in workbook:
             assert all(cell.data_type!='f' for row in sheet for cell in row), 'Unexpected Excel formula'
         outputs.append(dict(export_id=log['export_id'],file=log['file_path'],sheets=expected,

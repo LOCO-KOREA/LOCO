@@ -6,6 +6,7 @@ from .common import NOTICE, HEADERS, HEADER_LABELS, flatten
 from .overview import overview
 from .statutory_forms import _append_statutory_forms
 from .labels import input_label, reason_label, investigator_text
+from .display import localize_row, change_text, MISSING_CELLS, REVIEW_CELLS, status_text
 
 def render(snapshot, destination):
     from openpyxl import Workbook
@@ -117,9 +118,9 @@ def render(snapshot, destination):
             rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'NOTE', spec['note'], None, None])
         for note in comparison['notes']:
             rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'LIMITATION', note, None, None])
-        rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'SUMMARY', f'{label} · REBA 호환 {comparison['rule_compatible']} · 표본 호환 {comparison['sampling_compatible']} · 후−전 최대 점수 {comparison['reba_max_delta']}', None, None])
+        rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'SUMMARY', f'{label} · REBA 호환 {'예' if comparison['rule_compatible'] else '아니오'} · 표본 호환 {'예' if comparison['sampling_compatible'] else '아니오'} · 후−전 최대 점수 {comparison['reba_max_delta']}', None, None])
         for change in comparison['condition_changes']:
-            rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'CONDITION_CHANGE', f'{change['field_path']}: {change['before']} → {change['after']}', None, None])
+            rows['확인사항'].append([None, None, 'COMPARISON', None, None, 'CONDITION_CHANGE', change_text(change['field_path'], change['before'], change['after']), None, None])
         for diff in comparison['criteria']:
             rows['확인사항'].append([None, None, 'COMPARISON', None, diff['criterion_no'], 'CRITERION_CHANGE', f'{diff['before_status']} → {diff['after_status']} (계산 {diff['before_computed_status']} → {diff['after_computed_status']}; 조사자 {diff['before_investigator_status']} → {diff['after_investigator_status']})', None, None])
     situation = survey.get('workplace_situation') or {}
@@ -156,6 +157,7 @@ def render(snapshot, destination):
         ws.append(HEADER_LABELS[name])
         start = 5
         for row in rows[name]:
+            row = localize_row(name, row)
             chunks = max([1] + [(len(str(value)) + 29999) // 30000 for value in row if isinstance(value, str)])
             for index in range(chunks):
                 part = [value[index * 30000:(index + 1) * 30000] if isinstance(value, str) and len(value) > 30000 else value for value in row]
@@ -175,9 +177,9 @@ def render(snapshot, destination):
                 cell.fill = PatternFill('solid', fgColor='1F3A5F' if cell.row == 5 else 'F4F6F8' if cell.row % 2 == 0 else 'FFFFFF')
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
                 if cell.row > 5:
-                    if cell.value in ('NEEDS_INPUT', 'INCOMPLETE', 'MISSING_INPUT'):
+                    if cell.value in MISSING_CELLS:
                         cell.fill = PatternFill('solid', fgColor='FCE4D6')
-                    elif cell.value in ('NEEDS_REVIEW', 'REVIEW_REQUIRED'):
+                    elif cell.value in REVIEW_CELLS:
                         cell.fill = PatternFill('solid', fgColor='FFF2CC')
                     if isinstance(cell.value, str):
                         cell.data_type = 's'
