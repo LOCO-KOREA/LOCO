@@ -314,6 +314,7 @@ Excel의 앞쪽 시트가 고시 별지 제1·2호서식(KOSHA GUIDE E-G-1-2025 
 - **로컬 전용 시험 스크립트**: `.local/try/`(`flow.cjs`, `intake.cjs`, `rehearse.cjs`, `ui.cjs`, `run-flow.ps1`, `run-intake.ps1`, `gen_xlsx.py`, `xlsx_*.py`, `demo_*.py`)는 `.gitignore`의 `.local/`에 걸려 **이 푸시에 들어 있지 않다.** 같은 시험이 필요하면 이 PC에서 가져가거나 같은 구조로 다시 만든다. 사진 fixture(`.local/fixtures`)도 마찬가지다.
 - **시험 창**: `LOCO_HIDDEN=1`이면 창을 화면 밖으로 보낸다(`show:false`로 완전히 숨기면 화면 캡처가 멈춘다). 사용자 화면을 흔들지 않도록 시험은 이 모드로만 돌린다.
 - **OpenAI 키**: 사용자 환경변수 `OPENAI_API_KEY`. PowerShell 래퍼(`run-flow.ps1`)가 환경에서 읽어 자식 프로세스에만 넘긴다. 값을 출력하지 않는다.
+- **Excel 모양 확인**: Excel이 설치된 PC에서 `New-Object -ComObject Excel.Application`(보이지 않게)으로 파일을 열고 `ExportAsFixedFormat(0, "x.pdf")`로 PDF를 내보내 쪽 나눔·병합·글꼴을 눈으로 본다. 앱 미리보기는 `.local/try/tabshot.cjs`처럼 저장된 분석을 열어 탭마다 화면 캡처한다(둘 다 로컬 전용 스크립트). PowerShell 스크립트 본문에 한글 경로를 적으면 깨지므로 경로는 환경변수로 넘긴다.
 - **개발용 `.venv`**로 띄운 앱을 닫아도 Python 서비스 프로세스가 남을 수 있다(포터블은 해당 없음). 내가 띄운 프로세스만 정리한다.
 - **한글 경로·인코딩**: Python에서 파일을 쓸 때 `encoding='utf-8'`을 명시한다(기본이 cp949). 셸 here-doc에 복잡한 인용이 있으면 깨지므로 패치 스크립트는 파일로 만들어 실행한다.
 - 공식 서식은 HWP뿐이라 **서식 PDF 사본은 비공식 미러**다. 법적 적합성을 근거 없이 완료로 표현하지 않는다(`AGENTS.md`).
@@ -348,4 +349,5 @@ npm.cmd --prefix frontend run test:explanation
 | `85d67968` | 첫 Handoff(공식 양식 조사 결과와 설계) |
 | `cc5bc236` | Excel을 공식 유해요인조사 서식 구성으로(코드·시험) |
 | `a57b3835` | 정본 문서·검증 기록·Handoff 갱신 (포터블은 이 커밋에서 빌드) |
-| (다음) | 패키지 검증 결과 기록, 삭제 알림을 기다리는 시험 보강 |
+| `5030c388` | 패키지 검증 결과 기록, 삭제 알림을 기다리는 고급 화면 시험 보강 |
+| 이 문서를 마지막으로 고친 커밋 | 커밋 표 정리, Excel 모양 확인 방법 추가 |
