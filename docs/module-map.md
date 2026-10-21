@@ -20,4 +20,6 @@
 
 프론트는 네이티브 ES module이다. `desktop.js`가 작업·사진·조사·대시보드·분석 workspace를 조립한다. `task/`, `photo/`, `survey/`에는 입력 상태·화면 렌더링·이벤트 모듈이 있다. `analysis/`에는 공유 표시/DOM 도구, 상태, 진행·REBA·판정·설명·출력·설정 view, 사진 canvas, actions, navigation controller가 있다. 각 분석 workspace는 별도 상태와 명시적 의존 객체를 갖는다. 전역 가짜 서비스나 SVG 목업을 실행하지 않는다.
 
+`database-location.js`는 공통 DB 경로 바를 담당한다. `electron/database-location.cjs`는 worker에 전달할 경로 결정·연결 조회·복사/폴더 열기를 담당하며 Python 서비스·계산·저장 모듈을 수정하지 않는다. 경로와 연결 성공은 별도로 표시한다. `tests/frontend-database-location.cjs`는 오류·중복·경로 반례를, `tests/desktop-database-integration.cjs`는 실제 main/preload와 Python·SQLite 연결을 검증한다. 후자의 네이티브 창·클립보드·폴더 열기는 mock이며 실제 GUI 검증과 구분한다.
+
 `scripts/check_frontend.cjs`는 실제 Electron 페이지·ES module import·문법을 확인한다. `scripts/audit_contract.py`는 정본/registry/dispatch/renderer 호출을 대조한다. `tests/test_modularity.py`는 앱 인스턴스 분리와 역방향 의존을 검증한다. 실제 업무 흐름과 배포본 검증은 `local-verification.md`를 따른다.

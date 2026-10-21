@@ -302,3 +302,14 @@ dialog:not(#survey-editor) > h2 { margin: 0 0 var(--space-field); }
 input::placeholder, textarea::placeholder { color: var(--color-muted); opacity: 1; font-weight: 400; }
 /* Keep the writing instruction and example visible in narrative fields. */
 :is(#survey-editor, #task-workspace, #analysis-workspace, .photo-dialog) textarea[placeholder] { min-height: 96px; }
+
+/* Shared DB location strip: full paths wrap without hiding Korean or spaces. */
+#environment.database-location { height: auto; min-height: 48px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 28px; text-align: left; font-size: 12px; line-height: 1.7; }
+.database-location > strong { flex: none; color: var(--color-secondary); }
+.database-location .database-path { flex: 1 1 300px; min-width: 0; overflow-wrap: anywhere; color: var(--color-text); user-select: text; }
+.database-location .database-status { color: var(--color-muted); }
+.database-location[data-state=error] .database-status { color: var(--color-danger); }
+.database-location[data-state=ready] .database-status { color: var(--color-success); }
+.database-location .database-actions { flex: none; }
+.database-location .database-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+.database-location .database-actions button:disabled { cursor: default; }

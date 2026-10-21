@@ -70,3 +70,22 @@ npm.cmd --prefix frontend run test:explanation
 외부 GPT 성공과 응답 내용 평가, 깨끗한 별도 Windows PC 설치, 사용자 실제 1.3 DB, 현장 조사자 3~5명의 사용·시간 측정은 미수행이다. 최신 법률 적용 해석·표본 대표성·임상/산재 감소 효과도 이 시험으로 입증하지 않는다. 전체 수용은 NOT ACCEPTED로 유지한다.
 
 schema_v1.sql의 SHA-256은 시작 백업과 동일하다. 새 테이블·trigger·물리 migration을 추가하지 않았다. 기존 분석/출력 snapshot을 재작성하지 않고 사용자 DB를 검증에 사용하지 않았다. 초기 수정·새 파일·patch는 .local/continuation-20261016/baseline/에 보존했다. 이 검증 기록은 커밋·push 전 로컬 실행 결과다. 2026-10-16 후속 사용자 지시에 따라 소스·설계·시험·검증 요약을 feat/loco-2.0-oct23 브랜치에만 커밋·push한다. main 반영·PR·병합·운영 배포는 수행하지 않는다. 검증 DB·사진·모델·실행 패키지·원본 로그는 Git에 포함하지 않는다.
+
+
+## 2026-10-20 후속 · N02 일부와 N05 사전 점검
+
+기준 HEAD `d5fe9d9`와 미커밋 후속 소스다. 기존 2026-10-16 실행 기록을 새 화면의 완료 증거로 재사용하지 않는다. 관련 소스·실행물·ZIP 해시는 [후속 manifest](verification/2026-10-20-n02-n05.json)에 기록한다. Python 서비스·계산·저장 모듈은 수정하지 않았다.
+
+| 범위 | 이번에 확인한 결과 | 남은 확인 |
+|---|---|---|
+| N02 경로 표시 | Electron이 worker에 넘기는 절대경로를 표시. 연결 실패·8초 지연·중복·메모리·미리보기·복사/열기 실패 15개 독립 반례 통과 | 실제 창의 배치와 OS 클릭, 유서하 교차 검증 |
+| N02 실제 연결 | 실제 main/preload 코드와 실제 Python/SQLite로 절대/기본/상대경로·손상 DB·Python 실패 5개 통과. 모든 행과 JSON 보존 대조 | 네이티브 창·클립보드·폴더 열기는 mock으로 검증했음 |
+| 프론트 계약 | 기존 회귀, 프론트 빌드, 40개 서비스 메서드 계약 대조 통과 | DB 선택·실행 중 전환·미저장 처리 미구현 |
+| N05 패키징 | 요구 빌드 의존성·공식 모델 해시 확인 후 새 포터블 폴더·ZIP 생성. 코드/모델·EXE·ZIP 해시 기록 | 미커밋 작업 포함 개발 점검용. 최종 전달 전 커밋 소스로 재빌드 |
+| N05 frozen 서비스 | Windows 기본 PATH에서 실제 EXE로 한글·공백 DB 생성, 직접입력, 흰 합성 PNG의 실제 CPU 추론 17점, 키 없는 설명 대체/편집/적용, 4/6시트 Excel, 재실행 보존, 잘못된 모델 오류 등 7개 통과 | 별도 PC, 네이티브 GUI, 실제 GPT·현장 사진 정확도·실물 인쇄 미검증 |
+
+실제 개발 Electron은 전용 임시 DB로 실행했다. Windows 화면 캡처는 `FrameArrived timed out`과 `window capture timed out`으로 실패하여 이후 UI 자동 조작을 중단했다. 코드/서비스 검증 통과를 실제 배치·클릭 검증으로 보고하지 않는다. 포함 LiteRT의 OpenVINO 선택 플러그인 DLL 경고가 있었으나 CPU 추론은 통과했으며 해당 가속 경로는 검증하지 않았다.
+
+N02 재현: `npm.cmd --prefix frontend test`, `npm.cmd --prefix frontend run build`, `LOCO_VERIFY_PYTHON`을 지정한 `npm.cmd --prefix frontend run test:database`, `python -B scripts/audit_contract.py`. N05 재현: 빌드 환경에서 `python -B tests/portable-service-smoke.py`. 모든 신규 검증은 새 전용 DB와 합성 입력을 사용한다. 결과는 로컬 임시 검증 폴더의 receipt와 패키지 manifest로 남긴다.
+
+팀원이 지정된 교차 검증과 별도 PC 검증은 아직 수행하지 않았으므로 N02/N05 전체 완료나 전체 수용으로 표시하지 않는다. 기존 전체 수용 상태 NOT ACCEPTED를 유지한다.

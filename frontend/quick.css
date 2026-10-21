@@ -1,5 +1,5 @@
 /* Photo-first quick flow. Quick mode hides the detailed editor until the user asks for it. */
-body.quick-mode #navigation, body.quick-mode #next-step, body.quick-mode #environment,
+body.quick-mode #navigation, body.quick-mode #next-step,
 body.quick-mode #dashboard-workspace, body.quick-mode #survey-workspace, body.quick-mode #task-workspace,
 body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quick-mode loco-guide { display: none !important; }
 #quick-workspace[hidden] { display: none; }

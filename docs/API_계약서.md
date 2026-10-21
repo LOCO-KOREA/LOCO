@@ -25,6 +25,8 @@ Electron renderer → preload → main → Python Application Service → 기능
 
 신규 TaskInput/TaskSnapshot/ExportSnapshot.schema_version과 report_version은 '2.0'이다. 물리 테이블은 유지한다. 문서 1.5/저장 1.3/미병합 업무 양식 1.4는 이전 계약이며 기존 행을 일괄 변환하지 않는다.
 
+N02의 읽기 전용 DB 위치 기능은 Electron 전용 IPC다. main은 시작 시 작업 폴더를 기준으로 DB 절대경로를 결정하고 동일 값을 Python의 LOCO_DB_PATH에 전달한다. `get_database_info`는 기존 list_surveys의 성공 응답으로 연결 여부를 확인한다. 실패 시 지정 경로와 connected=false, DB_ERROR 안내를 함께 반환하며 연결 완료로 표시하지 않는다. `copy_database_path`와 `open_database_folder`는 인자로 경로를 받지 않고 같은 worker의 연결을 다시 확인한 뒤 지정 파일 DB에만 수행한다. clipboard·폴더 열기 실패는 FILE_ERROR다. 메모리 DB와 브라우저 미리보기에는 파일 동작이 없다. 위치 확인 조회만 8초로 제한하며 지연 응답이 파일 동작을 재개하지 않는다. 기존 저장·분석 요청의 IPC 처리는 변경하지 않는다. Python dispatch 메서드·DTO·DB 구조에는 변화가 없으며 DB 선택·전환 계약은 후속 범위다.
+
 ## 2. 공통 타입
 
 ~~~typescript
@@ -48,11 +50,17 @@ type Result<T> = {ok:true,value:T}|{ok:false,error:AppError};
 type Ack = {message:string};
 type BridgeRequest = {request_id:number,method:string,params:Record<string,unknown>};
 type BridgeResponse<T> = {request_id:number,result:Result<T>};
+type DatabaseLocationInfo = {
+  path:string; storage:'file'|'memory'; connected:boolean; error:AppError|null;
+};
 type DesktopBridge = {
   call<T>(method:string,params:Record<string,unknown>):Promise<Result<T>>;
   choose_photo_paths():Promise<string[]>;
   path_for_file(file:File):string;
   choose_export_destination():Promise<string|null>;
+  get_database_info():Promise<Result<DatabaseLocationInfo>>;
+  copy_database_path():Promise<Result<Ack>>;
+  open_database_folder():Promise<Result<Ack>>;
 };
 ~~~
 
