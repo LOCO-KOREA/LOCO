@@ -90,7 +90,7 @@ snapshot_json은 ExportSnapshot 2.0 전체다. survey, 모든 현존 tasks, 작�
 
 비교 대상은 같은 조사의 서로 다른 분석이며 일반 출력의 “한 작업 한 분석” 선택과 별도로 복사한다. 같은 작업의 과거/현재 비교에서도 두 snapshot이 빠지지 않는다. 출력 파일을 나중에 삭제해도 로그의 수치 근거는 남으며 파일 존재를 보증하지 않는다.
 
-receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 기본 4시트를 만들고 질환자 발생에 따른 수시조사에 별지 1·2 기반 시트를 조건부로 추가한다.
+receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 공식 서식 구성 시트와 보조 시트를 만들고 증상조사표는 익명 응답이 있을 때만 추가한다.
 
 ## 4. 불변성·현재성·트랜잭션
 

@@ -20,7 +20,7 @@ Electron renderer → preload → main → Python Application Service → 기능
 | reba | 관찰 하중·수동 범주·점수표 계산 |
 | burden | 직접입력으로 11개 기준 초안·비교근거·누락·모순 |
 | explanation | 허용 수치 요약으로 실제 GPT API/로컬 대체 설명 |
-| report | 같은 snapshot의 한글 기본 4시트·조사유형별 별지 시트·상태·다음 입력·전후 비교 |
+| report | 같은 snapshot의 한글 시트(공식 유해요인조사 서식 구성 시트와 보조 시트)·상태·다음 입력·전후 비교 |
 | storage | 여섯 테이블의 JSON 매핑·트랜잭션·부분 결과 저장 |
 
 신규 TaskInput/TaskSnapshot/ExportSnapshot.schema_version과 report_version은 '2.0'이다. 물리 테이블은 유지한다. 문서 1.5/저장 1.3/미병합 업무 양식 1.4는 이전 계약이며 기존 행을 일괄 변환하지 않는다.
@@ -313,7 +313,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | list_export_logs | survey_id | ExportLogItem[] |
 | get_settings / update_settings | 없음 / settings:SettingsUpdate | Settings |
 | quick_preview | task_id,views:{LEFT?,FRONT?,RIGHT?:ID} | QuickPreview (저장하지 않음: 사진별 관절·방향 추정, 측면 근측 범주, 정면·후면 기울임 제안, 부담 없음 가정 1차 REBA, 규칙 기반 질문) |
-| preview_excel_sheets | survey_id,analysis_ids?,comparisons? (preview_excel과 같은 선택) | ExcelPreview {sheets:[{name,title,lead,tables:[{heading,columns,rows,widths}],notes}],form_sheets} (저장하지 않음: export_excel이 만드는 시트와 같은 내용. 대표 사진 이미지만 파일에만 들어간다) |
+| preview_excel_sheets | survey_id,analysis_ids?,comparisons? (preview_excel과 같은 선택) | ExcelPreview {sheets:[{name,title,lead,tables:[{heading,columns,rows,widths,header?,labels?,label_rows?,label_cells?,merges?,bordered?,heights?,break?,photo?}],notes,tab_color?}]} (저장하지 않음: export_excel이 만드는 시트와 같은 내용. 양식 표는 header·labels·merges 같은 선택 키로 그린다. 대표 사진 이미지만 파일에만 들어간다) |
 | quick_interpret | text (1~600자 작업 설명 한 문장) | QuickIntake {items,dropped,reason} (저장하지 않음: 문장을 조사표 칸으로 옮긴 값. 모든 값은 문장 속 근거 구절과 함께 오며 근거가 문장에 없거나 범위를 벗어난 값은 버린다. 문장만 AI에 보내고 별도 스레드로 응답한다) |
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
@@ -357,16 +357,21 @@ type ExportLogItem = {export_id:ID,survey_id:ID,file_path:string,receipt:ExportR
 
 REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때만 full_max의 후−전을 reba_max_delta로 제공한다. 그 밖에는 null과 이유다. rule_compatible은 고시/REBA 규칙이 모두 같을 때 true다. REBA 차이에는 REBA 규칙 호환성과 sampling_compatible을 사용하고, 고시 버전 차이는 호별 비교 제한으로 별도 표시한다. sampling_compatible은 같은 프로토콜·동일한 양의 대상 수·양쪽 전 대상 REBA 완성이다. 조건 차이·사진 대표성 한계를 표시하며 질환/산재 감소의 증명으로 표현하지 않는다.
 
-기본 시트는 요약/작업별 결과/확인사항/판정 근거의 네 개다. OCCASIONAL+DISEASE_CASE일 때만 `별지1 유해요인조사표`, `별지2 증상조사표` 기반 시트를 추가한다. 출력 영수증의 sheets에는 실제 생성된 시트를 그대로 저장한다. 이 시트는 입력 자료 기반 초안이며 누락·원본 서식 대조·서명/날인·조사자 검토를 대신하지 않는다. 아래는 기본 시트의 내부 데이터 키 순서이며 한글 표시는 화면설계서 S08을 따른다.
+출력 시트는 같은 snapshot으로 `plain_sheets`가 만드는 시트 정의 목록이며 Excel 파일과 `preview_excel_sheets` 미리보기가 같은 정의를 쓴다. 공식 서식 구성 시트가 앞에 오고 보조 시트가 뒤에 온다. 서식 구성의 근거는 고용노동부고시 제2020-12호 별지 제1·2호서식과 한국산업안전보건공단 KOSHA GUIDE E-G-1-2025다. 출력 영수증의 sheets에는 실제 생성된 시트를 순서대로 저장한다. 이 시트는 입력 자료 기반 참고 자료이며 누락·원본 서식 대조·서명/날인·조사자 검토를 대신하지 않는다. 셀은 일반인이 읽는 말로 쓰고 저장 코드·내부 경로는 쓰지 않는다(저장 값은 출력 snapshot에 그대로 있다). 앱에 입력란이 없는 서식 칸(근로자명, 증상조사표의 빈도·조치 문항 등)은 비워 둔다.
 
-| 시트 | 데이터 열 |
-|---|---|
-| 요약 | task_id,task_name,analysis_id,currentness,review_status,applicable_criteria,needs_input_count,needs_review_count,first_next_input |
-| 작업별 결과 | task_id,analysis_id,section,item_code,label,value,unit,source,evidence_text,observed_at |
-| 확인사항 | task_id,analysis_id,module,slot_no,criterion_no,kind,message,source,reviewer_memo |
-| 판정 근거 | task_id,analysis_id,criterion_no,computed_status,investigator_status,effective_status,exclusion,comparison_values,missing_fields,review_reasons,source,investigator_reason,investigator_evidence,reviewer,reviewed_at |
+| 시트 | 조건 | 내용 |
+|---|---|---|
+| 유해요인조사표 | 항상 | 별지 제1호서식 구성. 가 조사 개요(조사 구분·수시조사 사유 ☑/☐, 조사 일시·조사자·조사부서명·작업공정명·작업명, 이전 조사일, 근로자 참여), 나 작업장 상황(설비·작업량·작업속도·업무형태의 변경 여부와 주요 변경 내용), 다 작업조건(1단계 작업명·작업내용, 2단계 작업강도 A·작업빈도 B 척도와 작업별 부담작업(호)·A×B, 3단계 근로자명·대표 사진·유해요인별 발생 원인, 3-1 REBA 결과와 표준 판정 문구는 점수가 있을 때), 라 결과 요약(작업별 부담작업·자세 점수·더 입력할 것·결과 기준·검토 상태, 증상조사 요약, 조사자 종합 의견 빈 칸) |
+| 부담작업 해당 여부 | 항상 | 11개 호마다 법정 기준 문구, 입력한 값과 기준을 견준 표(○/X), 최종 판단, 조사자 결론·더 필요한 입력·확인할 점 |
+| 체크리스트 | 항상 | 작업 × 11개 호 매트릭스(○ 해당, X 해당하지 않음, 입력 필요, 검토 필요)와 호별 기준 한 줄 |
+| 증상조사표 | 익명 응답이 있을 때 | 별지 제2호서식 구성. 응답마다 기본 정보 표와 6개 부위 × (구체적 부위·통증 기간·아픈 정도·지난 1주일) 표 |
+| 자세 분석(REBA) | 항상 | 사진별 REBA 구성점수, 읽은 각도, 자세 표시 |
+| 입력한 값 | 항상 | 계산에 쓴 값과 입력 방법·메모 |
+| 확인사항 | 항상 | 더 입력하거나 확인할 사항 |
+| 쉬운 설명 | 적용한 설명이 있을 때 | 적용한 AI·조사자 설명 |
+| 개선 전후 비교 | 비교를 골랐을 때 | 기준별 변화와 바뀐 입력 |
 
-작업별 결과에는 조사구분/작업장 상황/참여/증상조사와 조건별 행/15종 시간/수동값/사진별 좌표·각도·태그·REBA 구성점수/모델·규칙/설명 생성·수정·적용본을 section으로 펼친다. 분석 사진 상세는 N개, 근거 전용 사진은 별도 목록이다. 비교 블록은 정렬 표 밖에 두고 조건 차이/비교 제한은 확인사항에도 표시한다. 수시 사유가 질환자 발생/업무상 질병 인정이면 두 추가 시트를 생성한다.
+시트 정의 `{name,title,lead,tables,notes,tab_color?}`의 표는 `{heading,columns,rows,widths}`와 선택 키 `header`(False면 헤더 행 없음), `labels`·`label_rows`·`label_cells`(양식의 칸 이름 칸), `merges`([첫 행,첫 열,끝 행,끝 열]), `bordered`, `heights`, `break`(앞에서 쪽 나눔), `photo`({task_id,row}, 대표 사진을 넣을 칸)를 가질 수 있다. 대표 사진 이미지는 `유해요인조사표` 3단계 사진 칸에만 들어가며 파일에만 있다. 비교 블록은 정렬 표 밖에 두고 조건 차이/비교 제한은 확인사항에도 표시한다.
 
 needs_input_count/needs_review_count는 computed_status별 기준 수(작업당 0~11)다. judgment 미계산이면 null이며 조사 집계에 null이 있으면 합계도 null이다. incomplete_reba_count는 요청하고 계산한 REBA의 N−complete_count다. 미계산/미요청은 null로 두고 상태로 구분한다. 요청 대상 0건은 0과 NO_ANALYSIS_TARGET을 함께 표시한다. REBA 조사 합계는 전체 미요청이면 null, 요청 작업 중 미계산이 있으면 null, 나머지는 요청·계산한 작업의 수를 더한다.
 

@@ -9,13 +9,13 @@
 
 ## 1. 오늘의 결론
 
-오늘 작업은 다섯 축이다. 앞의 네 개는 끝났고 다섯 번째가 다음 작업이다.
+오늘 작업은 다섯 축이고 모두 끝났다. 남은 것은 포터블 재빌드·패키지 검증(§9)과 현장 확인이다.
 
 1. **시연 사진 18장에서 나온 인식 문제 3건을 고쳤다.** 비스듬한 "정면" 사진이 옆모습으로 오판되던 것, 앉은 자세가 "쪼그려 앉기"로 제안되며 1차 점수가 부풀던 것, 왼쪽을 보는 사진이 먼 쪽 몸으로 측정되던 것.
 2. **AI 한 줄 입력**을 만들었다. 작업을 한 문장으로 쓰면 AI가 질문 칸을 근거 구절과 함께 채우고, 사람은 값과 근거를 보고 고치거나 지운다. 빠진 칸만 다시 묻는다.
 3. **Excel을 일반인이 읽는 말로 바꿨다.** 코드·내부 용어를 없앴고, 사용자 요청으로 "전문가용 상세기록" 시트를 삭제했다.
 4. **결과 화면과 Excel 화면을 나누고 Excel 미리보기를 넣었다.** 미리보기는 저장되는 파일과 같은 시트 정의에서 만든다.
-5. **유해요인조사표 공식 양식을 웹에서 다시 조사했다**(§7). 그 구조에 맞춰 Excel을 다시 짜는 것이 **다음 작업**이다(§8, 미착수·설계 확정).
+5. **유해요인조사표 공식 양식을 웹에서 다시 조사하고(§7), Excel을 그 구조로 다시 짰다**(§8). 첫 시트가 별지 제1호서식 구성의 `유해요인조사표`이고 그 뒤에 `부담작업 해당 여부`·`체크리스트`·`증상조사표`(응답이 있을 때)가 온다.
 
 ## 2. 한눈에 보기
 
@@ -26,8 +26,8 @@
 | 일반인용 Excel, 전문가용 시트 삭제 | 완료·검증 | §5 |
 | 결과/Excel 화면 분리, Excel 미리보기 | 완료·검증 | §6 |
 | 공식 양식 조사 | 완료 | §7 |
-| **Excel을 공식 양식 구조로 재배열** | **미착수** | §8에 칸 매핑까지 확정 |
-| 사양서·검증 기록 갱신 | 일부 | `docs/API_계약서.md` 2행만 반영. 나머지는 §9 |
+| Excel을 공식 양식 구조로 재배열 | 완료·검증 | §8. 시트 정의·파일·미리보기가 같은 구조 |
+| 사양서·검증 기록 갱신 | 완료 | 정본 문서(API 계약서·기능정의서·화면설계서·DB 아키텍처·ERD·요구사항·모듈 지도)와 `docs/verification/2026-10-21-simple-flow.md` |
 | 포터블 재빌드·패키지 E2E | **미수행** | 마지막 포터블 빌드에는 오늘 변경이 없다 |
 
 ## 3. 사진 인식 보정
@@ -94,7 +94,7 @@
 
 **구조.** `ergo/report/plain.py`의 `plain_sheets(snapshot, ov)`가 시트 정의 `{name, title, lead, tables:[{heading, columns, rows, widths}], notes}` 목록을 돌려준다. 이것을 **파일 작성**(`ergo/report/renderer.py::_write_sheet`)과 **화면 미리보기**(서비스 `preview_excel_sheets`)가 함께 쓴다. 그래서 미리보기와 파일이 같다. 대표 사진 이미지만 파일에만 들어간다. 모든 문자열 셀은 `data_type='s'`로 고정해 수식 실행을 막는다.
 
-**현재 시트.** `요약`, `기준별 결과`, `입력한 값`, `사진 자세`, `확인사항`. 조건부로 `쉬운 설명`(적용한 AI/조사자 설명이 있을 때), `개선 전후 비교`(비교를 골랐을 때), 수시조사 중 질환자 발생이면 `별지1 유해요인조사표`·`별지2 증상조사표`(`ergo/report/statutory_forms.py`).
+**현재 시트.** 앞쪽이 공식 서식 구성이다: `유해요인조사표`, `부담작업 해당 여부`, `체크리스트`, `증상조사표`(익명 응답이 있을 때만). 뒤쪽은 `자세 분석(REBA)`, `입력한 값`, `확인사항`이고, 조건부로 `쉬운 설명`(적용한 AI/조사자 설명이 있을 때)과 `개선 전후 비교`(비교를 골랐을 때)가 붙는다. 시트 구성은 §8이다. 옛 `요약`·`기준별 결과`·`사진 자세`와 DISEASE_CASE 전용 `별지1`·`별지2`(`statutory_forms.py`)는 이 구조로 흡수하고 지웠다.
 
 **전문가용 상세기록 삭제 (2026-10-21, 사용자 요청).** `ergo/report/expert.py`를 지우고 `workbook.py`의 `EXPERT_SHEET`, 미리보기 응답의 `expert_sheet`, 화면 안내 문구, 고급 편집 내보내기 화면의 시트 목록, `docs/API_계약서.md`의 해당 서술을 정리했다. DB에 저장된 원본 값과 경로, 출력 snapshot은 그대로다. 감사 추적이 필요하면 `export_log`의 snapshot을 읽는다.
 
@@ -196,113 +196,112 @@ E-G-1-2025의 별지 제1호서식(문서 쪽번호 49~53쪽)이 가장 새롭�
 - 지청 자료실 양식: `moel.go.kr/local/seoulgwanak/…bbs_seq=1507784282302`(유해요인조사서식(방법).hwp, 2017), `moel.go.kr/local/boryeong/…bbs_seq=1441949310716`(체크리스트·증상조사표 포함 hwp, 2015)
 - 고시 요약(정의 조항): U-LEX 사본(비공식)
 
-## 8. 다음 작업 — Excel을 공식 양식 구조로 (미착수, 설계 확정)
+## 8. 공식 양식 구성 Excel (구현 완료)
 
-사용자 취지: 첫 시트가 **유해요인조사표(별지 제1호서식)**처럼 보여야 한다. 아래 기본값은 사용자가 "멈추지 말고 진행"을 요구해 정해 둔 것이다. 바꾸고 싶으면 이 절만 고치면 된다.
+Excel의 앞쪽 시트가 고시 별지 제1·2호서식(KOSHA GUIDE E-G-1-2025 판) 구성을 따른다. 코드: `ergo/report/form.py`(시트 정의), `ergo/report/plain.py::plain_sheets`(시트 순서), `ergo/report/renderer.py`(파일 쓰기), `frontend/quick-flow.js::excelPreviewPanel`(화면 미리보기). 같은 시트 정의 하나에서 파일과 미리보기를 만들므로 둘은 같다(`tests/test_plain_report.py`가 미리보기의 모든 값이 파일에 있는지 대조한다). 칸 모양은 Excel로 실제 인쇄 미리보기(PDF 내보내기)를 뽑아 눈으로 확인했다. 사용자가 이 구조로 가기로 한 것이 아니라 "양식을 다시 찾아보고 오라"는 지시를 따라 내가 정한 기본값이므로, 바꾸고 싶으면 §8.1·§8.2만 고치면 된다.
 
-### 8.1 시트 순서(목표)
+### 8.1 시트 순서
 
 | # | 시트 | 근거 서식 | 조건 |
 |---|---|---|---|
 | 1 | `유해요인조사표` | 별지 제1호서식(E-G-1-2025 판) | 항상 |
 | 2 | `부담작업 해당 여부` | E-G-1-2025 부록 4(= H-9-2022 부록 1) 판단 서식 | 항상 |
-| 3 | `체크리스트` | E-G-1-2025 부록 3 체크리스트 양식(단위작업 × 11개 호) | 항상 |
+| 3 | `체크리스트` | E-G-1-2025 부록 3 체크리스트 양식(작업 × 11개 호) | 항상 |
 | 4 | `증상조사표` | 별지 제2호서식 | 증상조사 응답이 있을 때 |
-| 5 | `자세 분석(REBA)` | 3-1 작업분석·평가 결과표의 상세 | 항상(지금 `사진 자세`) |
+| 5 | `자세 분석(REBA)` | 3-1 결과표의 상세 | 항상 |
 | 6 | `입력한 값` | — | 항상 |
 | 7 | `확인사항` | — | 항상 |
 | 8 | `쉬운 설명` | — | 적용한 설명이 있을 때 |
 | 9 | `개선 전후 비교` | — | 비교를 골랐을 때 |
 
-현재의 `요약`은 1번의 가·라로, `기준별 결과`는 2번으로 흡수한다. DISEASE_CASE 전용 `별지1`·`별지2` 시트(`statutory_forms.py`)는 1번과 4번에 흡수하며 폐지한다. 양식 시트(1~4)에는 탭 색(`tab_color='1F3A5F'`)을 준다.
+1~4번에는 탭 색(`1F3A5F`)이 붙는다. 모든 시트의 둘째 줄에 `조사: 이름 · 조사일 · 출력 시각`이 들어간다(옛 `요약`이 보여 주던 값).
 
-### 8.2 시트 1 `유해요인조사표` 칸 매핑
+### 8.2 `유해요인조사표` 칸 매핑
 
 | 서식 칸 | 앱 데이터 |
 |---|---|
 | 조사 구분 ☐정기조사 ☐최초조사 ☐수시조사(규칙 제657조 2항에 근거) | `survey.survey_type` (REGULAR / INITIAL / OCCASIONAL) |
-| 수시 사유 ☐질환자 발생·업무상 질병 인정 ☐새 작업·설비 도입 ☐업무량·작업공정 등 작업환경 변경 | `survey.occasional_cause` (DISEASE_CASE / NEW_TASK_OR_EQUIPMENT / WORK_ENVIRONMENT_CHANGE). OTHER이면 사유 칸은 모두 ☐로 두고 `occasional_reason` 글을 아래에 적는다 |
+| 수시 사유 ☐질환자 발생·업무상 질병 인정 ☐새 작업·설비 도입 ☐업무량·작업공정 등 작업환경 변경 | `survey.occasional_cause` (DISEASE_CASE / NEW_TASK_OR_EQUIPMENT / WORK_ENVIRONMENT_CHANGE). OTHER이면 세 칸은 ☐로 두고 "사유: 기타 · `occasional_reason` 글"을 아래에 적는다 |
 | 조사 일시·조사자·조사부서명·작업공정명 | `survey_date`, `investigator`, `department`, `process` |
 | 작업명 | 작업들의 `task_name`(여러 개면 줄바꿈) |
-| (추가) 이전 조사일, 근로자 참여 | `previous_survey_date`, `participation`(status·role·method·date·notes·participant_code) |
-| 나. 작업장 상황(설비·작업량·작업속도·업무형태) | `workplace_situation.{equipment,workload,speed,work_pattern}_{status,notes}`. NO → ☑변경 없음, YES → ☑변경 있음(주요 변경 내용: notes), UNKNOWN → 둘 다 ☐ 이고 내용 칸에 `입력 필요`(기존 주황 채움이 붙는다). 서식에 "기타" 행은 없다 |
-| 1단계 작업명·작업내용 | `task_name`, `conditions.method_description` |
+| (추가) 이전 조사일, 근로자 참여 | `previous_survey_date`, `participation`(status·role·method·date·notes·participant_code). 기록이 없으면 "입력 필요"(주황) |
+| 나. 작업장 상황(설비·작업량·작업속도·업무형태) | `workplace_situation.{equipment,workload,speed,work_pattern}_{status,notes}`. NO → ☑변경 없음, YES → ☑변경 있음 + 주요 변경 내용(없으면 "입력 필요"), UNKNOWN → 둘 다 ☐ 이고 내용 칸에 "입력 필요". 서식에 "기타" 행은 없다 |
+| 1단계 작업명·작업내용 | `task_name`, 작업내용은 "1) 작업명"과 `conditions.method_description` |
 | 2단계 척도 표 | 고정 문구(E-G-1-2025 표기, §7.3) |
-| 2단계 단위작업명 | `task_name` |
-| 부담작업(호) | 최종 상태 `APPLICABLE`인 호("2, 3, 9"). 미확정(`NEEDS_INPUT`/`NEEDS_REVIEW`)이 있으면 "(미확정 N개)"를 덧붙인다. 해당 없음이면 "해당 없음", 판정 전이면 "계산 전" |
-| 작업강도(A)·작업빈도(B)·총점수 | `conditions.work_intensity`, `work_frequency`, 둘 다 정수일 때만 A×B. 없으면 빈칸 |
-| 3단계 근로자명 | `conditions.worker_code` |
-| 3단계 사진 또는 그림 | 대표 사진(파일에만. `include_representative`가 꺼져 있으면 "대표 사진 이미지는 포함하지 않았어요") |
-| 원인분석 표: 유해요인 | §7.4 분류 + 호. 예 "반복동작(2호)". 해당한 호마다 1행 |
-| 원인분석 표: 발생원인 또는 노출특징 | 판정 근거의 입력값 문장(예 "하루 240분 동안 키보드·마우스를 집중 사용"). `plain._basis_lines` 재사용·정리 |
-| 원인분석 표: 비고 | 검토 필요 사유, 조사자 사유 |
-| (고급 입력이 있으면 행 추가) | `conditions.hazard_factors`, `hazard_causes`, `improvement_recommendations` |
-| 3-1 인간공학적 작업·분석 평가 결과표 | 도구 "REBA", 평가결과 "최고 N점(위험도, 사진 M장)", 판정 문구(§7.6) |
-| 라. 유해요인 조사 결과(결과 요약) | 작업별 [작업·부담작업 해당 호·REBA 최고 점수와 위험도·더 입력/검토할 건수·결과 기준(현재/이전 입력)·검토 상태], 증상조사 요약(방법·응답자 수·`symptom_survey.summary`), "조사자 종합 의견"(직접 쓰는 빈 칸) |
+| 2단계 표: 단위작업명 | `task_name` (앱에 단위작업 개념이 없어 작업 = 단위작업 1개) |
+| 부담작업(호) | 최종 상태 `APPLICABLE`인 호("1, 4"). 미확정(`NEEDS_INPUT`/`NEEDS_REVIEW`)이 있으면 "(미확정 N개)"를 덧붙인다. 확정된 호가 없고 미확정만 있으면 "확정된 호 없음", 전부 해당하지 않으면 "해당 없음", 판정 전이면 "계산 전" |
+| 작업강도(A)·작업빈도(B)·총점수 | `conditions.work_intensity`, `work_frequency`(1~5 정수), 둘 다 있을 때만 A×B. 없으면 빈칸(직접 기입). **간편 흐름은 이 두 값을 묻지 않아 빈칸이다** |
+| 3단계 근로자명 | `conditions.worker_code` (실명은 받지 않는다) |
+| 3단계 사진 또는 그림 | 대표 사진(파일에만. `include_representative`가 꺼져 있으면 "대표 사진 이미지는 포함하지 않았어요.", 대표 사진이 없으면 "대표 사진이 없어요") |
+| 원인분석 표: 유해요인 | §7.4 분류 + 호. 예 "반복동작(1호)". 해당한 호마다 1행. 사용자가 그 작업을 한다고 답했지만 값이 모자란 호도 "입력 필요"/"검토 필요" 비고와 함께 올린다 |
+| 원인분석 표: 발생원인 또는 노출특징 | 판정 근거의 입력값 문장(예 "집중 키보드·마우스 사용: 240 분/일"). 값이 비어 판정에 꼭 필요한 입력은 "입력 필요: …"로 덧붙인다 |
+| 원인분석 표: 비고 | 입력 필요·검토 필요·조사자 결론 |
+| (고급 입력이 있으면 행 추가) | `conditions.hazard_factors`, `hazard_causes` ("관찰한 유해요인", "유해요인의 원인"). `improvement_recommendations`는 이 시트에 없고 `입력한 값`에 있다 |
+| 3-1 인간공학적 작업·분석 평가 결과표 | REBA 점수가 있을 때만. 도구 "REBA(전신 자세 평가)", 평가결과 "N점 (위험도)"와 계산한 사진 수, 판정은 표준 REBA 조치 문구(§7.6) |
+| 라. 유해요인 조사 결과(결과 요약) | 작업별 표 [작업·부담작업(호)·자세 점수(REBA)·더 입력/검토할 것(건수와 먼저 할 일)·결과 기준과 검토 상태], 증상조사 요약 행(방법·조사일·응답자 수·`symptom_survey.summary`, 없으면 "입력 필요"), "조사자 종합 의견(직접 쓰는 칸)" 빈 칸 |
 
-현재 `요약` 시트가 보여 주던 값(출력한 때, 결과 기준, 검토 상태, 입력/검토 필요 건수, 가장 먼저 할 일)은 사라지면 안 된다. 위 라와 `확인사항`에 나눠 담는다.
+인쇄는 가로 한 쪽 폭에 맞추고 "다. 작업조건 조사", "3단계", "3-1", "라" 앞에서 쪽을 나눈다. 시트 맨 아래 주석에 참고 자료이며 공식 서식을 대신하지 않는다는 말과 "판정"이 REBA 표준 해석이라는 말을 적는다.
 
 ### 8.3 시트 2·3·4
 
-- **부담작업 해당 여부(2)**: 호마다 블록. `제N호 이름(법정 문구 요약)` 아래 표 **[부담작업 요소(유해요인) / 하루 총 노출시간(또는 횟수) / 요소별 부담작업 여부 ○·X(기준 미만 사유) / 최종 판단]**. 3호는 합산 표시. 각주 "신체부위별 동일조직에 기준시간 이상 영향을 미치면 부담작업으로 판단". 현재 `기준별 결과`의 열(계산 초안, 조사자 결론, 최종 결과, 입력한 값과 기준 비교, 더 필요한 입력, 확인할 점, 조사자 사유·근거, 검토자, 검토한 때)은 **잃지 않는다**.
-- **체크리스트(3)**: 행 = 작업, 열 = 1~11호(이름+호), 셀 = ○ 해당 / × 비해당 / `입력 필요` / `검토 필요`(기존 `MISSING_CELLS`·`REVIEW_CELLS` 채움 재사용), 마지막 열 "부담작업 여부". 머리는 부록 3 양식(사업장명·조사 일시·조사자·공정명·공정 내용)을 따르되 사업장명은 앱에 없으므로 빈칸으로 두고, 열 머리에 호별 기준(하루 총 4시간 이상, 2시간 이상, 10회 이상 …)을 한 줄로 적는다.
-- **증상조사표(4)**: 응답마다 블록 — 기본 정보 표와 6개 부위 열 × (구체적 부위 / 통증 기간 / 아픈 정도 / 지난 1주일) 표. 앱에 없는 문항(지난 1년 빈도, 통증으로 인한 조치)은 빈칸. 단어 표(`SYMPTOM`, `SITE_NAMES`)는 `statutory_forms.py`에서 옮긴다. 응답 코드 사용을 권장하고 개인정보가 들어 있으면 접근을 제한하라는 주의 문구를 유지한다.
+- **부담작업 해당 여부(2)**: 작업마다 11개 호 블록. 블록 제목은 "이름(법정 N호) → 최종 판단: 부담작업/부담작업 아님/입력 필요/검토 필요/제외", 첫 줄은 법정 기준 문구(`labels.CRITERION_RULE`), 그다음 표 [부담작업 요소 / 입력한 값 / 기준 / 요소별 해당 여부]에 입력 하나가 한 줄(○ 기준을 채움, X 못 미침). 여러 조건 행이 있으면 "(조건 2)"를, 하루 합계는 "하루 합계 · …"를 붙인다. 값이 비어 있어도 **계산이 그 입력을 필요로 할 때만** "입력 필요"(주황)이고 아니면 "입력 안 됨"이다(예: 4호가 이미 해당이면 다른 시간 칸은 비어도 "입력 안 됨"). 조사자 결론·더 필요한 입력·확인할 점은 있을 때만 블록 아래 줄로 붙는다(옛 `기준별 결과`의 계산 초안·조사자 결론·검토자·검토 시각·확인할 점을 잃지 않는다).
+- **체크리스트(3)**: 머리 정보(사업장명(앱에 없어 빈칸)·조사 일시·조사자·공정명·공정 내용(빈칸)·작업명), 열 = 1~11호, 첫 줄은 호별 기준(`form.CHECK_RULE`), 작업마다 ○ / X / 입력 필요 / 검토 필요 / 제외와 마지막 열 "부담작업 여부"(부담작업·부담작업 아님·미확정·계산 전).
+- **증상조사표(4)**: 응답마다 "응답 N · 코드" 블록 — 기본 정보 표(성명(선택)·연령·성별·현 직장 경력·작업부서·현재 작업·1일 근무시간·이전 작업·여가·가사노동·진단·사고·육체적 부담)와 6개 부위 열 × (구체적 부위·통증 기간·아픈 정도·지난 1주일) 표. 앱에 입력란이 없는 "지난 1년 빈도"와 "통증으로 인한 조치" 문항은 표에 넣지 않았다고 주석에 적는다. 개인정보 주의와 "증상조사 결과는 질환을 인정·부정하는 근거로 쓰지 않는다" 문구를 유지한다.
 
-### 8.4 렌더러·미리보기 확장(양식다운 모양에 필요)
+### 8.4 표 정의의 선택 키 (렌더러·미리보기 공통)
 
-현 시트 정의는 "헤더 있는 표"뿐이다. 하위 호환을 지키며 표에 선택 키를 추가한다.
+기존 시트 정의 `{heading, columns, rows, widths}`에 하위 호환되는 선택 키를 더했다(`docs/API_계약서.md` §8에도 적었다).
 
-- `header: False` — 헤더 행을 그리지 않는다.
-- `labels: [열 번호, …]` — 양식의 칸 이름 칸(굵게+연회색).
-- `merges: [[행, 시작열, 끝열], …]` — 병합.
-- 시트 `tab_color`는 이미 `_write_sheet`가 읽는다.
-- `renderer._write_sheet`: `ws.merge_cells`로 병합, 행 높이는 병합 폭의 합으로 계산. `frontend/quick-flow.js`의 `excelPreviewPanel`: `colspan`·라벨 칸·헤더 숨김 반영.
-- 체크박스는 `☑`/`☐`(같은 글꼴 계열) 글자로 쓴다.
-- 대표 사진 앵커: 지금은 `_add_representatives`가 `사진 자세` 시트 아래에 붙인다. 양식 3단계 "사진 또는 그림" 칸으로 옮긴다(앵커 키를 시트 정의에 둔다).
-- 문자열 셀 `data_type='s'` 고정은 새 시트도 지킨다.
+- `header: False` 헤더 행 없음. `labels`(열), `label_rows`(행), `label_cells`([행, 열]) 양식의 칸 이름 칸(굵게·연회색). `merges` [[첫 행, 첫 열, 끝 행, 끝 열]] 병합(행·열은 표 안 0부터). `bordered` 테두리. `heights` {행: 높이(pt)}. `break` 이 표 앞에서 쪽 나눔. `photo` {task_id, row} 대표 사진을 넣을 칸. 시트의 `tab_color`.
+- `renderer._write_sheet`는 행 번호를 자기가 세는 `put()`으로 센다. (`ws.max_row`는 빈 줄을 세지 않아 머리 행이 없는 표의 병합이 한 줄 위로 어긋난 적이 있다 — 2026-10-21에 잡았고 `test_merged_blocks_sit_on_the_rows_the_preview_says`가 지킨다.)
+- 미리보기(`excelPreviewPanel`)는 `rowspan`·`colspan`·라벨 칸·헤더 숨김·열이 8개를 넘으면 머리글 줄바꿈을 그린다. `tests/frontend-excel-preview.cjs`가 지킨다.
+- 체크박스는 `☑`/`☐`다. Excel(맑은 고딕)에서 대체 글꼴로 정상 표시됨을 확인했다.
 
-### 8.5 영향받는 시험·스크립트·문서
+### 8.5 갱신한 시험·스크립트·문서
 
-- 시험: `tests/test_plain_report.py`(`PLAIN_SHEETS`, 첫 시트 `요약` 참조, `기준별 결과` 행 위치 `min_row=6` 가정), `test_acceptance.py`(35·38행), `test_json_lines_integration.py`(130행), `test_persistence_regressions.py`(209행), `test_survey_intake.py`(`별지1`·`별지2` 이름·내용 시험, 시트 수 5/7), `tests/verify_local_artifacts.py`(`expected_sheets`·독립 대조), `tests/portable-service-smoke.py`(시트 목록을 보는지 확인), `.local/try/flow.cjs`(`tabs.slice(0,5)` 단정. 로컬 파일).
-- `ergo/service/reports.py::handle_preview_excel_sheets`의 `form_sheets` 목록(별지 이름을 직접 적어 둠).
-- 문서: `docs/API_계약서.md` §8(출력)·`preview_excel_sheets` 행, `docs/기능정의서.md`, `docs/화면설계서.md`(4/6시트 서술), `docs/local-verification.md`(REQ-10 행), `frontend/README.md`, `docs/verification/2026-10-21-simple-flow.md`.
+- 시험: `tests/test_form_report.py` 신규 15개(조사 구분 상자, 작업장 상황, A×B, 원인분석, 체크리스트, 병합 위치, 미리보기 표시 키, 입력 필요 규칙, 두 작업, 분석 전 작업, **법령 문구의 숫자를 보존한 고시 본문(`tests/fixtures/고시_제2020-12호_본문.txt`)과 대조**), `tests/report_helpers.py` 신규(공용 준비), `tests/test_plain_report.py`·`test_acceptance.py`·`test_json_lines_integration.py`·`test_persistence_regressions.py`·`test_survey_intake.py`(별지 시트 시험을 증상조사표 시험으로 교체)·`tests/frontend-excel-preview.cjs` 신규(프론트 회귀 8번째)·`tests/electron-workflow.cjs`(시트 목록 단정)·`tests/portable-service-smoke.py`(7/6시트)·`tests/verify_local_artifacts.py`(체크리스트 매트릭스와 조사자 결론 줄로 11개 판정 독립 대조).
+- 서비스: `preview_excel_sheets` 응답에서 `form_sheets`를 뺐다.
+- 문서: `docs/API_계약서.md` §8, `기능정의서.md` §8, `화면설계서.md` S08, `DB아키텍처_설계서.md`, `ERD_데이터설계서.md`, `requirements.md`(REQ-10), `module-map.md`, `frontend/README.md`, `docs/verification/2026-10-21-simple-flow.md`. `docs/local-verification.md`와 `docs/verification/2026-10-16-*.json`은 당시 기록이라 고치지 않았다.
 
-### 8.6 권장 구현 순서
+### 8.6 남은 개선 후보
 
-1. 렌더러·미리보기 확장(`header`/`labels`/`merges`)과 그 시험(파일 병합 범위, 미리보기 `colspan`, 값 일치).
-2. `ergo/report/form.py` 신설: 시트 1~4 빌더. `plain.py`의 `_basis_lines`, `_applicable`, `_reba_text`, `_slot_names` 재사용.
-3. `plain_sheets` 순서 변경, `요약`·`기준별 결과` 흡수, `statutory_forms` 폐지.
-4. 시험 갱신 + 새 시험(양식 칸 값, ☑/☐, A×B 조건, 호 분류, REBA 판정 문구, 미리보기 = 파일, 코드·내부 용어 없음).
-5. E2E(`flow.cjs` 갱신) → 문서 → §9.
+- 간편 흐름에 **작업강도(A)·작업빈도(B)** 질문(1~5)을 더하면 2단계 표가 채워진다. 지금은 고급 편집의 작업 조건에만 입력란이 있다.
+- 단위작업 개념(작업 안의 세부 작업)과 근로자명 입력은 없다. 증상조사표의 "지난 1년 빈도"·"통증으로 인한 조치" 문항도 없다.
+- 공식 HWP 원본과 칸 단위 대조는 못 했다(§7.8). 인쇄는 Excel의 인쇄 미리보기(PDF 내보내기)까지만 보았고 실제 프린터 출력은 보지 않았다.
+- 쪽 나눔은 작업이 하나일 때를 기준으로 맞췄다. 작업이 여러 개이면 작업마다 3단계·3-1이 이어지고 Excel이 알아서 쪽을 넘긴다.
 
 ## 9. 마무리 체크리스트
 
-- [ ] 전체 시험 재실행: Python `unittest discover`, `npm --prefix frontend test`, `audit_contract.py`, `tests/mutation/run_mutations.py`, `test:electron`·`test:explanation`(창 숨김), `flow.cjs`, `intake.cjs`, `rehearse.cjs`.
-- [ ] **포터블 재빌드** `scripts/build_windows.py`(PyInstaller 약 1분) → 패키지 E2E(`LOCO_VERIFY_EXECUTABLE`) → 사용자에게 보이는 창으로 실행.
-- [ ] 문서: `docs/verification/2026-10-21-simple-flow.md`에 오늘 변경(사진 인식·AI 한 줄 입력·일반인용 Excel·화면 분리·전문가용 시트 삭제) 반영. 그 문서에는 "Excel 판정 근거 시트에 영문 상태 코드가 보인다"는 낡은 문장이 남아 있다 — 지금은 사실과 다르므로 고친다. `frontend/README.md`, 정본 문서(§8.5).
-- [ ] 이 Handoff 갱신.
+- [x] 전체 시험 재실행(§10): Python `unittest discover`, `npm --prefix frontend test`, `audit_contract.py`, 변이 시험, `test:electron`, `flow.cjs`, `intake.cjs`.
+- [ ] **포터블 재빌드** `scripts/build_windows.py`(PyInstaller 약 1분) → 패키지 스모크·E2E(`LOCO_VERIFY_EXECUTABLE`). 깨끗한 작업 트리(커밋 뒤)에서 빌드하면 manifest의 `source_has_local_changes`가 false다. 마지막 빌드(`dist\LOCO-2.0-windows-x64-20261021T060619287744Z`)에는 오늘 변경이 하나도 없다.
+- [x] 문서(§8.5). `docs/verification/2026-10-21-simple-flow.md`의 낡은 문장("Excel 판정 근거 시트에 영문 상태 코드가 보인다")은 고쳤다.
+- [x] 이 Handoff 갱신.
+- [ ] `test:explanation`, `rehearse.cjs`(18장 사진 리허설)는 이번 변경 뒤 다시 돌리지 않았다.
 
 ## 10. 검증 결과
 
-**수행(이 PC, Windows, CPython 3.12, 개발 Electron 창 숨김 모드)**
+**수행(이 PC, Windows, CPython 3.12, 개발 Electron 창 숨김 모드). 공식 서식 구성 Excel까지 반영한 뒤의 결과다.**
 
 | 항목 | 결과 |
 |---|---|
-| Python 전체 `unittest discover -s tests -p "test_*.py"` | **167개 모두 통과**(100초, 실패·오류 0). 새 시험: `test_quick_assess` 28, `test_quick_intake` 19, `test_plain_report` 12 |
-| 프론트 회귀 `npm --prefix frontend test` | 7개 스크립트 모두 통과(종료 코드 0, PASS 25줄, AI 한 줄 입력 시험 포함) |
+| Python 전체 `unittest discover -s tests -p "test_*.py"` | **183개 모두 통과**(실패·오류 0). 새 시험: `test_quick_assess` 28, `test_quick_intake` 19, `test_plain_report` 12, `test_form_report` 15 |
+| 프론트 회귀 `npm --prefix frontend test` | **8개 스크립트 모두 통과**(종료 코드 0). AI 한 줄 입력 시험과 Excel 미리보기 그리기 시험(`frontend-excel-preview.cjs`) 포함 |
 | API 계약 대조 `scripts/audit_contract.py` | 문서화 43 / 구현 43, 렌더러 호출 37 |
-| 전체 흐름 E2E `flow.cjs`(실제 OpenAI 설명 생성·편집·적용 포함) | **20단계 통과**, 페이지 오류 0. 저장한 Excel의 시트가 미리보기 탭(요약·기준별 결과·입력한 값·사진 자세·확인사항·쉬운 설명)과 같고 전문가용 시트는 없다. 개선 전후 비교 시트도 미리보기에 나온다 |
-| AI 한 줄 입력 E2E `intake.cjs`(실제 OpenAI) | **4단계 통과**, 페이지 오류 0(압축 화면 요약 4줄, 값 지우기, 결과값 240분·20kg×30회가 2.0 구조에 도달, Excel 화면의 "Excel 만들기 전 확인"). 스크립트가 화면 분리 전 구조(검토 화면에 점검표)를 가정해 처음엔 실패했고, 스크립트를 Excel 화면 기준으로 고친 뒤 통과했다. 제품 결함이 아니었다 |
-| 18장 사진 UI 리허설 `rehearse.cjs` | 경고 0건(이 세션 앞부분에 수행. Excel 변경·전문가용 시트 삭제 이후 재실행하지 않았다) |
+| 변이 시험 `tests/mutation/run_mutations.py` | 모두 탐지(종료 코드 0) |
+| 고급 화면 E2E `npm --prefix frontend run test:electron` | **29단계 통과**. 이어서 `tests/verify_local_artifacts.py`로 SQLite와 XLSX 5개 문서를 독립 대조(시트 목록, 11개 판정 ○/X, 조사자 결론 줄, 전후 비교 값): **PASS** |
+| 설명 E2E `npm --prefix frontend run test:explanation` | 통과(종료 코드 0) |
+| 전체 흐름 E2E `flow.cjs`(실제 OpenAI 설명 생성·편집·적용 포함) | **20단계 통과**, 페이지 오류 0. 저장한 Excel의 시트가 미리보기 탭(유해요인조사표·부담작업 해당 여부·체크리스트·자세 분석(REBA)·입력한 값·확인사항·쉬운 설명)과 같고, 미리보기에 병합 칸·칸 이름 칸이 그려진다 |
+| AI 한 줄 입력 E2E `intake.cjs`(실제 OpenAI) | **4단계 통과**, 페이지 오류 0(압축 화면 요약 4줄, 값 지우기, 결과값 240분·20kg×30회가 2.0 구조에 도달, Excel 화면의 "Excel 만들기 전 확인"). 스크립트가 화면 분리 전 구조를 가정해 처음엔 실패했고 Excel 화면 기준으로 고친 뒤 통과했다. 제품 결함이 아니었다 |
+| 시연 사진 UI 리허설 `rehearse.cjs` | 5개 세트(사진 15장) 경고 0건, 페이지 오류 0 |
+| Excel 모양 확인 | Excel(COM)로 문서를 PDF로 내보내 쪽 나눔·병합·칸 이름 칸·체크박스·사진 칸·열 머리를 눈으로 확인했고, 앱 미리보기도 화면 캡처로 확인했다 |
 
 **수행하지 못한 것**
 
-- 포터블 재빌드와 패키지 E2E(§9).
+- 포터블 재빌드와 패키지 스모크·E2E(§9).
 - 별도 Windows PC 설치, 현장 조사자 사용 시간.
 - 현장 사진에서의 방향·앉음·머리 위 신호 정확도(공개 예제와 시연 18장 밖).
-- `tests/mutation/run_mutations.py`, `test:electron`, `test:explanation`(오늘 변경 이후 재실행하지 않았다).
 - NO_KEY 환경(키 없음) UI 점검.
-- 공식 HWP 원본과 서식 PDF 사본의 대조(§7.8).
+- 공식 HWP 원본과 서식 PDF 사본의 칸 단위 대조(§7.8), 실제 프린터 출력.
 
 **알려진 미결**
 
@@ -336,7 +335,7 @@ npm.cmd --prefix frontend run test:explanation
 
 ## 13. 이번 푸시에 넣은 것과 뺀 것
 
-**넣음:** 사진 인식 보정(`ergo/engine/quick_assess.py`, `ergo/service/quick.py`), AI 한 줄 입력(`ergo/engine/quick_intake.py`, `ergo/gpt/client.py`, `ergo/service/json_lines.py`, `ergo/contracts.py`, `ergo/service/application.py`), 일반인용 Excel(`ergo/report/plain.py` 신규, `labels.py`, `overview.py`, `renderer.py`, `statutory_forms.py`, `workbook.py`, `ergo/service/reports.py`), 화면(`frontend/quick-flow.js`, `quick.css`, `desktop.js`, `analysis/export-view.js`), 시험(`tests/test_quick_assess.py`, `test_quick_intake.py`·`test_plain_report.py` 신규, `test_acceptance.py`, `test_json_lines_integration.py`, `test_persistence_regressions.py`, `test_survey_intake.py`, `test_v2_gpt.py`, `frontend-quick-answers.cjs`, `portable-service-smoke.py`, `verify_local_artifacts.py`), 문서(`docs/API_계약서.md` 2행), 이 Handoff.
+**넣음:** 사진 인식 보정(`ergo/engine/quick_assess.py`, `ergo/service/quick.py`), AI 한 줄 입력(`ergo/engine/quick_intake.py`, `ergo/gpt/client.py`, `ergo/service/json_lines.py`, `ergo/contracts.py`, `ergo/service/application.py`), 일반인용 Excel·공식 서식 구성 시트(`ergo/report/plain.py`·`form.py` 신규, `labels.py`, `overview.py`, `renderer.py`, `workbook.py`, `ergo/service/reports.py`; `statutory_forms.py`는 삭제), 화면(`frontend/quick-flow.js`, `quick.css`, `desktop.js`, `analysis/export-view.js`), 시험(`tests/test_quick_assess.py`, `test_quick_intake.py`·`test_plain_report.py` 신규, `test_acceptance.py`, `test_json_lines_integration.py`, `test_persistence_regressions.py`, `test_survey_intake.py`, `test_v2_gpt.py`, `test_form_report.py`·`report_helpers.py`·`frontend-excel-preview.cjs` 신규, `frontend-quick-answers.cjs`, `electron-workflow.cjs`, `portable-service-smoke.py`, `verify_local_artifacts.py`), 문서(§8.5), 이 Handoff.
 
 **뺌:** `.local/`(시험 스크립트·fixture·산출물), `.venv/`, `build/`, `dist/`(빌드 산출물). 사용자 사진은 저장소에 넣지 않았다.
 
