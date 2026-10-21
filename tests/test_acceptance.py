@@ -20,7 +20,7 @@ class V2Acceptance(unittest.TestCase):
             draft = task_input({'task_name': '=2+2', 'input_template': 'LIFTING'})
             task = application.dispatch('create_task', {'survey_id': survey['survey_id'], 'draft': draft})
             analysis = application.new_analysis(task, ['judgment'])
-            application.run(analysis, ['judgment'], threading.Event())
+            application.run(analysis, ['judgment'], threading.Event(), application._context.analysis_token(analysis['analysis_id']))
             current = application.analysis(analysis['analysis_id'])
             self.assertEqual(current['status'], 'FINISHED')
             self.assertEqual(len(current['judgment']['judgments']), 11)
@@ -50,7 +50,7 @@ class V2Acceptance(unittest.TestCase):
             task = application.dispatch('create_task', {
                 'survey_id': survey['survey_id'], 'draft': task_input({'task_name': '조립 작업'})})
             before = application.new_analysis(task, ['judgment'])
-            application.run(before, ['judgment'], threading.Event())
+            application.run(before, ['judgment'], threading.Event(), application._context.analysis_token(before['analysis_id']))
 
             task = application.dispatch('get_task', {'task_id': task['task_id']})['task']
             updated = application.task_input(task)
@@ -64,7 +64,7 @@ class V2Acceptance(unittest.TestCase):
                     criterion['rows_complete'] = 'YES'
             task = application.dispatch('save_task_input', {'task_id': task['task_id'], 'input': updated})
             after = application.new_analysis(task, ['judgment'])
-            application.run(after, ['judgment'], threading.Event())
+            application.run(after, ['judgment'], threading.Event(), application._context.analysis_token(after['analysis_id']))
 
             overview = application.dispatch('preview_excel', {
                 'survey_id': survey['survey_id'], 'analysis_ids': [],

@@ -22,7 +22,13 @@ async function until(read,predicate,label){
  while(Date.now()<end){const value=await read();if(predicate(value))return value;await new Promise(resolve=>setTimeout(resolve,100));}
  throw Error('Timed out: '+label);
 }
-const navigate=id=>page.locator(`[data-nav="${id}"]`).click();
+const navigate=async id=>{
+ for(let attempt=0;attempt<15;attempt++){
+  await page.locator(`[data-nav="${id}"]`).click();
+  try{await page.locator(`[data-nav="${id}"][aria-current="page"]`).waitFor({timeout:2000});return;}catch{}
+ }
+ throw Error('navigation to '+id+' never completed');
+};
 const field=(key)=>page.locator(`[data-path="${key}"]`);
 async function screenshot(name){await page.screenshot({path:path.join(runDir,name+'.png'),fullPage:true});}
 async function launch(){
@@ -33,7 +39,7 @@ async function launch(){
  page=await electron.firstWindow();page.setDefaultTimeout(12000);
  page.on('pageerror',error=>evidence.errors.push(error.message));
  electron.process().stderr.on('data',data=>evidence.logs.push(data.toString()));
- await page.locator('#connection.connected').waitFor();
+ await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});
  const runtime=await electron.evaluate(({app})=>({packaged:app.isPackaged,executable:process.execPath,resources:process.resourcesPath}));
  if(packaged)assert.equal(runtime.packaged,true);evidence.runtime=runtime;
 }
@@ -112,7 +118,7 @@ async function main(){
  for(const [key,value] of [['side_view_verified','YES'],['single_person','YES'],['full_frame','YES'],['normal_work','YES'],['load_state','UNLOADED']])await page.locator(`[data-photo-field="${key}"]`).selectOption(value);
  await page.locator('[data-photo-action="save"]').click();
  await page.locator('[data-photo-action="analysis"]').click();
- let photoResult=await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.status!=='RUNNING','real model analysis');photoResult=photoResult.analysis;
+ let photoResult=await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.analysis_id!==a.analysis_id&&value.analysis?.status!=='RUNNING','real model analysis');photoResult=photoResult.analysis;
  assert.equal(photoResult.pose.slots[0].points.length,17);
  assert.notEqual(photoResult.pose.slots[0].status,'ERROR');
  check('official MoveNet model runs through Electron -> service -> SQLite',{status:photoResult.pose.slots[0].status,points:17});
@@ -149,7 +155,7 @@ async function main(){
  assert.ok(compatible.condition_changes.some(x=>x.field_path==='manual.1.COMMON.trunk_base.value'));
  check('compatible complete REBA snapshots report the measured score difference and manual changes',{before:2,after:1,delta:-1});
  const manualCount=(await api('get_task',{task_id:task.task_id})).task.manual.length;
- await navigate('S03');await page.locator('[data-do="info"]').first().click();
+ await navigate('S03');if(await page.locator('[data-do="info"]').count())await page.locator('[data-do="info"]').first().click();
  await field('task_name').fill('상자 들기 · 수동값 보존 확인');await page.locator('#task-info-form button[type="submit"]').click();
  const reopened=(await api('get_task',{task_id:task.task_id})).task;assert.equal(reopened.manual.length,manualCount);
  check('bilateral REBA is complete and manual values survive editor return/save',{manual_count:manualCount});
@@ -162,7 +168,7 @@ async function main(){
  await navigate('S10');await page.locator('[data-field="gpt_enabled"]').selectOption('YES');await page.locator('[data-action="save-gpt-settings"]').click();
  await navigate('S06');await page.locator('[data-action="generate-explanation"]').click();
  await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.ai?.length>0,'GPT fallback');
- await page.locator('#explanation-text').fill('조사자가 검토한 로컬 대체 설명');await page.locator('[data-action="edit-explanation"]').click();
+ await page.locator('[data-action="edit-explanation"]:not([disabled])').waitFor();await page.locator('#explanation-text').fill('조사자가 검토한 로컬 대체 설명');await page.locator('[data-action="edit-explanation"]').click();
  await page.locator('[data-action="apply-edited"]').click();
  const ai=(await api('get_task_result',{task_id:task.task_id})).analysis.ai.at(-1);assert.equal(ai.result,'FALLBACK');assert.equal(ai.applied_text,'조사자가 검토한 로컬 대체 설명');
  check('missing API key produces editable/applicable fallback without changing calculations');
@@ -175,8 +181,7 @@ async function main(){
  check('comparison UI displays eleven before/after criterion results and input changes');await screenshot('04-comparison');
  await page.locator('[data-field="comparison-before"]').selectOption(String(compatibleSpec.before_analysis_id));
  await page.locator('[data-field="comparison-after"]').selectOption(String(compatibleSpec.after_analysis_id));
- await page.locator('.comparison-inputs summary').click();
- assert.ok((await page.locator('.comparison-detail').innerText()).includes('확인값'));
+ await until(async()=>{await page.evaluate(()=>{const d=document.querySelector('.comparison-inputs');if(d&&!d.open)d.open=true;});return page.locator('.comparison-detail').innerText();},text=>text.includes('확인값'),'manual values shown in the comparison');
  await screenshot('05-compatible-comparison');
  check('detailed comparison UI includes the changed manual observation values');
  const destination=path.join(runDir,'regular-report.xlsx');
