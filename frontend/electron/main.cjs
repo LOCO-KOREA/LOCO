@@ -30,7 +30,7 @@ app.whenReady().then(()=>{
  }));
  ipcMain.handle('loco:photos',async()=>{const result=await dialog.showOpenDialog(window,{properties:['openFile','multiSelections'],filters:[{name:'사진',extensions:['jpg','jpeg','png']}]});return result.canceled?[]:result.filePaths;});
  ipcMain.handle('loco:export',async()=>{const result=await dialog.showSaveDialog(window,{defaultPath:'LOCO_작업분석.xlsx',filters:[{name:'Excel',extensions:['xlsx']}]});return result.canceled?null:result.filePath;});
- window=new BrowserWindow({title:'LOCO · 현장 자세 분석',width:1440,height:1060,minWidth:1100,minHeight:768,backgroundColor:'#F5F6FA',autoHideMenuBar:true,webPreferences:{preload:join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false}});
+ window=new BrowserWindow({title:'LOCO · 현장 자세 분석',width:1440,height:1060,minWidth:1100,minHeight:768,backgroundColor:'#F5F6FA',autoHideMenuBar:true,...(process.env.LOCO_HIDDEN==='1'?{x:-12000,y:-12000,skipTaskbar:true,focusable:false}:{}),webPreferences:{preload:join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,backgroundThrottling:process.env.LOCO_HIDDEN!=='1'}});
  window.loadFile(join(__dirname,'..','desktop.html'));
  window.webContents.on('did-finish-load',()=>console.log('LOCO Electron renderer ready'));
 });

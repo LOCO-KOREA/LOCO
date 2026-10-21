@@ -141,6 +141,7 @@ function setMode(mode){
   else{page('S01');if(window.loco)perform(refresh);}
 }
 $('#mode-toggle').addEventListener('click',()=>setMode(document.body.classList.contains('quick-mode')?'detail':'quick'));
+document.addEventListener('keydown',event=>{if(!(event.ctrlKey||event.metaKey)||event.key.toLowerCase()!=='s')return;event.preventDefault();if(document.body.classList.contains('quick-mode')||!['S03','S04'].includes(state.page))return;perform(async()=>{if(await taskUI.save())notify('작업을 저장했어요.');});});
 fill(blank());page('S01');rows();setMode('quick');
 if(!window.loco&&new URLSearchParams(location.search).get('screen')==='photos'){page('S05');photoUI.preview();}
 if(!window.loco&&['task','conditions'].includes(new URLSearchParams(location.search).get('screen'))){taskUI.preview();taskUI.screen=new URLSearchParams(location.search).get('screen')==='conditions'?'conditions':'info';taskUI.render();}

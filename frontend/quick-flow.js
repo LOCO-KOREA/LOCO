@@ -23,6 +23,9 @@ const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department',
 const STEPS = [['start', '사진 넣기'], ['provisional', '1차 점수'], ['questions', '로코 질문'], ['result', '결과'], ['review', '검토·출력']];
 const DEFAULT_MODEL = 'gpt-4.1';
 const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 15초 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
+const DRAFT_KEY = 'loco.quick.draft.v1';
+const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
+const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); } catch { /* the draft is a convenience only */ } };
 const evidence = (text, source = 'INTERVIEW') => ({source, text, observed_at: new Date().toISOString()});
 const today = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Seoul'});
 
@@ -91,6 +94,12 @@ export class QuickFlow {
     host.addEventListener('change', event => this.input(event));
     host.addEventListener('dragover', event => { if (event.target.closest('[data-drop]')) event.preventDefault(); });
     host.addEventListener('drop', event => this.drop(event));
+    document.addEventListener('keydown', event => {
+      if (this.step === 'questions' && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        const next = host.querySelector('[data-quick="next"]');
+        if (next && !next.disabled) { event.preventDefault(); next.click(); }
+      }
+    });
   }
 
   reset() {
@@ -340,6 +349,7 @@ export class QuickFlow {
       this.survey = await this.api('get_survey', {survey_id: this.survey.survey_id});
       this.settings = this.settings || await this.api('get_settings');
       this.result = analysis; this.exported = null; this.comparison = null; this.step = 'result';
+      writeDraft(null);
       if (this.baseline && this.baseline.analysis_id !== analysis.analysis_id) await this.compare();
     });
   }
@@ -360,6 +370,46 @@ export class QuickFlow {
   }
 
   // ================= step 5: review, AI explanation, Excel
+  async openReview() {
+    await this.run('Excel로 만들기 전에 빠진 곳을 찾고 있어요…', async () => {
+      const comparisons = this.baseline && this.comparison ? [this.comparison.spec] : [];
+      this.overview = await this.api('preview_excel', {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons});
+      this.step = 'review';
+    });
+    window.scrollTo({top: 0});
+  }
+
+  // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
+  jumpTo(questionId) {
+    const groups = this.groups(), index = groups.findIndex(group => group.questions.some(q => q.id === questionId));
+    if (index < 0) return;
+    this.step = 'questions'; this.group = index; this.render(); window.scrollTo({top: 0});
+  }
+
+  followupTarget(message) {
+    const table = [[/참여/, 'participation'], [/증상/, 'symptom'], [/설비/, 'situation_equipment'], [/작업량/, 'situation_workload'], [/속도/, 'situation_speed'], [/업무형태|업무 형태/, 'situation_work_pattern']];
+    return table.find(([pattern]) => pattern.test(message))?.[1] || null;
+  }
+
+  checklistPanel() {
+    const overview = this.overview, item = overview?.tasks?.[0];
+    if (!item) return '';
+    const canJump = Boolean(this.preview);
+    const conclusions = (this.result.judgment?.judgments || []).filter(j => j.investigator?.status).length;
+    const jump = id => canJump && id ? `<button type="button" data-jump="${esc(id)}">입력하러 가기</button>` : '';
+    const lines = [];
+    for (const message of overview.survey_followups || []) lines.push(`<li><span>${esc(message)}</span>${jump(this.followupTarget(message))}</li>`);
+    for (const next of item.next_inputs || []) {
+      if (next.kind !== 'MISSING_INPUT' && next.kind !== 'REVIEW_REQUIRED') continue;
+      lines.push(`<li><span>${next.criterion_no ? `<b>${next.criterion_no}호</b> ` : ''}${esc(next.message)}</span>${jump(next.criterion_no ? `crit_${next.criterion_no}` : null)}</li>`);
+    }
+    const counts = item.counts || {};
+    return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>⓪ Excel 만들기 전 확인</h3>
+      <p class="quick-note">입력 필요 기준 <b>${counts.needs_input_count ?? 0}</b>개 · 검토 필요 <b>${counts.needs_review_count ?? 0}</b>개 · 조사자 결론 <b>${conclusions}</b>/11개</p>
+      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? '<p class="quick-note">답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.</p>' : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
+      : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
+  }
+
   async conclude(number, status) {
     await this.run('결론을 저장하고 있어요…', async () => {
       const current = this.result.judgment.judgments.find(j => j.criterion_no === number)?.investigator?.status ?? null;
@@ -445,8 +495,10 @@ export class QuickFlow {
     else if (d.del) this.deleteSurvey(Number(d.del));
     else if (d.crit) this.critClick(d);
     else if (d.concl) this.conclude(Number(d.concl), d.status);
-    else if (d.quick === 'new') { this.reset(); this.render(); }
-    else if (d.quick === 'home') { this.reset(); this.step = 'home'; this.loadHome(); }
+    else if (d.quick === 'new') { const old = readDraft(); writeDraft(null); if (old) this.api('delete_survey', {survey_id: old.surveyId}).catch(() => {}); this.reset(); this.render(); }
+    else if (d.quick === 'resume') this.resumeDraft();
+    else if (d.quick === 'discard-draft') this.discardDraft();
+    else if (d.quick === 'home' || d.quick === 'home-bar') { this.reset(); this.step = 'home'; this.loadHome(); }
     else if (d.quick === 'settings') this.saveSettings();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
@@ -456,7 +508,8 @@ export class QuickFlow {
       if (this.group < this.groups().length - 1) { this.group++; this.render(); window.scrollTo({top: 0}); } else this.finish();
     }
     else if (d.quick === 'allno') this.allNo();
-    else if (d.quick === 'review') { this.step = 'review'; this.render(); window.scrollTo({top: 0}); }
+    else if (d.quick === 'review') this.openReview();
+    else if (d.jump) this.jumpTo(d.jump);
     else if (d.quick === 'result') { this.step = 'result'; this.render(); }
     else if (d.quick === 'reviewed') this.markReviewed(true);
     else if (d.quick === 'unreview') this.markReviewed(false);
@@ -523,20 +576,68 @@ export class QuickFlow {
   // ================= views
   render() {
     const index = STEPS.findIndex(([id]) => id === this.step);
-    const bar = this.step === 'home' ? '' : `<ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol>`;
+    const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-home-link" data-quick="home-bar" title="${this.task && !this.result ? '작성 중인 내용은 저장돼요. 홈에서 이어서 할 수 있어요.' : ''}">홈으로</button></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview()}[this.step]();
     const busy = typeof this.busy === 'string' && this.busy ? `<div class="quick-busy" role="status">${esc(this.busy)}</div>` : '';
     this.host.innerHTML = `${bar}${busy}${body}`;
+    this.keepDraft();
+  }
+
+  // An unfinished analysis (photos chosen, answers partly given) is kept so it can be continued after closing the app.
+  keepDraft() {
+    if (!['start', 'provisional', 'questions'].includes(this.step) || !this.task || this.result || this.reopened) return;
+    writeDraft({
+      surveyId: this.survey.survey_id, surveyTitle: this.survey.title, createdAt: this.survey.created_at, taskId: this.task.task_id, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
+      photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
+      answers: this.answers, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)
+    });
+  }
+
+  async resumeDraft() {
+    const draft = readDraft();
+    if (!draft) return;
+    await this.run('작성 중이던 분석을 불러오고 있어요…', async () => {
+      const survey = await this.api('get_survey', {survey_id: draft.surveyId});
+      if (survey.created_at !== draft.createdAt) { writeDraft(null); throw new Error('이 기록은 다른 데이터에서 작성하던 것이라 이어 갈 수 없어요.'); }
+      const full = await this.api('get_task', {task_id: draft.taskId});
+      const photos = {};
+      for (const [view, photoId] of Object.entries(draft.photos || {})) {
+        const photo = full.photos.find(item => item.photo_id === photoId);
+        if (photo) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};
+      }
+      if (!Object.keys(photos).length) throw new Error('이어 갈 사진을 찾지 못했어요. 새 분석으로 시작해 주세요.');
+      const settings = this.settings;
+      this.reset();
+      Object.assign(this, {survey, task: full.task, photos, answers: draft.answers || {}, stale: true, settings, step: 'start'});
+      const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
+      this.preview = await this.api('quick_preview', {task_id: full.task.task_id, views});
+      this.stale = false;
+      this.step = draft.step === 'questions' ? 'questions' : 'provisional';
+      this.group = Math.min(draft.group || 0, Math.max(0, this.groups().length - 1));
+    });
+  }
+
+  async discardDraft() {
+    const draft = readDraft();
+    writeDraft(null);
+    if (draft) await this.api('delete_survey', {survey_id: draft.surveyId}).catch(() => {});
+    await this.loadHome();
   }
 
   viewHome() {
     const list = (this.surveys || []).slice().sort((a, b) => (b.survey_date || '').localeCompare(a.survey_date || '') || b.survey_id - a.survey_id);
     const s = this.settings || {};
+    const draft = readDraft();
+    const draftSurvey = draft && list.find(x => x.survey_id === draft.surveyId && x.title === draft.surveyTitle);
+    const shown = list.filter(x => !draftSurvey || x.survey_id !== draft.surveyId);
     const badge = x => x.review_current ? '<span class="badge current">검토 완료</span>' : '<span class="badge none">미검토</span>';
-    return `<section class="panel quick-hero"><h2>작업 사진 한 장으로 REBA와 법정 기준 초안을 만들어요</h2>
+    const draftCard = draftSurvey ? `<section class="panel quick-draft"><div><strong>작성 중이던 분석이 있어요</strong>
+      <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
+      <div class="quick-list-actions"><button class="primary" data-quick="resume">이어서 하기</button><button data-quick="discard-draft">버리기</button></div></section>` : '';
+    return `${draftCard}<section class="panel quick-hero"><h2>작업 사진 한 장으로 REBA와 법정 기준 초안을 만들어요</h2>
       <p>사진을 넣고, 로코의 질문에 버튼으로 답하면 결과와 Excel까지 이 화면에서 끝나요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>
-      <section class="panel"><h3>최근 분석</h3>${list.length ? `<ul class="quick-list">${list.map(x => `<li>
+      <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
         <div><strong>${esc(x.title || '제목 없음')}</strong><span>${esc(x.survey_date || '')} · 작업 ${x.task_count}개 ${badge(x)}</span></div>
         <div class="quick-list-actions"><button data-open="${x.survey_id}">열기</button>
         <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>
@@ -707,7 +808,7 @@ export class QuickFlow {
   viewReview() {
     const reviewed = this.survey?.review?.reviewed && this.survey?.review?.reviewed_metadata_revision === this.survey?.metadata_revision;
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel"><h3>① 조사자 결론</h3>
+      <div>${this.checklistPanel()}<section class="panel"><h3>① 조사자 결론</h3>
         <p class="quick-note">계산 초안을 보고 최종 해당 여부를 직접 정해요. 정하지 않으면 초안 그대로 남아요. 같은 버튼을 다시 누르면 취소돼요.</p>${this.criteriaRows(true)}</section>
       <section class="panel"><h3>② 검토 표시</h3>
         <div class="quick-setting-row"><label>검토자<input type="text" data-rev="reviewer" value="${esc(this.review.reviewer)}" placeholder="이름"></label>
