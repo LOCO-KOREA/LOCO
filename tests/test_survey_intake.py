@@ -40,7 +40,7 @@ class SurveyIntakeTests(unittest.TestCase):
             normalize_survey(survey)
 
     def test_only_disease_trigger_adds_form_based_sheets(self):
-        for cause,expected in [('NEW_TASK_OR_EQUIPMENT',4),('DISEASE_CASE',6)]:
+        for cause,expected in [('NEW_TASK_OR_EQUIPMENT',5),('DISEASE_CASE',7)]:
             with self.subTest(cause=cause), tempfile.TemporaryDirectory() as folder:
                 survey=normalize_survey(base_survey(survey_type='OCCASIONAL',occasional_cause=cause))
                 survey['participation']={'status':'YES','role':'AFFECTED_WORKER','participant_code':'W-1','method':'INTERVIEW','date':'2026-10-23','notes':'작업 방법 의견'}
@@ -74,8 +74,11 @@ class SurveyIntakeTests(unittest.TestCase):
                         self.assertIn('목 통증정도', [cell.value for cell in symptoms[3]])
                         self.assertEqual(symptoms.cell(4,1).value,'익명-001')
                         self.assertIsNone(symptoms.cell(4,2).value)
-                        self.assertIn('BOTH',[cell.value for cell in symptoms[4]])
-                        self.assertIn('WEEK_TO_MONTH',[cell.value for cell in symptoms[4]])
+                        values=[cell.value for cell in symptoms[4]]
+                        self.assertIn('양쪽',values)
+                        self.assertIn('1주일~1개월 미만',values)
+                        self.assertNotIn('BOTH',values)
+                        self.assertNotIn('WEEK_TO_MONTH',values)
                 finally:
                     book.close()
 

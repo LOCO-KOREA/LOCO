@@ -39,10 +39,12 @@ SERVICE_METHODS = {
     'edit_ai_text': (('analysis_id','text_id','text'), ()),
     'apply_ai_text': (('analysis_id','text_id','use_edited'), ()),
     'preview_excel': (('survey_id',), ('analysis_ids','comparisons')),
+    'preview_excel_sheets': (('survey_id',), ('analysis_ids','comparisons')),
     'export_excel': (('survey_id','spec'), ()),
     'list_export_logs': (('survey_id',), ()),
     'update_settings': (('settings',), ()),
     'quick_preview': (('task_id','views'), ()),
+    'quick_interpret': (('text',), ()),
 }
 
 
@@ -68,5 +70,7 @@ def validate_request(method, params):
         raise ValueError('사진 경로는 문자열, 동의는 YES/NO/UNKNOWN이어야 합니다')
     if method=='quick_preview' and (not isinstance(params['views'],dict) or not params['views'] or set(params['views'])-{'LEFT','FRONT','RIGHT'} or any(type(v) is not int or v<1 for v in params['views'].values())):
         raise ValueError('views는 LEFT·FRONT·RIGHT 중 하나 이상의 사진 ID여야 합니다')
+    if method=='quick_interpret' and (not isinstance(params['text'],str) or not 1<=len(params['text'].strip())<=600):
+        raise ValueError('작업 설명은 1~600자 문장이어야 합니다')
     if method=='set_survey_review' and (not isinstance(params['review'],dict) or type(params['review'].get('reviewed')) is not bool):
         raise ValueError('검토 여부는 참/거짓이어야 합니다')

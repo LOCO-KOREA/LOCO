@@ -68,6 +68,13 @@ def _export_snapshot(ctx, survey_id, analysis_ids, include=True, comparisons=Non
 def handle_preview_excel(ctx, method, p):
     return report.overview(ctx.export_snapshot(p['survey_id'], p.get('analysis_ids', []), comparisons=p.get('comparisons', [])))
 
+def handle_preview_excel_sheets(ctx, method, p):
+    """The plain sheets exactly as the Excel file will contain them. Reads only: nothing is saved or logged."""
+    snapshot = ctx.export_snapshot(p['survey_id'], p.get('analysis_ids', []), comparisons=p.get('comparisons', []))
+    survey = snapshot['survey']
+    forms = ['별지1 유해요인조사표', '별지2 증상조사표'] if survey.get('survey_type') == 'OCCASIONAL' and survey.get('occasional_cause') == 'DISEASE_CASE' else []
+    return dict(sheets=report.plain_sheets(snapshot, report.overview(snapshot)), form_sheets=forms)
+
 def handle_export_excel(ctx, method, p):
     spec = p['spec']
     snap = ctx.export_snapshot(p['survey_id'], spec['analysis_ids'], spec['include_representative'], spec.get('comparisons', []))

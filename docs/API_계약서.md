@@ -313,6 +313,8 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | list_export_logs | survey_id | ExportLogItem[] |
 | get_settings / update_settings | 없음 / settings:SettingsUpdate | Settings |
 | quick_preview | task_id,views:{LEFT?,FRONT?,RIGHT?:ID} | QuickPreview (저장하지 않음: 사진별 관절·방향 추정, 측면 근측 범주, 정면·후면 기울임 제안, 부담 없음 가정 1차 REBA, 규칙 기반 질문) |
+| preview_excel_sheets | survey_id,analysis_ids?,comparisons? (preview_excel과 같은 선택) | ExcelPreview {sheets:[{name,title,lead,tables:[{heading,columns,rows,widths}],notes}],form_sheets} (저장하지 않음: export_excel이 만드는 시트와 같은 내용. 대표 사진 이미지만 파일에만 들어간다) |
+| quick_interpret | text (1~600자 작업 설명 한 문장) | QuickIntake {items,dropped,reason} (저장하지 않음: 문장을 조사표 칸으로 옮긴 값. 모든 값은 문장 속 근거 구절과 함께 오며 근거가 문장에 없거나 범위를 벗어난 값은 버린다. 문장만 AI에 보내고 별도 스레드로 응답한다) |
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
 

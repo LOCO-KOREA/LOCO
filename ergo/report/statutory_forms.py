@@ -1,4 +1,19 @@
-"""Conditional form-based sheets for disease-triggered surveys."""
+"""Conditional form-based sheets for disease-triggered surveys. Stored codes are written as Korean words."""
+from .display import VALUE
+from .labels import CRITERIA
+
+# Words for the symptom survey options (the standard form's own wording where it has one).
+SYMPTOM = {'NONE': '없음', 'MALE': '남', 'FEMALE': '여', 'UNKNOWN': '모름', 'LEFT': '왼쪽', 'RIGHT': '오른쪽', 'BOTH': '양쪽',
+           'LT_1_DAY': '1일 미만', 'DAY_TO_WEEK': '1일~1주일 미만', 'WEEK_TO_MONTH': '1주일~1개월 미만', 'MONTH_TO_6_MONTHS': '1개월~6개월 미만', 'GE_6_MONTHS': '6개월 이상',
+           'MILD': '약한 통증', 'MODERATE': '중간 정도 통증', 'SEVERE': '심한 통증', 'VERY_SEVERE': '매우 심한 통증',
+           'LT_1_HOUR': '1시간 미만', '1_TO_2_HOURS': '1~2시간', '2_TO_3_HOURS': '2~3시간', 'GE_3_HOURS': '3시간 이상'}
+SITE_NAMES = {'neck': '목', 'shoulder': '어깨', 'arm_elbow': '팔/팔꿈치', 'hand_wrist': '손/손목/손가락', 'back': '허리', 'leg_foot': '다리/발'}
+
+
+def _word(value):
+    return SYMPTOM.get(value, VALUE.get(value, value)) if isinstance(value, str) else value
+
+
 def _append_statutory_forms(workbook, snapshot):
     """Add form-oriented appendices only for the Article 657(2)(1) survey trigger."""
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -16,8 +31,8 @@ def _append_statutory_forms(workbook, snapshot):
     form.append(['나. 작업장 상황 조사'])
     form.append(['항목', '변경 여부', '주요 변경 내용'])
     for key, label in [('equipment', '작업 설비'), ('workload', '작업량'), ('speed', '작업 속도'), ('work_pattern', '업무 형태')]:
-        form.append([label, situation.get(key + '_status', 'UNKNOWN'), situation.get(key + '_notes', '')])
-    form.append(['근로자 참여', participation.get('status'), participation.get('role'), participation.get('participant_code'), participation.get('method'), participation.get('date'), participation.get('notes')])
+        form.append([label, _word(situation.get(key + '_status', 'UNKNOWN')), situation.get(key + '_notes', '')])
+    form.append(['근로자 참여', _word(participation.get('status')), _word(participation.get('role')), participation.get('participant_code'), _word(participation.get('method')), participation.get('date'), participation.get('notes')])
     form.append(['다. 작업조건 조사 · 작업별 작업방법/작업자세/작업시간 및 11개 기준 근거'])
     form.append(['작업명', '작업자 코드', '작업방법', '작업자세', '작업시간(분/일)', '작업강도(A)', '작업빈도(B)', 'A×B', '11개 기준 계산 초안', '관찰 유해요인·발생 원인', '개선 제안', '근거 메모'])
     analyses = {x['task_id']: x for x in snapshot.get('analyses', [])}
@@ -26,7 +41,7 @@ def _append_statutory_forms(workbook, snapshot):
         conditions = task.get('conditions') or {}
         statuses = []
         for item in ((analysis or {}).get('judgment') or {}).get('judgments', []):
-            statuses.append(f'{item.get('criterion_no')}호 {STATUS.get(item.get('effective_status') or item.get('computed_status'), item.get('effective_status') or item.get('computed_status'))}')
+            statuses.append(f'{CRITERIA.get(item.get('criterion_no'), '기준')}(법정 {item.get('criterion_no')}호) {STATUS.get(item.get('effective_status') or item.get('computed_status'), item.get('effective_status') or item.get('computed_status'))}')
         intensity = conditions.get('work_intensity')
         frequency = conditions.get('work_frequency')
         score = intensity * frequency if isinstance(intensity, int) and isinstance(frequency, int) else None
@@ -38,18 +53,18 @@ def _append_statutory_forms(workbook, snapshot):
     responses = symptom.get('responses') or []
     symptom_ws = workbook.create_sheet('별지2 증상조사표')
     symptom_ws.append(['근골격계질환 증상조사표 · 고용노동부고시 제2020-12호 별지 제2호서식 기반'])
-    symptom_ws.append(['조사', survey.get('title'), '조사일', symptom.get('date'), '조사 방법', symptom.get('method'), '응답자 수', symptom.get('respondent_count')])
+    symptom_ws.append(['조사', survey.get('title'), '조사일', symptom.get('date'), '조사 방법', _word(symptom.get('method')), '응답자 수', symptom.get('respondent_count')])
     sites = [('neck', '목'), ('shoulder', '어깨'), ('arm_elbow', '팔/팔꿈치'), ('hand_wrist', '손/손목/손가락'), ('back', '허리'), ('leg_foot', '다리/발')]
     headers = ['응답 코드', '성명(선택)', '연령', '성별', '현 직장 경력(개월)', '작업부서', '수행작업', '현재 작업 내용', '현재 작업 기간(개월)', '1일 근무시간', '휴식시간', '이전 작업', '이전 작업 기간(개월)', '여가·취미', '가사노동', '의사진단 이력', '사고·상해 이력', '상해 부위', '육체적 부담(1~5)', '지난 1년 작업관련 증상']
     for _, label in sites:
         headers.extend([f'{label} 방향', f'{label} 지속기간', f'{label} 통증정도', f'{label} 지난 1주'])
     symptom_ws.append(headers)
     for response in responses:
-        row = [response.get('response_code'), response.get('name'), response.get('age_years'), response.get('sex'), response.get('workplace_tenure_months'), response.get('department'), response.get('job'), response.get('current_work'), response.get('current_work_months'), response.get('daily_work_hours'), response.get('rest_breaks'), response.get('previous_work'), response.get('previous_work_months'), response.get('leisure_activities'), response.get('household_work'), response.get('medical_history'), response.get('injury_history'), ', '.join(response.get('injury_sites') or []), response.get('physical_burden'), response.get('work_related_symptoms_last_year')]
+        row = [response.get('response_code'), response.get('name'), response.get('age_years'), _word(response.get('sex')), response.get('workplace_tenure_months'), response.get('department'), response.get('job'), response.get('current_work'), response.get('current_work_months'), response.get('daily_work_hours'), response.get('rest_breaks'), response.get('previous_work'), response.get('previous_work_months'), response.get('leisure_activities'), _word(response.get('household_work')), _word(response.get('medical_history')), _word(response.get('injury_history')), ', '.join(SITE_NAMES.get(x, x) for x in response.get('injury_sites') or []), response.get('physical_burden'), _word(response.get('work_related_symptoms_last_year'))]
         regions = response.get('regions') or {}
         for site, _ in sites:
             detail = regions.get(site) or {}
-            row.extend([detail.get('side'), detail.get('duration'), detail.get('severity'), detail.get('last_week')])
+            row.extend([_word(detail.get('side')), _word(detail.get('duration')), _word(detail.get('severity')), _word(detail.get('last_week'))])
         symptom_ws.append(row)
     symptom_ws.append(['기재 요령', '응답 코드 사용을 권장합니다. 개인 식별정보·건강정보가 포함된 파일은 접근을 제한하세요. 진단을 대신하거나 질환을 판정하는 설문이 아닙니다.'])
     for ws in (form, symptom_ws):

@@ -104,7 +104,9 @@ def export(worker, survey_id, ids, name):
 
 def main():
     manifest = json.loads((PACKAGE / 'build-manifest.json').read_text(encoding='utf-8'))
-    assert manifest['source_has_local_changes'] is True
+    # A committed-source build (false) is the delivery candidate; a build with local changes (true) is a development check.
+    assert isinstance(manifest['source_has_local_changes'], bool)
+    print('build source:', manifest['source_commit'][:8], 'local changes:', manifest['source_has_local_changes'], flush=True)
     assert digest(MODEL) == manifest['model_sha256'] == '0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab'
     frontend_count = 0
     for relative, expected in manifest['source_sha256'].items():
