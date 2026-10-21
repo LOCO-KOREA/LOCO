@@ -223,6 +223,42 @@ async function main() {
     assert.ok(nodes.path.textContent || nodes.status.textContent);
   });
 
+  await check('shared notice is hidden on startup/success, omits paths on failure, and clears after recovery', async () => {
+    const {element} = host(), notice = node(); let connected = true;
+    const ui = new DatabaseLocation({element, noticeElement: notice, bridge: rendererBridge({
+      get_database_info: async () => ok({...fileLocation, connected, error: connected ? null : {code: 'DB_ERROR', message: fileLocation.path + ' access denied'}}),
+    })});
+    assert.equal(notice.hidden, true);
+    await ui.initialize(); assert.equal(notice.hidden, true);
+    connected = false; await ui.act('refresh');
+    assert.equal(notice.hidden, false);
+    assert.match(notice.innerHTML, /다시 확인/);
+    assert.ok(!notice.innerHTML.includes(fileLocation.path), 'global notice must not expose the path or backend error');
+    connected = true; await ui.act('refresh');
+    assert.equal(notice.hidden, true); assert.equal(notice.innerHTML, '');
+  });
+
+  await check('clipboard/folder failures stay in settings; DB action failure raises the connection notice', async () => {
+    const {element} = host(), notice = node(); let code = 'FILE_ERROR';
+    const ui = new DatabaseLocation({element, noticeElement: notice, bridge: rendererBridge({
+      get_database_info: async () => ok({...fileLocation, connected: true, error: null}),
+      open_database_folder: async () => error(code, '실패'),
+    })});
+    await ui.initialize(); await ui.act('openFolder'); assert.equal(notice.hidden, true);
+    code = 'DB_ERROR'; await ui.act('openFolder'); assert.equal(notice.hidden, false);
+  });
+
+  await check('preview stays quiet and a rejected connection query shows only a generic notice', async () => {
+    const {element} = host(), notice = node();
+    await new DatabaseLocation({element, noticeElement: notice, bridge: null}).initialize();
+    assert.equal(notice.hidden, true);
+    const ui = new DatabaseLocation({element, noticeElement: notice, bridge: rendererBridge({
+      get_database_info: async () => { throw new Error(fileLocation.path + ' service failed'); },
+    })});
+    await ui.initialize(); assert.equal(notice.hidden, false);
+    assert.ok(!notice.innerHTML.includes(fileLocation.path));
+  });
+
   console.log(`PASS ${passed.length} independent database-location checks; no database files opened or written`);
 }
 main().catch(reason => { console.error(reason); process.exitCode = 1; });

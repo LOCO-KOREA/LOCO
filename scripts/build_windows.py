@@ -15,6 +15,29 @@ ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA = '0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab'
 
 
+def set_executable_icon(executable, icon):
+    """Update only the new output copy, including its existing icon languages."""
+    import pefile
+    from PyInstaller.utils.win32.icon import IconFile, win32api
+    source = IconFile(str(icon))
+    with pefile.PE(str(executable), fast_load=True) as image:
+        image.parse_data_directories(directories=[2])
+        directory = getattr(image, 'DIRECTORY_ENTRY_RESOURCE', None)
+        groups = [(name.id if name.name is None else str(name.name), language.id)
+                  for entry in (directory.entries if directory else []) if entry.id == 14
+                  for name in entry.directory.entries for language in name.directory.entries]
+    handle = win32api.BeginUpdateResource(str(executable), False)
+    try:
+        for group_id, language in groups or [(1, 0)]:
+            win32api.UpdateResource(handle, 14, group_id, source.grp_icon_dir() + source.grp_icondir_entries(1), language)
+            for index, data in enumerate(source.images, 1):
+                win32api.UpdateResource(handle, 3, index, data, language)
+    except Exception:
+        win32api.EndUpdateResource(handle, True)
+        raise
+    win32api.EndUpdateResource(handle, False)
+
+
 def main():
     if sys.platform != 'win32' or sys.version_info[:2] != (3, 12):
         raise SystemExit('Build with CPython 3.12 x64 on Windows.')
@@ -24,6 +47,9 @@ def main():
     electron = ROOT / 'frontend' / 'node_modules' / 'electron' / 'dist'
     if not (electron / 'electron.exe').is_file():
         raise SystemExit('Run npm --prefix frontend ci and initialize Electron first.')
+    icon = ROOT / 'frontend' / 'assets' / 'app-icon.ico'
+    if not icon.is_file():
+        raise SystemExit('Missing LOCO Windows icon: frontend/assets/app-icon.ico')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     work = ROOT / 'build' / ('windows-' + stamp)
     work.mkdir(parents=True)
@@ -37,6 +63,7 @@ def main():
     output = ROOT / 'dist' / ('LOCO-2.0-windows-x64-' + stamp)
     shutil.copytree(electron, output)
     (output / 'electron.exe').rename(output / 'LOCO.exe')
+    set_executable_icon(output / 'LOCO.exe', icon)
     resources = output / 'resources'
     app = resources / 'app'
     frontend = app / 'frontend'
@@ -56,7 +83,7 @@ def main():
     manifest['source_sha256']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
                                for base in ('ergo','frontend') for p in (ROOT/base).rglob('*')
                                if p.is_file() and not any(part in ('node_modules','.local','__pycache__') for part in p.parts)
-                               and p.suffix in ('.py','.js','.cjs','.html','.css','.sql','.json')}
+                               and p.suffix in ('.py','.js','.cjs','.html','.css','.sql','.json','.svg','.png','.ico')}
     manifest['source_sha256']['docs/ui/loco-guide.js']=hashlib.sha256((ROOT/'docs/ui/loco-guide.js').read_bytes()).hexdigest()
     manifest['contract_version']='2.0'
     manifest['electron']=json.loads((ROOT/'frontend/node_modules/electron/package.json').read_text(encoding='utf-8'))['version']
