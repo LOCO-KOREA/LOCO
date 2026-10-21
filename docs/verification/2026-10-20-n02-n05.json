@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-20",
+  "base_commit": "d5fe9d96c05bae930930346381b6a8f9c03e6b78",
+  "source_has_local_changes": true,
+  "scope": "N02 DB location display/copy/open only; N05 development-PC portable-service smoke",
+  "source_sha256": {
+    "frontend/database-location.js": "2ddabeb8e4c82ebd1fda47823a5425842666225fb518b7ec59cf78f68bed7a6a",
+    "frontend/electron/database-location.cjs": "7e2dfc2a1120b29311bda1e9fe48983546c80df932c399bdd4cb2d7b39059d8b",
+    "frontend/electron/main.cjs": "e3203c62b7f2a54801003ec830b38bda32893653f2aece89e37912f7d4653831",
+    "frontend/electron/preload.cjs": "31ab324b029858bee2662ba70201937568cb0926e550382df7bebf3420e106e9",
+    "frontend/desktop.js": "2508eb8522580f41ba7514622e97f6f792a55696dbfc2d59a2cfd084eecdb0bd",
+    "frontend/design-system.css": "85e29cd74a573e3f9166c08856d08534eb34514bb73fd08fdf9d389afbc93f6b",
+    "frontend/package.json": "bf8a8e13081f1a7e138c393ec16e26a8c39b9241e26b3956d286414743b41793",
+    "tests/frontend-database-location.cjs": "99e3b95a6d162f63e1cf7d769ed29c200b900b6661c4007457f54f2de0b859ff",
+    "tests/desktop-database-integration.cjs": "133628b1c1a15e46b7ed720e0ef16f394ec2ac01a94ba48c87330b0916e476b2",
+    "tests/portable-service-smoke.py": "6ff199ca943d13db01c1c49969bae98f2a76a4ce0dd804f69488f92aa521ba5c"
+  },
+  "package_name": "LOCO-2.0-windows-x64-20261020T065230326242Z",
+  "package_zip_sha256": "b06384a4a2f698dd0574e8cc0f2c207e74a1388f0f83f75ab0116aecc0db6ce1",
+  "app_exe_sha256": "1f41127064012c5e74422b2e0dfc35ff0b0fe8d7908b97d01503becd1b7fa9e1",
+  "service_exe_sha256": "873cad46ae1a9ef4c89960c1b80fe675eab286cabd6ca03573091e5b20eab1b0",
+  "model_sha256": "0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab",
+  "passed": [
+    "frontend existing regression suites",
+    "15 independent location counterexamples",
+    "5 real main/preload/Python/SQLite integration cases with mocked native OS adapters",
+    "frontend syntax/assets build",
+    "40-method API audit",
+    "7 final-package frozen-service checks with restricted PATH and synthetic white PNG"
+  ],
+  "not_verified": [
+    "native window layout and button clicks: screen capture timed out twice",
+    "clean separate Windows PC",
+    "real external GPT account",
+    "real task-photo accuracy",
+    "physical print",
+    "designated teammate cross-verification"
+  ],
+  "remaining": [
+    "N02 DB selection/switching and unsaved-input handling",
+    "N05 committed-source rebuild and separate-PC end-to-end checks"
+  ]
+}

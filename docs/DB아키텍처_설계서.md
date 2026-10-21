@@ -12,6 +12,8 @@ Electron renderer → preload → main → Python Application Service → task_i
 
 여섯 테이블의 기존 컬럼을 유지하고 2.0의 조건 행·분석 범위·모듈 상태·GPT 이력·전후 비교와 조사 맥락·참여·증상 응답은 JSON에 넣는다. 물리 migration은 없다. 세부 매핑은 [ERD](ERD_데이터설계서.md), 서비스 계약은 [API](API_계약서.md)를 따른다.
 
+N02의 DB 위치 표시는 Electron 시작 시 결정한 절대경로를 Python의 `LOCO_DB_PATH`에 그대로 전달해 일치시킨다. 기존 기본 경로·통합 실행의 명시 DB 지정과 여섯 테이블은 유지한다. 연결 확인은 기존 서비스 조회 결과를 사용하고, 복사·폴더 열기는 main이 보관한 경로에만 수행한다. DB 선택·전환·자동 복사·병합은 추가하지 않는다.
+
 ## 2. 현재 실행 경로와 목표 배포
 
 | 항목 | 기준 main e7b0cf1 | 현재 2.0 브랜치 |

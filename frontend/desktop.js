@@ -1,3 +1,4 @@
+import {DatabaseLocation} from './database-location.js';
 import {SurveyEditor} from './survey-editor.js';
 import {createDeleteConfirmation} from './delete-confirmation.js';
 import {SCREENS, isAnalysisScreen} from './screens.js';
@@ -113,7 +114,9 @@ const taskUI=new TaskWorkspace({api,notify,confirmDeletion,onOpenPhotos:taskId=>
 const photoUI=new PhotoWorkspace({api,notify,clearError,onError:showError,onBack:()=>tasks('conditions',true),onAnalyze:startPhotoAnalysis,onOpenPage:(id,taskId)=>navigateScreen(id,taskId,true),surveyTitle:()=>state.details.get(state.selected)?.title||'',setTitle:(title,description)=>{$('#title').textContent=title;$('.page-title p').textContent=description;},onSaved:task=>{if(taskUI.current?.task_id===task.task_id){taskUI.current=structuredClone(task);taskUI.saved=structuredClone(task);taskUI.buffers.delete(task.task_id);}}});
 const dashboardUI=new DashboardWorkspace({api,onError:showError,onNew:newSurvey,onList:()=>page('S02'),onOpen:(surveyId,taskId)=>perform(async()=>{await selectSurvey(surveyId);if(taskId){await tasks('conditions',false,taskId);}else page('S02');window.scrollTo({top:0});})});
 const analysisUI=createAnalysisWorkspace({element:$('#analysis-workspace'),api,notify,onLeave:id=>navigateScreen(id),onPhotoInput:async({taskId,path,slotNo})=>{await photos(taskId);photoUI.focusInput(path,slotNo);},onInput:async({taskId,path})=>{await tasks();if(taskUI.current?.task_id!==taskId)await taskUI.load(taskId);await taskUI.focusInput(path);},onNavigate:(id,info)=>{page(id);$('#title').textContent=info[0];$('.page-title p').textContent=info[2];}});
+const databaseLocation=new DatabaseLocation({element:$('#environment'),bridge:window.loco});
+databaseLocation.initialize();
 fill(blank());page('S01');rows();
 if(!window.loco&&new URLSearchParams(location.search).get('screen')==='photos'){page('S05');photoUI.preview();}
 if(!window.loco&&['task','conditions'].includes(new URLSearchParams(location.search).get('screen'))){taskUI.preview();taskUI.screen=new URLSearchParams(location.search).get('screen')==='conditions'?'conditions':'info';taskUI.render();}
-if(!window.loco){$('#connection').textContent='브라우저 미리보기';$('#environment').textContent='화면 미리보기 · 실제 저장과 조회는 Electron 앱에서 실행하세요.';}else perform(async()=>{await refresh();await analysisUI.initialize();});
+if(!window.loco){$('#connection').textContent='브라우저 미리보기';}else perform(async()=>{await refresh();await analysisUI.initialize();});
