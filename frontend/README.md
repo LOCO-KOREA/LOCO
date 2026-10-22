@@ -83,3 +83,7 @@ E2E 시험 창이 화면에 뜨지 않게 하려면 `LOCO_HIDDEN=1`을 설정합
 `npm --prefix frontend run test:adaptive:full-live`는 실제 외부 OpenAI까지 연결해 입력 → 후속 답변 → 저장값 수정 → 모름 → 재실행 → 결과 → AI 설명 적용 → 검토 → Excel → 재실행을 검증한다. 기존 프로세스의 `OPENAI_API_KEY`, 시험용 `LOCO_LIVE_AI=1`, `LOCO_LIVE_MODEL`이 필요하며, DB/프로필은 `.local/full-live-e2e-*`에 따로 만든다. 항상 화면 밖·초점 불가 Electron 창으로 실행하여 사용자의 마우스·키보드·기존 앱 창을 조작하지 않는다. 사진/저장 경로를 선택하는 네이티브 파일 대화상자만 자동 지정한다. 성공 후 `python tests/verify_local_artifacts.py <검증 폴더> 1`로 SQLite와 실제 Excel을 독립 대조한다.
 
 AI 모델·추론 강도·시간/토큰 한도는 내부 설정 기능에서 바꾸며 공통 계약 `ergo/ai_config.py` → `get_settings.gpt_contract` → `ai-settings.js`를 쓴다. 초기 환경변수는 `LOCO_AI_MODEL`, `LOCO_AI_REASONING_EFFORT`, `LOCO_AI_TIMEOUT_SECONDS`, `LOCO_AI_MAX_OUTPUT_TOKENS`이고 저장된 설정이 우선한다. 현 기본값 gpt-6-luna/xhigh를 입력 정리·추가 질문·설명 생성 모두 공유한다. Live 시험의 `LOCO_LIVE_MODEL`과 `LOCO_LIVE_REASONING_EFFORT`로 요청 조합을 명시하고 실제 응답 모델/effort를 receipt에서 확인한다.
+
+## 내부 PDF 구현과 사용자 출력
+
+사용자 출력은 Excel 미리보기·저장을 유지합니다. 간편·고급 화면에는 PDF 모드·카드·버튼·미리보기 진입을 표시하지 않습니다. PDF 모듈과 `preview_pdf`/`export_pdf` API는 호환을 위한 내부 구현으로 유지합니다. 내부 PDF 구현을 실행하는 개발 환경에는 `requirements-desktop.txt`의 reportlab/pypdf와 `ergo/report/templates`, assets가 필요합니다. 내부 PDF는 원본 칸을 넘는 긴 작성 내용만 별첨에 보존하고, 분석 상세·빈 사진 슬롯·보완사항은 자동으로 붙이지 않습니다.

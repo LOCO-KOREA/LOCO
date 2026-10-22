@@ -25,7 +25,8 @@ def respond(request, operation=None, preparation_error=None):
         traceback.print_exc(file=sys.stderr)
         code = ('DB_ERROR' if isinstance(error, sqlite3.Error) else
                 'NOT_FOUND' if isinstance(error, LookupError) else
-                'EXPORT_ERROR' if request.get('method') == 'export_excel' else
+                'EXPORT_ERROR' if (request.get('method') == 'export_excel' or
+                    request.get('method') in ('preview_pdf','export_pdf') and not isinstance(error,ValueError)) else
                 'MODEL_ERROR' if request.get('method') == 'start_analysis' else 'FILE_ERROR')
         result = dict(ok=False, error=dict(code=code, message=str(error)))
     with _write_lock:
@@ -36,7 +37,7 @@ def respond(request, operation=None, preparation_error=None):
 def handle(request):
     """Capture background request targets in IPC order before running workers."""
     method = request.get('method')
-    if isinstance(method, str) and (method in RECALCULATION_METHODS or method in ('generate_ai_text', 'quick_interpret', 'intake_turn')):
+    if isinstance(method, str) and (method in RECALCULATION_METHODS or method in ('generate_ai_text', 'quick_interpret', 'intake_turn', 'preview_pdf', 'export_pdf')):
         try:
             operation = prepare_dispatch(method, request.get('params', {}))
         except Exception as error:

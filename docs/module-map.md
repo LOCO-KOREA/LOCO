@@ -31,3 +31,13 @@
 `ergo/ai_config.py`는 저장/SDK 의존이 없는 공통 AI 설정 계약이다. 서비스와 저장 계층은 이 순수 계약의 키/값만 소비한다. `ergo/gpt/{client,intake}.py`는 같은 요청 옵션을 SDK에 전달하고, `frontend/ai-settings.js`는 get_settings.gpt_contract의 필드/타입/선택지로 내부 설정을 렌더링/저장한다. 모델명·추론 강도·시간/토큰 제한은 프론트/개별 AI 모듈에서 중복 정의하지 않는다.
 
 사용자용 간편 홈 설정 영역과 상단 S10 설정 탭은 표시하지 않는다. `screens.js`의 S10은 내부 화면 계약으로 유지하고 메뉴 렌더링에서 제외하며, 저장된 AI·분석·UI 설정과 서비스 호출은 유지한다.
+
+## 내부 PDF 출력 모듈 (2026-10-22)
+
+사용자 출력 흐름은 Excel을 유지한다. 간편·고급 화면에는 PDF 모드·카드·버튼·미리보기 진입을 표시하지 않는다. 다음 PDF 모듈과 서비스 API는 호환을 위한 내부 구현으로 유지한다.
+
+- ergo/report/form_mapping.py: 고정 snapshot → 원본 칸·앱용 미확정 안내. 규칙 계산 없음.
+- ergo/report/pdf.py: 원본 배경에 글자·체크·사진을 배치하고 칸을 넘는 작성 내용만 별첨 생성.
+- ergo/service/pdf_exports.py: 선택 검증·요청 순서의 snapshot 준비·PDF 미리보기/원자적 파일 교체·기존 출력 이력.
+- frontend/pdf-export.js: 대상 고정·중복 요청 억제·저장 취소·실제 PDF 표시를 위한 내부 구현. 사용자 화면에서는 연결하지 않는다.
+- templates/assets: 원본 해시, 빈 양식, PDF용 한글 글꼴과 라이선스.

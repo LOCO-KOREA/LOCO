@@ -1,0 +1,12 @@
+{
+  "source_pdf_sha256": "33b95520c34d5e8d9d6c0f8e27ef711af46c1dbc8cfb64b5b87ceb37b67dd115",
+  "template_sha256": "616a7416e6e46b7f106d40f970ae6621c0e51ba49a97a791cc50f74ee290a009",
+  "font_source": "frontend/assets/fonts/PretendardVariable.woff2",
+  "font_source_sha256": "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4",
+  "font_axes": {
+    "wght": 400.0
+  },
+  "font_name": "Loco PDF Korean Regular",
+  "font_license": "SIL OFL 1.1; reserved source font name removed from font naming records",
+  "font_sha256": "3cc691682e4adc9f64fd754cd546d3cf644d201e5494828a5df5e3bd53eed2df"
+}

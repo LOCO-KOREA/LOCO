@@ -312,6 +312,8 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | apply_ai_text | analysis_id,text_id,use_edited:boolean | AiTextView |
 | preview_excel | survey_id,analysis_ids:ID[],comparisons:ComparisonSpec[] | ReportOverview |
 | export_excel | survey_id,spec:ExportSpec | ExportReceipt |
+| preview_pdf | survey_id, spec:{task_ids,analysis_ids,include_representative} | PdfPreview (PDF 바이트의 data URL, page_count, warnings, overview, format:'PDF') |
+| export_pdf | survey_id, spec:{task_ids,analysis_ids,include_representative,destination} | PdfExportReceipt (PDF 저장·이력 추가) |
 | list_export_logs | survey_id | ExportLogItem[] |
 | get_settings / update_settings | 없음 / settings:SettingsUpdate | Settings |
 | quick_preview | task_id,views:{LEFT?,FRONT?,RIGHT?:ID} | QuickPreview (저장하지 않음: 사진별 관절·방향 추정, 측면 근측 범주, 정면·후면 기울임 제안, 부담 없음 가정 1차 REBA, 규칙 기반 질문) |
@@ -415,3 +417,23 @@ get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_
 전후 비교의 condition_changes는 작업 조건·분석 범위·법령 입력뿐 아니라 사진 배정/관찰, 수동 확인값, 분석 설정의 차이를 포함한다. 같은 프로토콜·양의 대상 수·양쪽 전체 완성·호환 REBA 규칙일 때만 후−전 점수 차이를 표시한다. 수동값/관찰/설정 변경을 생략해 동일 조건의 효과로 오인하게 하지 않는다.
 
 AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_settings.gpt_contract={version,fields,defaults}`다. `gpt_contract`와 `gpt_key_present`는 읽기 메타데이터로 DB에 저장하지 않는다. 이전 설정의 누락 필드는 공통 기본값으로 읽고 기존 명시값과 분석 snapshot은 보존한다. 실제 응답 메타데이터는 입력 session.last_ai 및 설명 connection에 저장한다. 설정 변경 후 이전 호출을 새 설정의 연결 성공으로 표시하지 않는다.
+
+## 원본 별지 1 PDF 출력 계약 (2026-10-22 개정안)
+
+사용자 보고서 흐름은 Excel 미리보기·저장을 유지한다. PDF 미리보기·저장은 간편·고급 사용자 화면에 노출하지 않으며, 아래 절은 내부 PDF API에만 적용한다. Excel API와 영수증 계약은 유지한다. 이 절은 PDF에 적용하며, 앞의 Excel 시트 설명은 Excel 출력에만 적용한다. 이 문서는 후보 코드에 대응하는 개정안이며 실제 main 반영·배포 완료 보고가 아니다.
+
+- 선택한 Task 한 건마다 원본 1·2·3쪽 양식을 만든다. 끝에 원본 작성방법을 한 번 붙인다. 기본 페이지 수는 3×선택 작업 수+1이며, 원본 칸을 넘는 긴 작성 내용이 있을 때만 별첨을 붙인다. 별도 하위 단위작업 모델은 추가하지 않는다.
+- Task 이름과 method_description을 작업명·작업내용으로 표시하고, 세부 작업을 나누어 입력하지 않은 Task는 전체 작업 한 행으로 평가한다. A/B 면담 점수를 여러 가상 단위작업에 복제하지 않으며, 둘 다 1~5 정수일 때만 곱한다. null은 공란이다.
+- task_ids는 비어 있지 않은 중복 없는 양의 정수 목록, analysis_ids는 선택 Task당 최대 하나다. 타 조사/선택 밖 Task 분석은 거부한다. 명시 선택이 없으면 최신 분석, 분석이 없으면 출력 시점 입력을 사용한다. include_representative는 bool이다.
+- 분석이 있으면 그 분석 snapshot, 없으면 Task 입력을 읽는다. 과거 분석을 현재 입력으로 바꾸지 않는다. 조사 메타와 Task/분석 선택은 요청 순서대로 snapshot에 고정한 뒤 PDF 생성만 별도 스레드에서 처리한다.
+- 원본 칸의 부담작업 호는 조사자 APPLICABLE 결론만 표시한다. 계산 초안·조사자 결론 상세·미확정 상태는 앱에서 구분하며 PDF 별첨으로 나열하지 않는다. 공란을 비해당 확정으로 보지 않는다. worker_code는 실명으로 출력하지 않는다.
+- 작업장 상황 YES만으로 줄음/늘어남/기타를 추정하지 않는다. 원본에 대응할 수 없는 입력은 앱에 보존한다. 원본 칸에 대응하는 작성 내용이 칸을 넘을 때만 전체 원문을 별첨에 보존하고 해당 칸에 별첨 참조를 표시한다. 유해요인·발생 원인을 호 번호/GPT로 생성하거나 임의로 분해해 짝짓지 않는다.
+- 대표 사진을 요청한 경우 선택 snapshot의 대표 슬롯 사진만 포함한다. 누락·손상은 명시하고 다른 사진으로 대체하지 않는다. 사진 미포함 요청에서는 파일을 읽지 않는다.
+- 입력한 노출량·조건 행·수동 관찰값·REBA·적용한 설명·빈 사진 슬롯·내부 식별번호·보완사항은 PDF에 자동 별첨하지 않는다. 경고·완전성 상태는 기존 API 응답과 앱에 유지한다. 원본 서식 칸에 REBA나 AI 설명을 끼워 넣지 않는다. 전후 비교는 기존 화면/Excel 흐름을 유지하며 이번 PDF API는 비교 매개변수를 받지 않는다.
+- PDF 미리보기는 파일/이력을 만들지 않는다. 실제 저장은 새 snapshot을 사용하므로 미리보기 뒤 변경된 입력은 실제 영수증이 기준이다. 저장 창 취소는 서비스 저장 요청을 보내지 않는다.
+- PdfPreview는 `{report_version:'2.0',format:'PDF',template_version,template_sha256,page_count,task_ids,analysis_ids,warnings,overview,data_url,...ReportState}`다. data_url은 application/pdf base64이다.
+- PdfExportReceipt는 미리보기와 같은 메타에서 overview/data_url을 제외하고 `{export_id,file_path,created_at}`을 더한다. 실제 파일 저장 후 기존 EXPORT_LOG에 snapshot_json/receipt_json 새 행을 추가한다. format이 없는 과거 영수증은 Excel로 읽는다. 기존 snapshot과 이력은 재작성하지 않는다.
+- PDF 바이트 생성 후 임시 파일을 최종 경로로 교체한다. 생성·쓰기 실패에 성공 이력을 만들지 않는다. 파일 생성 후 로그 실패는 파일 경로를 포함한 DB 오류다. 잘못된 PDF 입력은 기존 입력 오류 경계를 따르고, PDF 생성 실패는 EXPORT_ERROR다.
+- 개발용 시스템 글꼴 경로와 Downloads 경로에 의존하지 않는다. 원본 출처 해시·빈 양식·배포 가능한 한글 글꼴을 자산으로 포함한다. 원본 3쪽의 예시는 실제 문자 객체에서 제거하고 작성방법 페이지는 보존한다.
+
+- 지연 PDF 저장은 출력 준비 때의 DB 경로를 유지하며, 이력 추가 트랜잭션에서 조사 생성시각도 함께 비교한다. 대상 조사가 삭제·교체됐다면 다른 조사에 이력을 붙이지 않고 파일 경로와 오류를 알린다. 이 구분은 서버가 부여한 created_at이 조사 수명별로 다르다는 기존 저장정보를 이용한다.

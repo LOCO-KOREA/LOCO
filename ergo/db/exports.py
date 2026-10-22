@@ -10,8 +10,12 @@ from .connection import open_db
 from .storage_common import _transaction, _dump, _load, JsonObject
 
 
-def create_export_log(survey_id: int, file_path: str, snapshot: JsonObject, receipt: JsonObject, created_at: str, *, db_path: str | None=None) -> int:
+def create_export_log(survey_id: int, file_path: str, snapshot: JsonObject, receipt: JsonObject, created_at: str, *, db_path: str | None=None, expected_survey_created_at: str | None=None) -> int:
     with _transaction(db_path) as connection:
+        if expected_survey_created_at is not None:
+            owner=connection.execute('SELECT created_at FROM SURVEY WHERE survey_id=?',(survey_id,)).fetchone()
+            if owner is None or owner['created_at'] != expected_survey_created_at:
+                raise LookupError('출력 대상 조사가 삭제되었거나 다른 기록으로 바뀌었습니다.')
         cursor = connection.execute('INSERT INTO EXPORT_LOG (survey_id, file_path, snapshot_json, receipt_json, created_at) VALUES (?, ?, ?, ?, ?)', (survey_id, file_path, _dump(snapshot), _dump(receipt), created_at))
         return int(cursor.lastrowid)
 
