@@ -5,7 +5,7 @@ from ergo.engine.task_defaults import COMMON, ARM, AUXILIARY_CONDITION_KEYS
 VERSION = 'ADAPTIVE_INTAKE_V1'
 SESSION_KEY = AUXILIARY_CONDITION_KEYS[0]
 METHODS = dict(contract='intake_contract', session='intake_session', turn='intake_turn')
-POLICY = dict(question_limit=1, text_limit=2400, timeout_seconds=20, max_output_tokens=3200,
+POLICY = dict(question_limit=1, text_limit=2400,
               default_condition='default', unknown='UNKNOWN', history_context_turns=8, auto_title_length=60)
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')

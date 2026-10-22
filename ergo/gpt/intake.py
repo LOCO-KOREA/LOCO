@@ -1,5 +1,6 @@
 """One contextual extraction and follow-up request using the shared intake contract."""
 import json
+from ergo import ai_config as config
 
 PROMPT_VERSION='LOCO_ADAPTIVE_INTAKE_V1'
 PROMPT=(
@@ -32,13 +33,14 @@ PROMPT=(
 )
 
 
-def request(payload,schema,model,api_key,policy):
+def request(payload,schema,model,api_key,settings=None):
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
         from openai import OpenAI
-        response=OpenAI(api_key=api_key,timeout=policy['timeout_seconds'],max_retries=0).responses.create(
-            model=model,max_output_tokens=policy['max_output_tokens'],input=[
+        transport,options=config.request_options(model,settings)
+        response=OpenAI(api_key=api_key,**transport).responses.create(
+            **options,input=[
                 dict(role='system',content=PROMPT),dict(role='user',content=json.dumps(payload,ensure_ascii=False,separators=(',',':')))],
             text=dict(format=dict(type='json_schema',name='loco_adaptive_intake',strict=True,schema=schema)))
         if getattr(response,'status',None)!='completed': return None,'INCOMPLETE_RESPONSE'
@@ -46,7 +48,7 @@ def request(payload,schema,model,api_key,policy):
         if not raw: return None,'REFUSAL_OR_EMPTY_RESPONSE'
         result=json.loads(raw)
         if not isinstance(result,dict) or not isinstance(result.get('answers'),list) or not isinstance(result.get('questions'),list): return None,'INVALID_STRUCTURED_CONTENT'
-        result['_connection']=dict(response_id=getattr(response,'id',None),model=getattr(response,'model',model))
+        result['_connection']=config.connection(response,model,settings)
         return result,None
     except ImportError: return None,'OPENAI_SDK_MISSING'
     except Exception as error:

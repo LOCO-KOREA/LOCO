@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from ergo.intake import contract, facts, planner
 from ergo.gpt import client
+from ergo import ai_config
 from ergo.engine.task_defaults import now
 from .quick import handle_quick_preview
 
@@ -57,6 +58,11 @@ def _prepare(ctx, task_id, requested_views=None):
         ctx.intake_previews[task_id]=(fingerprint,copy.deepcopy(preview))
     current_facts=facts.add_photo_facts(current_facts,preview,views)
     session.update(facts=current_facts,views=views,fingerprint=fingerprint,photo_signature=photo_signature)
+    selected=ai_config.values(ctx.settings())
+    signature={key:selected[key] for key in ai_config.KEYS}
+    if session.get('ai_settings')!=signature:
+        session.pop('last_ai',None)
+        session['ai_settings']=signature
     return task,session,preview
 
 
@@ -132,10 +138,11 @@ def handle_intake_turn(ctx,method,p):
             targets=contract.fields(),missing=assessment['candidates'],asked=focus,
             question_limit=contract.POLICY['question_limit'],
             prior_user_text=prior_texts)
-        raw,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),contract.POLICY)
+        raw,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)
     else: reason='DISABLED'
     session['last_ai']=dict(status=contract.AI_STATES[1] if isinstance(raw,dict) and reason is None else contract.AI_STATES[2],
-        model=settings.get('gpt_model'),reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
+        model=(raw or {}).get('_connection',{}).get('model') or settings.get('gpt_model'),reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
+        reasoning_effort=(raw or {}).get('_connection',{}).get('reasoning_effort'),requested_reasoning_effort=settings['gpt_reasoning_effort'],
         response_id=(raw or {}).get('_connection',{}).get('response_id'))
     with ctx.db_lock:
         latest=ctx.require('task',task['task_id'])
@@ -158,8 +165,10 @@ def handle_intake_turn(ctx,method,p):
         if not ok: return handle_intake_session(ctx,method,dict(task_id=p['task_id'])) | dict(reason='INPUT_CHANGED')
         payload.update(phase='FOLLOWUP',text='',known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
             missing=assessment['candidates'],asked=[],prior_user_text=[m['text'] for m in session['messages'][-contract.POLICY['history_context_turns']:] if m['text']])
-        followup,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),contract.POLICY)
+        followup,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)
         session['last_ai'].update(status=contract.AI_STATES[1] if isinstance(followup,dict) and reason is None else contract.AI_STATES[2],
+            model=(followup or {}).get('_connection',{}).get('model') or settings.get('gpt_model'),
+            reasoning_effort=(followup or {}).get('_connection',{}).get('reasoning_effort'),
             reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
             response_id=(followup or {}).get('_connection',{}).get('response_id'))
         if isinstance(followup,dict): session['suggestions']=followup.get('questions',[])

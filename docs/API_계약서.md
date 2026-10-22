@@ -256,12 +256,14 @@ type AiText = {
   text_id:string,is_active:boolean,purpose:AiPurpose,result:'GENERATED'|'FALLBACK'|'DISABLED',
   generated_text:string|null,edited_text:string|null,applied_text:string|null,
   applied_kind:'MODEL'|'INVESTIGATOR'|'FALLBACK'|null,content:ExplanationContent|null,
-  input_summary:NumericSummary,model:string,prompt_version:string,created_at:Timestamp,edited_at:Timestamp|null,applied_at:Timestamp|null,fallback_reason:string|null
+  input_summary:NumericSummary,model:string,reasoning_effort?:string,connection?:AiConnection|null,prompt_version:string,created_at:Timestamp,edited_at:Timestamp|null,applied_at:Timestamp|null,fallback_reason:string|null
 };
 type AiTextView = {text:AiText,source_current:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_key_present:boolean,ui:UiPreferences};
-type SettingsUpdate = Omit<Settings,'gpt_key_present'>;
+type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
+type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,gpt_key_present:boolean,ui:UiPreferences};
+type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'>;
 ~~~
 
 서비스가 저장된 결과로 NumericSummary를 만든다. 원본 사진·좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label을 보내지 않는다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
@@ -269,7 +271,7 @@ type SettingsUpdate = Omit<Settings,'gpt_key_present'>;
 Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모든 응답 필드를 required, additionalProperties=false로 정의한다. 설명 응답에 판정·점수 변경 필드를 두지 않는다. criteria는 1~11호를 각각 한 번 포함한다. 잘못된/중복/누락 호 번호·basis_refs·스키마는 대체 설명으로 처리한다. Responses API의 text.format에 type=json_schema, strict=true와 스키마를 지정한다. 구조 적합이 내용 정확성을 보장하지 않으므로 생성문은 조사자가 편집·적용한다.
 [OpenAI 공식 문서](https://developers.openai.com/api/docs/guides/structured-outputs)
 
-요청 전체 상한은 15초이며 SDK 자동 재시도는 끈다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
+입력 정리·후속 질문·설명은 `ergo/ai_config.py`의 공통 AI 설정을 쓴다. 모델·추론 강도·요청 시간·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / xhigh / 180초 / 32768토큰(추론 포함)이며, 저장된 설정이 환경 기본값보다 우선한다. SDK 자동 재시도는 끈다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
 
 ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교해 source_current를 반환한다. 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
@@ -322,7 +324,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 
 적응형 입력의 DTO·상태·단위·조건별 연결·저장 의미는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다. `conditions.intake_session`은 선택 JSON 메타데이터이며 실제 입력은 기존 legal/capture/manual/conditions에도 기록한다. `intake_contract`가 내보내는 변수와 catalogue를 프론트·서비스·AI 응답 schema가 공유한다.
 
-AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·모델·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다.
+AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·응답 모델·요청/응답 추론 강도·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다.
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
 
@@ -411,3 +413,5 @@ get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_
 모듈 구성과 의존 방향은 [모듈 지도](module-map.md)를 따른다. 설정 화면에서 관절 신뢰도와 기술각도를 명시 저장하면 관련 2.0 작업 revision이 한 번 증가한다. 계산 규칙/공식 모델 식별값은 구현과 다른 문자열로 바꿀 수 없다. 설명 목적은 생성·현재성·활성 적용을 각각 분리한다.
 
 전후 비교의 condition_changes는 작업 조건·분석 범위·법령 입력뿐 아니라 사진 배정/관찰, 수동 확인값, 분석 설정의 차이를 포함한다. 같은 프로토콜·양의 대상 수·양쪽 전체 완성·호환 REBA 규칙일 때만 후−전 점수 차이를 표시한다. 수동값/관찰/설정 변경을 생략해 동일 조건의 효과로 오인하게 하지 않는다.
+
+AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_settings.gpt_contract={version,fields,defaults}`다. `gpt_contract`와 `gpt_key_present`는 읽기 메타데이터로 DB에 저장하지 않는다. 이전 설정의 누락 필드는 공통 기본값으로 읽고 기존 명시값과 분석 snapshot은 보존한다. 실제 응답 메타데이터는 입력 session.last_ai 및 설명 connection에 저장한다. 설정 변경 후 이전 호출을 새 설정의 연결 성공으로 표시하지 않는다.

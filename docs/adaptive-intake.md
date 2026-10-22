@@ -23,7 +23,7 @@
 - `intake_session {task_id,views?}` → 세션 복원/생성, 사진 측정 저장, 현재 상태. `views`는 방향→같은 작업 사진 ID이며 빈 객체도 가능하다.
 - `intake_turn {task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at?}` → 직접 답변을 우선 저장하고, `plan`이 참이면 실제 AI로 설명 추출과 다음 질문을 요청한다. `plan=false`는 선택/숫자 입력 자동 저장 경로다. AI 실패 시에도 직접 답변과 기존 값은 유지한다.
 
-직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,complete,judgments,reba,preview,reason,dropped,messages,ai}`다. `ai`는 `{status,model,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED를 표시하지 않는다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
+직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,complete,judgments,reba,preview,reason,dropped,messages,ai}`다. `ai`는 `{status,model,reasoning_effort,requested_reasoning_effort,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED를 표시하지 않는다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
 
 각 fact는 `{target,condition,value,state,source,quote,updated_at,conflict?,angles?,origin?}`다. 상태는 KNOWN(사용 가능), ESTIMATED(사진에서 읽었으나 낮은 신뢰도/경계), UNKNOWN(모름·재확인), CONFLICT(서로 다른 진술)다. 출처는 USER/AI/MOVENET/SAVED다. 대상 항목의 type과 choices에서 모델 응답의 항목별 schema를 생성해 숫자/선택 값이 섞이지 않게 한다. 낮은 신뢰도 추정은 후보로 저장하고 한 번의 사용 선택으로 반영할 수 있다. 실제 관측값으로 몰래 승격하지 않는다.
 
@@ -50,3 +50,7 @@ AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target
 사진/모델 변경 시 영향을 받는 사진 추정만 재평가하며 작업 전체의 시간·횟수는 유지한다. 고급 편집에서 바뀐 실제 값은 세션보다 우선한다. 세션 이력은 작업 입력 변경으로서 snapshot에 보존하지만 전후 비교의 작업 조건 변화 목록에는 보조 세션 메타데이터를 펼쳐 쓰지 않는다.
 
 기존 `quick_preview`와 `quick_interpret`는 호환 호출로 남는다. 새 간편 흐름은 위 세 서비스와 모듈을 사용한다. 과거 localStorage 초안은 호환 경로로 열 수 있으며 새 자동 저장 값의 정본은 SQLite다.
+
+## 공통 AI 설정
+
+`ergo/ai_config.py`는 공급자 클라이언트·DB와 독립적인 설정 계약이다. get_settings의 gpt_contract.fields/defaults가 두 설정 화면과 모든 AI 요청에 공통으로 쓰인다. 입력 정리·후속 질문·설명/기존 한 줄 입력에 별도 모델·시간·토큰 상수를 두지 않는다. `LOCO_AI_MODEL`, `LOCO_AI_REASONING_EFFORT`, `LOCO_AI_TIMEOUT_SECONDS`, `LOCO_AI_MAX_OUTPUT_TOKENS`가 초기값을 지정하며 APP_SETTINGS JSON의 명시값이 우선한다. 현재 기본 조합은 `gpt-6-luna` / `xhigh`다. 추론 미지원 모델은 추론 강도를 빈 값(전송 안 함)으로 설정할 수 있고 자동 모델 대체는 하지 않는다. 키는 기존 OPENAI_API_KEY 환경에서만 읽는다. 설정 변경은 이전 연결 상태를 미요청으로 바꾸며 다음 요청의 실제 응답이 와야 다시 연결 성공으로 표시한다.

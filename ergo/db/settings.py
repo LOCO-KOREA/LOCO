@@ -8,6 +8,7 @@ from threading import local
 from typing import Any, Callable, Iterator, Mapping
 from .connection import open_db
 from .storage_common import _transaction, _invalidate_review, _dump, _load, _utc_now, JsonObject
+from ergo import ai_config
 
 
 def get_settings(*, db_path: str | None=None) -> dict[str, Any] | None:
@@ -16,7 +17,7 @@ def get_settings(*, db_path: str | None=None) -> dict[str, Any] | None:
         return _load(row['settings_json']) if row is not None else None
 
 def update_settings(settings: JsonObject, *, task_inputs: Mapping[int, JsonObject] | None=None, db_path: str | None=None) -> None:
-    persisted = {'analysis': settings['analysis'], 'gpt_enabled': settings['gpt_enabled'], 'gpt_model': settings['gpt_model'], 'ui': settings['ui']}
+    persisted = dict(analysis=settings['analysis'],ui=settings['ui'],**ai_config.values(settings))
     with _transaction(db_path) as connection:
         connection.execute('BEGIN IMMEDIATE')
         connection.execute('INSERT INTO APP_SETTINGS (settings_id, settings_json) VALUES (1, ?) ON CONFLICT(settings_id) DO UPDATE SET settings_json = excluded.settings_json', (_dump(persisted),))

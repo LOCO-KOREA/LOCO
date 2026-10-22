@@ -19,7 +19,7 @@ IGNORE = shutil.ignore_patterns(
 TESTS = [
     "tests.test_v2_rules", "tests.test_v2_service", "tests.test_v2_gpt",
     "tests.test_v2_reba", "tests.test_json_lines_integration",
-    "tests.test_persistence_regressions", "tests.test_adaptive_intake",
+    "tests.test_persistence_regressions", "tests.test_adaptive_intake", "tests.test_ai_settings",
 ]
 MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
   'ergo/engine/burden_rules.py',
@@ -88,6 +88,10 @@ MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
 
 
 MUTATIONS += [
+ ('설정한 추론 강도를 실제 요청에서 누락', 'ergo/ai_config.py',
+  "if selected['gpt_reasoning_effort']: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",
+  "if False: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",
+  'test_each_sdk_path_uses_the_same_selected_model_effort_timeout_and_tokens', 'tests.test_ai_settings.AiSettings'),
  ('AI가 직접 수정값을 덮어쓰게 변경', 'ergo/intake/facts.py',
   "if previous and previous['source']=='USER':", "if False:",
   'test_zero_is_a_real_value_and_user_edit_wins_over_ai', 'tests.test_adaptive_intake.AdaptiveIntake'),

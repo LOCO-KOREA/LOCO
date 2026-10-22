@@ -2,6 +2,7 @@ import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
+import {renderAiSettings,readAiSettings,enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
 //   home -> photos (left / front-back / right) -> provisional REBA -> questions -> result -> review, AI explanation, Excel, before/after.
 // Provisional scores are recalculated; known input facts and their evidence are stored by adaptive intake.
@@ -25,11 +26,10 @@ const BONES = [['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'], [
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
 const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
 const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
-const DEFAULT_MODEL = 'gpt-4.1';
 // Which ticked work type feeds which statutory criterion (numbers are never shown while answering).
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
 const GATE_CRITERIA = Object.entries(GATES).reduce((map, [n, gate]) => ({...map, [gate]: [...(map[gate] || []), Number(n)]}), {});
-const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 15초 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
+const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 설정한 제한 시간 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
 const DRAFT_KEY = 'loco.quick.draft.v1';
 const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
 const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); } catch { /* the draft is a convenience only */ } };
@@ -221,13 +221,9 @@ export class QuickFlow {
   }
 
   async saveSettings() {
-    const enabled = this.host.querySelector('[data-setting="gpt_enabled"]')?.value === 'YES';
-    const model = this.host.querySelector('[data-setting="gpt_model"]')?.value.trim() || '';
+    const settings=readAiSettings(this.settings,key=>this.host.querySelector(`[data-setting="${key}"]`)?.value);
     await this.run('설정을 저장하고 있어요…', async () => {
-      const settings = await this.api('get_settings');
-      delete settings.gpt_key_present;
-      Object.assign(settings, {gpt_enabled: enabled, gpt_model: model});
-      await this.api('update_settings', {settings});
+      await this.api('update_settings', {settings:persistedSettings(settings)});
       this.settings = await this.api('get_settings');
       this.notify('설정을 저장했어요.');
     });
@@ -557,10 +553,8 @@ export class QuickFlow {
   async ensureAiOn() {
     const current = this.settings || await this.api('get_settings');
     if (current.gpt_enabled && current.gpt_model) return;
-    const settings = await this.api('get_settings');
-    delete settings.gpt_key_present;
-    Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-    await this.api('update_settings', {settings});
+    const settings = enabledAiSettings(await this.api('get_settings'));
+    await this.api('update_settings', {settings:persistedSettings(settings)});
     this.settings = await this.api('get_settings');
   }
 
@@ -573,7 +567,7 @@ export class QuickFlow {
   async interpret() {
     const text = this.intakeText.trim();
     if (!text || !this.preview) return;
-    await this.run('AI가 문장을 칸에 옮기고 있어요… (2~10초)', async () => {
+    await this.run('AI가 문장을 칸에 옮기고 있어요…', async () => {
       await this.ensureAiOn();
       if (this.intake?.state) {
         const state = await this.intake.turn(text);
@@ -602,10 +596,8 @@ export class QuickFlow {
 
   async enableAi() {
     await this.run('AI 설명을 켜고 있어요…', async () => {
-      const settings = await this.api('get_settings');
-      delete settings.gpt_key_present;
-      Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-      await this.api('update_settings', {settings});
+      const settings = enabledAiSettings(await this.api('get_settings'));
+      await this.api('update_settings', {settings:persistedSettings(settings)});
       this.settings = await this.api('get_settings');
     });
   }
@@ -613,14 +605,12 @@ export class QuickFlow {
   async refreshResult() { this.result = await this.api('get_analysis', {analysis_id: this.result.analysis_id}); }
 
   async generateAi() {
-    await this.run('AI가 설명을 쓰고 있어요… (5~15초 걸려요)', async () => {
+    await this.run('AI가 설명을 쓰고 있어요…', async () => {
       const current = this.settings || await this.api('get_settings');
       if (!(current.gpt_enabled && current.gpt_model)) {
         // Pressing the button is the opt-in (only the numeric summary is ever sent). Without a key this still yields an appliable plain explanation.
-        const settings = await this.api('get_settings');
-        delete settings.gpt_key_present;
-        Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-        await this.api('update_settings', {settings});
+        const settings = enabledAiSettings(await this.api('get_settings'));
+        await this.api('update_settings', {settings:persistedSettings(settings)});
         this.settings = await this.api('get_settings');
       }
       await this.api('generate_ai_text', {analysis_id: this.result.analysis_id, purpose: 'TASK_EXPLANATION'});
@@ -869,8 +859,7 @@ export class QuickFlow {
         <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>
       <details class="panel quick-settings"><summary>설정</summary>
         <p class="quick-note">AI 설명은 계산 결과를 쉬운 말로 풀어 줄 뿐, 해당 여부나 점수를 바꾸지 않아요. 키는 PC 환경변수 OPENAI_API_KEY에서 읽고 화면·DB에는 저장하지 않아요. ${s.gpt_key_present ? '<b>키가 설정되어 있어요.</b>' : '<b>키가 아직 없어요.</b>'}</p>
-        <div class="quick-setting-row"><label>AI 설명 <select data-setting="gpt_enabled"><option value="YES" ${s.gpt_enabled ? 'selected' : ''}>사용</option><option value="NO" ${s.gpt_enabled ? '' : 'selected'}>사용 안 함</option></select></label>
-        <label>모델 <input data-setting="gpt_model" value="${esc(s.gpt_model || DEFAULT_MODEL)}" placeholder="${DEFAULT_MODEL}"></label>
+        <div class="quick-setting-row">${renderAiSettings(s)}
         <button data-quick="settings">저장</button></div>${databaseLocationSettings()}</details>`;
   }
 

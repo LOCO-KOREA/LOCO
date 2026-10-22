@@ -8,7 +8,7 @@ function display(field, value) {
 }
 export function connectionStatus(intake, busy=false) {
   const ai=intake.state?.ai;
-  const label=busy ? 'AI가 답변을 정리하고 있어요' : ai?.status==='CONNECTED' ? `AI 응답 확인 · ${ai.model || '모델 연결됨'}` : ai?.status==='ERROR' ? `AI 응답 실패 · ${REASON[ai.reason] || ai.reason || '다시 시도해 주세요.'}` : 'AI 응답을 아직 확인하지 않았어요';
+  const label=busy ? 'AI가 답변을 정리하고 있어요' : ai?.status==='CONNECTED' ? `AI 응답 확인 · ${ai.model || '모델 연결됨'}${ai.reasoning_effort ? ' · '+ai.reasoning_effort : ''}` : ai?.status==='ERROR' ? `AI 응답 실패 · ${REASON[ai.reason] || ai.reason || '다시 시도해 주세요.'}` : 'AI 응답을 아직 확인하지 않았어요';
   return `<p class="intake-ai-status" data-ai-state="${esc(busy ? 'REQUESTING' : ai?.status || 'NOT_REQUESTED')}" role="status">${esc(label)}</p>`;
 }
 function editor(intake, field, identity) {

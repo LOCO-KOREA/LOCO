@@ -167,7 +167,8 @@ class ServiceIntake(unittest.TestCase):
                 answer('annual_work_days', 220, quote='연 220일')]
         with mock.patch('ergo.gpt.client.interpret', return_value=(fake, None)) as call:
             result = self.ctx.dispatch('quick_interpret', {'text': text})
-        sent_text, targets, schema_, model, _key = call.call_args.args
+        sent_text, targets, schema_, model, _key, selected_settings = call.call_args.args
+        self.assertEqual(selected_settings['gpt_model'], model)
         self.assertEqual((sent_text, model), (text, 'gpt-test'))
         self.assertTrue(all(t['target'] for t in targets))
         self.assertEqual(schema_['required'], ['answers'])

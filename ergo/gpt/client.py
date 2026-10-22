@@ -1,5 +1,6 @@
 """OpenAI Responses client with bounded latency and a strict, non-judgment schema."""
 import json
+from ergo import ai_config as config
 from .intake import request as adaptive_intake
 from .payload import explanation_schema, validate_content
 
@@ -46,14 +47,15 @@ def _reason(error):
     if name in ('JSONDecodeError',): return 'INVALID_STRUCTURED_CONTENT'
     return 'API_ERROR'
 
-def interpret(text, targets, schema, model, api_key):
+def interpret(text, targets, schema, model, api_key, settings=None):
     """One sentence -> list of {target, number, text, quote}. The caller validates every answer against the sentence."""
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
         from openai import OpenAI
-        client=OpenAI(api_key=api_key,timeout=15.0,max_retries=0)
-        response=client.responses.create(model=model,max_output_tokens=1500,input=[
+        transport,options=config.request_options(model,settings)
+        client=OpenAI(api_key=api_key,**transport)
+        response=client.responses.create(**options,input=[
             {'role':'system','content':INTAKE_PROMPT},
             {'role':'user','content':json.dumps({'text':text,'targets':targets},ensure_ascii=False,separators=(',',':'))}
         ],text={'format':{'type':'json_schema','name':'loco_intake','strict':True,'schema':schema}})
@@ -65,13 +67,14 @@ def interpret(text, targets, schema, model, api_key):
     except ImportError: return None,'OPENAI_SDK_MISSING'
     except Exception as error: return None,_reason(error)
 
-def generate(summary, model, api_key):
+def generate(summary, model, api_key, settings=None):
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
         from openai import OpenAI
-        client=OpenAI(api_key=api_key,timeout=15.0,max_retries=0)
-        response=client.responses.create(model=model,max_output_tokens=1400,input=[
+        transport,options=config.request_options(model,settings)
+        client=OpenAI(api_key=api_key,**transport)
+        response=client.responses.create(**options,input=[
             {'role':'system','content':SYSTEM_PROMPT},
             {'role':'user','content':json.dumps(summary,ensure_ascii=False,separators=(',',':'))}
         ],text={'format':{'type':'json_schema','name':'loco_explanation','strict':True,'schema':explanation_schema()}})
@@ -80,6 +83,7 @@ def generate(summary, model, api_key):
         if not raw: return None,'REFUSAL_OR_EMPTY_RESPONSE'
         content=json.loads(raw)
         if not validate_content(content,summary): return None,'INVALID_STRUCTURED_CONTENT'
+        content['_connection']=config.connection(response,model,settings)
         return content,None
     except ImportError: return None,'OPENAI_SDK_MISSING'
     except Exception as error:

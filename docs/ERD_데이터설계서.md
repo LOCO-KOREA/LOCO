@@ -119,3 +119,5 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 `TASK.input_json.conditions.intake_session`은 선택 보조 JSON이며 기존 여섯 테이블과 컬럼은 바꾸지 않는다. 값/단위/대상 조건/출처/근거/상태와 질문 문맥을 저장한다. 실제 값은 기존 legal·capture·manual·conditions에 함께 반영한다. 세부 DTO는 [적응형 계약](adaptive-intake.md)을 따른다. 이전 자료에는 이 키가 없어도 된다.
 
 `intake_session.last_ai`는 실제 마지막 요청의 상태·모델·응답 ID·진단을 담는 선택 객체다. 이전 자료에는 없을 수 있으며 설정 존재와 응답 성공을 구분한다. 인증정보는 포함하지 않는다.
+
+AI 입력 정리·후속 질문·설명 생성은 공통 설정 계약(`ergo/ai_config.py`, API 계약서 §6)을 공유한다. 모델·추론 강도·요청 시간·토큰 한도는 변수이며, 두 설정 화면도 서버 필드 정의로 렌더링한다. APP_SETTINGS의 기존 JSON에 저장하며 테이블·이전 분석 snapshot은 추가/변경하지 않는다.

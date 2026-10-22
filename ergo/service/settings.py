@@ -4,6 +4,7 @@ import os
 import math
 from ergo.legacy.v13 import upgrade_task
 from ergo.engine.task_defaults import default_settings, PREPROCESS_VERSION
+from ergo import ai_config
 
 def settings(ctx):
     value = ctx.store('get_settings')
@@ -13,8 +14,7 @@ def settings(ctx):
     # An old settings record is read without rewriting user data. New snapshots
     # always name the actual current engine and preprocessing implementation.
     current = default_settings()
-    for key in ('gpt_enabled','gpt_model'):
-        if key in value: current[key]=value[key]
+    current.update(ai_config.values(value))
     ui=value.get('ui') or {}
     if type(ui.get('loco_visible')) is bool: current['ui']['loco_visible']=ui['loco_visible']
     if ui.get('loco_mode') in ('normal','quiet'): current['ui']['loco_mode']=ui['loco_mode']
@@ -27,7 +27,7 @@ def settings(ctx):
         v=profile.get(key)
         if key!='version' and isinstance(v,(int,float)) and not isinstance(v,bool) and math.isfinite(v):
             current['analysis']['posture_profile'][key]=v
-    return dict(current, gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')))
+    return dict(current, gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')),gpt_contract=ai_config.public_contract())
 
 def validate_settings(ctx, value):
     if not isinstance(value, dict) or not isinstance(value.get('analysis'), dict):
@@ -53,8 +53,7 @@ def validate_settings(ctx, value):
         raise ValueError('자세 기술태그 설정 계약이 다릅니다')
     if any((isinstance(v, bool) or not isinstance(v, (int, float)) or (not math.isfinite(v)) for k, v in profile.items() if k != 'version')):
         raise ValueError('기술각도는 유한 수여야 합니다')
-    if type(value.get('gpt_enabled')) is not bool or not isinstance(value.get('gpt_model'), str):
-        raise ValueError('GPT 설정 형식이 올바르지 않습니다')
+    ai_config.values(value)
     ui = value.get('ui')
     if not isinstance(ui, dict) or type(ui.get('loco_visible')) is not bool or ui.get('loco_mode') not in ('normal', 'quiet'):
         raise ValueError('안내 위젯 설정 형식이 올바르지 않습니다')

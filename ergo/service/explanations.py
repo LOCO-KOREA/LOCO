@@ -21,9 +21,11 @@ def handle_generate_ai_text(ctx, method, p, *, prepared=None):
         content = None
         reason = None
         if saved_settings['gpt_enabled']:
-            content, reason = gpt_client.generate(summary, saved_settings.get('gpt_model'), os.environ.get('OPENAI_API_KEY'))
+            content, reason = gpt_client.generate(summary, saved_settings.get('gpt_model'), os.environ.get('OPENAI_API_KEY'), saved_settings)
             result = 'GENERATED' if content else 'FALLBACK'
         ai = dict(text_id=__import__('uuid').uuid4().hex, is_active=False, purpose=purpose, result=result, generated_text=gpt_client.content_text(content) if content else '수치 요약의 입력 누락과 추가 확인 항목을 검토하세요. 사진 표본 비율은 하루 노출시간이 아니며, 계산 결과와 조사자 결론은 별도로 확인해야 합니다.', edited_text=None, applied_text=None, applied_kind=None, content=content, input_summary=summary, model=saved_settings.get('gpt_model', ''), prompt_version=gpt_client.PROMPT_VERSION, created_at=now(), edited_at=None, applied_at=None, fallback_reason=reason)
+        ai['reasoning_effort']=saved_settings['gpt_reasoning_effort']
+        ai['connection']=content.pop('_connection',None) if content else None
         with ctx.db_lock:
             ctx.edit_result(a['analysis_id'], lambda result: result.setdefault('ai', []).append(ai), token=token)
             current = gpt_payload.build_numeric_summary(ctx.analysis(a['analysis_id']), purpose)
