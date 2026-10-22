@@ -113,3 +113,7 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 ## 6. 확인할 데이터 반례
 
 혼합 중량 행의 분리, null/0, row_ids 누락/중복, 0개 사진 상태, 같은 사진 재연결, 새 사진 교체, 계산 중 AI 편집, 삭제 후 늦은 완료, 과거 분석을 포함한 전후 출력, 과거 1.3 열람 후 취소가 원본을 변경하지 않는지 확인한다. 물리 스키마가 같다는 사실만으로 데이터 호환 완료를 주장하지 않는다.
+
+## TASK 선택 JSON 확장 (2026-10-22)
+
+`TASK.input_json.conditions.intake_session`은 선택 보조 JSON이며 기존 여섯 테이블과 컬럼은 바꾸지 않는다. 값/단위/대상 조건/출처/근거/상태와 질문 문맥을 저장한다. 실제 값은 기존 legal·capture·manual·conditions에 함께 반영한다. 세부 DTO는 [적응형 계약](adaptive-intake.md)을 따른다. 이전 자료에는 이 키가 없어도 된다.

@@ -73,3 +73,7 @@ E2E 시험 창이 화면에 뜨지 않게 하려면 `LOCO_HIDDEN=1`을 설정합
 `python -B tests/portable-service-smoke.py`는 최신 패키지의 frozen 서비스 EXE를 Windows 기본 PATH만 남겨 실행합니다. 새 임시 한글·공백 DB와 흰 합성 PNG를 사용하며 실제 CPU 추론의 17개 유한 좌표, 직접입력·저장 재실행·오프라인 설명·공식 서식 구성 Excel(설명을 적용한 조사 7시트, 작업 없는 조사 6시트)·잘못된 모델 실패를 확인합니다. 외부 GPT 키를 자식 프로세스에서 제거하므로 실제 계정 호출은 없습니다. `LOCO_VERIFY_PACKAGE`로 점검할 패키지 폴더를 지정할 수 있으며 manifest의 코드·모델 해시와 현재 소스가 일치해야 합니다.
 
 이 검증은 개발 PC의 서비스 EXE 사전 점검입니다. 별도 Windows PC·실제 Electron 창 조작·현장 사진 정확도·인쇄·실제 외부 GPT 검증을 대신하지 않습니다. 소스가 미커밋이면 manifest에도 미커밋 상태로 남기고 최종 전달 전 커밋 버전으로 다시 빌드합니다.
+
+## 적응형 간편 입력 (2026-10-22)
+
+사진·작업 설명 → 자동 정리 → 추가 확인 → 결과·검토·Excel 흐름이다. `intake/client.js`가 서버의 `intake_contract`를 조회하고 메서드·정책·필드 정의를 재사용한다. `intake/view.js`는 해당 계약의 선택지·단위로 필요한 필드만 그린다. 값은 SQLite에 자동 저장하고 localStorage는 이어서 열 작업의 위치와 보내기 전 문장만 보조 보관한다. 실제 Electron/Python/SQLite/MoveNet/Excel과 loopback SDK 검증은 `node tests/adaptive-intake-e2e.cjs`로 실행한다.

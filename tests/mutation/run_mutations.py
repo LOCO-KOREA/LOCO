@@ -19,7 +19,7 @@ IGNORE = shutil.ignore_patterns(
 TESTS = [
     "tests.test_v2_rules", "tests.test_v2_service", "tests.test_v2_gpt",
     "tests.test_v2_reba", "tests.test_json_lines_integration",
-    "tests.test_persistence_regressions",
+    "tests.test_persistence_regressions", "tests.test_adaptive_intake",
 ]
 MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
   'ergo/engine/burden_rules.py',
@@ -85,6 +85,19 @@ MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
   'elif False:',
   'test_c9_totals_cannot_assert_counts_without_selected_qualifying_rows',
   'tests.test_v2_rules.GeneralCriteria')]
+
+
+MUTATIONS += [
+ ('AI가 직접 수정값을 덮어쓰게 변경', 'ergo/intake/facts.py',
+  "if previous and previous['source']=='USER':", "if False:",
+  'test_zero_is_a_real_value_and_user_edit_wins_over_ai', 'tests.test_adaptive_intake.AdaptiveIntake'),
+ ('AI 숫자의 단위·근거 검사 제거', 'ergo/intake/facts.py',
+  "if field['kind']=='number' and not number_grounded(value,quote,field['unit'],bare=bool(focused) and current_quote):", "if False:",
+  'test_wrong_unit_and_fabricated_number_are_dropped', 'tests.test_adaptive_intake.AdaptiveIntake'),
+ ('서로 다른 중량 조건을 같은 행으로 합침', 'ergo/intake/facts.py',
+  "identity = key(field['target'],condition)", "condition='default'; identity = key(field['target'],condition)",
+  'test_different_conditions_keep_their_own_weight_and_count', 'tests.test_adaptive_intake.AdaptiveIntake'),
+]
 
 
 def run(cwd, modules):

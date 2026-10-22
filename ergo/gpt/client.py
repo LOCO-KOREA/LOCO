@@ -1,5 +1,6 @@
 """OpenAI Responses client with bounded latency and a strict, non-judgment schema."""
 import json
+from .intake import request as adaptive_intake
 from .payload import explanation_schema, validate_content
 
 PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V5'

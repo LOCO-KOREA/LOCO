@@ -121,3 +121,7 @@ storage는 트랜잭션 안에서 최신 result_json을 읽어 소유한 경로�
 Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비스·공식 모델을 포함한다. 빌드 명령은 scripts/build_windows.py이며 설치된 Python/Node를 찾아 실행하지 않는다. DB는 쓰기 가능한 사용자 앱 데이터 경로에 유지한다. 빌드/실행 검증과 외부 검증 경계는 local-verification.md를 따른다.
 
 모듈별 책임과 단방향 의존은 [모듈 지도](module-map.md)를 따른다. 서비스와 저장/보고서는 facade와 entity/domain 모듈로 분리하고 앱별 Runtime에 DB·잠금·취소 상태를 주입한다. 여섯 JSON 테이블과 불변 snapshot 계약은 유지한다. 전체 결과 덮어쓰기와 최신 분석 포인터를 임의로 바꾸는 폐기된 저장 API는 제거했다.
+
+## 적응형 입력 저장 (2026-10-22)
+
+[적응형 계약](adaptive-intake.md)의 선택 JSON `conditions.intake_session`에 사실·질문 문맥·출처·모름 상태를 저장한다. 물리 migration·테이블·trigger는 추가하지 않는다. 실제 계산 입력은 기존 필드로 투영한다. 네트워크 대기 중 잠금을 잡지 않고, 수정 revision과 일치하는 응답만 부분 반영한다. 보조 메타데이터 키는 공통 변수 `AUXILIARY_CONDITION_KEYS`에서 관리하고 전후 비교의 조건 변화에서는 제외한다. 과거 snapshot은 재작성하지 않는다.

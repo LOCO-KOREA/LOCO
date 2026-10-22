@@ -45,6 +45,9 @@ SERVICE_METHODS = {
     'update_settings': (('settings',), ()),
     'quick_preview': (('task_id','views'), ()),
     'quick_interpret': (('text',), ()),
+    'intake_session': (('task_id',), ('views',)),
+    'intake_contract': ((), ()),
+    'intake_turn': (('task_id',), ('text','answers','expected_revision','plan','focus','task_created_at')),
 }
 
 
@@ -72,5 +75,15 @@ def validate_request(method, params):
         raise ValueError('views는 LEFT·FRONT·RIGHT 중 하나 이상의 사진 ID여야 합니다')
     if method=='quick_interpret' and (not isinstance(params['text'],str) or not 1<=len(params['text'].strip())<=600):
         raise ValueError('작업 설명은 1~600자 문장이어야 합니다')
+    if method=='intake_session' and 'views' in params and (not isinstance(params['views'],dict) or set(params['views'])-{'LEFT','FRONT','RIGHT'} or any(type(v) is not int or v<1 for v in params['views'].values())):
+        raise ValueError('views는 사진 방향과 해당 작업의 사진 ID 목록이어야 합니다')
+    if method=='intake_turn':
+        from ergo.intake.contract import POLICY
+        if not isinstance(params.get('text',''),str) or len(params.get('text',''))>POLICY['text_limit']:
+            raise ValueError(f"작업 설명은 {POLICY['text_limit']}자 이내로 입력하세요")
+        if not isinstance(params.get('answers',[]),list): raise ValueError('answers는 입력 항목 목록이어야 합니다')
+        if 'plan' in params and type(params['plan']) is not bool: raise ValueError('plan은 참/거짓이어야 합니다')
+        if not isinstance(params.get('focus',[]),list): raise ValueError('focus는 질문 목록이어야 합니다')
+        if 'task_created_at' in params and not isinstance(params['task_created_at'],str): raise ValueError('task_created_at은 작업의 생성 시각이어야 합니다')
     if method=='set_survey_review' and (not isinstance(params['review'],dict) or type(params['review'].get('reviewed')) is not bool):
         raise ValueError('검토 여부는 참/거짓이어야 합니다')

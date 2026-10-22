@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 PREPROCESS_VERSION = 'EXIF_OPENCV_LETTERBOX_V2'
+AUXILIARY_CONDITION_KEYS = ('intake_session',)
 
 EXPOSURE_V2 = ['C1_KEYBOARD_FOCUSED', 'C2_NECK', 'C2_SHOULDER', 'C2_ELBOW', 'C2_WRIST', 'C2_HAND', 'C3_UNION', 'C4_NECK_FLEX', 'C4_TRUNK_FLEX', 'C4_NECK_TWIST', 'C4_TRUNK_TWIST', 'C4_UNION', 'C5_SQUAT', 'C5_KNEEL', 'C5_UNION']
 COMMON = ['trunk_base', 'trunk_twisted', 'trunk_side_bent', 'neck_base', 'neck_twisted', 'neck_side_bent', 'legs_support', 'seated', 'knee_band', 'shock_force', 'static_over_1min', 'small_repeat_over_4min', 'rapid_change_or_unstable']
