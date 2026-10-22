@@ -5,7 +5,7 @@ const display=(q,value)=>q.choices?.find(c=>String(c.value)===String(value))?.la
 export function renderDialog(intake,busy) {
   if(!intake.dialogOpen||!intake.state)return '';
   const state=intake.state,q=intake.questions[0],saved=state.facts.find(f=>f.identity===q?.identity);
-  const auto=state.facts.filter(f=>f.state==='KNOWN'&&['AI','MOVENET'].includes(f.source)).length;
+  const auto=state.facts.filter(f=>f.state==='KNOWN'&&['AI','POSE','MOVENET'].includes(f.source)).length;
   const condition=q&&q.condition!==state.contract.policy.default_condition ? `<span class="intake-context">${esc(q.condition)}</span>` : '';
   const coverage=q?.ai_writable===false?state.contract.fields.filter(f=>f.destination?.type==='work_type'&&!state.facts.some(saved=>saved.target===f.target)).map(f=>f.label):[];
   const choice=(value,label)=>`<button type="button" data-intake-pick="${esc(q.identity)}" data-value="${esc(value??'')}" ${busy?'disabled':''}>${esc(label)}</button>`;

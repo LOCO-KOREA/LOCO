@@ -1,5 +1,6 @@
 """Grounded values and projection onto the existing task DTO. No database access."""
 import copy
+from ergo.pose_contract import PHOTO_SOURCES
 import json
 import math
 import re
@@ -11,7 +12,7 @@ NUMBER = r'(\d+(?:\.\d+)?|스무|여덟|일곱|여섯|다섯|아홉|하나|둘|�
 
 
 def evidence(fact):
-    source = 'OTHER' if fact['source'] in ('AI','MOVENET') else 'INTERVIEW'
+    source = 'OTHER' if fact['source'] in ('AI',*PHOTO_SOURCES) else 'INTERVIEW'
     return dict(source=source, text=f"{fact['source']}: {fact.get('quote','')}", observed_at=fact.get('updated_at') or now())
 
 
@@ -125,8 +126,8 @@ def apply_answers(existing, answers, candidates=()):
         identity=key(field['target'],condition)
         prior=result.get(identity)
         result[identity] = fact(field,value,'USER',item.get('quote') or '직접 입력',condition)
-        if prior and prior['source']=='MOVENET' and prior['value']==value:
-            result[identity].update(origin='MOVENET',quote='사진 추정 확인: '+prior['quote'],angles=prior.get('angles',[]))
+        if prior and prior['source'] in PHOTO_SOURCES and prior['value']==value:
+            result[identity].update(origin=prior['source'],quote='사진 추정 확인: '+prior['quote'],angles=prior.get('angles',[]))
         if field['target']=='other_work' and value in ('NO',None):
             for other in catalogue.values():
                 identity=key(other['target'])
@@ -138,21 +139,22 @@ def apply_answers(existing, answers, candidates=()):
 def add_photo_facts(existing, preview, views):
     result=copy.deepcopy(existing); catalogue={f['target']:f for f in fields()}
     primary=next((v for v in PHOTO_VIEWS if v in views),None)
+    source='POSE' if (preview.get('views',{}).get(primary,{}).get('engine') or {}).get('provider')=='mediapipe' else 'MOVENET'
     for view,data in preview.get('views',{}).items():
         direction=(data.get('guess') or {}).get('forward_direction')
         target='view_'+view
-        if direction and target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source']=='MOVENET'):
-            result[key(target)]=fact(catalogue[target],direction,'MOVENET','사진에서 바라보는 방향 추정')
+        if direction and target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
+            result[key(target)]=fact(catalogue[target],direction,source,'사진에서 바라보는 방향 추정')
     for measured in preview.get('measured',[]):
         if measured['view']!=primary: continue
         target=f"manual.{measured['scope']}.{measured['field']}"
-        if target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source']=='MOVENET'):
-            f=fact(catalogue[target],measured['value'],'MOVENET',' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
+        if target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
+            f=fact(catalogue[target],measured['value'],source,' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
             f['angles']=measured['angles']
             if measured.get('low_confidence') or measured.get('boundary_review'): f['state']='ESTIMATED'
             result[key(target)]=f
-    if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source']=='MOVENET'):
-        result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES','MOVENET','사진에서 앉은 자세 감지')
+    if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source'] in PHOTO_SOURCES):
+        result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES',source,'사진에서 앉은 자세 감지')
     return result
 
 
@@ -195,9 +197,9 @@ def project(task, facts, views, preview):
             for n in destination['criteria']: value['legal']['criteria'][n-1]['rows_complete']=val or 'UNKNOWN'
         elif kind=='manual' and primary_id is not None:
             identity=(1,destination['scope'],destination['field'])
-            if val is None or item['state']=='ESTIMATED' or item['source']=='MOVENET' and not usable:
+            if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not usable:
                 manual.pop(identity,None); continue
-            source='AUTO_ACCEPTED' if item['source']=='MOVENET' else 'INTERVIEW'
+            source='AUTO_ACCEPTED' if item['source'] in PHOTO_SOURCES else 'INTERVIEW'
             ev=evidence(item)
             if source=='AUTO_ACCEPTED': ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True))
             manual[identity]=dict(slot_no=1,photo_id=primary_id,scope=destination['scope'],field=destination['field'],value=val,source=source,evidence=ev)

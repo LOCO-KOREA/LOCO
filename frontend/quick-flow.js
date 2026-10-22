@@ -1,3 +1,4 @@
+import {renderPoseSettings,readPoseSettings,poseForView,mountPoseSettings} from './pose-settings.js';
 import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
@@ -19,10 +20,6 @@ const VIEW_LABEL = {LEFT: '왼쪽 사진', FRONT: '정면·후면 사진', RIGHT
 const VALUE_KO = {UNDER_30: '30° 미만', FROM_30_TO_60: '30~60°', OVER_60: '60° 초과'};
 const FIELD_KO = {trunk_base: '몸통 굽힘', trunk_twisted: '몸통 비틀림', trunk_side_bent: '몸통 옆 기울임', neck_base: '목 굽힘', neck_twisted: '목 비틀림', neck_side_bent: '목 옆 기울임', legs_support: '다리 지지', seated: '앉은 자세', knee_band: '무릎 굽힘', shock_force: '충격', static_over_1min: '1분 이상 유지', small_repeat_over_4min: '반복', rapid_change_or_unstable: '불안정 자세', upper_arm_base: '위팔', arm_abducted_or_rotated: '팔 벌림', shoulder_raised: '어깨 들림', arm_supported_or_gravity_assisted: '팔 받침', lower_arm_base: '팔꿈치', wrist_base: '손목', wrist_deviated_or_twisted: '손목 비틀림', coupling: '손잡이', effective_load_kg: '무게'};
 const CRIT_NAME = {1: '키보드·마우스 집중 입력', 2: '같은 동작 반복', 3: '손·팔의 부담 자세', 4: '목·허리 굽힘·비틀림', 5: '쪼그림·무릎 굽힘', 6: '한 손 손가락 집기', 7: '한 손 들기·쥐기', 8: '25kg 이상 들기', 9: '10kg 이상 불편한 위치 들기', 10: '반복 들기', 11: '손·무릎 충격'};
-const BONES = [['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'], ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
-  ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'], ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
-  ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'], ['right_hip', 'right_knee'], ['right_knee', 'right_ankle'],
-  ['left_ear', 'left_shoulder'], ['right_ear', 'right_shoulder'], ['nose', 'left_eye'], ['nose', 'right_eye']];
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
 const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
 const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
@@ -221,7 +218,7 @@ export class QuickFlow {
   }
 
   async saveSettings() {
-    const settings=readAiSettings(this.settings,key=>this.host.querySelector(`[data-setting="${key}"]`)?.value);
+    const settings=readPoseSettings(readAiSettings(this.settings,key=>this.host.querySelector(`[data-setting="${key}"]`)?.value),key=>this.host.querySelector(`[data-pose-setting="${key}"]`)?.value);
     await this.run('설정을 저장하고 있어요…', async () => {
       await this.api('update_settings', {settings:persistedSettings(settings)});
       this.settings = await this.api('get_settings');
@@ -788,6 +785,7 @@ export class QuickFlow {
     const busy = typeof this.busy === 'string' && this.busy ? `<div class="quick-busy" role="status">${esc(this.busy)}</div>` : '';
     this.host.innerHTML = `${bar}${busy}${body}${this.intake.dialog(this.busy)}`;
     this.intake.mount(this.host,this.busy);
+    mountPoseSettings(this.host,this.settings);
     this.keepDraft();
   }
 
@@ -859,7 +857,7 @@ export class QuickFlow {
         <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>
       <details class="panel quick-settings"><summary>설정</summary>
         <p class="quick-note">AI 설명은 계산 결과를 쉬운 말로 풀어 줄 뿐, 해당 여부나 점수를 바꾸지 않아요. 키는 PC 환경변수 OPENAI_API_KEY에서 읽고 화면·DB에는 저장하지 않아요. ${s.gpt_key_present ? '<b>키가 설정되어 있어요.</b>' : '<b>키가 아직 없어요.</b>'}</p>
-        <div class="quick-setting-row">${renderAiSettings(s)}
+        <h3>자세 분석</h3><div class="quick-setting-row">${renderPoseSettings(s)}</div><h3>AI</h3><div class="quick-setting-row">${renderAiSettings(s)}
         <button data-quick="settings">저장</button></div>${databaseLocationSettings()}</details>`;
   }
 
@@ -893,10 +891,13 @@ export class QuickFlow {
     return `<div class="quick-strip ${views.length > 1 ? 'multi' : ''}">${views.map(view => {
       const item = this.photos[view.id];
       const w = item.image.width_px, h = item.image.height_px, r = Math.max(w, h) / 120;
-      const p = Object.fromEntries(this.pointsFor(view.id).filter(x => x.confidence >= 0.3).map(x => [x.name, x]));
-      const lines = BONES.filter(([a, b]) => p[a] && p[b]).map(([a, b]) => `<line x1="${p[a].x_px}" y1="${p[a].y_px}" x2="${p[b].x_px}" y2="${p[b].y_px}"/>`).join('');
+      const pose=poseForView(this,view.id),model=pose.engine || this.settings?.analysis?.pose_model;
+      const floor=model?.confidence_min ?? 0.5;
+      const p = Object.fromEntries(this.pointsFor(view.id).filter(x => x.confidence >= floor).map(x => [x.name, x]));
+      const connections=pose.connections || this.settings?.pose_contract?.connections?.[model?.provider] || [];
+      const lines = connections.filter(([a, b]) => p[a] && p[b]).map(([a, b]) => `<line x1="${p[a].x_px}" y1="${p[a].y_px}" x2="${p[b].x_px}" y2="${p[b].y_px}"/>`).join('');
       const dots = Object.values(p).map(x => `<circle cx="${x.x_px}" cy="${x.y_px}" r="${r}"/>`).join('');
-      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px">${lines}${dots}</svg><figcaption>${esc(VIEW_LABEL[view.id])}</figcaption></figure>`;
+      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px">${lines}${dots}</svg><figcaption>${esc(VIEW_LABEL[view.id])}${model?.name ? ` · ${esc(model.name)} · ${pose.points?.length || 0}관절` : ''}</figcaption></figure>`;
     }).join('')}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
   }
 
@@ -904,6 +905,7 @@ export class QuickFlow {
     const pv = this.preview, s = pv.score;
     const side = m => m.scope === 'COMMON' ? '' : m.scope === 'LEFT' ? '왼쪽 ' : '오른쪽 ';
     const measured = pv.measured.map(m => `<li><strong>${esc(m.label)}</strong> ${m.angles.map(a => `${a.value_deg}°`).join(' / ')} → ${esc(side(m))}${esc(VALUE_KO[m.value] || m.value + '단계')} <small>${esc(VIEW_LABEL[m.view])}</small>${m.boundary_review ? ' <em>경계값</em>' : ''}</li>`).join('');
+    const spatial=Object.entries(pv.views || {}).flatMap(([view,pose])=>(pose.world_angles || []).filter(a=>a.value_deg!=null).map(a=>`<li>${esc(VIEW_LABEL[view])} · ${a.side==='LEFT'?'왼쪽':'오른쪽'} ${esc(a.label)} ${a.value_deg.toFixed(1)}°</li>`)).join('');
     const front = pv.front.map(f => `<li><strong>${esc(f.label)}</strong> ${f.value_deg}° ${f.suggested ? '→ <em>있음으로 제안</em>' : '→ 거의 없음'}</li>`).join('');
     return `<div class="quick-columns">${this.photoStrip()}
       <section class="panel quick-score">
@@ -914,7 +916,7 @@ export class QuickFlow {
         <h3>사진에서 측정한 값</h3>
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
-        ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
+        ${spatial ? `<details class="quick-spatial"><summary>3D 추정 각도 (참고)</summary><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 기존 사진 각도와 확인값을 사용해요.</p><ul>${spatial}</ul></details>` : ''}${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
         ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
         <div class="quick-nav"><button data-quick="photos">← 사진·작업 설명</button><button class="primary" data-quick="questions">부족한 부분만 확인 →</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
       </section></div>`;

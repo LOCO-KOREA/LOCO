@@ -105,9 +105,14 @@ def verify(directory, minimum_exports=5):
     for row in db.execute('SELECT analysis_id,result_json FROM ANALYSIS'):
         result=json.loads(row['result_json'])
         for pose in (result.get('pose') or {}).get('slots',[]):
-            if pose['status']!='ERROR':
-                assert len(pose['points'])==17
-                models.append(dict(analysis_id=row['analysis_id'],slot=pose['slot_no'],status=pose['status']))
+            if pose.get('points'):
+                model=pose.get('engine') or {}
+                expected=model.get('point_count',17)
+                assert len(pose['points'])==expected
+                if model.get('provider')=='mediapipe':
+                    assert len(pose['world_points'])==expected
+                    assert all(not a['used_for_reba'] for a in pose['world_angles'])
+                models.append(dict(analysis_id=row['analysis_id'],slot=pose['slot_no'],status=pose['status'],model=model.get('model_id'),points=expected))
     assert models
     records={table:db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0] for table in sorted(tables)}
     db.close()

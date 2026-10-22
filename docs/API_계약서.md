@@ -185,15 +185,15 @@ type ManualValue = {
 ~~~typescript
 type ModuleState = 'NOT_REQUESTED'|'NOT_CALCULATED'|'RUNNING'|'COMPLETE'|'INCOMPLETE'|'FAILED'|'CANCELED';
 type ModuleStates = {pose:ModuleState,tags:ModuleState,reba:ModuleState,judgment:ModuleState};
-type PoseModel = {name:string,version:string,preprocess_version:string,input_size:192,point_count:17,confidence_min:0.5};
+type PoseModel = {model_id:string,provider:string,variant:string,name:string,version:string,preprocess_version:string,input_size:Count,point_count:Count,confidence_kind:string,model_path:string,model_sha256:string,confidence_min:Number,detection_min:Number,presence_min:Number};
 type PostureProfile = {version:'POSTURE_TECH_V1',neck_forward_deg:Number,trunk_flex_deg:Number,trunk_extension_deg:Number,upper_arm_raise_deg:Number};
 type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V2',burden_rule:'MOEL_2020_12_GENERAL_V2'};
 type TaskSnapshot = TaskInput & {task_id:ID,input_revision:Count,photos:PhotoInfo[],settings:AnalysisSettings};
 type SlotStatus = 'PENDING'|'VALID'|'INVALID'|'ERROR'|'CANCELED'|'NOT_PROCESSED';
 type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX';
-type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number};
+type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number,confidence_kind?:string,visibility?:Number,presence?:Number,z_normalized?:Number};
 type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null};
-type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[]};
+type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[],engine?:PoseModel & {actual_model_sha256:string,contract_version:string},world_points?:{point_no:Count,name:string,x_m:Number,y_m:Number,z_m:Number,confidence:Number}[],world_angles?:{side:Side,angle_code:string,label:string,value_deg:Number|null,coordinate_space:string,used_for_reba:false}[],connections?:[string,string][]};
 type PoseResult = {status:'RUNNING'|'DONE'|'PARTIAL_REVIEW'|'FAILED'|'CANCELED',valid_count:Count,total_slot_count:Count,terminal_error:string|null,slots:SlotPoseResult[]};
 type TagCode = 'NECK_FORWARD_PROXY'|'TRUNK_FLEX'|'TRUNK_EXT'|'UPPER_ARM_RAISE'|'HAND_ABOVE_HEAD'|'ELBOW_ABOVE_SHOULDER'|'ELBOW_BEHIND_TRUNK'|'NECK_TWIST'|'TRUNK_TWIST'|'SQUAT'|'KNEEL';
 type SlotTag = {slot_no:Count,tag:TagCode,value:Truth,source:'ANGLE'|'MANUAL'|'UNKNOWN'};
@@ -262,8 +262,9 @@ type AiTextView = {text:AiText,source_current:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
 type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
 type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,gpt_key_present:boolean,ui:UiPreferences};
-type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'>;
+type PoseContract = {version:string,models:Record<string,PoseModel>,fields:object[],defaults:PoseModel,landmarks:Record<string,string[]>,connections:Record<string,[string,string][]>,world_angles:object[]};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,pose_contract:PoseContract,gpt_key_present:boolean,ui:UiPreferences};
+type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'|'pose_contract'>;
 ~~~
 
 서비스가 저장된 결과로 NumericSummary를 만든다. 원본 사진·좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label을 보내지 않는다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
@@ -415,3 +416,7 @@ get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_
 전후 비교의 condition_changes는 작업 조건·분석 범위·법령 입력뿐 아니라 사진 배정/관찰, 수동 확인값, 분석 설정의 차이를 포함한다. 같은 프로토콜·양의 대상 수·양쪽 전체 완성·호환 REBA 규칙일 때만 후−전 점수 차이를 표시한다. 수동값/관찰/설정 변경을 생략해 동일 조건의 효과로 오인하게 하지 않는다.
 
 AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_settings.gpt_contract={version,fields,defaults}`다. `gpt_contract`와 `gpt_key_present`는 읽기 메타데이터로 DB에 저장하지 않는다. 이전 설정의 누락 필드는 공통 기본값으로 읽고 기존 명시값과 분석 snapshot은 보존한다. 실제 응답 메타데이터는 입력 session.last_ai 및 설명 connection에 저장한다. 설정 변경 후 이전 호출을 새 설정의 연결 성공으로 표시하지 않는다.
+
+## MediaPipe 자세 엔진 개정 (2026-10-22)
+
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.

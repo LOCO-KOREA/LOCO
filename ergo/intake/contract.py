@@ -9,7 +9,7 @@ POLICY = dict(question_limit=1, text_limit=2400,
               default_condition='default', unknown='UNKNOWN', history_context_turns=8, auto_title_length=60)
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
-SOURCES = ('USER', 'AI', 'MOVENET', 'SAVED')
+SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
 LIFT_FIELDS = {8: ('load_mass_kg','lift_count_day'),

@@ -9,6 +9,8 @@ from pathlib import Path
 from ergo.intake import contract, facts, planner
 from ergo.gpt import client
 from ergo import ai_config
+from ergo import pose_contract
+from ergo.pose import engine as pose_engine
 from ergo.engine.task_defaults import now
 from .quick import handle_quick_preview
 
@@ -29,7 +31,7 @@ def _prepare(ctx, task_id, requested_views=None):
             signatures.append([view,identity,digest])
         settings=ctx.settings()['analysis']
     photo_signature=json.dumps(signatures,ensure_ascii=False,sort_keys=True)
-    fingerprint=hashlib.sha256((photo_signature+json.dumps(settings,sort_keys=True)).encode()).hexdigest()
+    fingerprint=hashlib.sha256((photo_signature+json.dumps(dict(settings=settings,model=pose_engine.fingerprint(settings['pose_model'])),sort_keys=True)).encode()).hexdigest()
     current_facts=session['facts']
     catalogue={f['target']:f for f in contract.fields()}
     invalidated=set()
@@ -37,9 +39,9 @@ def _prepare(ctx, task_id, requested_views=None):
         photo_kinds=('context','view','manual','load','load_kg','load_link')
         invalidated={k for k,f in current_facts.items() if catalogue.get(f['target'],{}).get('destination',{}).get('type') in photo_kinds}
     elif session.get('fingerprint') and session['fingerprint']!=fingerprint:
-        invalidated={k for k,f in current_facts.items() if f['source']=='MOVENET'}
+        invalidated={k for k,f in current_facts.items() if f['source'] in pose_contract.PHOTO_SOURCES}
     for identity in invalidated:
-        current_facts[identity]=dict(current_facts[identity],value=None,state='UNKNOWN',source='MOVENET',quote='사진 또는 측정 설정이 바뀌어 다시 확인',conflict=None)
+        current_facts[identity]=dict(current_facts[identity],value=None,state='UNKNOWN',source='POSE',quote='사진 또는 측정 설정이 바뀌어 다시 확인',conflict=None)
     actual=facts.read_values(task)
     externally_changed=session.get('projected_revision') is not None and session['projected_revision']!=task['input_revision']
     for identity,item in actual.items():

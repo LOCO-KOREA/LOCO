@@ -306,6 +306,12 @@ def _posture(c):
         floor = ((a['snapshot'].get('settings') or {}).get('pose_model') or {}).get('confidence_min', 0.5)
         for p in (a.get('pose') or {}).get('slots', []):
             label = names.get(p.get('slot_no'), f"사진 {p.get('slot_no')}")
+            engine=p.get('engine') or {}
+            if engine:
+                angle_rows.append([t['name'],label,'','자세 추론 모델',engine.get('name',''),f"관절 {len(p.get('points',[]))}개 · 모델 버전 {engine.get('version','')}"])
+            for angle in p.get('world_angles',[]):
+                if angle.get('value_deg') is not None:
+                    angle_rows.append([t['name'],label,SIDE.get(angle.get('side'),''),'3D 추정 '+angle['label'],round(angle['value_deg'],1),'단안 사진에서 추정한 참고 각도 · REBA 점수에 사용하지 않음'])
             unread = 0
             for angle in p.get('angles', []):
                 if angle.get('value_deg') is None:

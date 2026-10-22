@@ -236,7 +236,7 @@ class PhotoIntake(unittest.TestCase):
         imported=self.ctx.dispatch('import_photos',dict(task_id=self.identity,file_paths=[str(self.photo)]))
         identity=imported['added'][0]['photo_id']
         state=self.ctx.dispatch('intake_session',dict(task_id=self.identity,views=dict(RIGHT=identity)))
-        automatic=[f for f in state['facts'] if f['source']=='MOVENET' and f['state'] in ('KNOWN','ESTIMATED')]
+        automatic=[f for f in state['facts'] if f['source'] in ('POSE','MOVENET') and f['state'] in ('KNOWN','ESTIMATED')]
         self.assertTrue(automatic)
         self.assertNotIn('context',{f['target'] for f in automatic}); self.assertNotIn('load_kg',{f['target'] for f in automatic})
         self.assertTrue(any(f['target'].startswith('manual.') for f in automatic))

@@ -7,7 +7,7 @@ from ergo.engine.task_defaults import now, evidence, diagnostic
 from ergo.engine.reba_scoring import calculate_reba
 from ergo.engine.pose_tags import calculate_tags
 from ergo.engine import burden_rules as burden
-from ergo.engine import movenet as pose
+from ergo.pose import engine as pose
 
 def new_analysis(ctx, task, modules):
     with ctx.db_lock:

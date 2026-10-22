@@ -13,13 +13,13 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 PROJECT = Path(__file__).resolve().parents[2]
 IGNORE = shutil.ignore_patterns(
-    ".git", ".venv", ".local", "node_modules", "__pycache__", "*.pyc", "*.tflite", ".pytest_cache",
+    ".git", ".venv", ".local", "node_modules", "__pycache__", "*.pyc", "*.tflite", "*.task", ".pytest_cache",
     "docs", "samples", "dist", "build",
 )
 TESTS = [
     "tests.test_v2_rules", "tests.test_v2_service", "tests.test_v2_gpt",
     "tests.test_v2_reba", "tests.test_json_lines_integration",
-    "tests.test_persistence_regressions", "tests.test_adaptive_intake", "tests.test_ai_settings",
+    "tests.test_persistence_regressions", "tests.test_adaptive_intake", "tests.test_ai_settings", "tests.test_pose_engines",
 ]
 MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
   'ergo/engine/burden_rules.py',
@@ -88,6 +88,15 @@ MUTATIONS = [('9호 미확인 중량을 적격 행으로 취급',
 
 
 MUTATIONS += [
+ ('MediaPipe에서 presence를 무시하고 visibility만 신뢰', 'ergo/pose/providers/mediapipe.py',
+  'confidence=min(visibility,presence)', 'confidence=visibility',
+  'test_mediapipe_presence_is_not_replaced_by_visibility_or_movenet_score','tests.test_pose_engines.PoseValidation'),
+ ('설정의 Full/Heavy 선택을 기본 모델로 무시', 'ergo/pose/engine.py',
+  "selected=contract.normalize((snapshot.get('settings') or {}).get('pose_model'))", 'selected=contract.defaults()',
+  'test_selected_full_configuration_reaches_provider_and_provenance','tests.test_pose_engines.PoseValidation'),
+ ('추정 3D 각도를 REBA 사용값으로 잘못 표기', 'ergo/pose/engine.py',
+  'used_for_reba=False','used_for_reba=True',
+  'test_world_angle_geometry_is_separate_and_never_used_for_reba','tests.test_pose_engines.PoseContract'),
  ('설정한 추론 강도를 실제 요청에서 누락', 'ergo/ai_config.py',
   "if selected['gpt_reasoning_effort']: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",
   "if False: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",

@@ -16,14 +16,29 @@ async function launch(){
 async function main(){
  await fs.mkdir(directory,{recursive:true});await launch();
  await page.locator('.quick-settings summary').click();
+ await page.locator('[data-pose-setting="model_id"]').selectOption('mediapipe-full');
+ assert.match(await page.locator('[data-pose-setting="model_path"]').inputValue(),/pose_landmarker_full.task$/);
+ await page.locator('[data-pose-setting="confidence_min"]').fill('0.65');
  await page.locator('[data-setting="gpt_model"]').fill('quick-configured-model');
  await page.locator('[data-setting="gpt_reasoning_effort"]').selectOption('high');
  await page.locator('[data-setting="gpt_timeout_seconds"]').fill('12.5');
  await page.locator('[data-setting="gpt_max_output_tokens"]').fill('8192');
  await page.locator('[data-quick="settings"]').click();await page.waitForFunction(()=>!document.querySelector('.quick-busy'));
  let saved=await api('get_settings');assert.equal(saved.gpt_model,'quick-configured-model');assert.equal(saved.gpt_reasoning_effort,'high');assert.equal(saved.gpt_timeout_seconds,12.5);assert.equal(saved.gpt_max_output_tokens,8192);
+ assert.equal(saved.analysis.pose_model.model_id,'mediapipe-full');assert.equal(saved.analysis.pose_model.confidence_min,0.65);
+ receipt.checks.push('quick pose settings switch to Full with its artifact and configured confidence');
  receipt.checks.push('quick settings save every typed field through the actual service');
  await page.locator('#mode-toggle').click();await page.locator('[data-nav="S10"]').click();
+ assert.equal(await page.locator('[data-pose-field="model_id"]').inputValue(),'mediapipe-full');
+ await page.locator('[data-pose-field="model_id"]').selectOption('mediapipe-heavy');
+ assert.match(await page.locator('[data-pose-field="model_path"]').inputValue(),/pose_landmarker_heavy.task$/);
+ await page.locator('[data-pose-field="confidence_min"]').fill('0.62');
+ await page.locator('[data-pose-field="detection_min"]').fill('0.4');
+ await page.locator('[data-pose-field="presence_min"]').fill('0.55');
+ await page.locator('[data-action="save-analysis-settings"]').click();
+ await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('분석 보조 설정을 저장'));
+ saved=await api('get_settings');assert.equal(saved.analysis.pose_model.model_id,'mediapipe-heavy');assert.equal(saved.analysis.pose_model.presence_min,0.55);
+ receipt.checks.push('advanced pose settings restore Heavy and save provider-specific thresholds');
  assert.equal(await page.locator('[data-field="gpt_reasoning_effort"]').inputValue(),'high');
  await page.locator('[data-field="gpt_model"]').fill('advanced-configured-model');
  await page.locator('[data-field="gpt_reasoning_effort"]').selectOption('low');
@@ -36,6 +51,7 @@ async function main(){
  await app.close();await launch();
  saved=await api('get_settings');assert.equal(saved.gpt_model,'advanced-configured-model');assert.equal(saved.gpt_contract.defaults.gpt_model,'environment-model');assert.equal(saved.gpt_reasoning_effort,'low');assert.equal(saved.gpt_timeout_seconds,17.5);assert.equal(saved.gpt_max_output_tokens,12288);
  receipt.checks.push('restart restores all explicit values ahead of environment defaults');
+ assert.equal(saved.analysis.pose_model.model_id,'mediapipe-heavy');assert.equal(saved.analysis.pose_model.confidence_min,0.62);assert.equal(saved.analysis.pose_model.detection_min,0.4);assert.equal(saved.analysis.pose_model.presence_min,0.55);
  receipt.settings={model:saved.gpt_model,effort:saved.gpt_reasoning_effort,timeout:saved.gpt_timeout_seconds,tokens:saved.gpt_max_output_tokens};
  for(const name of receipt.checks)console.log('PASS '+name);
 }

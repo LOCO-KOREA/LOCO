@@ -1,3 +1,4 @@
+import {mountPoseSettings} from '../pose-settings.js';
 /* Controller: responses belong to the selection that started their request. */
 export function createController(ctx){
  const {host,s,pages,statusNames,$,toast,api,options,card,modal}=ctx;
@@ -90,6 +91,7 @@ export function createController(ctx){
   if(!host.active)return;
   host.onNavigate(s.page,pages[s.page]);ctx.syncGuidePreferences();
   $('#content').innerHTML=(s.survey&&s.page!=='S10'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S09:ctx.progressPage,S06:ctx.rebaPage,S07:ctx.criteriaPage,S08:ctx.exportPage,S10:ctx.settingsPage}[s.page])();
+  mountPoseSettings(host.element,s.settings,'data-pose-field');
   if(s.page==='S06')ctx.drawPhoto();syncBusy();
  }
  function startPoll(){

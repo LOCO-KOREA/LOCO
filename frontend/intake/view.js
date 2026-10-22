@@ -1,5 +1,5 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const SOURCE = {USER:'직접 입력',AI:'작업 설명',MOVENET:'사진 측정',SAVED:'저장된 입력'};
+const SOURCE = {USER:'직접 입력',AI:'작업 설명',POSE:'사진 측정',MOVENET:'사진 측정',SAVED:'저장된 입력'};
 const REASON = {DISABLED:'AI가 꺼져 있어 남은 항목을 직접 입력할 수 있어요.',NO_API_KEY:'AI 키가 없어 남은 항목을 직접 입력할 수 있어요.',TIMEOUT:'AI 응답이 늦어 직접 입력할 수 있는 질문을 보여 드려요.',API_ERROR:'AI 연결을 확인하지 못했어요. 입력한 정보는 유지돼요.',INVALID_STRUCTURED_CONTENT:'AI 응답을 읽지 못했어요. 남은 항목을 직접 입력할 수 있어요.'};
 const conditionLabel = (condition, state) => condition && condition !== state.contract.policy.default_condition ? ` · ${esc(condition)}` : '';
 function display(field, value) {

@@ -11,7 +11,9 @@ async function drawPhoto(){
   const slot=(selected?.snapshot.capture||s.bundle.task.capture).slots.find(s=>s.slot_no===slotNo);
   const photos=selected?.snapshot.photos||s.bundle.photos;
   const photo=slot?photos.find(p=>p.photo_id===slot.photo_id):null;
-  const points=selected?.pose?.slots.find(p=>p.slot_no===slotNo)?.points||[];
+  const pose=selected?.pose?.slots.find(p=>p.slot_no===slotNo);
+  const points=pose?.points||[];
+  const edges=pose?.connections?.map(([a,b])=>[a,b,a.startsWith('left_')&&b.startsWith('left_')?'left':a.startsWith('right_')&&b.startsWith('right_')?'right':'center'])||poseEdges;
   const message=$('#photo-message'),canvas=$('#pose-canvas');
   canvas.parentElement.insertAdjacentHTML('afterend',`<div class="pose-legend" aria-label="관절 색상 안내"><span><i class="pose-left"></i>작업자 왼쪽</span><span><i class="pose-right"></i>작업자 오른쪽</span><span><i class="pose-center"></i>코·몸통 연결</span><small>화면 좌우가 아닌 신체 기준 · 신뢰도 ${confidence} 이상만 표시</small></div>`);
   if(!slot||!photo){message.textContent=slot?'이 사진 행에 사진이 없습니다.':'사진 행을 선택하세요.';canvas.style.display='none';return;}
@@ -27,7 +29,7 @@ async function drawPhoto(){
       const lookup=Object.fromEntries(points.map(p=>[p.name,p]));
       const lineWidth=Math.max(2,canvas.width/250);
       ctx.lineCap='round';ctx.lineJoin='round';
-      for(const [from,to,group] of poseEdges){
+      for(const [from,to,group] of edges){
         const a=lookup[from],b=lookup[to];
         if(!visible(a)||!visible(b))continue;
         ctx.beginPath();ctx.moveTo(a.x_px,a.y_px);ctx.lineTo(b.x_px,b.y_px);

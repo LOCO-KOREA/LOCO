@@ -29,3 +29,7 @@
 `ergo/intake/{contract,facts,planner}.py`는 공통 계약·순수 값 통합·누락 후보 계산을 담당하고 DB/서비스 조립 루트를 참조하지 않는다. `ergo/service/intake.py`가 저장·추론·AI를 조정하고 `ergo/gpt/intake.py`가 문맥 기반 모델 호출을 담당한다. `frontend/intake/{client,view}.js`와 `intake.css`는 동적 계약 소비·자동 저장·추가 질문 화면을 맡는다. [상세 계약](adaptive-intake.md)을 따른다.
 
 `ergo/ai_config.py`는 저장/SDK 의존이 없는 공통 AI 설정 계약이다. 서비스와 저장 계층은 이 순수 계약의 키/값만 소비한다. `ergo/gpt/{client,intake}.py`는 같은 요청 옵션을 SDK에 전달하고, `frontend/ai-settings.js`는 get_settings.gpt_contract의 필드/타입/선택지로 간편·고급 설정을 렌더링/저장한다. 모델명·추론 강도·시간/토큰 제한은 프론트/개별 AI 모듈에서 중복 정의하지 않는다.
+
+## 자세 엔진 공급자 분리
+
+`ergo/pose_contract.py`는 순수 설정/토폴로지 계약, `ergo/pose/engine.py`는 파일/해시/출력 검증과 공통 결과 조립, `ergo/pose/providers/{mediapipe,movenet}.py`는 실제 추론 adapter다. 서비스는 공통 process만 호출한다. `ergo/engine/movenet.py`는 과거 직접 호출의 명시적 호환 진입점이다. `frontend/pose-settings.js`는 두 설정 화면의 필드/모델 선택을 공유한다. 33개 좌표/3D 추정은 결과 JSON에 기록하고 Excel/화면에 모델 및 별도 3D 참고 각도를 표시한다.

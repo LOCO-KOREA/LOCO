@@ -1,3 +1,4 @@
+import {readPoseSettings} from '../pose-settings.js';
 import {readAiSettings,persistedSettings} from '../ai-settings.js';
 /* actions; dependencies are composed by analysis-workspace.js. */
 export function createActions(ctx){
@@ -121,10 +122,11 @@ const actions={
  },
  'apply-generated':async()=>applyExplanation(false),'apply-edited':async()=>applyExplanation(true),
  'save-analysis-settings':async()=>{
-  const settings=structuredClone(s.settings);delete settings.gpt_key_present;settings.analysis.pose_model.confidence_min=number('analysis-confidence');
+  const settings=readPoseSettings(s.settings,key=>ctx.host.element.querySelector(`[data-pose-field="${key}"]`)?.value);delete settings.gpt_key_present;
   for(const key of ['neck_forward_deg','trunk_flex_deg','trunk_extension_deg','upper_arm_raise_deg'])settings.analysis.posture_profile[key]=number('profile-'+key);
   const context=actionToken();if(!await persistSettings(settings,context)||!ctx.current(context))return;
   if(await refreshVisible(context,s.selectedAnalysis))toast('분석 보조 설정을 저장했습니다. 영향을 받는 분석은 다시 계산하세요.');
+  else if(ctx.current(context)){render();toast('분석 보조 설정을 저장했습니다.');}
  },
  'save-settings':async()=>{
   const settings=structuredClone(s.settings),context=actionToken();settings.ui={loco_visible:text('loco_visible')==='YES',loco_mode:text('loco_mode')};

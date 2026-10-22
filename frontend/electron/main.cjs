@@ -18,7 +18,7 @@ function startWorker(){
  const model=process.env.LOCO_MOVENET_MODEL||(app.isPackaged?join(process.resourcesPath,'models','movenet_lightning.tflite'):join(__dirname,'..','..','models','movenet_lightning.tflite'));
  const cwd=app.isPackaged?process.resourcesPath:resolve(__dirname,'../..');
  databaseLocation=resolveDatabaseLocation({env:process.env,cwd,home:homedir()});
- worker=spawn(binary,args,{cwd,windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,LOCO_DB_PATH:databaseLocation.path,LOCO_MOVENET_MODEL:model,PYTHONIOENCODING:'utf-8',PYTHONDONTWRITEBYTECODE:'1'}});
+ worker=spawn(binary,args,{cwd,windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,LOCO_DB_PATH:databaseLocation.path,LOCO_MODELS_ROOT:app.isPackaged?process.resourcesPath:cwd,LOCO_MOVENET_MODEL:model,PYTHONIOENCODING:'utf-8',PYTHONDONTWRITEBYTECODE:'1'}});
  worker.on('error',error=>disconnect(new Error('Python 실행 실패: '+error.message)));
  worker.on('exit',code=>disconnect(new Error(`Python 서비스가 종료되었습니다 (${code}). 실행 경로를 확인하세요.`)));
  worker.stdin.on('error',disconnect);worker.stderr.on('data',chunk=>process.stderr.write(chunk));

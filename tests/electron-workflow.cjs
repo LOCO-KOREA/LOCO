@@ -33,7 +33,7 @@ const field=(key)=>page.locator(`[data-path="${key}"]`);
 async function screenshot(name){await page.screenshot({path:path.join(runDir,name+'.png'),fullPage:true});}
 async function launch(){
  const env={...process.env,LOCO_PYTHON:python,LOCO_DB_PATH:path.join(runDir,'loco.db'),LOCO_MOVENET_MODEL:path.join(root,'models','movenet_lightning.tflite'),PYTHONIOENCODING:'utf-8'};
- delete env.ELECTRON_RUN_AS_NODE;
+ delete env.ELECTRON_RUN_AS_NODE;delete env.OPENAI_API_KEY;delete env.OPENAI_BASE_URL;
  if(packaged){delete env.LOCO_PYTHON;delete env.LOCO_MOVENET_MODEL;delete env.LOCO_SERVICE_ENTRY;env.PATH=process.env.SystemRoot+'\\System32;'+process.env.SystemRoot;}
  electron=await _electron.launch({executablePath:packaged||require('../frontend/node_modules/electron'),args:packaged?[]:[path.join(root,'frontend')],cwd:root,env,timeout:30000});
  page=await electron.firstWindow();page.setDefaultTimeout(12000);
@@ -83,10 +83,12 @@ async function main(){
  let a=await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.status==='FINISHED','direct calculation');a=a.analysis;
  assert.equal(a.judgment.judgments[0].computed_status,'APPLICABLE');
  assert.equal(a.module_states.pose,'NOT_REQUESTED');check('direct-input-only calculation through the UI',{analysis_id:a.analysis_id});
+ await page.waitForFunction(id=>document.querySelector('#history-choice')?.value===String(id)&&!document.querySelector('[data-action="calculate-criteria"]')?.hasAttribute('data-request-busy'),a.analysis_id);
  await page.locator('[data-field="review-reviewer"]').fill('로컬 검토자');
  await page.locator('[data-field="review-note"]').fill('미완성 포함 검토 기록');
  await page.locator('[data-action="review-on"]').click();
  await until(()=>api('get_survey',{survey_id:survey.survey_id}),value=>value.review.reviewed,'review mark');
+ await page.waitForFunction(()=>!document.querySelector('[data-action="review-on"]')?.hasAttribute('data-request-busy'));
  for(const status of ['APPLICABLE','NOT_APPLICABLE','']){
   await page.locator('[data-action="conclusion"][data-number="1"]').click();
   await page.locator('[data-field="inv.status"]').selectOption(status);
@@ -119,9 +121,10 @@ async function main(){
  await page.locator('[data-photo-action="save"]').click();
  await page.locator('[data-photo-action="analysis"]').click();
  let photoResult=await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.analysis_id!==a.analysis_id&&value.analysis?.status!=='RUNNING','real model analysis');photoResult=photoResult.analysis;
- assert.equal(photoResult.pose.slots[0].points.length,17);
+ const selectedPose=(await api('get_settings')).analysis.pose_model;
+ assert.equal(photoResult.pose.slots[0].points.length,selectedPose.point_count);
  assert.notEqual(photoResult.pose.slots[0].status,'ERROR');
- check('official MoveNet model runs through Electron -> service -> SQLite',{status:photoResult.pose.slots[0].status,points:17});
+ check('selected pose model runs through Electron -> service -> SQLite',{status:photoResult.pose.slots[0].status,points:selectedPose.point_count,model:selectedPose.model_id});
  await navigate('S06');await screenshot('02-photo-reba');
  const candidates=page.locator('[data-auto-candidate]:not([disabled])');
  if(await candidates.count()){
@@ -234,11 +237,11 @@ async function main(){
  await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();
  await navigate('S10');
  const settingsBefore=(await api('get_task',{task_id:task.task_id})).task.input_revision;
- await page.locator('[data-field="analysis-confidence"]').fill('0.6');
+ await page.locator('[data-pose-field="confidence_min"]').fill('0.6');
  await page.locator('[data-action="save-analysis-settings"]').click();
  await until(()=>api('get_task',{task_id:task.task_id}),b=>b.task.input_revision===settingsBefore+1,'analysis settings revision');
  assert.equal((await api('get_analysis',{analysis_id:history[0].analysis_id})).currentness,'STALE');
- await page.locator('[data-field="analysis-confidence"]').fill('0.5');
+ await page.locator('[data-pose-field="confidence_min"]').fill('0.5');
  await page.locator('[data-action="save-analysis-settings"]').click();
  await until(()=>api('get_settings'),s=>s.analysis.pose_model.confidence_min===.5,'restore analysis threshold');
  check('analysis settings UI invalidates affected results and preserves historical snapshots');
