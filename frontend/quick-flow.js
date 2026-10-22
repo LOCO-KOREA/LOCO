@@ -2,9 +2,11 @@ import {previewPdf,exportPdf,renderPdfPreview} from './pdf-export.js';
 import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
+import {AdaptiveIntake} from './intake/client.js';
+import {renderAiSettings,readAiSettings,enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
 //   home -> photos (left / front-back / right) -> provisional REBA -> questions -> result -> review, AI explanation, Excel, before/after.
-// Provisional scores are never saved. Only confirmed answers are written through the usual task APIs,
+// Provisional scores are recalculated; known input facts and their evidence are stored by adaptive intake.
 // and every final number comes from the regular calculation engine.
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const RISK = {NEGLIGIBLE: '무시 가능', LOW: '낮음', MEDIUM: '보통', HIGH: '높음', VERY_HIGH: '매우 높음'};
@@ -24,12 +26,11 @@ const BONES = [['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'], [
   ['left_ear', 'left_shoulder'], ['right_ear', 'right_shoulder'], ['nose', 'left_eye'], ['nose', 'right_eye']];
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
 const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
-const STEPS = [['start', '사진 넣기'], ['provisional', '1차 점수'], ['questions', '로코 질문'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'PDF']];
-const DEFAULT_MODEL = 'gpt-4.1';
+const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'PDF']];
 // Which ticked work type feeds which statutory criterion (numbers are never shown while answering).
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
 const GATE_CRITERIA = Object.entries(GATES).reduce((map, [n, gate]) => ({...map, [gate]: [...(map[gate] || []), Number(n)]}), {});
-const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 15초 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
+const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 설정한 제한 시간 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
 const DRAFT_KEY = 'loco.quick.draft.v1';
 const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
 const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); } catch { /* the draft is a convenience only */ } };
@@ -142,11 +143,13 @@ export function settledByIntake(q, answers, items) {
 export class QuickFlow {
   constructor({host, api, notify, onError, onOpenDetail}) {
     Object.assign(this, {host, api, notify, onError, onOpenDetail});
+    this.intake = new AdaptiveIntake({api, notify, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveError || '입력을 저장했어요.'; this.keepDraft(); } else this.render(); }});
     this.reset();
     this.step = 'home';
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
+    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.render(); } }, true);
     host.addEventListener('toggle', event => {
       if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
     }, true);
@@ -155,14 +158,15 @@ export class QuickFlow {
     // The re-rendered page would otherwise close the "later" section after every answer.
     host.addEventListener('toggle', event => { if (event.target.classList?.contains('quick-later')) this.laterOpen = event.target.open; }, true);
     document.addEventListener('keydown', event => {
-      if (this.step === 'questions' && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        const next = host.querySelector('[data-quick="next"]');
+      if ((this.step === 'questions' || this.intake.dialogOpen) && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        const next = host.querySelector(this.intake.dialogOpen ? '[data-intake-dialog] [data-quick="adaptive-next"]' : '[data-quick="next"]');
         if (next && !next.disabled) { event.preventDefault(); next.click(); }
       }
     });
   }
 
   reset() {
+    this.intake?.reset();
     Object.assign(this, {step: 'start', busy: false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
       result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, pdfPreview: null, pdfOperation: null, excelTab: 0, overview: null});
   }
@@ -180,6 +184,7 @@ export class QuickFlow {
     await this.run('', async () => {
       this.surveys = await this.api('list_surveys');
       this.settings = await this.api('get_settings');
+      await this.intake.loadContract();
       this.step = 'home';
     });
   }
@@ -202,6 +207,7 @@ export class QuickFlow {
       const settings = this.settings || await this.api('get_settings');
       this.reset();
       Object.assign(this, {survey, task, photos, result: bundle.analysis, reopened: true, stale: false, step: 'result', settings});
+      if (this.intake.hasSession(task)) { const restored = await this.intake.open(task.task_id); this.preview = restored.preview; this.task = restored.task; }
     });
   }
 
@@ -216,13 +222,9 @@ export class QuickFlow {
   }
 
   async saveSettings() {
-    const enabled = this.host.querySelector('[data-setting="gpt_enabled"]')?.value === 'YES';
-    const model = this.host.querySelector('[data-setting="gpt_model"]')?.value.trim() || '';
+    const settings=readAiSettings(this.settings,key=>this.host.querySelector(`[data-setting="${key}"]`)?.value);
     await this.run('설정을 저장하고 있어요…', async () => {
-      const settings = await this.api('get_settings');
-      delete settings.gpt_key_present;
-      Object.assign(settings, {gpt_enabled: enabled, gpt_model: model});
-      await this.api('update_settings', {settings});
+      await this.api('update_settings', {settings:persistedSettings(settings)});
       this.settings = await this.api('get_settings');
       this.notify('설정을 저장했어요.');
     });
@@ -261,17 +263,18 @@ export class QuickFlow {
   }
 
   async analyze() {
-    if (!Object.keys(this.photos).length) return;
-    if (!this.stale && this.preview) { this.step = 'provisional'; return this.render(); }
+    if (!Object.keys(this.photos).length && !this.intakeText.trim()) return;
+    if (!this.stale && this.preview && this.intake?.state) { this.step = 'provisional'; return this.render(); }
     await this.run('사진을 분석하고 있어요…', async () => {
+      await this.ensureTask();
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
-      this.preview = await this.api('quick_preview', {task_id: this.task.task_id, views});
-      if (this.saved) {
-        for (const [id, value] of Object.entries(savedAnswers(this.preview.questions, this.saved.task, this.saved.survey))) if (!(id in this.answers)) this.answers[id] = value;
-        this.saved = null;
-      }
-      for (const q of this.preview.questions) if (q.suggested != null && !(q.id in this.answers)) this.answers[q.id] = q.suggested;
+      let state = await this.intake.open(this.task.task_id, views);
+      if (!state) return;
+      await this.ensureAiOn(); state = await this.intake.turn(this.intakeText);
+      if (!state) return;
+      this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
+      this.intake.dialogOpen=Boolean(state.questions.length || state.reason);
     });
   }
 
@@ -423,7 +426,25 @@ export class QuickFlow {
   }
 
   async finish() {
+    this.intake.dialogOpen=false;
     await this.run('최종 결과를 계산하고 있어요…', async () => {
+      if (this.intake?.state) {
+        await this.intake.flush();
+        this.task = (await this.api('get_task', {task_id: this.task.task_id})).task;
+        const handle = await this.api('start_analysis', {task_id: this.task.task_id});
+        let analysis;
+        for (let i = 0; i < 300; i++) {
+          analysis = await this.api('get_analysis', {analysis_id: handle.analysis_id});
+          if (analysis.status !== 'RUNNING') break;
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        if (analysis.status === 'RUNNING') throw Error('분석이 계속되고 있어요. 잠시 뒤 다시 열어 주세요.');
+        this.result = analysis; this.survey = await this.api('get_survey', {survey_id: this.survey.survey_id});
+        this.settings = this.settings || await this.api('get_settings');
+        this.exported = null; this.step = 'result'; writeDraft(null);
+        if (this.baseline && this.baseline.analysis_id !== analysis.analysis_id) await this.compare();
+        return;
+      }
       await this.api('update_survey', {survey_id: this.survey.survey_id, draft: this.surveyDraft(await this.api('get_survey', {survey_id: this.survey.survey_id}))});
       // Save photos first: a changed photo row drops that row's manual values, so answers go in a second save.
       const {task} = await this.api('get_task', {task_id: this.task.task_id});
@@ -487,6 +508,7 @@ export class QuickFlow {
 
   // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
   jumpTo(questionId) {
+    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.dialogOpen=true; this.step = 'questions'; this.render(); return; }
     if (this.ai) { this.step = 'questions'; this.render(); window.scrollTo({top: 0}); return; }
     const groups = this.groups(), index = groups.findIndex(group => group.questions.some(q => q.id === questionId));
     if (index < 0) return;
@@ -542,10 +564,8 @@ export class QuickFlow {
   async ensureAiOn() {
     const current = this.settings || await this.api('get_settings');
     if (current.gpt_enabled && current.gpt_model) return;
-    const settings = await this.api('get_settings');
-    delete settings.gpt_key_present;
-    Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-    await this.api('update_settings', {settings});
+    const settings = enabledAiSettings(await this.api('get_settings'));
+    await this.api('update_settings', {settings:persistedSettings(settings)});
     this.settings = await this.api('get_settings');
   }
 
@@ -558,8 +578,13 @@ export class QuickFlow {
   async interpret() {
     const text = this.intakeText.trim();
     if (!text || !this.preview) return;
-    await this.run('AI가 문장을 칸에 옮기고 있어요… (2~10초)', async () => {
+    await this.run('AI가 문장을 칸에 옮기고 있어요…', async () => {
       await this.ensureAiOn();
+      if (this.intake?.state) {
+        const state = await this.intake.turn(text);
+        if (state) { this.task = state.task; this.preview = state.preview; this.notify('작업 설명과 사진에서 파악한 정보를 저장했어요.'); }
+        return;
+      }
       const result = await this.api('quick_interpret', {text});
       if (!result.items.length) { this.onError(new Error(INTAKE_REASON[result.reason] || INTAKE_REASON.API_ERROR)); return; }
       this.undoIntake();
@@ -582,10 +607,8 @@ export class QuickFlow {
 
   async enableAi() {
     await this.run('AI 설명을 켜고 있어요…', async () => {
-      const settings = await this.api('get_settings');
-      delete settings.gpt_key_present;
-      Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-      await this.api('update_settings', {settings});
+      const settings = enabledAiSettings(await this.api('get_settings'));
+      await this.api('update_settings', {settings:persistedSettings(settings)});
       this.settings = await this.api('get_settings');
     });
   }
@@ -593,14 +616,12 @@ export class QuickFlow {
   async refreshResult() { this.result = await this.api('get_analysis', {analysis_id: this.result.analysis_id}); }
 
   async generateAi() {
-    await this.run('AI가 설명을 쓰고 있어요… (5~15초 걸려요)', async () => {
+    await this.run('AI가 설명을 쓰고 있어요…', async () => {
       const current = this.settings || await this.api('get_settings');
       if (!(current.gpt_enabled && current.gpt_model)) {
         // Pressing the button is the opt-in (only the numeric summary is ever sent). Without a key this still yields an appliable plain explanation.
-        const settings = await this.api('get_settings');
-        delete settings.gpt_key_present;
-        Object.assign(settings, {gpt_enabled: true, gpt_model: settings.gpt_model || DEFAULT_MODEL});
-        await this.api('update_settings', {settings});
+        const settings = enabledAiSettings(await this.api('get_settings'));
+        await this.api('update_settings', {settings:persistedSettings(settings)});
         this.settings = await this.api('get_settings');
       }
       await this.api('generate_ai_text', {analysis_id: this.result.analysis_id, purpose: 'TASK_EXPLANATION'});
@@ -655,10 +676,22 @@ export class QuickFlow {
     else if (d.quick === 'settings') this.saveSettings();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state)this.intake.dialogOpen=true; this.render(); }
+    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
-      if (!this.ai && this.group < this.groups().length - 1) { this.group++; this.render(); window.scrollTo({top: 0}); } else this.finish();
+      if (this.intake?.state) this.finish();
+      else if (!this.ai && this.group < this.groups().length - 1) { this.group++; this.render(); window.scrollTo({top: 0}); } else this.finish();
+    }
+    else if (d.quick === 'adaptive-next') this.respondIntake();
+    else if (d.intakePick) {
+      const field=this.intake.field(d.intakePick),value=this.intake.parseValue(d.intakePick,d.value);
+      this.respondIntake('',[{target:field.target,condition:field.condition,value}]);
+    }
+    else if (d.intakeEdit) { this.intake.editing = this.intake.editing === d.intakeEdit ? null : d.intakeEdit; this.render(); }
+    else if (d.intakeChoice) {
+      const value = this.intake.parseValue(d.intakeChoice, d.value);
+      this.intake.answer(d.intakeChoice, value).catch(error => { this.onError(error); this.render(); });
     }
     else if (d.quick === 'intake') this.interpret();
     else if (d.quick === 'intake-clear') this.clearIntake();
@@ -692,6 +725,19 @@ export class QuickFlow {
     this.render();
   }
 
+  async respondIntake(text=this.intake.text,answers=[]) {
+    let ready=false;
+    await this.run('AI가 답변을 정리하고 저장하고 있어요…',async()=>{
+      await this.intake.flush();await this.ensureAiOn();
+      const state=await this.intake.turn(text,answers);
+      if(!state)return;
+      this.task=state.task;this.preview=state.preview;
+      ready=!state.questions.length&&!state.reason;
+      if(ready)this.intake.dialogOpen=false;
+    });
+    if(ready)await this.finish();
+  }
+
   allNo() {
     const group = this.groups()[this.group];
     for (const q of group.questions) if (q.kind === 'criterion' && this.answers[q.id]?.present === undefined) this.answers[q.id] = {present: 'NO', values: {}};
@@ -701,7 +747,14 @@ export class QuickFlow {
   input(event) {
     const el = event.target;
     const d = el.dataset;
-    if (d.number) {
+    if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
+    else if (d.intakeValue) {
+      const value = this.intake.parseValue(d.intakeValue, el.value);
+      this.intake.values.set(d.intakeValue, value);
+      if (event.type === 'input') this.intake.schedule(d.intakeValue, value, error => this.onError(error));
+      if (event.type === 'change') this.intake.answer(d.intakeValue, value).catch(error => { this.onError(error); this.render(); });
+    }
+    else if (d.number) {
       const raw = el.value.trim();
       if (raw === '') delete this.answers[d.number]; else this.answers[d.number] = Number(raw);
       if (event.type === 'change') this.render();
@@ -725,6 +778,8 @@ export class QuickFlow {
       this.intakeText = el.value;
       const button = this.host.querySelector('[data-quick="intake"]');
       if (button) button.disabled = Boolean(this.busy) || !el.value.trim();
+      const analyze = this.host.querySelector('[data-quick="analyze"]');
+      if (analyze) analyze.disabled = Boolean(this.busy) || !(el.value.trim() || Object.keys(this.photos).length);
     }
   }
 
@@ -742,7 +797,8 @@ export class QuickFlow {
     const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-home-link" data-quick="home-bar" title="${this.task && !this.result ? '작성 중인 내용은 저장돼요. 홈에서 이어서 할 수 있어요.' : ''}">홈으로</button></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
     const busy = typeof this.busy === 'string' && this.busy ? `<div class="quick-busy" role="status">${esc(this.busy)}</div>` : '';
-    this.host.innerHTML = `${bar}${busy}${body}`;
+    this.host.innerHTML = `${bar}${busy}${body}${this.intake.dialog(this.busy)}`;
+    this.intake.mount(this.host,this.busy);
     this.keepDraft();
   }
 
@@ -752,7 +808,7 @@ export class QuickFlow {
     writeDraft({
       surveyId: this.survey.survey_id, surveyTitle: this.survey.title, createdAt: this.survey.created_at, taskId: this.task.task_id, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
-      answers: this.answers, ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)
+      answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake.text, ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)
     });
   }
 
@@ -768,11 +824,19 @@ export class QuickFlow {
         const photo = full.photos.find(item => item.photo_id === photoId);
         if (photo) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};
       }
-      if (!Object.keys(photos).length) throw new Error('이어 갈 사진을 찾지 못했어요. 새 분석으로 시작해 주세요.');
+      if (!Object.keys(photos).length && !this.intake.hasSession(full.task)) throw new Error('이어 갈 사진을 찾지 못했어요. 새 분석으로 시작해 주세요.');
       const settings = this.settings;
       this.reset();
       Object.assign(this, {survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.ai?.text ?? '', stale: true, settings, step: 'start'});
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
+      if (draft.adaptive || this.intake.hasSession(full.task)) {
+        let state = await this.intake.open(full.task.task_id, views);
+        if(state.ai?.status==='NOT_REQUESTED'){await this.ensureAiOn();state=await this.intake.turn('');}
+        this.preview = state.preview; this.task = state.task; this.stale = false;
+        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || '';
+        this.intake.dialogOpen=Boolean(state.questions.length);
+        this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
+      }
       this.preview = await this.api('quick_preview', {task_id: full.task.task_id, views});
       this.stale = false;
       this.step = draft.step === 'questions' ? 'questions' : 'provisional';
@@ -797,8 +861,8 @@ export class QuickFlow {
     const draftCard = draftSurvey ? `<section class="panel quick-draft"><div><strong>작성 중이던 분석이 있어요</strong>
       <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
       <div class="quick-list-actions"><button class="primary" data-quick="resume">이어서 하기</button><button data-quick="discard-draft">버리기</button></div></section>` : '';
-    return `${draftCard}<section class="panel quick-hero"><h2>작업 사진 한 장으로 REBA와 법정 기준 초안을 만들어요</h2>
-      <p>사진을 넣고, 로코의 질문에 버튼으로 답하면 결과와 PDF 저장까지 이 화면에서 진행할 수 있어요.</p>
+    return `${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
+      <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 PDF까지 이어져요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>
       <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
         <div><strong>${esc(x.title || '제목 없음')}</strong><span>${esc(x.survey_date || '')} · 작업 ${x.task_count}개 ${badge(x)}</span></div>
@@ -806,8 +870,7 @@ export class QuickFlow {
         <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>
       <details class="panel quick-settings"><summary>설정</summary>
         <p class="quick-note">AI 설명은 계산 결과를 쉬운 말로 풀어 줄 뿐, 해당 여부나 점수를 바꾸지 않아요. 키는 PC 환경변수 OPENAI_API_KEY에서 읽고 화면·DB에는 저장하지 않아요. ${s.gpt_key_present ? '<b>키가 설정되어 있어요.</b>' : '<b>키가 아직 없어요.</b>'}</p>
-        <div class="quick-setting-row"><label>AI 설명 <select data-setting="gpt_enabled"><option value="YES" ${s.gpt_enabled ? 'selected' : ''}>사용</option><option value="NO" ${s.gpt_enabled ? '' : 'selected'}>사용 안 함</option></select></label>
-        <label>모델 <input data-setting="gpt_model" value="${esc(s.gpt_model || DEFAULT_MODEL)}" placeholder="${DEFAULT_MODEL}"></label>
+        <div class="quick-setting-row">${renderAiSettings(s)}
         <button data-quick="settings">저장</button></div>${databaseLocationSettings()}</details>`;
   }
 
@@ -825,7 +888,8 @@ export class QuickFlow {
     return `${this.baseline ? '<p class="quick-ok">개선 전 결과를 기억하고 있어요. 개선 후 사진으로 넣으면 전후를 비교해 드려요.</p>' : ''}
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
-      <div class="quick-nav"><button data-quick="home">← 처음으로</button><button class="primary" data-quick="analyze" ${count && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '1차 점수 보기 →' : '분석 시작 →'}</button></div>`;
+      <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
+      <div class="quick-nav"><button data-quick="home">← 처음으로</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기 →' : '사진·작업 설명 정리 →'}</button></div>`;
   }
 
   pointsFor(view) {
@@ -862,8 +926,8 @@ export class QuickFlow {
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
         ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
-        ${this.intakePanel()}
-        <div class="quick-nav"><button data-quick="photos">← 사진 바꾸기</button><button class="primary" data-quick="questions">${this.ai ? '확인하고 나머지에 답하기 →' : '로코의 질문에 답하기 →'}</button></div>
+        ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
+        <div class="quick-nav"><button data-quick="photos">← 사진·작업 설명</button><button class="primary" data-quick="questions">부족한 부분만 확인 →</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
       </section></div>`;
   }
 
@@ -880,6 +944,7 @@ export class QuickFlow {
 
   intakePanel() {
     const busy = Boolean(this.busy);
+    if (this.intake?.state) return `<section class="quick-intake"><details><summary>작업 설명 더하기·수정하기</summary><p class="quick-note">설명과 관련 입력값을 AI에 보내 부족한 정보만 확인해요. 사진은 보내지 않아요. 이름·건강정보는 적지 마세요.</p><textarea data-quick-intake rows="3" maxlength="${this.intake.state.contract.policy.text_limit}" aria-label="작업 설명">${esc(this.intakeText)}</textarea><button type="button" class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>설명 반영</button></details></section>`;
     return `<section class="quick-intake"><h3>작업을 한 줄로 알려 주세요 <small>(선택 · 말한 것만 AI가 칸에 채워 드려요)</small></h3>
       <p class="quick-note">예) “20kg 상자를 바닥에서 들어 선반에 하루 30번쯤 옮기고, 오후엔 4시간 키보드를 쳐요”. 적지 않은 값은 지어내지 않고 비워 둬요. 이 문장만 AI에 보내요(사진·이름은 보내지 않아요). 이름 같은 개인정보는 쓰지 마세요. 말로 하려면 Windows에서 Win+H를 누르세요.</p>
       <textarea data-quick-intake rows="3" maxlength="600" placeholder="작업 내용, 무게, 하루에 몇 번·몇 시간을 적어 주세요" aria-label="작업 설명">${esc(this.intakeText)}</textarea>
@@ -943,6 +1008,7 @@ export class QuickFlow {
   }
 
   viewQuestions() {
+    if (this.intake?.state) return `<div class="intake-page">${this.intake.summary()}${this.intake.panel(this.busy)}</div>`;
     if (this.ai) return this.viewQuestionsCompact();
     const groups = this.groups(), group = groups[Math.min(this.group, groups.length - 1)];
     for (const q of group.questions) if (q.kind === 'checklist' && this.answers[q.id] === undefined) this.answers[q.id] = q.items.filter(i => i.suggested).map(i => i.key);
@@ -1012,7 +1078,7 @@ export class QuickFlow {
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
-        <div class="quick-nav"><button data-quick="home">처음으로</button><button data-quick="preview">PDF 미리보기</button><button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
+        <div class="quick-nav"><button data-quick="home">처음으로</button><button data-quick="preview">PDF 미리보기</button>${this.intake?.state ? '<button data-quick="questions">입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
         ${this.comparePanel()}</div></div>`;
   }
 

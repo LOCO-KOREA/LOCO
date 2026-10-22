@@ -46,7 +46,7 @@ def conclusion_row(workbook, task_name, many_tasks, number):
     return None
 
 
-def verify(directory):
+def verify(directory, minimum_exports=5):
     from ergo.report.form import FINAL
     from ergo.report.plain import change_label, change_value
     directory = Path(directory).resolve()
@@ -100,7 +100,7 @@ def verify(directory):
         outputs.append(dict(export_id=log['export_id'],file=log['file_path'],sheets=expected,
                             analysis_count=len(snap['analyses']),metadata_revision=snap['survey']['metadata_revision'],comparisons=comparison_checks))
         workbook.close()
-    assert len(outputs)>=5, 'The UI run did not produce every survey-type workbook'
+    assert len(outputs)>=minimum_exports, 'The UI run did not produce the requested number of workbooks'
     models=[]
     for row in db.execute('SELECT analysis_id,result_json FROM ANALYSIS'):
         result=json.loads(row['result_json'])
@@ -117,4 +117,4 @@ def verify(directory):
 
 
 if __name__=='__main__':
-    verify(sys.argv[1])
+    verify(sys.argv[1], int(sys.argv[2]) if len(sys.argv)>2 else 5)

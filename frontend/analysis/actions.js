@@ -1,3 +1,4 @@
+import {readAiSettings,persistedSettings} from '../ai-settings.js';
 /* actions; dependencies are composed by analysis-workspace.js. */
 import {previewPdf,exportPdf,renderPdfPreview} from '../pdf-export.js';
 export function createActions(ctx){
@@ -150,7 +151,7 @@ const actions={
   if(await persistSettings(settings,context)&&ctx.current(context)){render();toast('로코 설정을 저장했습니다.');}
  },
  'save-gpt-settings':async()=>{
-  const settings=structuredClone(s.settings),context=actionToken();settings.gpt_enabled=text('gpt_enabled')==='YES';settings.gpt_model=text('gpt_model').trim();
+  const settings=readAiSettings(s.settings,text),context=actionToken();
   if(await persistSettings(settings,context)&&ctx.current(context)){render();toast('GPT 설정을 저장했습니다.');}
  },
  'close-modal':async()=>{$('#overlay-root').innerHTML='';s.modalContext=null;}
@@ -175,7 +176,7 @@ async function setReview(reviewed){
 }
 
 async function persistSettings(value=s.settings,context=actionToken()){
- const {gpt_key_present,...settings}=structuredClone(value);
+ const settings=persistedSettings(value);
  return ctx.write('settings:update',context,async()=>{const saved=await api('update_settings',{settings});if(ctx.current(context))s.settings=saved;return saved;});
 }
 

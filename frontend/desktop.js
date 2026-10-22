@@ -147,7 +147,7 @@ function setMode(mode){
   const quick=mode==='quick';
   document.body.classList.toggle('quick-mode',quick);$('#quick-workspace').hidden=!quick;
   $('#mode-toggle').textContent=quick?'고급 편집':'간편 화면';
-  if(quick){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='사진 → 1차 점수 → 로코 질문 → 결과 → 검토·설명 → Excel';quickUI.open();}
+  if(quick){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='사진·작업 설명 → 자동 정리 → 추가 확인 → 결과 → 검토·설명 → Excel';quickUI.open();}
   else{page('S01');if(window.loco)perform(refresh);}
 }
 $('#mode-toggle').addEventListener('click',()=>setMode(document.body.classList.contains('quick-mode')?'detail':'quick'));

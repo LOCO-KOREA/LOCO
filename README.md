@@ -49,3 +49,7 @@ npm.cmd --prefix frontend run test:explanation
 Electron 검증에는 공식 모델과 `.local/fixtures/tensorflow-movenet-example.jpeg`가 필요하다. 준비 명령·출처·검증 전용 SQLite·화면 캡처·유형별 Excel·최신 패키지 재현은 검증 대조표를 따른다. 실제 외부 GPT 계정, 깨끗한 별도 Windows PC, 사용자 1.3 DB 표본, 현장 시간 단축·의학적/법적 성과는 로컬 합성 검증으로 대체하지 않는다.
 
 기본 판정은 NOT ACCEPTED다. 로컬 검증이 끝난 범위와 미검증 환경을 분리해 보고한다. 2026-10-16 후속 사용자 지시에 따라 현재 변경을 feat/loco-2.0-oct23 브랜치에만 커밋·push한다. main 반영·PR·병합·운영 배포는 수행하지 않는다. 검증 당시 실행 소스 해시는 [소스 manifest](docs/verification/2026-10-16-source-manifest.json)에 보존한다. DB·사진·모델·실행 패키지와 원본 로그는 로컬 자료로 유지한다.
+
+## 적응형 추가 확인
+
+사진·작업 설명에서 얻은 정보를 자동 저장하고 필요한 항목만 추가 질문하는 흐름은 [적응형 입력 계약](docs/adaptive-intake.md)을 따른다. 새 운영 승인/배포 차단 절차는 추가하지 않는다.

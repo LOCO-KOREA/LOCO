@@ -1,5 +1,6 @@
 """Compare stored snapshots without recomputing historical results."""
 from .common import flatten
+from ergo.engine.task_defaults import AUXILIARY_CONDITION_KEYS
 
 def build_comparisons(snapshot):
     comparisons = []
@@ -28,6 +29,9 @@ def build_comparisons(snapshot):
         after_task = after['task_id']
         changes = []
         for label, obj1, obj2 in [('conditions', bset.get('conditions') or {}, aset.get('conditions') or {}), ('analysis_scope', bset.get('analysis_scope') or {}, aset.get('analysis_scope') or {}), ('legal', bset.get('legal') or {}, aset.get('legal') or {}), ('capture',bset.get('capture') or {},aset.get('capture') or {}), ('manual',bset.get('manual') or [],aset.get('manual') or []), ('settings',bset.get('settings') or {},aset.get('settings') or {})]:
+            if label=='conditions':
+                obj1={k:v for k,v in obj1.items() if k not in AUXILIARY_CONDITION_KEYS}
+                obj2={k:v for k,v in obj2.items() if k not in AUXILIARY_CONDITION_KEYS}
             flat1 = dict(flatten(obj1, label))
             flat2 = dict(flatten(obj2, label))
             for path in sorted(set(flat1) | set(flat2)):
