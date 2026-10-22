@@ -316,11 +316,13 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | preview_excel_sheets | survey_id,analysis_ids?,comparisons? (preview_excel과 같은 선택) | ExcelPreview {sheets:[{name,title,lead,tables:[{heading,columns,rows,widths,header?,labels?,label_rows?,label_cells?,merges?,bordered?,heights?,break?,photo?}],notes,tab_color?}]} (저장하지 않음: export_excel이 만드는 시트와 같은 내용. 양식 표는 header·labels·merges 같은 선택 키로 그린다. 대표 사진 이미지만 파일에만 들어간다) |
 | quick_interpret | text (1~600자 작업 설명 한 문장) | QuickIntake {items,dropped,reason} (저장하지 않음: 문장을 조사표 칸으로 옮긴 값. 모든 값은 문장 속 근거 구절과 함께 오며 근거가 문장에 없거나 범위를 벗어난 값은 버린다. 문장만 AI에 보내고 별도 스레드로 응답한다) |
 
-| intake_contract | 없음 | AdaptiveIntakeContract {version,session_key,methods,policy,states,sources,fields} |
+| intake_contract | 없음 | AdaptiveIntakeContract {version,session_key,methods,policy,states,sources,ai_states,fields} |
 | intake_session | task_id,views? | AdaptiveIntakeState (세션 복원·사진 측정 자동 저장·현재 추가 질문) |
 | intake_turn | task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at? | AdaptiveIntakeState (직접 답변 우선 저장, AI 추출·추가 질문, 실패 대체) |
 
 적응형 입력의 DTO·상태·단위·조건별 연결·저장 의미는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다. `conditions.intake_session`은 선택 JSON 메타데이터이며 실제 입력은 기존 legal/capture/manual/conditions에도 기록한다. `intake_contract`가 내보내는 변수와 catalogue를 프론트·서비스·AI 응답 schema가 공유한다.
+
+AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·모델·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다.
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
 

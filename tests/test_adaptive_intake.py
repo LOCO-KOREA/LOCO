@@ -162,6 +162,43 @@ class AdaptiveIntake(unittest.TestCase):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[answer('daily_work_min',480)]))
         self.assertEqual(state['reason'],'TIMEOUT'); self.assertEqual(state['task']['conditions']['daily_work_min'],480)
         self.assertTrue(state['questions'])
+        self.assertEqual(state['ai']['status'],'ERROR')
+        self.assertEqual(self.get()['ai']['reason'],'TIMEOUT')
+
+    def test_connection_requires_an_actual_model_response_and_survives_restart(self):
+        self.assertEqual(self.get()['ai']['status'],'NOT_REQUESTED')
+        state=self.turn(text='하루 8시간',raw=dict(answers=[model('daily_work_min',number=480,quote='8시간')],
+            questions=[dict(target='annual_work_days',condition='default',text='1년에 며칠 일하나요?',reason='하루 정보만 알아요.')],
+            _connection=dict(response_id='resp_verified')))
+        self.assertEqual(state['ai']['status'],'CONNECTED');self.assertEqual(state['ai']['response_id'],'resp_verified')
+        self.assertEqual(len(state['questions']),1)
+        self.ctx=create_service(self.db)
+        self.assertEqual(self.get()['ai']['response_id'],'resp_verified')
+
+    def test_ai_plans_from_the_remaining_gaps_after_extraction_is_saved(self):
+        settings=self.ctx.dispatch('get_settings',{});settings.pop('gpt_key_present',None);settings.update(gpt_enabled=True,gpt_model='fixture');self.ctx.dispatch('update_settings',dict(settings=settings))
+        phases=[]
+        def respond(payload,*args):
+            phases.append(payload['phase'])
+            if payload['phase']=='EXTRACT_AND_PLAN':
+                return dict(answers=[model('daily_work_min',number=480,quote='8시간')],questions=[dict(target='daily_work_min',condition='default',text='작업시간?',reason='중복')]),None
+            self.assertEqual(self.ctx.require('task',self.identity)['conditions']['daily_work_min'],480)
+            self.assertNotIn('daily_work_min',{q['target'] for q in payload['missing']})
+            return dict(answers=[],questions=[dict(target='annual_work_days',condition='default',text='1년에 며칠 작업하나요?',reason='연간 일수만 몰라요.')]),None
+        with patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+            state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 8시간'))
+        self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP'])
+        self.assertEqual(state['questions'][0]['text'],'1년에 며칠 작업하나요?')
+
+    def test_empty_retry_keeps_the_last_saved_statement_in_ai_context(self):
+        self.turn(text='하루 전체 8시간',raw=dict(answers=[],questions=[]))
+        seen=[]
+        def respond(payload,*args):
+            seen.append(payload['prior_user_text'])
+            return dict(answers=[model('daily_work_min',number=480,quote='8시간')],questions=[dict(target='annual_work_days',condition='default',text='연간 작업일수?',reason='누락')]),None
+        with patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+            state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=''))
+        self.assertIn('하루 전체 8시간',seen[0]);self.assertEqual(state['task']['conditions']['daily_work_min'],480)
 
     def test_late_ai_response_cannot_overwrite_another_turn(self):
         settings=self.ctx.dispatch('get_settings',{}); settings.pop('gpt_key_present',None); settings.update(gpt_enabled=True,gpt_model='fixture'); self.ctx.dispatch('update_settings',dict(settings=settings))

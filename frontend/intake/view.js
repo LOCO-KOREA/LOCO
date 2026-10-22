@@ -6,6 +6,11 @@ function display(field, value) {
   if (value == null) return '모름';
   return field?.choices?.find(c => String(c.value) === String(value))?.label ?? `${value}${field?.unit ? ' '+field.unit : ''}`;
 }
+export function connectionStatus(intake, busy=false) {
+  const ai=intake.state?.ai;
+  const label=busy ? 'AI가 답변을 정리하고 있어요' : ai?.status==='CONNECTED' ? `AI 응답 확인 · ${ai.model || '모델 연결됨'}` : ai?.status==='ERROR' ? `AI 응답 실패 · ${REASON[ai.reason] || ai.reason || '다시 시도해 주세요.'}` : 'AI 응답을 아직 확인하지 않았어요';
+  return `<p class="intake-ai-status" data-ai-state="${esc(busy ? 'REQUESTING' : ai?.status || 'NOT_REQUESTED')}" role="status">${esc(label)}</p>`;
+}
 function editor(intake, field, identity) {
   const value = intake.value(identity), state = intake.state;
   if (field.kind === 'choice') return `<div class="quick-choices">${[...field.choices,{value:null,label:'모름'}].map(c => `<button type="button" data-intake-choice="${esc(identity)}" data-value="${esc(c.value ?? '')}" class="${value === c.value ? 'selected' : ''}">${esc(c.label)}</button>`).join('')}</div>`;
@@ -22,13 +27,5 @@ export function renderSummary(intake) {
 }
 export function renderQuestions(intake, busy) {
   const state = intake.state; if (!state) return '';
-  const fields = intake.questions.map(q => {
-    const saved = state.facts.find(f => f.identity === q.identity);
-    const conflict = saved?.state === 'CONFLICT' ? `<p class="quick-warn">앞선 값: ${esc(display(q,saved.value))} · 새 설명: ${esc(display(q,saved.conflict.value))}<br>${esc(saved.conflict.quote)}</p>` : saved?.state === 'ESTIMATED' ? `<p class="quick-note">사진 추정: ${esc(display(q,saved.value))} · ${esc(saved.quote)}</p><button type="button" data-intake-choice="${esc(q.identity)}" data-value="${esc(saved.value)}">이 사진 추정값 사용</button>` : '';
-    return `<article class="intake-question" data-intake-question="${esc(q.identity)}"><h3>${esc(q.text)}${conditionLabel(q.condition,state)}</h3><p class="quick-note">${esc(q.reason)}</p>${saved ? `<small class="intake-answer-state">${saved.state === 'KNOWN' ? '답변 저장됨' : saved.state === 'UNKNOWN' ? '모름으로 저장됨' : '서로 다른 값 확인'}</small>` : ''}${conflict}${editor(intake,q,q.identity)}</article>`;
-  }).join('');
-  const reason = state.reason && state.reason !== 'INPUT_CHANGED' ? `<p class="quick-note">${esc(REASON[state.reason] || 'AI 연결을 쓰지 못했어요. 아래 항목으로 계속 진행할 수 있어요.')}</p>` : '';
-  return `<section class="panel intake-followup"><div class="intake-heading"><h2>${state.questions.length ? '이 부분만 더 알려 주세요' : state.complete ? '결과를 볼 준비가 됐어요' : '현재 정보로 결과를 볼 수 있어요'}</h2><span>남은 입력 ${state.remaining_count}개</span></div><p class="quick-note">이미 파악한 값은 다시 묻지 않아요. 모르는 항목은 모름으로 남겨도 돼요.</p>${reason}${fields}
-    <div class="intake-reply"><label for="intake-reply">말로 한 번에 답해도 돼요</label><textarea id="intake-reply" data-intake-reply maxlength="${state.contract.policy.text_limit}" rows="3" placeholder="예: 사진도 같은 20kg 상자예요. 손잡이가 있고 양손으로 잡아요.">${esc(intake.text)}</textarea><button type="button" class="primary" data-quick="adaptive-next" ${busy ? 'disabled' : ''}>${intake.text.trim() ? '답변 정리하고 다음 확인' : '다음 확인 보기'}</button></div>
-    <div class="quick-nav"><button type="button" data-quick="photos">사진·작업 설명으로</button><button type="button" class="primary" data-quick="next" ${busy ? 'disabled' : ''}>현재 정보로 결과 보기 →</button></div></section>`;
+  return `<section class="panel intake-followup"><h2>AI가 작업 정보를 정리했어요</h2>${connectionStatus(intake,busy)}<p>설명과 사진에서 파악한 정보는 저장했어요. 부족한 부분만 팝업에서 물어볼게요.</p><div class="quick-nav"><button type="button" class="primary" data-quick="questions" ${busy ? 'disabled' : ''}>${state.questions.length ? 'AI 추가 질문 열기' : '정리한 내용 확인'}</button><button type="button" data-quick="next" ${busy ? 'disabled' : ''}>현재 정보로 결과 보기 →</button></div></section>`;
 }

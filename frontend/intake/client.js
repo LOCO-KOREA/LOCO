@@ -1,10 +1,11 @@
 // Only the bootstrap method is fixed here. All further methods and policies come from the service contract.
 import {renderSummary, renderQuestions} from './view.js';
+import {renderDialog, mountDialog} from './dialog.js';
 export const INTAKE_CONTRACT_METHOD = 'intake_contract';
 
 export class AdaptiveIntake {
   constructor({api, changed, notify}) { Object.assign(this, {api, changed, notify}); this.reset(); }
-  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.editing = null; this.values = new Map(); this.saving = false; this.saveError = ''; this.serial = Promise.resolve(); }
+  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.serial = Promise.resolve(); }
   async loadContract() { return this.contract ||= await this.api(INTAKE_CONTRACT_METHOD, {}); }
   hasSession(task) { return Boolean(task.conditions?.[this.contract?.session_key]); }
   async open(taskId, views) {
@@ -20,14 +21,15 @@ export class AdaptiveIntake {
     const operation = async () => {
       if (generation !== this.generation) return null;
       this.saving = true; this.saveError = '';
+      if (plan && text) this.text=text;
       try {
         const state = this.state;
         const result = await this.api(state.contract.methods.turn, {task_id: taskId, text, answers, plan,
           task_created_at: state.task.created_at,
-          expected_revision: state.task.input_revision, focus: this.questions.map(q => ({target: q.target, condition: q.condition}))});
+          expected_revision: state.task.input_revision, focus: this.questions.slice(0,1).map(q => ({target: q.target, condition: q.condition}))});
         if (generation !== this.generation) return null;
         this.state = result;
-        if (plan) { this.questions = result.questions; this.text = ''; this.values.clear(); this.editing = null; }
+        if (plan) { this.questions = result.questions; if (!result.reason) this.text = ''; this.values.clear(); this.editing = null; }
         if (result.reason === 'INPUT_CHANGED') this.notify('다른 화면에서 바뀐 최신 입력을 불러왔어요. 새 답변을 다시 확인해 주세요.');
         return result;
       } catch (error) { if (generation === this.generation) this.saveError = error.message; throw error; }
@@ -65,4 +67,6 @@ export class AdaptiveIntake {
   async flush() { for (const [identity,timer] of [...this.timers]) await this.answer(identity,timer.value); await this.serial; if (this.saveError) throw Error(this.saveError); }
   summary() { return renderSummary(this); }
   panel(busy) { return renderQuestions(this, busy); }
+  dialog(busy) { return renderDialog(this,busy); }
+  mount(host,busy) { mountDialog(host,busy); }
 }

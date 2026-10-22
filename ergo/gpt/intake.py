@@ -5,7 +5,7 @@ PROMPT_VERSION='LOCO_ADAPTIVE_INTAKE_V1'
 PROMPT=(
     '현장 작업 설명과 앞선 답변을 입력 항목에 옮기고, 부족한 사실만 추가로 질문하세요. '
     'targets는 허용 항목, known은 저장된 값, missing은 계산기의 누락 후보, asked는 지금 사용자에게 보여 준 질문입니다. '
-    'answers는 이번 text에 명시된 사실만 쓰고 quote는 이번 text의 구절을 그대로 복사하세요. '
+    'answers는 이번 text 또는 prior_user_text에 명시된 사실만 쓰고 quote는 그 구절을 그대로 복사하세요. '
     '선택 항목의 text에는 choices의 value를 그대로 쓰세요(예: YES, NO, GOOD). label이나 불리언은 쓰지 마세요. '
     '숫자 항목은 number에 숫자를 쓰고 text=null로, 선택/이름 항목은 text에 쓰고 number=null로 하세요. '
     '사용자가 모름이라고 명시한 현재 질문은 number=null,text=UNKNOWN으로 기록하세요. 말하지 않은 항목은 답변 목록에서 빼세요. '
@@ -23,6 +23,9 @@ PROMPT=(
     'ai_writable=false 항목은 화면에서 여러 미확인 특징을 한 번에 직접 답하는 항목이며 answers에 쓰지 마세요. '
     'complete.*는 그 작업의 모든 조건을 기록했다고 사용자가 명시했을 때만 YES입니다. '
     'questions는 answers를 반영한 뒤에도 남는 후보 중 지금 필요한 항목을 question_limit개까지 고르세요. '
+    '목록 전체를 채우라고 하지 말고 대화 팝업에서 한 번에 질문 하나만 하세요. '
+    'missing은 답변 추출 전 누락일 수 있으므로 answers로 해결한 항목은 제외하고 새로 필요한 질문을 고르세요. '
+    'phase=FOLLOWUP이면 이미 정리된 known을 그대로 두고 missing 중 한 가지 질문만 만드세요. '
     '한 질문은 한 target·condition에 대응하고 이미 알게 된 값은 다시 묻지 마세요. '
     '질문은 조사 용어를 피한 짧은 한국어로, reason은 왜 필요한지 한 문장으로 적으세요. '
     '점수·위험도·법정 해당 여부·조사자 결론은 작성하거나 변경하지 마세요.'
@@ -43,6 +46,7 @@ def request(payload,schema,model,api_key,policy):
         if not raw: return None,'REFUSAL_OR_EMPTY_RESPONSE'
         result=json.loads(raw)
         if not isinstance(result,dict) or not isinstance(result.get('answers'),list) or not isinstance(result.get('questions'),list): return None,'INVALID_STRUCTURED_CONTENT'
+        result['_connection']=dict(response_id=getattr(response,'id',None),model=getattr(response,'model',model))
         return result,None
     except ImportError: return None,'OPENAI_SDK_MISSING'
     except Exception as error:

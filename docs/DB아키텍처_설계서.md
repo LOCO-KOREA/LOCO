@@ -125,3 +125,5 @@ Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비�
 ## 적응형 입력 저장 (2026-10-22)
 
 [적응형 계약](adaptive-intake.md)의 선택 JSON `conditions.intake_session`에 사실·질문 문맥·출처·모름 상태를 저장한다. 물리 migration·테이블·trigger는 추가하지 않는다. 실제 계산 입력은 기존 필드로 투영한다. 네트워크 대기 중 잠금을 잡지 않고, 수정 revision과 일치하는 응답만 부분 반영한다. 보조 메타데이터 키는 공통 변수 `AUXILIARY_CONDITION_KEYS`에서 관리하고 전후 비교의 조건 변화에서는 제외한다. 과거 snapshot은 재작성하지 않는다.
+
+동일 JSON의 `last_ai`에 마지막 실제 요청의 상태·모델·사유·시각·지연·응답 ID를 보관한다. 키/인증정보는 저장하지 않는다. 정보 추출을 저장한 뒤 질문 계획을 재요청할 때도 네트워크 대기 동안 DB 잠금을 잡지 않는다.

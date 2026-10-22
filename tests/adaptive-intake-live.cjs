@@ -18,14 +18,14 @@ async function main(){
  await app.evaluate(({dialog},photo)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[photo]});},path.join(root,'.local/fixtures/tensorflow-movenet-example.jpeg'));
  await page.locator('[data-choose="RIGHT"]').click();await page.locator('.quick-slot.filled').waitFor();
  await page.locator('[data-quick-intake]').fill(text);const started=Date.now();await page.locator('[data-quick="analyze"]').click();
- await page.locator('[data-quick="questions"]').waitFor();receipt.elapsed_ms=Date.now()-started;
+ await page.locator('[data-intake-dialog][open]').waitFor();receipt.elapsed_ms=Date.now()-started;
  const survey=(await api('list_surveys'))[0],task=(await api('list_tasks',{survey_id:survey.survey_id}))[0];
  const facts=Object.values(task.conditions.intake_session.facts);
  assert.ok(facts.some(f=>f.source==='AI'),'real model must contribute grounded facts');
  assert.equal(task.conditions.daily_work_min,480);assert.equal(task.conditions.annual_work_days,220);
  const rows=task.legal.criteria[7].rows;
  assert.ok(rows.some(r=>r.load_mass_kg===20&&r.lift_count_day===30),'weight/count must remain paired');
- await page.locator('[data-quick="questions"]').click();await page.locator('.intake-followup').waitFor();
+ assert.equal(await page.locator('[data-intake-dialog] input[type="number"]').count(),0);
  assert.equal(await page.locator('[data-intake-question^="card.lift.load_mass_kg@"]').count(),0);
  assert.equal(await page.locator('[data-intake-question^="card.lift.lift_count_day@"]').count(),0);
  assert.equal(await page.locator('[data-intake-question^="daily_work_min@"]').count(),0);
@@ -48,7 +48,7 @@ async function main(){
   assert.ok(!next.questions.some(q=>q.target==='card.lift.lift_rate_min'||q.target==='card.lift.minutes'));
   receipt.checks.push('a second actual AI turn fills rate and duration for the existing condition and stops asking them');
  await page.screenshot({path:path.join(directory,'live-followup.png'),fullPage:true});
- await page.locator('[data-quick="next"]').click();await page.locator('[data-quick="review"]').waitFor();
+ await page.locator('[data-intake-dialog] [data-quick="next"]').click();await page.locator('[data-quick="review"]').waitFor();
  const result=await api('get_task_result',{task_id:task.task_id});assert.equal(result.analysis.judgment.judgments.length,11);
  receipt.analysis_id=result.analysis.analysis_id;receipt.checks.push('actual account/model workflow reaches real analysis with preserved incomplete fields');
  assert.deepEqual(receipt.errors,[]);console.log(JSON.stringify({checks:receipt.checks,elapsed_ms:receipt.elapsed_ms,ai_fact_count:receipt.ai_fact_count,questions:receipt.questions}));

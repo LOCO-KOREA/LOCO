@@ -148,6 +148,7 @@ export class QuickFlow {
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
+    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.render(); } }, true);
     host.addEventListener('toggle', event => {
       if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
     }, true);
@@ -156,8 +157,8 @@ export class QuickFlow {
     // The re-rendered page would otherwise close the "later" section after every answer.
     host.addEventListener('toggle', event => { if (event.target.classList?.contains('quick-later')) this.laterOpen = event.target.open; }, true);
     document.addEventListener('keydown', event => {
-      if (this.step === 'questions' && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        const next = host.querySelector('[data-quick="next"]');
+      if ((this.step === 'questions' || this.intake.dialogOpen) && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        const next = host.querySelector(this.intake.dialogOpen ? '[data-intake-dialog] [data-quick="adaptive-next"]' : '[data-quick="next"]');
         if (next && !next.disabled) { event.preventDefault(); next.click(); }
       }
     });
@@ -272,10 +273,11 @@ export class QuickFlow {
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
       let state = await this.intake.open(this.task.task_id, views);
       if (!state) return;
-      if (this.intakeText.trim()) { await this.ensureAiOn(); state = await this.intake.turn(this.intakeText); }
+      await this.ensureAiOn(); state = await this.intake.turn(this.intakeText);
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
+      this.intake.dialogOpen=Boolean(state.questions.length || state.reason);
     });
   }
 
@@ -427,6 +429,7 @@ export class QuickFlow {
   }
 
   async finish() {
+    this.intake.dialogOpen=false;
     await this.run('최종 결과를 계산하고 있어요…', async () => {
       if (this.intake?.state) {
         await this.intake.flush();
@@ -498,7 +501,7 @@ export class QuickFlow {
 
   // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
   jumpTo(questionId) {
-    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.step = 'questions'; this.render(); window.scrollTo({top: 0}); return; }
+    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.dialogOpen=true; this.step = 'questions'; this.render(); return; }
     if (this.ai) { this.step = 'questions'; this.render(); window.scrollTo({top: 0}); return; }
     const groups = this.groups(), index = groups.findIndex(group => group.questions.some(q => q.id === questionId));
     if (index < 0) return;
@@ -672,17 +675,18 @@ export class QuickFlow {
     else if (d.quick === 'settings') this.saveSettings();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state)this.intake.dialogOpen=true; this.render(); }
+    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
       if (this.intake?.state) this.finish();
       else if (!this.ai && this.group < this.groups().length - 1) { this.group++; this.render(); window.scrollTo({top: 0}); } else this.finish();
     }
-    else if (d.quick === 'adaptive-next') this.run('남은 정보만 확인하고 있어요…', async () => {
-      await this.intake.flush();
-      const state = await this.intake.turn(this.intake.text);
-      if (state) this.task = state.task;
-    });
+    else if (d.quick === 'adaptive-next') this.respondIntake();
+    else if (d.intakePick) {
+      const field=this.intake.field(d.intakePick),value=this.intake.parseValue(d.intakePick,d.value);
+      this.respondIntake('',[{target:field.target,condition:field.condition,value}]);
+    }
     else if (d.intakeEdit) { this.intake.editing = this.intake.editing === d.intakeEdit ? null : d.intakeEdit; this.render(); }
     else if (d.intakeChoice) {
       const value = this.intake.parseValue(d.intakeChoice, d.value);
@@ -720,6 +724,19 @@ export class QuickFlow {
     this.render();
   }
 
+  async respondIntake(text=this.intake.text,answers=[]) {
+    let ready=false;
+    await this.run('AI가 답변을 정리하고 저장하고 있어요…',async()=>{
+      await this.intake.flush();await this.ensureAiOn();
+      const state=await this.intake.turn(text,answers);
+      if(!state)return;
+      this.task=state.task;this.preview=state.preview;
+      ready=!state.questions.length&&!state.reason;
+      if(ready)this.intake.dialogOpen=false;
+    });
+    if(ready)await this.finish();
+  }
+
   allNo() {
     const group = this.groups()[this.group];
     for (const q of group.questions) if (q.kind === 'criterion' && this.answers[q.id]?.present === undefined) this.answers[q.id] = {present: 'NO', values: {}};
@@ -729,7 +746,7 @@ export class QuickFlow {
   input(event) {
     const el = event.target;
     const d = el.dataset;
-    if (d.intakeReply !== undefined) { this.intake.text = el.value; }
+    if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
     else if (d.intakeValue) {
       const value = this.intake.parseValue(d.intakeValue, el.value);
       this.intake.values.set(d.intakeValue, value);
@@ -779,7 +796,8 @@ export class QuickFlow {
     const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-home-link" data-quick="home-bar" title="${this.task && !this.result ? '작성 중인 내용은 저장돼요. 홈에서 이어서 할 수 있어요.' : ''}">홈으로</button></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
     const busy = typeof this.busy === 'string' && this.busy ? `<div class="quick-busy" role="status">${esc(this.busy)}</div>` : '';
-    this.host.innerHTML = `${bar}${busy}${body}`;
+    this.host.innerHTML = `${bar}${busy}${body}${this.intake.dialog(this.busy)}`;
+    this.intake.mount(this.host,this.busy);
     this.keepDraft();
   }
 
@@ -811,9 +829,11 @@ export class QuickFlow {
       Object.assign(this, {survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.ai?.text ?? '', stale: true, settings, step: 'start'});
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {
-        const state = await this.intake.open(full.task.task_id, views);
+        let state = await this.intake.open(full.task.task_id, views);
+        if(state.ai?.status==='NOT_REQUESTED'){await this.ensureAiOn();state=await this.intake.turn('');}
         this.preview = state.preview; this.task = state.task; this.stale = false;
         this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || '';
+        this.intake.dialogOpen=Boolean(state.questions.length);
         this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
       }
       this.preview = await this.api('quick_preview', {task_id: full.task.task_id, views});

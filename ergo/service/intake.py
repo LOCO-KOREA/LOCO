@@ -4,9 +4,11 @@ import hashlib
 import json
 import os
 import re
+import time
 from pathlib import Path
 from ergo.intake import contract, facts, planner
 from ergo.gpt import client
+from ergo.engine.task_defaults import now
 from .quick import handle_quick_preview
 
 
@@ -87,7 +89,8 @@ def _response(task,session,preview,*,reason=None,proposed=(),dropped=()):
     return dict(task=task,contract=contract.public_contract(),facts=rows,questions=questions,
         remaining_count=assessment['missing_count'],complete=assessment['complete'],
         judgments=assessment['judgments'],reba=assessment['reba'],preview=preview,
-        reason=reason,dropped=list(dropped),messages=session['messages'])
+        reason=reason,dropped=list(dropped),messages=session['messages'],
+        ai=copy.deepcopy(session.get('last_ai') or dict(status=contract.AI_STATES[0],model=None,reason=None)))
 
 
 def handle_intake_session(ctx,method,p):
@@ -121,26 +124,46 @@ def handle_intake_turn(ctx,method,p):
     assessment=planner.assess(task,session['facts'],session['views'])
     reason=None; raw=None
     settings=ctx.settings()
+    started=time.monotonic()
+    history=session['messages'][:-1] if text or p.get('answers') else session['messages']
+    prior_texts=[m['text'] for m in history[-contract.POLICY['history_context_turns']:] if m['text']]
     if settings['gpt_enabled'] and settings.get('gpt_model'):
-        payload=dict(text=text,known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
+        payload=dict(phase='EXTRACT_AND_PLAN',text=text,known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
             targets=contract.fields(),missing=assessment['candidates'],asked=focus,
             question_limit=contract.POLICY['question_limit'],
-            prior_user_text=[m['text'] for m in session['messages'][-contract.POLICY['history_context_turns']:-1] if m['text']])
+            prior_user_text=prior_texts)
         raw,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),contract.POLICY)
     else: reason='DISABLED'
+    session['last_ai']=dict(status=contract.AI_STATES[1] if isinstance(raw,dict) and reason is None else contract.AI_STATES[2],
+        model=settings.get('gpt_model'),reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
+        response_id=(raw or {}).get('_connection',{}).get('response_id'))
     with ctx.db_lock:
         latest=ctx.require('task',task['task_id'])
         if latest['input_revision']!=task['input_revision'] or latest['created_at']!=task['created_at']:
             return handle_intake_session(ctx,method,dict(task_id=p['task_id'])) | dict(reason='INPUT_CHANGED')
-        dropped=[]
-        if isinstance(raw,dict):
-            session['facts'],dropped=facts.merge_model(session['facts'],raw.get('answers'),text,focus=focus,
-                prior_texts=[m['text'] for m in session['messages'][-contract.POLICY['history_context_turns']:-1] if m['text']])
-            session['suggestions']=raw.get('questions',[])
-        session['last_dropped']=dropped
-        projected=facts.project(task,session['facts'],session['views'],preview)
-        assessment=planner.assess(projected,session['facts'],session['views'])
-        session['suggestions']=[dict(target=q['target'],condition=q['condition'],text=q['text'],reason=q['reason']) for q in planner.choose(assessment['candidates'],session.get('suggestions',[]))]
-        saved,ok=_save(ctx,task,session,preview)
+    dropped=[]
+    if isinstance(raw,dict):
+        session['facts'],dropped=facts.merge_model(session['facts'],raw.get('answers'),text,focus=focus,
+            prior_texts=prior_texts)
+        session['suggestions']=raw.get('questions',[])
+    session['last_dropped']=dropped
+    projected=facts.project(task,session['facts'],session['views'],preview)
+    assessment=planner.assess(projected,session['facts'],session['views'])
+    admissible={q['identity'] for q in assessment['candidates']}
+    has_ai_question=any(contract.key(q.get('target',''),q.get('condition')) in admissible for q in session.get('suggestions',[]) if isinstance(q,dict))
+    # Extraction can reveal a new condition. Save the extracted facts before asking AI
+    # to phrase the actual remaining gap; never hold a DB lock during either request.
+    if isinstance(raw,dict) and assessment['candidates'] and not has_ai_question:
+        task,ok=_save(ctx,task,session,preview)
+        if not ok: return handle_intake_session(ctx,method,dict(task_id=p['task_id'])) | dict(reason='INPUT_CHANGED')
+        payload.update(phase='FOLLOWUP',text='',known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
+            missing=assessment['candidates'],asked=[],prior_user_text=[m['text'] for m in session['messages'][-contract.POLICY['history_context_turns']:] if m['text']])
+        followup,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),contract.POLICY)
+        session['last_ai'].update(status=contract.AI_STATES[1] if isinstance(followup,dict) and reason is None else contract.AI_STATES[2],
+            reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
+            response_id=(followup or {}).get('_connection',{}).get('response_id'))
+        if isinstance(followup,dict): session['suggestions']=followup.get('questions',[])
+    session['suggestions']=[dict(target=q['target'],condition=q['condition'],text=q['text'],reason=q['reason']) for q in planner.choose(assessment['candidates'],session.get('suggestions',[]))]
+    saved,ok=_save(ctx,task,session,preview)
     if not ok: return handle_intake_session(ctx,method,dict(task_id=p['task_id'])) | dict(reason='INPUT_CHANGED')
     return _response(saved,session,preview,reason=reason,proposed=session['suggestions'],dropped=dropped)

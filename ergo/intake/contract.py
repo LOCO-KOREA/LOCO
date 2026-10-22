@@ -5,9 +5,10 @@ from ergo.engine.task_defaults import COMMON, ARM, AUXILIARY_CONDITION_KEYS
 VERSION = 'ADAPTIVE_INTAKE_V1'
 SESSION_KEY = AUXILIARY_CONDITION_KEYS[0]
 METHODS = dict(contract='intake_contract', session='intake_session', turn='intake_turn')
-POLICY = dict(question_limit=3, text_limit=2400, timeout_seconds=20, max_output_tokens=3200,
+POLICY = dict(question_limit=1, text_limit=2400, timeout_seconds=20, max_output_tokens=3200,
               default_condition='default', unknown='UNKNOWN', history_context_turns=8, auto_title_length=60)
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
+AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
 SOURCES = ('USER', 'AI', 'MOVENET', 'SAVED')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
@@ -15,6 +16,8 @@ LIFT_FIELDS = {8: ('load_mass_kg','lift_count_day'),
                9: ('load_mass_kg','below_knee_count_day','above_shoulder_count_day','extended_arm_count_day','union_count_day'),
                10: ('load_mass_kg','lift_rate_min','minutes')}
 YES_NO = [dict(value='YES', label='예'), dict(value='NO', label='아니오')]
+REPLY_EXAMPLES = {'kg':'예: 20kg 상자예요.', '회/일':'예: 하루 30번 정도요.', '회/분':'예: 1분에 1번 정도 들어요.',
+                  '회/시간':'예: 한 시간에 10번 정도요.', '분':'예: 하루에 30분 정도요.', '분/일':'예: 하루에 30분 정도요.', '일':'예: 1년에 220일 정도요.'}
 
 
 def fields():
@@ -26,7 +29,7 @@ def fields():
             gate=None, priority=50, group='', path=None):
         result.append(dict(target=target, label=label, question=question or label, kind=kind,
                            destination=destination, choices=choices or [], unit=unit, maximum=maximum,
-                           gate=gate, priority=priority, group=group, path=path,
+                           gate=gate, priority=priority, group=group, path=path,reply_example=REPLY_EXAMPLES.get(unit,'답변을 편하게 적어 주세요. 여러 내용을 한 번에 말해도 돼요.'),
                            conditioned=destination['type']=='criterion' and bool(destination.get('mapping',{}).get('row') or destination.get('mapping',{}).get('lift'))))
 
     work = by_id['work_types']
@@ -82,7 +85,7 @@ def fields():
 
 
 def public_contract():
-    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY, states=STATES, sources=SOURCES, fields=fields())
+    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY, states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
 
 
 def response_schema(catalogue=None):
