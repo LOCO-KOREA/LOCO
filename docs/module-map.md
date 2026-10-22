@@ -23,3 +23,9 @@
 `database-location.js`는 설정의 “데이터 저장 위치” 창과 저장 연결 실패 시의 공통 안내를 담당한다. 간편 홈의 설정과 고급 설정 화면에서 같은 창을 열며, 일반 작업 화면에는 경로를 상시 표시하지 않는다. `electron/database-location.cjs`는 worker에 전달할 경로 결정·연결 조회·복사/폴더 열기를 담당하며 Python 서비스·계산·저장 모듈을 수정하지 않는다. 경로와 연결 성공은 별도로 표시한다. `tests/frontend-database-location.cjs`는 오류·중복·경로 반례를, `tests/desktop-database-integration.cjs`는 실제 main/preload와 Python·SQLite 연결을 검증한다. 후자의 네이티브 창·클립보드·폴더 열기는 mock이며 실제 GUI 검증과 구분한다.
 
 `scripts/check_frontend.cjs`는 실제 Electron 페이지·ES module import·문법을 확인한다. `scripts/audit_contract.py`는 정본/registry/dispatch/renderer 호출을 대조한다. `tests/test_modularity.py`는 앱 인스턴스 분리와 역방향 의존을 검증한다. 실제 업무 흐름과 배포본 검증은 `local-verification.md`를 따른다.
+
+## 적응형 입력 모듈 (2026-10-22)
+
+`ergo/intake/{contract,facts,planner}.py`는 공통 계약·순수 값 통합·누락 후보 계산을 담당하고 DB/서비스 조립 루트를 참조하지 않는다. `ergo/service/intake.py`가 저장·추론·AI를 조정하고 `ergo/gpt/intake.py`가 문맥 기반 모델 호출을 담당한다. `frontend/intake/{client,view}.js`와 `intake.css`는 동적 계약 소비·자동 저장·추가 질문 화면을 맡는다. [상세 계약](adaptive-intake.md)을 따른다.
+
+`ergo/ai_config.py`는 저장/SDK 의존이 없는 공통 AI 설정 계약이다. 서비스와 저장 계층은 이 순수 계약의 키/값만 소비한다. `ergo/gpt/{client,intake}.py`는 같은 요청 옵션을 SDK에 전달하고, `frontend/ai-settings.js`는 get_settings.gpt_contract의 필드/타입/선택지로 간편·고급 설정을 렌더링/저장한다. 모델명·추론 강도·시간/토큰 제한은 프론트/개별 AI 모듈에서 중복 정의하지 않는다.

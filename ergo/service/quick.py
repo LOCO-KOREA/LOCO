@@ -72,7 +72,7 @@ def handle_quick_interpret(ctx, method, p):
     if not (settings['gpt_enabled'] and settings.get('gpt_model')):
         return dict(items=[], dropped=[], reason='DISABLED')
     boxes = quick_intake.catalogue()
-    raw, reason = gpt_client.interpret(text, quick_intake.prompt_targets(boxes), quick_intake.schema(boxes), settings['gpt_model'], os.environ.get('OPENAI_API_KEY'))
+    raw, reason = gpt_client.interpret(text, quick_intake.prompt_targets(boxes), quick_intake.schema(boxes), settings['gpt_model'], os.environ.get('OPENAI_API_KEY'), settings)
     if reason:
         return dict(items=[], dropped=[], reason=reason)
     items, dropped = quick_intake.validate(raw, text)

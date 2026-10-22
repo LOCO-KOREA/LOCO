@@ -24,7 +24,7 @@ async function poll(read,predicate){const end=Date.now()+20000;while(Date.now()<
 const pass=name=>{receipt.checks.push(name);console.log('PASS '+name);};
 async function main(){
  await fs.mkdir(dir,{recursive:true});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const env={...process.env,LOCO_PYTHON:path.join(root,'.venv','Scripts','python.exe'),LOCO_DB_PATH:path.join(dir,'loco.db'),OPENAI_API_KEY:'local-protocol-fixture-only',OPENAI_BASE_URL:`http://127.0.0.1:${server.address().port}/v1/`};delete env.ELECTRON_RUN_AS_NODE;
+ const env={...process.env,LOCO_HIDDEN:'1',LOCO_PYTHON:path.join(root,'.venv','Scripts','python.exe'),LOCO_DB_PATH:path.join(dir,'loco.db'),OPENAI_API_KEY:'local-protocol-fixture-only',OPENAI_BASE_URL:`http://127.0.0.1:${server.address().port}/v1/`};delete env.ELECTRON_RUN_AS_NODE;
  if(packaged){delete env.LOCO_PYTHON;delete env.LOCO_SERVICE_ENTRY;delete env.LOCO_MOVENET_MODEL;env.PATH=process.env.SystemRoot+'\\System32;'+process.env.SystemRoot;}
  electron=await _electron.launch({executablePath:packaged||require('../frontend/node_modules/electron'),args:packaged?[]:[path.join(root,'frontend')],env,cwd:root});page=await electron.firstWindow();page.setDefaultTimeout(15000);
  receipt.runtime=await electron.evaluate(({app})=>({packaged:app.isPackaged,executable:process.execPath}));
@@ -32,7 +32,7 @@ async function main(){
  const survey=await api('create_survey',{draft:{survey_type:'REGULAR',title:'private task',survey_date:'2026-10-16'}});
  const task=await api('create_task',{survey_id:survey.survey_id,draft:{task_name:'private task',conditions:{worker_code:'private worker'}}});
  const original=await api('recalculate_judgments',{task_id:task.task_id});
- const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';await api('update_settings',{settings});
+ const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';settings.gpt_timeout_seconds=15;await api('update_settings',{settings});
  await page.reload();await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
  await page.locator('[data-action="generate-explanation"]').click();
  let generated=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===1);

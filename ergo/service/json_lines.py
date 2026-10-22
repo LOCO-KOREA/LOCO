@@ -36,7 +36,7 @@ def respond(request, operation=None, preparation_error=None):
 def handle(request):
     """Capture background request targets in IPC order before running workers."""
     method = request.get('method')
-    if isinstance(method, str) and (method in RECALCULATION_METHODS or method in ('generate_ai_text', 'quick_interpret')):
+    if isinstance(method, str) and (method in RECALCULATION_METHODS or method in ('generate_ai_text', 'quick_interpret', 'intake_turn')):
         try:
             operation = prepare_dispatch(method, request.get('params', {}))
         except Exception as error:

@@ -10,6 +10,7 @@ class Runtime:
         self.analysis_lock=threading.Lock()
         self.cancels={}
         self.analysis_tokens={}
+        self.intake_previews={}
 
     def analysis_token(self, identity, *, renew=False):
         """Identify one analysis lifetime without adding fields to stored JSON."""
