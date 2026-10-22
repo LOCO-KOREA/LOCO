@@ -20,6 +20,8 @@ SERVICE_METHODS = {
     'set_legal_inputs': (('task_id','legal'), ()),
     'set_analysis_scope': (('task_id','scope'), ()),
     'import_photos': (('task_id','file_paths'), ()),
+    'preview_photo_file': (('file_path',), ()),
+    'import_cropped_photo': (('task_id','file_path','source_sha256','crop'), ('task_created_at',)),
     'get_photo_preview': (('photo',), ()),
     'update_photo': (('photo_id','file_path','consent'), ()),
     'delete_photo': (('photo_id',), ()),
@@ -65,6 +67,19 @@ def validate_request(method, params):
             raise ValueError(f'{key}는 양의 정수여야 합니다')
     if 'expected_revision' in params and (type(params['expected_revision']) is not int or params['expected_revision']<0):
         raise ValueError('expected_revision은 0 이상 정수여야 합니다')
+    if method in ('preview_photo_file','import_cropped_photo'):
+        if not isinstance(params['file_path'],str) or not params['file_path'].strip():
+            raise ValueError('사진 경로가 필요합니다')
+    if method=='import_cropped_photo':
+        import re
+        if not isinstance(params['source_sha256'],str) or not re.fullmatch('[0-9a-f]{64}',params['source_sha256']):
+            raise ValueError('선택한 원본 사진의 해시가 필요합니다')
+        crop=params['crop']
+        if (not isinstance(crop,dict) or set(crop)!={'x','y','width','height'} or
+                any(type(crop[k]) is not int or crop[k] < (0 if k in ('x','y') else 1) for k in crop)):
+            raise ValueError('선택 영역은 사진 안의 정수 좌표와 양의 크기여야 합니다')
+        if 'task_created_at' in params and not isinstance(params['task_created_at'],str):
+            raise ValueError('작업 생성시각은 문자열이어야 합니다')
     if 'purpose' in params and params['purpose'] not in ('TASK_EXPLANATION','IMPROVEMENT_ADVICE'):
         raise ValueError('지원하지 않는 설명 목적입니다')
     if method=='apply_ai_text' and type(params['use_edited']) is not bool:
