@@ -1,3 +1,4 @@
+import {previewPdf,exportPdf,renderPdfPreview} from './pdf-export.js';
 import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
@@ -25,7 +26,7 @@ const BONES = [['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'], [
   ['left_ear', 'left_shoulder'], ['right_ear', 'right_shoulder'], ['nose', 'left_eye'], ['nose', 'right_eye']];
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
 const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
-const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
+const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'PDF']];
 // Which ticked work type feeds which statutory criterion (numbers are never shown while answering).
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
 const GATE_CRITERIA = Object.entries(GATES).reduce((map, [n, gate]) => ({...map, [gate]: [...(map[gate] || []), Number(n)]}), {});
@@ -167,7 +168,7 @@ export class QuickFlow {
   reset() {
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, pdfPreview: null, pdfOperation: null, excelTab: 0, overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -216,7 +217,7 @@ export class QuickFlow {
     await this.run('삭제하고 있어요…', async () => {
       await this.api('delete_survey', {survey_id: id});
       this.surveys = await this.api('list_surveys');
-      this.notify('기록을 삭제했어요. 원본 사진과 Excel 파일은 그대로예요.');
+      this.notify('기록을 삭제했어요. 원본 사진과 이미 저장한 보고서 파일은 그대로예요.');
     });
   }
 
@@ -485,14 +486,24 @@ export class QuickFlow {
   openReview() { this.step = 'review'; this.render(); window.scrollTo({top: 0}); }
 
   // The check list and the preview are built from the same stored results the Excel file will use.
+  async runPdf(label, action) {
+    if(this.busy)return;
+    const operation={survey:this.survey,task:this.task,result:this.result};
+    this.pdfOperation=operation;this.busy=label;this.render();
+    try {await action();}
+    catch(error){if(this.pdfOperation===operation&&this.survey===operation.survey&&this.task===operation.task&&this.result===operation.result)this.onError(error);}
+    finally{if(this.pdfOperation===operation){this.pdfOperation=null;if(this.busy===label){this.busy=false;this.render();}}}
+  }
+
   async openExcel() {
-    await this.run('Excel 미리보기를 만들고 있어요…', async () => {
-      const comparisons = this.baseline && this.comparison ? [this.comparison.spec] : [];
-      const args = {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons};
-      [this.overview, this.excelPreview] = await Promise.all([this.api('preview_excel', args), this.api('preview_excel_sheets', args)]);
-      this.excelTab = 0; this.step = 'excel';
+    const owner={survey:this.survey,task:this.task,result:this.result,step:this.step};
+    const current=()=>this.survey===owner.survey&&this.task===owner.task&&this.result===owner.result&&this.step===owner.step;
+    const params={survey_id:owner.survey.survey_id,spec:{task_ids:[owner.task.task_id],analysis_ids:[owner.result.analysis_id],include_representative:true}};
+    await this.runPdf('PDF 미리보기를 만들고 있어요…', async()=>{
+      const preview=await previewPdf(this.api,params);
+      if(!current())return;
+      this.pdfPreview=preview;this.overview=preview.overview;this.step='excel';
     });
-    window.scrollTo({top: 0});
   }
 
   // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
@@ -523,10 +534,10 @@ export class QuickFlow {
       lines.push(`<li><span>${esc(next.message)}</span>${jump(next.criterion_no ? cardFor(next.criterion_no) : null)}</li>`);
     }
     const counts = item.counts || {};
-    return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>Excel 만들기 전 확인</h3>
+    return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>PDF 만들기 전 확인</h3>
       <p class="quick-note">입력 필요 기준 <b>${counts.needs_input_count ?? 0}</b>개 · 검토 필요 <b>${counts.needs_review_count ?? 0}</b>개 · 조사자 결론 <b>${conclusions}</b>/11개</p>
       ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? '<p class="quick-note">답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.</p>' : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
-      : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
+      : '<p class="quick-ok">빠진 항목이 없어요. PDF로 저장할 수 있어요. 미확정 상태는 앱에서 확인해 주세요.</p>'}</section>`;
   }
 
   async conclude(number, status) {
@@ -634,13 +645,13 @@ export class QuickFlow {
   }
 
   async exportExcel() {
-    if (!window.loco?.choose_export_destination) return this.onError(new Error('Excel 저장은 앱에서만 할 수 있어요.'));
-    const destination = await window.loco.choose_export_destination();
-    if (!destination) return;
-    await this.run('Excel을 만들고 있어요…', async () => {
-      const comparisons = this.baseline && this.comparison ? [this.comparison.spec] : [];
-      this.exported = await this.api('export_excel', {survey_id: this.survey.survey_id, spec: {destination, analysis_ids: [this.result.analysis_id], include_representative: true, comparisons}});
-      this.notify(`Excel을 저장했어요: ${this.exported.file_path}`);
+    if(!window.loco?.choose_pdf_destination)return this.onError(new Error('PDF 저장은 앱에서만 할 수 있어요.'));
+    const owner={survey:this.survey,task:this.task,result:this.result,step:this.step};
+    const params={survey_id:owner.survey.survey_id,spec:{task_ids:[owner.task.task_id],analysis_ids:[owner.result.analysis_id],include_representative:true}};
+    await this.runPdf('PDF를 만들고 있어요…',async()=>{
+      const receipt=await exportPdf(this.api,()=>window.loco.choose_pdf_destination(),params);
+      if(!receipt||this.survey!==owner.survey||this.task!==owner.task||this.result!==owner.result||this.step!==owner.step)return;
+      this.exported=receipt;this.notify(`PDF를 저장했어요: ${receipt.file_path}`);
     });
   }
 
@@ -851,7 +862,7 @@ export class QuickFlow {
       <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
       <div class="quick-list-actions"><button class="primary" data-quick="resume">이어서 하기</button><button data-quick="discard-draft">버리기</button></div></section>` : '';
     return `${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
-      <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 Excel까지 이어져요.</p>
+      <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 PDF까지 이어져요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>
       <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
         <div><strong>${esc(x.title || '제목 없음')}</strong><span>${esc(x.survey_date || '')} · 작업 ${x.task_count}개 ${badge(x)}</span></div>
@@ -1050,7 +1061,7 @@ export class QuickFlow {
       <div class="quick-big small"><strong>${delta == null ? '—' : (delta > 0 ? '+' : '') + delta}</strong><span>REBA 최대 점수 변화 ${delta == null ? '(비교할 수 없어요)' : delta < 0 ? '(낮아졌어요)' : delta > 0 ? '(높아졌어요)' : '(같아요)'}</span></div>
       ${changed.length ? `<ul class="quick-measured">${changed.map(x => `<li>${esc(CRIT_NAME[x.criterion_no])}(법정 ${x.criterion_no}호): ${esc(label(x.before_status))} → <strong>${esc(label(x.after_status))}</strong></li>`).join('')}</ul>` : '<p class="quick-note">기준 판정이 바뀐 항목은 없어요.</p>'}
       ${(c.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
-      <p class="quick-note">바뀐 입력값은 Excel의 "개선 전후 비교" 시트에 정리돼요.</p></section>`;
+      <p class="quick-note">전후 비교표를 저장하려면 고급 편집의 Excel 출력을 사용해 주세요.</p></section>`;
   }
 
   resultSummary() {
@@ -1067,7 +1078,7 @@ export class QuickFlow {
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
-        <div class="quick-nav"><button data-quick="home">처음으로</button><button data-quick="preview">Excel 미리보기</button>${this.intake?.state ? '<button data-quick="questions">입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
+        <div class="quick-nav"><button data-quick="home">처음으로</button><button data-quick="preview">PDF 미리보기</button>${this.intake?.state ? '<button data-quick="questions">입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
         ${this.comparePanel()}</div></div>`;
   }
 
@@ -1107,21 +1118,17 @@ export class QuickFlow {
         <div class="quick-nav left"><button class="primary" data-quick="reviewed">검토 완료로 표시</button>${reviewed ? '<button data-quick="unreview">검토 표시 해제</button>' : ''}</div>
         <p class="quick-note">${reviewed ? '<b>검토 완료</b>로 표시되어 있어요.' : '아직 검토 표시가 없어요.'} 검토 표시는 계산 완전성과 별개예요.</p></section>
       ${this.aiPanel()}
-      <section class="panel"><div class="quick-nav"><button data-quick="result">← 결과 보기</button><button class="primary" data-quick="preview">Excel 미리보기 →</button></div></section></div></div>`;
+      <section class="panel"><div class="quick-nav"><button data-quick="result">← 결과 보기</button><button class="primary" data-quick="preview">PDF 미리보기 →</button></div></section></div></div>`;
   }
 
   // Excel: what is missing, a preview of the sheets exactly as the file will contain them, and the save button.
   viewExcel() {
-    return `<div class="quick-excel-page">
-      <section class="panel quick-excel"><h3>Excel 미리보기</h3>${this.excelPreviewPanel()}</section>
+    return `<div class="quick-excel-page"><section class="panel"><h3>유해요인조사표 PDF</h3>${renderPdfPreview(this.pdfPreview)}</section>
       ${this.checklistPanel()}
-      <section class="panel"><h3>Excel로 저장</h3>
-        <p class="quick-note">위 미리보기와 같은 내용이 파일로 저장돼요.${this.comparison ? ' 개선 전후 비교도 함께 들어가요.' : ''}</p>
-        ${this.exported ? `<p class="quick-ok">저장한 파일: ${esc(this.exported.file_path)}</p>` : ''}
-        <div class="quick-nav left"><button class="primary" data-quick="excel">Excel로 저장</button></div></section>
-      <section class="panel"><h3>그다음</h3>
-        <div class="quick-nav left"><button data-quick="review">← 검토로</button><button data-quick="improve">개선 후 사진으로 다시 비교</button>
-          <button data-quick="home">처음으로</button><button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
+      <section class="panel"><p>작업 한 건마다 원본 양식 묶음을 만들고, 원본 칸보다 긴 작성 내용만 별첨에 보존해요. 분석 상세와 보완사항은 앱에서 확인해 주세요. 미리보기 후 입력이 바뀌면 저장 시점 자료가 기준이에요.</p>
+      ${this.exported?`<p>저장한 파일: ${esc(this.exported.file_path)}</p>`:''}
+      <button class="primary" data-quick="excel">PDF로 저장</button><button data-quick="preview">PDF 미리보기 갱신</button></section>
+      <section class="panel"><button data-quick="review">검토로</button><button data-quick="home">처음으로</button><button data-quick="detail">고급 편집</button></section></div>`;
   }
 
   excelPreviewPanel() {

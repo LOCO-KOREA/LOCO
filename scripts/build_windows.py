@@ -57,6 +57,8 @@ def main():
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--name', 'loco-service',
         '--paths', str(ROOT), '--collect-all', 'ai_edge_litert',
         '--add-data', str(ROOT / 'ergo' / 'db' / 'schema_v1.sql') + ';ergo/db',
+        '--add-data', str(ROOT / 'ergo' / 'report' / 'templates') + ';ergo/report/templates',
+        '--add-data', str(ROOT / 'ergo' / 'report' / 'assets') + ';ergo/report/assets',
         '--distpath', str(work / 'backend'), '--workpath', str(work / 'freeze'),
         '--specpath', str(work), str(ROOT / 'ergo' / 'service' / 'json_lines.py'),
     ], cwd=ROOT, check=True)
@@ -83,7 +85,7 @@ def main():
     manifest['source_sha256']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
                                for base in ('ergo','frontend') for p in (ROOT/base).rglob('*')
                                if p.is_file() and not any(part in ('node_modules','.local','__pycache__') for part in p.parts)
-                               and p.suffix in ('.py','.js','.cjs','.html','.css','.sql','.json','.svg','.png','.ico')}
+                               and p.suffix in ('.py','.js','.cjs','.html','.css','.sql','.json','.svg','.png','.ico','.pdf','.ttf','.txt')}
     manifest['source_sha256']['docs/ui/loco-guide.js']=hashlib.sha256((ROOT/'docs/ui/loco-guide.js').read_bytes()).hexdigest()
     manifest['contract_version']='2.0'
     manifest['electron']=json.loads((ROOT/'frontend/node_modules/electron/package.json').read_text(encoding='utf-8'))['version']

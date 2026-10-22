@@ -76,10 +76,14 @@ E2E 시험 창이 화면에 뜨지 않게 하려면 `LOCO_HIDDEN=1`을 설정합
 
 ## 적응형 간편 입력 (2026-10-22)
 
-사진·작업 설명 → 자동 정리 → 추가 확인 → 결과·검토·Excel 흐름이다. `intake/client.js`가 서버의 `intake_contract`를 조회하고 메서드·정책·필드 정의를 재사용한다. `intake/view.js`는 해당 계약의 선택지·단위로 필요한 필드만 그린다. 값은 SQLite에 자동 저장하고 localStorage는 이어서 열 작업의 위치와 보내기 전 문장만 보조 보관한다. 실제 Electron/Python/SQLite/MoveNet/Excel과 loopback SDK 검증은 `node tests/adaptive-intake-e2e.cjs`로 실행한다.
+사진·작업 설명 → 자동 정리 → 추가 확인 → 결과·검토·PDF 흐름이다. `intake/client.js`가 서버의 `intake_contract`를 조회하고 메서드·정책·필드 정의를 재사용한다. `intake/view.js`는 해당 계약의 선택지·단위로 필요한 필드만 그린다. 값은 SQLite에 자동 저장하고 localStorage는 이어서 열 작업의 위치와 보내기 전 문장만 보조 보관한다. 실제 Electron/Python/SQLite/MoveNet/Excel과 loopback SDK 검증은 `node tests/adaptive-intake-e2e.cjs`로 실행한다.
 
 기본 추가 확인은 `intake/dialog.js`의 대화 팝업이다. AI 자동 정리 직후 열리며 질문 하나와 자연어 답변을 제공한다. 답변 뒤 정리·저장·다음 질문 계획을 진행하고, 기본 페이지에 전체 필드나 숫자 입력 목록을 표시하지 않는다. 실제 요청 결과의 AI 응답 성공/실패를 팝업에서 확인한다. 숫자 등 직접 편집은 요약의 ‘수정’을 선택할 때만 열린다.
 
 `npm --prefix frontend run test:adaptive:full-live`는 실제 외부 OpenAI까지 연결해 입력 → 후속 답변 → 저장값 수정 → 모름 → 재실행 → 결과 → AI 설명 적용 → 검토 → Excel → 재실행을 검증한다. 기존 프로세스의 `OPENAI_API_KEY`, 시험용 `LOCO_LIVE_AI=1`, `LOCO_LIVE_MODEL`이 필요하며, DB/프로필은 `.local/full-live-e2e-*`에 따로 만든다. 항상 화면 밖·초점 불가 Electron 창으로 실행하여 사용자의 마우스·키보드·기존 앱 창을 조작하지 않는다. 사진/저장 경로를 선택하는 네이티브 파일 대화상자만 자동 지정한다. 성공 후 `python tests/verify_local_artifacts.py <검증 폴더> 1`로 SQLite와 실제 Excel을 독립 대조한다.
 
 AI 모델·추론 강도·시간/토큰 한도는 설정 화면에서 바꾸며 공통 계약 `ergo/ai_config.py` → `get_settings.gpt_contract` → `ai-settings.js`를 쓴다. 초기 환경변수는 `LOCO_AI_MODEL`, `LOCO_AI_REASONING_EFFORT`, `LOCO_AI_TIMEOUT_SECONDS`, `LOCO_AI_MAX_OUTPUT_TOKENS`이고 저장된 설정이 우선한다. 현 기본값 gpt-6-luna/xhigh를 입력 정리·추가 질문·설명 생성 모두 공유한다. Live 시험의 `LOCO_LIVE_MODEL`과 `LOCO_LIVE_REASONING_EFFORT`로 요청 조합을 명시하고 실제 응답 모델/effort를 receipt에서 확인한다.
+
+## PDF 출력 후보 연결
+
+Python 환경에 requirements-desktop.txt를 다시 설치해야 합니다. reportlab/pypdf와 ergo/report/templates, assets가 필요합니다. PDF는 별도 preview_pdf/export_pdf API를 사용하며 기존 Excel API는 유지합니다. 원본 칸을 넘는 긴 작성 내용만 별첨에 보존합니다. 분석 상세·빈 사진 슬롯·보완사항은 PDF에 자동으로 붙이지 않습니다. 이 절은 후보 코드 검토용이며 실제 main·패키지 반영 상태는 별도로 확인해야 합니다.

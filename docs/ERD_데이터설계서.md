@@ -121,3 +121,9 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 `intake_session.last_ai`는 실제 마지막 요청의 상태·모델·응답 ID·진단을 담는 선택 객체다. 이전 자료에는 없을 수 있으며 설정 존재와 응답 성공을 구분한다. 인증정보는 포함하지 않는다.
 
 AI 입력 정리·후속 질문·설명 생성은 공통 설정 계약(`ergo/ai_config.py`, API 계약서 §6)을 공유한다. 모델·추론 강도·요청 시간·토큰 한도는 변수이며, 두 설정 화면도 서버 필드 정의로 렌더링한다. APP_SETTINGS의 기존 JSON에 저장하며 테이블·이전 분석 snapshot은 추가/변경하지 않는다.
+
+### PDF 출력 영수증 JSON (2026-10-22 개정안)
+
+기존 EXPORT_LOG 테이블을 그대로 쓴다. receipt_json에 format:'PDF', template_version, template_sha256, page_count, task_ids, analysis_ids, warnings와 기존 상태 필드를 저장한다. snapshot_json에는 선택한 Task/분석과 출력 시점 조사 메타를 저장한다. format이 없는 기존 영수증은 Excel이며 기존 sheets 필드는 보존한다. PDF 영수증은 페이지를 sheets라고 저장하지 않는다. 새 테이블·열·trigger·물리 migration 없이 새 출력 행만 추가한다.
+
+PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at을 확인한 뒤 추가한다. 기존 Excel 호출의 동작/저장 행은 변경하지 않는다. 서버 생성시각의 수명별 구분을 이용하며 물리 migration은 없다.

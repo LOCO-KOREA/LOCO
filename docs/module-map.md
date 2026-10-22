@@ -29,3 +29,11 @@
 `ergo/intake/{contract,facts,planner}.py`는 공통 계약·순수 값 통합·누락 후보 계산을 담당하고 DB/서비스 조립 루트를 참조하지 않는다. `ergo/service/intake.py`가 저장·추론·AI를 조정하고 `ergo/gpt/intake.py`가 문맥 기반 모델 호출을 담당한다. `frontend/intake/{client,view}.js`와 `intake.css`는 동적 계약 소비·자동 저장·추가 질문 화면을 맡는다. [상세 계약](adaptive-intake.md)을 따른다.
 
 `ergo/ai_config.py`는 저장/SDK 의존이 없는 공통 AI 설정 계약이다. 서비스와 저장 계층은 이 순수 계약의 키/값만 소비한다. `ergo/gpt/{client,intake}.py`는 같은 요청 옵션을 SDK에 전달하고, `frontend/ai-settings.js`는 get_settings.gpt_contract의 필드/타입/선택지로 간편·고급 설정을 렌더링/저장한다. 모델명·추론 강도·시간/토큰 제한은 프론트/개별 AI 모듈에서 중복 정의하지 않는다.
+
+## 별지 1 PDF 출력 (2026-10-22 개정안)
+
+- ergo/report/form_mapping.py: 고정 snapshot → 원본 칸·앱용 미확정 안내. 규칙 계산 없음.
+- ergo/report/pdf.py: 원본 배경에 글자·체크·사진을 배치하고 칸을 넘는 작성 내용만 별첨 생성.
+- ergo/service/pdf_exports.py: 선택 검증·요청 순서의 snapshot 준비·PDF 미리보기/원자적 파일 교체·기존 출력 이력.
+- frontend/pdf-export.js: 대상 고정·중복 요청 억제·저장 취소·실제 PDF 표시.
+- templates/assets: 원본 해시, 빈 양식, PDF용 한글 글꼴과 라이선스.
