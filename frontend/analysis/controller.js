@@ -39,6 +39,8 @@ export function createController(ctx){
   if(action==='edit-explanation')return `analysis:${analysis}:edit:${s.aiTextId}`;
   if(['apply-generated','apply-edited'].includes(action))return `analysis:${analysis}:apply:${s.aiTextId}`;
   if(['review-on','review-off'].includes(action))return `survey:${s.survey?.survey_id}:review`;
+  if(action==='preview-pdf')return `survey:${s.survey?.survey_id}:pdf-preview`;
+  if(action==='export-pdf')return `survey:${s.survey?.survey_id}:pdf-export`;
   if(action==='export')return `survey:${s.survey?.survey_id}:export`;
   if(['save-settings','save-gpt-settings','save-analysis-settings'].includes(action))return 'settings:update';
   return null;
@@ -137,6 +139,7 @@ export function createController(ctx){
  });
  host.element.addEventListener('change',async event=>{
   const el=event.target,t=token();try{
+   if(el.dataset.pdfTask){s.pdfTaskSelections[s.survey.survey_id]=[...host.element.querySelectorAll('[data-pdf-task]:checked')].map(x=>Number(x.dataset.pdfTask));return;}
    if(el.id==='task-choice'&&el.value){await chooseTask(Number(el.value));return;}
    if(el.id==='history-choice'){selectHistory(Number(el.value)||null);return;}
    if(el.dataset.field==='ai-purpose'||el.dataset.field==='ai-choice'){s.aiEpoch++;if(el.dataset.field==='ai-purpose'){s.aiPurpose=el.value;s.aiTextId=null;}else s.aiTextId=el.value||null;render();return;}

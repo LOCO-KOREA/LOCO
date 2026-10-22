@@ -121,3 +121,10 @@ storage는 트랜잭션 안에서 최신 result_json을 읽어 소유한 경로�
 Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비스·공식 모델을 포함한다. 빌드 명령은 scripts/build_windows.py이며 설치된 Python/Node를 찾아 실행하지 않는다. DB는 쓰기 가능한 사용자 앱 데이터 경로에 유지한다. 빌드/실행 검증과 외부 검증 경계는 local-verification.md를 따른다.
 
 모듈별 책임과 단방향 의존은 [모듈 지도](module-map.md)를 따른다. 서비스와 저장/보고서는 facade와 entity/domain 모듈로 분리하고 앱별 Runtime에 DB·잠금·취소 상태를 주입한다. 여섯 JSON 테이블과 불변 snapshot 계약은 유지한다. 전체 결과 덮어쓰기와 최신 분석 포인터를 임의로 바꾸는 폐기된 저장 API는 제거했다.
+
+
+### PDF 출력 영수증 JSON (2026-10-22 개정안)
+
+기존 EXPORT_LOG 테이블을 그대로 쓴다. receipt_json에 format:'PDF', template_version, template_sha256, page_count, task_ids, analysis_ids, warnings와 기존 상태 필드를 저장한다. snapshot_json에는 선택한 Task/분석과 출력 시점 조사 메타를 저장한다. format이 없는 기존 영수증은 Excel이며 기존 sheets 필드는 보존한다. PDF 영수증은 페이지를 sheets라고 저장하지 않는다. 새 테이블·열·trigger·물리 migration 없이 새 출력 행만 추가한다.
+
+PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at을 확인한 뒤 추가한다. 기존 Excel 호출의 동작/저장 행은 변경하지 않는다. 서버 생성시각의 수명별 구분을 이용하며 물리 migration은 없다.

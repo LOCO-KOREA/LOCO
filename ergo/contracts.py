@@ -41,6 +41,8 @@ SERVICE_METHODS = {
     'preview_excel': (('survey_id',), ('analysis_ids','comparisons')),
     'preview_excel_sheets': (('survey_id',), ('analysis_ids','comparisons')),
     'export_excel': (('survey_id','spec'), ()),
+    'preview_pdf': (('survey_id','spec'), ()),
+    'export_pdf': (('survey_id','spec'), ()),
     'list_export_logs': (('survey_id',), ()),
     'update_settings': (('settings',), ()),
     'quick_preview': (('task_id','views'), ()),
@@ -74,3 +76,19 @@ def validate_request(method, params):
         raise ValueError('작업 설명은 1~600자 문장이어야 합니다')
     if method=='set_survey_review' and (not isinstance(params['review'],dict) or type(params['review'].get('reviewed')) is not bool):
         raise ValueError('검토 여부는 참/거짓이어야 합니다')
+    if method in ('preview_pdf','export_pdf'):
+        spec=params['spec']
+        required={'task_ids','analysis_ids','include_representative'}
+        if method=='export_pdf':required.add('destination')
+        if not isinstance(spec,dict) or set(spec)!=required:
+            raise ValueError('PDF 출력 옵션이 올바르지 않습니다.')
+        for key in ('task_ids','analysis_ids'):
+            values=spec[key]
+            if (not isinstance(values,list) or any(type(x) is not int or x<1 for x in values)
+                    or len(values)!=len(set(values)) or key=='task_ids' and not values):
+                raise ValueError('작업·분석 선택은 중복 없는 양의 정수 목록이어야 합니다.')
+        if type(spec['include_representative']) is not bool:
+            raise ValueError('대표 사진 포함 여부는 참/거짓이어야 합니다.')
+        if method=='export_pdf' and (not isinstance(spec['destination'],str)
+                or not spec['destination'].strip() or not spec['destination'].lower().endswith('.pdf')):
+            raise ValueError('PDF 저장 경로를 선택해 주세요.')

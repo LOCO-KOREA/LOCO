@@ -23,3 +23,12 @@
 `database-location.js`는 설정의 “데이터 저장 위치” 창과 저장 연결 실패 시의 공통 안내를 담당한다. 간편 홈의 설정과 고급 설정 화면에서 같은 창을 열며, 일반 작업 화면에는 경로를 상시 표시하지 않는다. `electron/database-location.cjs`는 worker에 전달할 경로 결정·연결 조회·복사/폴더 열기를 담당하며 Python 서비스·계산·저장 모듈을 수정하지 않는다. 경로와 연결 성공은 별도로 표시한다. `tests/frontend-database-location.cjs`는 오류·중복·경로 반례를, `tests/desktop-database-integration.cjs`는 실제 main/preload와 Python·SQLite 연결을 검증한다. 후자의 네이티브 창·클립보드·폴더 열기는 mock이며 실제 GUI 검증과 구분한다.
 
 `scripts/check_frontend.cjs`는 실제 Electron 페이지·ES module import·문법을 확인한다. `scripts/audit_contract.py`는 정본/registry/dispatch/renderer 호출을 대조한다. `tests/test_modularity.py`는 앱 인스턴스 분리와 역방향 의존을 검증한다. 실제 업무 흐름과 배포본 검증은 `local-verification.md`를 따른다.
+
+
+## 별지 1 PDF 출력 (2026-10-22 개정안)
+
+- ergo/report/form_mapping.py: 고정 snapshot → 원본 칸·앱용 미확정 안내. 규칙 계산 없음.
+- ergo/report/pdf.py: 원본 배경에 글자·체크·사진을 배치하고 칸을 넘는 작성 내용만 별첨 생성.
+- ergo/service/pdf_exports.py: 선택 검증·요청 순서의 snapshot 준비·PDF 미리보기/원자적 파일 교체·기존 출력 이력.
+- frontend/pdf-export.js: 대상 고정·중복 요청 억제·저장 취소·실제 PDF 표시.
+- templates/assets: 원본 해시, 빈 양식, PDF용 한글 글꼴과 라이선스.

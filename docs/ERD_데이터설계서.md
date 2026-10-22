@@ -113,3 +113,10 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 ## 6. 확인할 데이터 반례
 
 혼합 중량 행의 분리, null/0, row_ids 누락/중복, 0개 사진 상태, 같은 사진 재연결, 새 사진 교체, 계산 중 AI 편집, 삭제 후 늦은 완료, 과거 분석을 포함한 전후 출력, 과거 1.3 열람 후 취소가 원본을 변경하지 않는지 확인한다. 물리 스키마가 같다는 사실만으로 데이터 호환 완료를 주장하지 않는다.
+
+
+### PDF 출력 영수증 JSON (2026-10-22 개정안)
+
+기존 EXPORT_LOG 테이블을 그대로 쓴다. receipt_json에 format:'PDF', template_version, template_sha256, page_count, task_ids, analysis_ids, warnings와 기존 상태 필드를 저장한다. snapshot_json에는 선택한 Task/분석과 출력 시점 조사 메타를 저장한다. format이 없는 기존 영수증은 Excel이며 기존 sheets 필드는 보존한다. PDF 영수증은 페이지를 sheets라고 저장하지 않는다. 새 테이블·열·trigger·물리 migration 없이 새 출력 행만 추가한다.
+
+PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at을 확인한 뒤 추가한다. 기존 Excel 호출의 동작/저장 행은 변경하지 않는다. 서버 생성시각의 수명별 구분을 이용하며 물리 migration은 없다.

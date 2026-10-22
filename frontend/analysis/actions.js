@@ -1,4 +1,5 @@
 /* actions; dependencies are composed by analysis-workspace.js. */
+import {previewPdf,exportPdf,renderPdfPreview} from '../pdf-export.js';
 export function createActions(ctx){
  const {host, s, LocoReview, inputLabel, $, e, toast, api, field, select, number, text, modal, selectedIds, comparisonSpecs, $$}=ctx;
  const actionToken=options=>ctx.token({ai:true,...options,edit:true});
@@ -6,6 +7,11 @@ export function createActions(ctx){
  const populateExportChoices=(...args)=>ctx.populateExportChoices(...args);
  const refreshTask=(...args)=>ctx.refreshTask(...args);
  const render=(...args)=>ctx.render(...args);
+function pdfParams(surveyId){
+ const task_ids=$$('[data-pdf-task]:checked').map(x=>Number(x.dataset.pdfTask));
+ const analysis_ids=task_ids.map(id=>s.exportSelections[id]).filter(Boolean);
+ return {survey_id:surveyId,spec:{task_ids,analysis_ids,include_representative:$('#include-representative').checked}};
+}
 function editTargets(){const mode=$('#manual-range')?.value||'single';return mode==='selected'?[...s.selectedSlots]:[s.slot];}
 
 function mergeManual(manual,value){const i=manual.findIndex(m=>m.slot_no===value.slot_no&&m.scope===value.scope&&m.field===value.field);if(i<0)manual.push(value);else manual[i]=value;}
@@ -90,6 +96,20 @@ const actions={
  },
  'review-on':async()=>setReview(true), 'review-off':async()=>setReview(false),
  'refresh-overview':async()=>{await navigate('S08');await populateExportChoices();},
+ 'preview-pdf':async()=>{
+  const context=actionToken(),params=pdfParams(context.surveyId);
+  return ctx.write('survey:'+context.surveyId+':pdf-preview',context,async()=>{
+   const preview=await previewPdf(api,params);if(!ctx.current(context))return;
+   modal('유해요인조사표 PDF 미리보기',renderPdfPreview(preview));
+  });
+ },
+ 'export-pdf':async()=>{
+  const context=actionToken(),params=pdfParams(context.surveyId);
+  return ctx.write('survey:'+context.surveyId+':pdf-export',context,async()=>{
+   const receipt=await exportPdf(api,()=>window.loco.choose_pdf_destination(),params);
+   if(!receipt||!ctx.current(context))return;toast('PDF를 저장했습니다.\n'+receipt.file_path);
+  });
+ },
  'export':async()=>{
   const context=actionToken(),surveyId=context.surveyId;
   const spec={analysis_ids:[...selectedIds()],include_representative:$('#include-representative').checked,comparisons:structuredClone(comparisonSpecs())};

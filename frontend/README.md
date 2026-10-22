@@ -73,3 +73,8 @@ E2E 시험 창이 화면에 뜨지 않게 하려면 `LOCO_HIDDEN=1`을 설정합
 `python -B tests/portable-service-smoke.py`는 최신 패키지의 frozen 서비스 EXE를 Windows 기본 PATH만 남겨 실행합니다. 새 임시 한글·공백 DB와 흰 합성 PNG를 사용하며 실제 CPU 추론의 17개 유한 좌표, 직접입력·저장 재실행·오프라인 설명·공식 서식 구성 Excel(설명을 적용한 조사 7시트, 작업 없는 조사 6시트)·잘못된 모델 실패를 확인합니다. 외부 GPT 키를 자식 프로세스에서 제거하므로 실제 계정 호출은 없습니다. `LOCO_VERIFY_PACKAGE`로 점검할 패키지 폴더를 지정할 수 있으며 manifest의 코드·모델 해시와 현재 소스가 일치해야 합니다.
 
 이 검증은 개발 PC의 서비스 EXE 사전 점검입니다. 별도 Windows PC·실제 Electron 창 조작·현장 사진 정확도·인쇄·실제 외부 GPT 검증을 대신하지 않습니다. 소스가 미커밋이면 manifest에도 미커밋 상태로 남기고 최종 전달 전 커밋 버전으로 다시 빌드합니다.
+
+
+## PDF 출력 후보 연결
+
+Python 환경에 requirements-desktop.txt를 다시 설치해야 합니다. reportlab/pypdf와 ergo/report/templates, assets가 필요합니다. PDF는 별도 preview_pdf/export_pdf API를 사용하며 기존 Excel API는 유지합니다. 원본 칸을 넘는 긴 작성 내용만 별첨에 보존합니다. 분석 상세·빈 사진 슬롯·보완사항은 PDF에 자동으로 붙이지 않습니다. 이 절은 후보 코드 검토용이며 실제 main·패키지 반영 상태는 별도로 확인해야 합니다.
