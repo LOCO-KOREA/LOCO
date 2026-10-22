@@ -77,3 +77,5 @@ E2E 시험 창이 화면에 뜨지 않게 하려면 `LOCO_HIDDEN=1`을 설정합
 ## 적응형 간편 입력 (2026-10-22)
 
 사진·작업 설명 → 자동 정리 → 추가 확인 → 결과·검토·Excel 흐름이다. `intake/client.js`가 서버의 `intake_contract`를 조회하고 메서드·정책·필드 정의를 재사용한다. `intake/view.js`는 해당 계약의 선택지·단위로 필요한 필드만 그린다. 값은 SQLite에 자동 저장하고 localStorage는 이어서 열 작업의 위치와 보내기 전 문장만 보조 보관한다. 실제 Electron/Python/SQLite/MoveNet/Excel과 loopback SDK 검증은 `node tests/adaptive-intake-e2e.cjs`로 실행한다.
+
+`npm --prefix frontend run test:adaptive:full-live`는 실제 외부 OpenAI까지 연결해 입력 → 후속 답변 → 저장값 수정 → 모름 → 재실행 → 결과 → AI 설명 적용 → 검토 → Excel → 재실행을 검증한다. 기존 프로세스의 `OPENAI_API_KEY`, 시험용 `LOCO_LIVE_AI=1`, `LOCO_LIVE_MODEL`이 필요하며, DB/프로필은 `.local/full-live-e2e-*`에 따로 만든다. 항상 화면 밖·초점 불가 Electron 창으로 실행하여 사용자의 마우스·키보드·기존 앱 창을 조작하지 않는다. 사진/저장 경로를 선택하는 네이티브 파일 대화상자만 자동 지정한다. 성공 후 `python tests/verify_local_artifacts.py <검증 폴더> 1`로 SQLite와 실제 Excel을 독립 대조한다.

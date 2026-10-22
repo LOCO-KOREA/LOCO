@@ -13,7 +13,8 @@
     "test:explanation": "node ../tests/electron-explanation.cjs",
     "test:navigation": "node ../tests/frontend-navigation.cjs",
     "test:adaptive": "node ../tests/adaptive-intake-e2e.cjs",
-    "test:adaptive:live": "node ../tests/adaptive-intake-live.cjs"
+    "test:adaptive:live": "node ../tests/adaptive-intake-live.cjs",
+    "test:adaptive:full-live": "node ../tests/adaptive-intake-full-live.cjs"
   },
   "devDependencies": {
     "electron": "^44.7.2",

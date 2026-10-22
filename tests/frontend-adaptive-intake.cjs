@@ -27,6 +27,9 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  await Promise.all([intake.answer(question.identity,0),intake.answer(question.identity,null)]);
  assert.equal(calls.filter(c=>c.method==='custom_turn')[0].args.answers[0].value,0);
  assert.equal(state.facts[0].value,null);
+ intake.editing=question.identity;
+ assert.match(intake.summary(),/<details open>/,'an active editor must stay expanded after rerender');
+ intake.editing=null;
  assert.match(intake.panel(false),/maxlength="321"/);
  assert.ok(intake.hasSession({conditions:{test_metadata:{}}}));
  fail=true; await assert.rejects(()=>intake.answer(question.identity,12));
