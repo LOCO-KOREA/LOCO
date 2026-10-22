@@ -1,4 +1,4 @@
-/* Actual settings screens -> service -> SQLite -> restart; no external AI or OS input. */
+/* Hidden user settings entries; fixture service setup -> maintenance settings view -> SQLite -> restart. No external AI or OS input. */
 const {_electron}=require('../frontend/node_modules/playwright');
 const path=require('node:path'),fs=require('node:fs/promises'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),directory=path.join(root,'.local',`ai-settings-${Date.now()}`);
@@ -15,15 +15,18 @@ async function launch(){
 }
 async function main(){
  await fs.mkdir(directory,{recursive:true});await launch();
- await page.locator('.quick-settings summary').click();
- await page.locator('[data-setting="gpt_model"]').fill('quick-configured-model');
- await page.locator('[data-setting="gpt_reasoning_effort"]').selectOption('high');
- await page.locator('[data-setting="gpt_timeout_seconds"]').fill('12.5');
- await page.locator('[data-setting="gpt_max_output_tokens"]').fill('8192');
- await page.locator('[data-quick="settings"]').click();await page.waitForFunction(()=>!document.querySelector('.quick-busy'));
- let saved=await api('get_settings');assert.equal(saved.gpt_model,'quick-configured-model');assert.equal(saved.gpt_reasoning_effort,'high');assert.equal(saved.gpt_timeout_seconds,12.5);assert.equal(saved.gpt_max_output_tokens,8192);
- receipt.checks.push('quick settings save every typed field through the actual service');
- await page.locator('#mode-toggle').click();await page.locator('[data-nav="S10"]').click();
+ assert.equal(await page.locator('.quick-settings').count(),0);
+ assert.equal(await page.locator('[data-quick="settings"]').count(),0);
+ assert.equal(await page.locator('[data-setting="gpt_model"]').count(),0);
+ const {gpt_contract,gpt_key_present,...fixtureSettings}=await api('get_settings');
+ await api('update_settings',{settings:{...fixtureSettings,gpt_model:'fixture-configured-model',gpt_reasoning_effort:'high',gpt_timeout_seconds:12.5,gpt_max_output_tokens:8192}});
+ let saved=await api('get_settings');assert.equal(saved.gpt_model,'fixture-configured-model');assert.equal(saved.gpt_reasoning_effort,'high');assert.equal(saved.gpt_timeout_seconds,12.5);assert.equal(saved.gpt_max_output_tokens,8192);
+ receipt.checks.push('quick home omits settings controls while fixture settings persist through the actual service');
+ await page.locator('#mode-toggle').click();
+ assert.equal(await page.locator('[data-nav="S10"]').count(),0);
+ // The retained settings view is entered only by maintenance dispatch, not a user menu.
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('loco-guide-action',{detail:{action:'S10'}})));
+ await page.locator('[data-field="gpt_model"]').waitFor();
  assert.equal(await page.locator('[data-field="gpt_reasoning_effort"]').inputValue(),'high');
  await page.locator('[data-field="gpt_model"]').fill('advanced-configured-model');
  await page.locator('[data-field="gpt_reasoning_effort"]').selectOption('low');
@@ -32,7 +35,7 @@ async function main(){
  await page.locator('[data-action="save-gpt-settings"]').click();
  await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('GPT 설정을 저장'));
  saved=await api('get_settings');assert.equal(saved.gpt_model,'advanced-configured-model');assert.equal(saved.gpt_reasoning_effort,'low');assert.equal(saved.gpt_timeout_seconds,17.5);assert.equal(saved.gpt_max_output_tokens,12288);
- receipt.checks.push('advanced settings consume and update the same contract and persisted values');
+ receipt.checks.push('advanced navigation omits settings while the maintenance view preserves the shared contract and persisted values');
  await app.close();await launch();
  saved=await api('get_settings');assert.equal(saved.gpt_model,'advanced-configured-model');assert.equal(saved.gpt_contract.defaults.gpt_model,'environment-model');assert.equal(saved.gpt_reasoning_effort,'low');assert.equal(saved.gpt_timeout_seconds,17.5);assert.equal(saved.gpt_max_output_tokens,12288);
  receipt.checks.push('restart restores all explicit values ahead of environment defaults');

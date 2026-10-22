@@ -9,7 +9,7 @@ export const SCREENS = [
   {id:'S07', name:'조사자 검토·GPT', view:'analysis', description:'계산 초안·조사자 결론·설명을 구분해 검토합니다.'},
   {id:'S08', name:'출력·전후 비교', view:'analysis', description:'출력할 분석과 개선 전후 비교를 선택합니다.'},
   {id:'S09', name:'분석 진행', view:'analysis', description:'요청한 분석 범위의 진행·완료·실패·취소를 확인합니다.'},
-  {id:'S10', name:'설정', view:'analysis', description:'모델·규칙 버전과 GPT·로코 안내 설정을 확인합니다.'}
+  {id:'S10', name:'설정', view:'analysis', navigation:false, description:'모델·규칙 버전과 GPT·로코 안내 설정을 확인합니다.'}
 ];
 export const SCREEN_INFO = Object.fromEntries(SCREENS.map(s=>[s.id,[s.name,s.id,s.description]]));
 export const isAnalysisScreen = id => SCREENS.some(s=>s.id===id && s.view==='analysis');

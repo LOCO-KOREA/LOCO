@@ -23,6 +23,12 @@ async function until(read,predicate,label){
  throw Error('Timed out: '+label);
 }
 const navigate=async id=>{
+ if(id==='S10'){
+  assert.equal(await page.locator('[data-nav="S10"]').count(),0);
+  // Maintenance-only dispatch keeps settings coverage without a user navigation entry.
+  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('loco-guide-action',{detail:{action:'S10'}})));
+  await page.locator('[data-field="gpt_enabled"]').waitFor();return;
+ }
  for(let attempt=0;attempt<15;attempt++){
   await page.locator(`[data-nav="${id}"]`).click();
   try{await page.locator(`[data-nav="${id}"][aria-current="page"]`).waitFor({timeout:2000});return;}catch{}
