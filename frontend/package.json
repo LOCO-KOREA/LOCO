@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node ../scripts/check_frontend.cjs",
     "start": "electron .",
-    "test": "node ../tests/frontend-regressions.cjs && node ../tests/analysis-async-regressions.cjs && node ../tests/frontend-navigation.cjs && node ../tests/frontend-deletion.cjs && node ../tests/frontend-survey-editor.cjs && node ../tests/frontend-database-location.cjs && node ../tests/frontend-quick-answers.cjs && node ../tests/frontend-excel-preview.cjs",
+    "test": "node ../tests/frontend-regressions.cjs && node ../tests/analysis-async-regressions.cjs && node ../tests/frontend-navigation.cjs && node ../tests/frontend-deletion.cjs && node ../tests/frontend-survey-editor.cjs && node ../tests/frontend-database-location.cjs && node ../tests/frontend-quick-answers.cjs && node ../tests/frontend-excel-preview.cjs && node ../tests/frontend-quick-explanation.cjs && node ../tests/frontend-reba-scale.cjs",
     "test:database": "node ../tests/desktop-database-integration.cjs",
     "test:electron": "node ../tests/electron-workflow.cjs",
     "test:explanation": "node ../tests/electron-explanation.cjs",

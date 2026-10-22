@@ -303,10 +303,14 @@ input::placeholder, textarea::placeholder { color: var(--color-muted); opacity: 
 /* Keep the writing instruction and example visible in narrative fields. */
 :is(#survey-editor, #task-workspace, #analysis-workspace, .photo-dialog) textarea[placeholder] { min-height: 96px; }
 
-/* Shared DB location strip: full paths wrap without hiding Korean or spaces. */
-#environment.database-location { height: auto; min-height: 48px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 28px; text-align: left; font-size: 12px; line-height: 1.7; }
-.database-location > strong { flex: none; color: var(--color-secondary); }
-.database-location .database-path { flex: 1 1 300px; min-width: 0; overflow-wrap: anywhere; color: var(--color-text); user-select: text; }
+/* A connection problem is shown globally; paths live in settings only. */
+#environment { height: auto; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 28px; color: var(--color-danger); background: var(--color-danger-soft); font-size: 12px; line-height: 1.7; }
+#environment button { padding: 6px 10px; }
+.database-settings-entry { margin-top: 16px; }
+.database-settings-entry p { color: var(--color-muted); }
+#database-settings { width: 600px; }
+.database-location { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; font-size: 13px; line-height: 1.7; }
+.database-location .database-path { width: 100%; min-width: 0; padding: 12px; border-radius: 9px; background: var(--color-surface-soft); overflow-wrap: anywhere; color: var(--color-text); user-select: text; }
 .database-location .database-status { color: var(--color-muted); }
 .database-location[data-state=error] .database-status { color: var(--color-danger); }
 .database-location[data-state=ready] .database-status { color: var(--color-success); }

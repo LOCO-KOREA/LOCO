@@ -27,8 +27,8 @@ async function boot(overrides) {
   const handlers = new Map(), events = new Map(), copied = [], opened = [];
   let child, spawned, bridge;
   const electron = {
-    app: {isPackaged: false, whenReady: () => ({then(run) { run(); }}), on(name, run) { events.set(name, run); }, quit() {}},
-    BrowserWindow: class { constructor() { this.webContents = {on() {}}; } loadFile() {} },
+    app: {isPackaged: false, setAppUserModelId(id) { assert.equal(id, 'kr.loco.desktop'); }, whenReady: () => ({then(run) { run(); }}), on(name, run) { events.set(name, run); }, quit() {}},
+    BrowserWindow: class { constructor(options) { assert.equal(options.icon, path.join(root, 'frontend/assets/app-icon.ico')); this.webContents = {on() {}}; } loadFile() {} },
     ipcMain: {handle(name, run) { handlers.set(name, run); }},
     clipboard: {writeText(text) { copied.push(text); }},
     shell: {async openPath(folder) { opened.push(folder); return ''; }},
@@ -41,7 +41,7 @@ async function boot(overrides) {
   // Main owns all other dependencies. Only native Electron/OS adapters are mocks.
   vm.runInNewContext(await fs.readFile(mainFile, 'utf8'), {
     __dirname: path.dirname(mainFile), console,
-    process: {env, resourcesPath: root, stderr: {write() {}}},
+    process: {env, platform: 'win32', resourcesPath: root, stderr: {write() {}}},
     require(name) {
       if (name === 'electron') return electron;
       if (name === 'node:child_process') return {spawn(binary, args, options) {

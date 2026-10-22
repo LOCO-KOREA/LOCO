@@ -1,3 +1,6 @@
+import {databaseLocationSettings} from './database-location.js';
+import {renderQuickExplanation} from './quick-explanation.js';
+import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
 //   home -> photos (left / front-back / right) -> provisional REBA -> questions -> result -> review, AI explanation, Excel, before/after.
 // Provisional scores are never saved. Only confirmed answers are written through the usual task APIs,
@@ -143,6 +146,9 @@ export class QuickFlow {
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
+    host.addEventListener('toggle', event => {
+      if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
+    }, true);
     host.addEventListener('dragover', event => { if (event.target.closest('[data-drop]')) event.preventDefault(); });
     host.addEventListener('drop', event => this.drop(event));
     // The re-rendered page would otherwise close the "later" section after every answer.
@@ -157,7 +163,7 @@ export class QuickFlow {
 
   reset() {
     Object.assign(this, {step: 'start', busy: false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: '', confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -587,7 +593,7 @@ export class QuickFlow {
         this.settings = await this.api('get_settings');
       }
       await this.api('generate_ai_text', {analysis_id: this.result.analysis_id, purpose: 'TASK_EXPLANATION'});
-      await this.refreshResult(); this.aiDraft = '';
+      await this.refreshResult(); this.aiDraft = null; this.aiEditorOpen = false;
     });
   }
 
@@ -595,10 +601,13 @@ export class QuickFlow {
 
   async applyAi(useEdited) {
     const ai = this.activeAi();
+    if (!ai) return;
+    const edited = this.aiDraft ?? ai.edited_text ?? ai.generated_text ?? '';
+    if (useEdited && !edited.trim()) return this.onError(new Error('수정한 설명을 입력한 뒤 적용해 주세요.'));
     await this.run('설명을 적용하고 있어요…', async () => {
-      if (useEdited) await this.api('edit_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, text: this.aiDraft});
+      if (useEdited) await this.api('edit_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, text: edited});
       await this.api('apply_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, use_edited: useEdited});
-      await this.refreshResult(); this.aiDraft = '';
+      await this.refreshResult(); this.aiDraft = null; this.aiEditorOpen = false;
       this.notify('설명을 적용했어요. 계산 결과는 바뀌지 않아요.');
     });
   }
@@ -788,7 +797,7 @@ export class QuickFlow {
         <p class="quick-note">AI 설명은 계산 결과를 쉬운 말로 풀어 줄 뿐, 해당 여부나 점수를 바꾸지 않아요. 키는 PC 환경변수 OPENAI_API_KEY에서 읽고 화면·DB에는 저장하지 않아요. ${s.gpt_key_present ? '<b>키가 설정되어 있어요.</b>' : '<b>키가 아직 없어요.</b>'}</p>
         <div class="quick-setting-row"><label>AI 설명 <select data-setting="gpt_enabled"><option value="YES" ${s.gpt_enabled ? 'selected' : ''}>사용</option><option value="NO" ${s.gpt_enabled ? '' : 'selected'}>사용 안 함</option></select></label>
         <label>모델 <input data-setting="gpt_model" value="${esc(s.gpt_model || DEFAULT_MODEL)}" placeholder="${DEFAULT_MODEL}"></label>
-        <button data-quick="settings">저장</button></div></details>`;
+        <button data-quick="settings">저장</button></div>${databaseLocationSettings()}</details>`;
   }
 
   viewStart() {
@@ -835,7 +844,8 @@ export class QuickFlow {
     return `<div class="quick-columns">${this.photoStrip()}
       <section class="panel quick-score">
         <h2>1차 REBA 점수</h2>
-        ${s ? `<div class="quick-big"><strong>${s.total}</strong><span>점 · ${esc(RISK[s.risk] || s.risk)}</span></div>
+        ${s ? `<div class="quick-big"><strong class="${rebaScoreClass(s.total)}">${s.total}</strong><span>점 · ${esc(RISK[s.risk] || s.risk)}</span></div>
+          ${renderRebaScale(s.total, {provisional: true})}
           <p class="quick-note">${esc(s.assumption)}</p>` : '<p class="quick-note">사진에서 측정한 값이 없어 1차 점수를 내지 못했어요. 질문에 답하면 계산할 수 있어요.</p>'}
         <h3>사진에서 측정한 값</h3>
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
@@ -947,7 +957,8 @@ export class QuickFlow {
     }
     const side = slot.selected_side === 'LEFT' ? '왼쪽' : '오른쪽';
     const first = pv ? ` · 1차 점수 ${pv.total ?? '—'}점에서 답변을 반영했어요.` : '';
-    return `<h2>최종 REBA 점수</h2><div class="quick-big"><strong>${slot.total}</strong><span>점 · ${esc(RISK[slot.risk] || slot.risk)}</span></div>
+    return `<h2>최종 REBA 점수</h2><div class="quick-big"><strong class="${rebaScoreClass(slot.total)}">${slot.total}</strong><span>점 · ${esc(RISK[slot.risk] || slot.risk)}</span></div>
+      ${renderRebaScale(slot.total)}
       <p class="quick-note">왼쪽 ${slot.left.total ?? '—'}점 · 오른쪽 ${slot.right.total ?? '—'}점 중 높은 쪽(${side})${first}</p>`;
   }
 
@@ -1001,12 +1012,18 @@ export class QuickFlow {
     if (!s.gpt_key_present) body = '<p class="quick-warn">AI 키(OPENAI_API_KEY)가 이 PC에 없어요. 없어도 "기본 설명"을 만들 수 있어요.</p>';
     body += `<div class="quick-nav left"><button class="primary" data-quick="gen-ai" ${this.busy ? 'disabled' : ''}>${ai ? '설명 다시 만들기' : (s.gpt_key_present ? 'AI 설명 만들기' : '기본 설명 만들기')}</button></div>`;
     if (ai) {
-      const text = this.aiDraft || ai.edited_text || ai.generated_text;
-      const kind = ai.result === 'GENERATED' ? 'AI가 쓴 설명' : '기본 설명(AI를 쓰지 못했어요)';
+      const text = this.aiDraft ?? ai.edited_text ?? ai.generated_text ?? '';
+      const shown = (ai.is_active ? ai.applied_text : null) ?? ai.edited_text ?? ai.generated_text ?? '';
+      const kind = shown !== ai.generated_text ? '조사자가 수정한 설명' : ai.result === 'GENERATED' ? 'AI가 쓴 설명' : '기본 설명(AI를 쓰지 못했어요)';
       const reason = ai.result === 'DISABLED' ? AI_REASON.DISABLED : (AI_REASON[ai.fallback_reason] || ai.fallback_reason || '');
       body += `<p class="quick-note">${esc(kind)}${ai.result !== 'GENERATED' ? ` · 이유: ${esc(reason)}` : ''}${ai.is_active ? ' · <b>적용 중</b>' : ''}</p>
-        <textarea class="quick-ai" rows="9" data-aidraft>${esc(text)}</textarea>
-        <div class="quick-nav left"><button data-quick="apply-ai">이 설명 적용</button><button data-quick="apply-edited">고친 내용으로 적용</button></div>
+        <div class="quick-explanation-reading">${renderQuickExplanation(ai, shown)}</div>
+        <div class="quick-nav left"><button data-quick="apply-ai">생성 원문 적용</button></div>
+        <details class="quick-explanation-details quick-explanation-editor" data-ai-editor ${this.aiEditorOpen ? 'open' : ''}><summary>전체 원문 보기 · 직접 수정</summary>
+          <p class="quick-note">수정 내용은 ‘수정본 적용’을 누른 뒤 위 읽기 화면에 반영돼요.</p>
+          <textarea class="quick-ai" rows="12" aria-label="쉬운 설명 원문 수정" data-aidraft>${esc(text)}</textarea>
+          <div class="quick-nav left"><button data-quick="apply-edited">수정본 적용</button></div>
+        </details>
         <p class="quick-note">설명은 보고서에 들어갈 문장일 뿐, 계산 결과와 판정은 바뀌지 않아요.</p>`;
     }
     return `<section class="panel"><h3>③ 쉬운 설명</h3>${body}</section>`;

@@ -133,8 +133,15 @@ const taskUI=new TaskWorkspace({api,notify,confirmDeletion,onOpenPhotos:taskId=>
 const photoUI=new PhotoWorkspace({api,notify,clearError,onError:showError,onBack:()=>tasks('conditions',true),onAnalyze:startPhotoAnalysis,onOpenPage:(id,taskId)=>navigateScreen(id,taskId,true),surveyTitle:()=>state.details.get(state.selected)?.title||'',setTitle:(title,description)=>{$('#title').textContent=title;$('.page-title p').textContent=description;},onSaved:task=>{if(taskUI.current?.task_id===task.task_id){taskUI.current=structuredClone(task);taskUI.saved=structuredClone(task);taskUI.buffers.delete(task.task_id);}}});
 const dashboardUI=new DashboardWorkspace({api,onError:showError,onNew:newSurvey,onList:()=>page('S02'),onSample:()=>perform(async()=>{if(state.busy)return;state.busy=true;try{const {survey}=await createSampleSurvey(api);state.selected=survey.survey_id;await refresh();notify('샘플 조사를 만들었습니다. 합성 예시이며 실제 자료가 아닙니다.');}finally{state.busy=false;}}),onOpen:(surveyId,taskId)=>perform(async()=>{await selectSurvey(surveyId);if(taskId){await tasks('conditions',false,taskId);}else page('S02');window.scrollTo({top:0});})});
 const analysisUI=createAnalysisWorkspace({element:$('#analysis-workspace'),api,notify,onLeave:id=>navigateScreen(id),onPhotoInput:async({taskId,path,slotNo})=>{await photos(taskId);photoUI.focusInput(path,slotNo);},onInput:async({taskId,path})=>{await tasks();if(taskUI.current?.task_id!==taskId)await taskUI.load(taskId);await taskUI.focusInput(path);},onNavigate:(id,info)=>{page(id);$('#title').textContent=info[0];$('.page-title p').textContent=info[2];}});
-const databaseLocation=new DatabaseLocation({element:$('#environment'),bridge:window.loco});
+const databaseLocation=new DatabaseLocation({element:$('#database-location'),bridge:window.loco,noticeElement:$('#environment')});
 databaseLocation.initialize();
+document.addEventListener('click',event=>{
+  if(event.target.closest('[data-db-retry]')){databaseLocation.initialize();return;}
+  if(!event.target.closest('[data-open-database-location]'))return;
+  $('#database-settings').showModal();
+  databaseLocation.initialize();
+});
+$('#close-database-settings').addEventListener('click',()=>$('#database-settings').close());
 const quickUI=new QuickFlow({host:$('#quick-workspace'),api,notify,onError:showError,onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
 function setMode(mode){
   const quick=mode==='quick';
