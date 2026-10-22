@@ -44,7 +44,7 @@ export class DatabaseLocation {
   connectionNotice(connected) {
     if (!this.notice) return;
     this.notice.hidden = connected;
-    this.notice.innerHTML = connected ? '' : '<span>데이터 저장소에 연결하지 못했습니다. 설정의 ‘데이터 저장 위치’에서 확인해 주세요.</span><button type="button" data-db-retry>다시 확인</button>';
+    this.notice.innerHTML = connected ? '' : '<span>데이터 저장소에 연결하지 못했습니다. 다시 확인해 주세요.</span><button type="button" data-db-retry>다시 확인</button>';
   }
 
   unwrap(result) {

@@ -42,7 +42,7 @@ function page(id){
     if(id==='S01')perform(()=>dashboardUI.open(state.surveys,state.selected));
   }
   const icons=[0,1,2,1,3,5,6,7,4,8];
-  $('#navigation').innerHTML=SCREENS.map((screen,i)=>`<button data-nav="${screen.id}" class="${id===screen.id?'active':''}" ${id===screen.id?'aria-current="page"':''}><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[icons[i]]}</svg>${screen.name}<em>${String(i+1).padStart(2,'0')}</em></button>`).join('');
+  $('#navigation').innerHTML=SCREENS.filter(screen=>screen.navigation!==false).map((screen,i)=>`<button data-nav="${screen.id}" class="${id===screen.id?'active':''}" ${id===screen.id?'aria-current="page"':''}><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[icons[i]]}</svg>${screen.name}<em>${String(i+1).padStart(2,'0')}</em></button>`).join('');
   $('#breadcrumb-page').textContent=screen.name;$('loco-guide').setAttribute('page',id);
   markDone($('#navigation'),state.stepDone);updateNextStep();
 }
