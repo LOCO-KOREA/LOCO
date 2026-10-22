@@ -1,8 +1,7 @@
-import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
-import {renderAiSettings,readAiSettings,enabledAiSettings,persistedSettings} from './ai-settings.js';
+import {enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
 //   home -> photos (left / front-back / right) -> provisional REBA -> questions -> result -> review, AI explanation, Excel, before/after.
 // Provisional scores are recalculated; known input facts and their evidence are stored by adaptive intake.
@@ -217,15 +216,6 @@ export class QuickFlow {
       await this.api('delete_survey', {survey_id: id});
       this.surveys = await this.api('list_surveys');
       this.notify('기록을 삭제했어요. 원본 사진과 Excel 파일은 그대로예요.');
-    });
-  }
-
-  async saveSettings() {
-    const settings=readAiSettings(this.settings,key=>this.host.querySelector(`[data-setting="${key}"]`)?.value);
-    await this.run('설정을 저장하고 있어요…', async () => {
-      await this.api('update_settings', {settings:persistedSettings(settings)});
-      this.settings = await this.api('get_settings');
-      this.notify('설정을 저장했어요.');
     });
   }
 
@@ -662,7 +652,6 @@ export class QuickFlow {
     else if (d.quick === 'resume') this.resumeDraft();
     else if (d.quick === 'discard-draft') this.discardDraft();
     else if (d.quick === 'home' || d.quick === 'home-bar') { this.reset(); this.step = 'home'; this.loadHome(); }
-    else if (d.quick === 'settings') this.saveSettings();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
     else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state)this.intake.dialogOpen=true; this.render(); }
@@ -842,7 +831,6 @@ export class QuickFlow {
 
   viewHome() {
     const list = (this.surveys || []).slice().sort((a, b) => (b.survey_date || '').localeCompare(a.survey_date || '') || b.survey_id - a.survey_id);
-    const s = this.settings || {};
     const draft = readDraft();
     const draftSurvey = draft && list.find(x => x.survey_id === draft.surveyId && x.title === draft.surveyTitle);
     const shown = list.filter(x => !draftSurvey || x.survey_id !== draft.surveyId);
@@ -856,11 +844,7 @@ export class QuickFlow {
       <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
         <div><strong>${esc(x.title || '제목 없음')}</strong><span>${esc(x.survey_date || '')} · 작업 ${x.task_count}개 ${badge(x)}</span></div>
         <div class="quick-list-actions"><button data-open="${x.survey_id}">열기</button>
-        <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>
-      <details class="panel quick-settings"><summary>설정</summary>
-        <p class="quick-note">AI 설명은 계산 결과를 쉬운 말로 풀어 줄 뿐, 해당 여부나 점수를 바꾸지 않아요. 키는 PC 환경변수 OPENAI_API_KEY에서 읽고 화면·DB에는 저장하지 않아요. ${s.gpt_key_present ? '<b>키가 설정되어 있어요.</b>' : '<b>키가 아직 없어요.</b>'}</p>
-        <div class="quick-setting-row">${renderAiSettings(s)}
-        <button data-quick="settings">저장</button></div>${databaseLocationSettings()}</details>`;
+        <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>`;
   }
 
   viewStart() {
