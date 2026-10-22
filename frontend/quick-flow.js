@@ -1,4 +1,5 @@
 import {previewPdf,exportPdf,renderPdfPreview} from './pdf-export.js';
+import {selectPhotoCrop} from './photo-crop.js';
 import {databaseLocationSettings} from './database-location.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
@@ -166,6 +167,7 @@ export class QuickFlow {
   }
 
   reset() {
+    this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
       result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, pdfPreview: null, pdfOperation: null, excelTab: 0, overview: null});
@@ -231,23 +233,44 @@ export class QuickFlow {
   }
 
   // ================= step 1: photos (any of three views, each replaceable)
-  async ensureTask() {
+  async ensureTask(isCurrent=()=>true) {
     if (this.task) return;
-    this.survey = await this.api('create_survey', {draft: {survey_type: 'REGULAR', survey_date: today(), title: `빠른 분석 ${today()}`, investigator: '', department: '', process: '', occasional_reason: ''}});
-    this.task = await this.api('create_task', {survey_id: this.survey.survey_id, draft: {task_name: '사진 분석 작업', input_template: 'GENERAL', conditions: {}}});
+    const survey = await this.api('create_survey', {draft: {survey_type: 'REGULAR', survey_date: today(), title: `빠른 분석 ${today()}`, investigator: '', department: '', process: '', occasional_reason: ''}});
+    if(!isCurrent())return;
+    this.survey=survey;
+    const task = await this.api('create_task', {survey_id: survey.survey_id, draft: {task_name: '사진 분석 작업', input_template: 'GENERAL', conditions: {}}});
+    if(isCurrent())this.task=task;
   }
 
   async setPhoto(view, path) {
-    if (!path) return;
-    await this.run('사진을 불러오고 있어요…', async () => {
-      await this.ensureTask();
-      const imported = await this.api('import_photos', {task_id: this.task.task_id, file_paths: [path]});
-      if (!imported.added.length) throw new Error('사진을 읽지 못했어요. JPG·PNG 사진인지 확인해 주세요.');
+    if (!path || this.busy) return;
+    const owner={step:this.step},abort=new AbortController();
+    this.photoOperation=owner;this.photoCropAbort=abort;
+    const current=()=>this.photoOperation===owner&&this.step===owner.step;
+    this.busy='사진을 불러오고 있어요…';this.render();
+    try {
+      const source=await this.api('preview_photo_file',{file_path:path});
+      if(!current())return;
+      const crop=await (this.choosePhotoCrop||selectPhotoCrop)(source,{signal:abort.signal});
+      if(!crop||!current())return;
+      this.busy='선택 영역을 등록하고 있어요…';this.render();
+      await this.ensureTask(current);
+      if(!current())return;
+      const task=this.task;
+      const photo=await this.api('import_cropped_photo',{task_id:task.task_id,task_created_at:task.created_at,
+        file_path:path,source_sha256:source.source_sha256,crop});
+      if(!current()||this.task!==task)return;
+      const image=await this.api('get_photo_preview',{photo});
+      if(!current()||this.task!==task)return;
       const old = this.photos[view];
-      this.photos[view] = {photo: imported.added[0], image: await this.api('get_photo_preview', {photo: imported.added[0]})};
+      this.photos[view] = {photo,image};
       this.stale = true;
       if (old) await this.discard(old.photo);
-    });
+    } catch(error){if(current())this.onError(error);}
+    finally{
+      abort.abort();
+      if(this.photoOperation===owner){this.photoOperation=null;this.photoCropAbort=null;this.busy=false;this.render();}
+    }
   }
 
   async removePhoto(view) {
