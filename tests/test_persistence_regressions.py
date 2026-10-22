@@ -206,7 +206,7 @@ class PersistenceRegressions(unittest.TestCase):
         self.assertEqual(receipt['report_version'],'2.0')
         logs=app.dispatch('list_export_logs',{'survey_id':self.survey['survey_id']})
         self.assertEqual(logs[0]['receipt'],receipt)
-        self.assertEqual(receipt['sheets'],['요약','작업별 결과','확인사항','판정 근거'])
+        self.assertEqual(receipt['sheets'],['유해요인조사표','부담작업 해당 여부','체크리스트','자세 분석(REBA)','입력한 값','확인사항'])
 
     def test_recalculate_is_an_explicit_scope_request(self):
         before=app.require('task',self.task['task_id'])

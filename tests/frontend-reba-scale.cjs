@@ -45,7 +45,7 @@ function current(html, score) {
 
   function flow() {
     const ui = Object.create(QuickFlow.prototype);
-    Object.assign(ui, {photos: {}, answers: {}, preview: null, reopened: false, step: 'provisional'});
+    Object.assign(ui, {photos: {}, answers: {}, preview: null, intakeText: '', reopened: false, step: 'provisional'});
     return ui;
   }
   for (const score of [1, 7, 15]) {

@@ -1,5 +1,6 @@
 """Single UTF-8 JSON Lines entrypoint for the LOCO 2.0 Electron application."""
 import json
+import os
 import sqlite3
 import sys
 import threading
@@ -9,6 +10,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from ergo.gpt import client as gpt_client
 from ergo.service.application import dispatch, prepare_dispatch, RECALCULATION_METHODS
 
 _write_lock = threading.Lock()
@@ -34,7 +36,7 @@ def respond(request, operation=None, preparation_error=None):
 def handle(request):
     """Capture background request targets in IPC order before running workers."""
     method = request.get('method')
-    if isinstance(method, str) and (method in RECALCULATION_METHODS or method == 'generate_ai_text'):
+    if isinstance(method, str) and (method in RECALCULATION_METHODS or method in ('generate_ai_text', 'quick_interpret')):
         try:
             operation = prepare_dispatch(method, request.get('params', {}))
         except Exception as error:
@@ -54,6 +56,7 @@ def handle(request):
 
 
 def main():
+    if os.environ.get('OPENAI_API_KEY'): gpt_client.warm_up()
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')

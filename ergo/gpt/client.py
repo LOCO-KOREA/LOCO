@@ -15,6 +15,55 @@ SYSTEM_PROMPT=(
     'criteria에는 1호부터 11호까지 11개 항목을 빠짐없이 순서대로 쓰세요. 입력이 없거나 해당 여부와 무관한 호도 한 문장으로 상태만 설명하세요. 한국어로 간결하게 답하세요.'
 )
 
+INTAKE_PROMPT_VERSION='LOCO_INTAKE_V2'
+INTAKE_PROMPT=(
+    '당신은 현장 조사자가 쓴 작업 설명 한 문장을 조사표 칸에 옮겨 적는 도우미입니다. '
+    '입력은 사용자가 쓴 문장(text)과 채울 수 있는 칸 목록(targets)입니다. '
+    '문장에 분명히 적힌 사실만 해당 칸에 옮기세요. 적히지 않은 값은 추측·추정·평균값으로 채우지 말고 그 칸은 만들지 마세요. '
+    '시간은 분 단위, 횟수와 시간은 모두 하루 기준 숫자로 환산하세요(1시간=60분). 연간 값은 일수로 쓰세요. '
+    'quote에는 그 값의 근거가 된 문장 속 구절을 글자 그대로 복사하세요. 고치거나 요약하지 마세요. '
+    '같은 칸은 한 번만 쓰세요. 작업 종류(work_type.*)는 문장이 그 작업을 한다고 분명히 말할 때만 고르세요. '
+    '하나의 시간이 여러 자세나 부위에 걸쳐 있으면 "합친 하루 총 시간" 칸에만 쓰고, 개별 칸은 문장이 따로 말했을 때만 쓰세요. '
+    'daily_work_min은 문장이 하루 근무·작업 시간 전체를 말할 때만 쓰세요(특정 동작을 하는 시간은 쓰지 마세요). '
+    '예/아니오 칸(YES/NO)은 문장이 직접 말한 경우에만 쓰세요. '
+    '숫자 칸은 number에, 선택 칸과 이름 칸은 text에 쓰고 쓰지 않는 쪽은 null로 두세요. '
+    '해당 여부, 위험도, 점수를 판단하거나 조언하지 마세요. 칸을 채우는 일만 하세요.'
+)
+
+def warm_up():
+    """Load the OpenAI SDK in the background. Its first import takes ~14 s on a cold PC and would land on the first AI click."""
+    import threading
+    def load():
+        try: import openai  # noqa: F401
+        except Exception: pass
+    thread=threading.Thread(target=load,daemon=True,name='openai-warm-up'); thread.start()
+    return thread
+
+def _reason(error):
+    name=type(error).__name__
+    if 'Timeout' in name: return 'TIMEOUT'
+    if name in ('JSONDecodeError',): return 'INVALID_STRUCTURED_CONTENT'
+    return 'API_ERROR'
+
+def interpret(text, targets, schema, model, api_key):
+    """One sentence -> list of {target, number, text, quote}. The caller validates every answer against the sentence."""
+    if not api_key: return None,'NO_API_KEY'
+    if not model: return None,'MODEL_NOT_CONFIGURED'
+    try:
+        from openai import OpenAI
+        client=OpenAI(api_key=api_key,timeout=15.0,max_retries=0)
+        response=client.responses.create(model=model,max_output_tokens=1500,input=[
+            {'role':'system','content':INTAKE_PROMPT},
+            {'role':'user','content':json.dumps({'text':text,'targets':targets},ensure_ascii=False,separators=(',',':'))}
+        ],text={'format':{'type':'json_schema','name':'loco_intake','strict':True,'schema':schema}})
+        if getattr(response,'status',None)!='completed': return None,'INCOMPLETE_RESPONSE'
+        raw=getattr(response,'output_text',None)
+        if not raw: return None,'REFUSAL_OR_EMPTY_RESPONSE'
+        answers=json.loads(raw).get('answers')
+        return (answers,None) if isinstance(answers,list) else (None,'INVALID_STRUCTURED_CONTENT')
+    except ImportError: return None,'OPENAI_SDK_MISSING'
+    except Exception as error: return None,_reason(error)
+
 def generate(summary, model, api_key):
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'

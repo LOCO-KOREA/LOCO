@@ -1,7 +1,7 @@
 """Survey completeness, review state and actionable missing inputs."""
 from .common import currentness
 from .comparisons import build_comparisons
-from .labels import input_label, reason_label
+from .labels import AI_REASON_KO, INCOMPLETE, MODULE_PLAIN, criterion_name, input_label, josa, reason_label
 
 def overview(snapshot):
     tasks = []
@@ -56,24 +56,24 @@ def overview(snapshot):
         def add(module, kind, message, slot=None, criterion=None, fields=None, reasons=None):
             next_inputs.append(dict(module=module, kind=kind, slot_no=slot, criterion_no=criterion, field_paths=fields or [], reason_codes=reasons or [], message=message))
         if not a:
-            add('ANALYSIS', 'NOT_CALCULATED', '분석을 아직 수행하지 않았습니다')
+            add('ANALYSIS', 'NOT_CALCULATED', '분석을 아직 하지 않았어요')
         else:
-            labels = {'pose': 'MoveNet', 'tags': '자세 기술태그', 'reba': 'REBA', 'judgment': '11개 기준'}
+            labels = MODULE_PLAIN
             kinds = {'NOT_CALCULATED': 'NOT_CALCULATED', 'RUNNING': 'NOT_CALCULATED', 'FAILED': 'REVIEW_REQUIRED', 'INCOMPLETE': 'REVIEW_REQUIRED', 'CANCELED': 'REVIEW_REQUIRED'}
             for module, label in labels.items():
                 module_state = states[module]
                 if requested[module] and module_state != 'COMPLETE' and (module_state != 'NOT_REQUESTED'):
                     kind = kinds.get(module_state, 'NOT_CALCULATED')
                     if module_state in ('NOT_CALCULATED', 'RUNNING'):
-                        add(module.upper(), 'NOT_CALCULATED', label + ' 계산이 아직 완료되지 않았습니다')
+                        add(module.upper(), 'NOT_CALCULATED', label + ' 계산이 아직 끝나지 않았어요')
                     elif module == 'tags' and (not targets):
-                        add('TAGS', 'MISSING_INPUT', '자세 기술태그를 계산할 분석대상 사진이 없습니다')
+                        add('TAGS', 'MISSING_INPUT', '자세 표시를 계산할 분석 대상 사진이 없어요')
                     elif module == 'reba' and (not targets):
-                        add('REBA', 'MISSING_INPUT', 'REBA를 계산할 분석대상 사진이 없습니다')
+                        add('REBA', 'MISSING_INPUT', 'REBA 점수를 계산할 분석 대상 사진이 없어요')
                     else:
-                        add(module.upper(), kind, label + ' 결과가 미완료 상태입니다')
+                        add(module.upper(), kind, INCOMPLETE[module])
             if requested['pose'] and (not targets):
-                add('POSE', 'MISSING_INPUT', '분석 대상으로 선택한 사진이 없습니다')
+                add('POSE', 'MISSING_INPUT', '분석 대상으로 고른 사진이 없어요')
             for slot in targets:
                 no = slot['slot_no']
                 label = slot.get('label') or f'사진 {no}'
@@ -89,14 +89,14 @@ def overview(snapshot):
                         add('REBA', 'REVIEW_REQUIRED', label + ': ' + ', '.join((reason_label(x) for x in reasons)), no, reasons=reasons)
             for j in judgments:
                 if j.get('missing_fields'):
-                    add('BURDEN', 'MISSING_INPUT', f'{j['criterion_no']}호: ' + ', '.join((input_label(x) for x in j['missing_fields'])) + ' 입력 필요', criterion=j['criterion_no'], fields=j['missing_fields'])
+                    add('BURDEN', 'MISSING_INPUT', f'{criterion_name(j['criterion_no'])}: ' + ', '.join((input_label(x) for x in j['missing_fields'])) + ' 입력 필요', criterion=j['criterion_no'], fields=j['missing_fields'])
                 if j.get('review_reasons'):
-                    add('BURDEN', 'REVIEW_REQUIRED', f'{j['criterion_no']}호: ' + ', '.join((reason_label(x) for x in j['review_reasons'])), criterion=j['criterion_no'], reasons=j['review_reasons'])
+                    add('BURDEN', 'REVIEW_REQUIRED', f'{criterion_name(j['criterion_no'])}: ' + ', '.join((reason_label(x) for x in j['review_reasons'])), criterion=j['criterion_no'], reasons=j['review_reasons'])
             for note in a.get('notes', []):
                 add('ANALYSIS', 'REVIEW_REQUIRED', note.get('message', '분석 진단'), reasons=[note.get('code')] if note.get('code') else [])
             for ai in a.get('ai') or []:
                 if ai.get('result') in ('FALLBACK', 'DISABLED'):
-                    add('EXPLANATION', 'REVIEW_REQUIRED', 'GPT 설명 ' + ('비활성' if ai.get('result') == 'DISABLED' else '대체 문구') + ': ' + str(ai.get('fallback_reason') or '설정 또는 요청 상태 확인'))
+                    add('EXPLANATION', 'REVIEW_REQUIRED', 'AI 설명을 쓰지 못해 기본 문구로 대신했어요(이유: ' + AI_REASON_KO.get(ai.get('fallback_reason') or ai.get('result'), '설정이나 연결 상태를 확인하세요') + ')')
         next_inputs.sort(key=lambda item: 0 if item['kind'] == 'MISSING_INPUT' else 1)
         tasks.append(dict(task_id=task['task_id'], task_name=source['task_name'], analysis_id=a['analysis_id'] if a else None, input_revision=source['input_revision'], source_schema_version=source.get('schema_version', '1.3'), module_states=states if a else None, currentness=cur, state=state, review_status='NO_ANALYSIS' if not a else 'UNREVIEWED' if not reviewed else 'REVIEWED_CURRENT' if state['review_current'] else 'REVIEWED_HISTORY', counts=counts, next_inputs=next_inputs))
     state = {key: bool(tasks) and all((t['state'][key] for t in tasks)) if key in ('reviewed', 'review_current') else any((t['state'][key] for t in tasks)) for key in ('reviewed', 'review_current', 'has_incomplete', 'has_stale')}
@@ -107,13 +107,13 @@ def overview(snapshot):
     if participation.get('status') != 'YES':
         survey_followups.append('근로자대표 또는 해당 작업 근로자의 참여 여부·기록을 확인하세요.')
     elif participation.get('role') in (None, 'UNKNOWN') or participation.get('method') in (None, 'UNKNOWN') or (not participation.get('participant_code')):
-        survey_followups.append('참여자 역할·방법·식별 코드/표시명을 보완하세요.')
+        survey_followups.append('참여자의 역할, 참여 방법, 이름(또는 표시명)을 보완하세요.')
     situation = survey.get('workplace_situation') or {}
     for key, label in [('equipment_status', '작업설비'), ('workload_status', '작업량'), ('speed_status', '작업속도'), ('work_pattern_status', '업무형태')]:
         if situation.get(key, 'UNKNOWN') == 'UNKNOWN':
             survey_followups.append(f'{label}의 변경 여부와 주요 내용을 확인하세요.')
         elif situation.get(key) == 'YES' and (not situation.get(key.replace('_status', '_notes'))):
-            survey_followups.append(f'{label}이 변경되었다고 기록했습니다. 주요 변경 내용을 입력하세요.')
+            survey_followups.append(f'{label}{josa(label, "이", "가")} 변경되었다고 기록했어요. 주요 변경 내용을 입력하세요.')
     symptom = survey.get('symptom_survey') or {}
     if symptom.get('method') in (None, 'UNKNOWN', 'NOT_DONE') or (not symptom.get('responses') and (not symptom.get('respondent_count') or not symptom.get('summary'))):
         survey_followups.append('작업 관련 근골격계 징후·증상 조사 방법과 결과를 기록하세요.')

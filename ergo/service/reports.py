@@ -68,6 +68,11 @@ def _export_snapshot(ctx, survey_id, analysis_ids, include=True, comparisons=Non
 def handle_preview_excel(ctx, method, p):
     return report.overview(ctx.export_snapshot(p['survey_id'], p.get('analysis_ids', []), comparisons=p.get('comparisons', [])))
 
+def handle_preview_excel_sheets(ctx, method, p):
+    """The plain sheets exactly as the Excel file will contain them. Reads only: nothing is saved or logged."""
+    snapshot = ctx.export_snapshot(p['survey_id'], p.get('analysis_ids', []), comparisons=p.get('comparisons', []))
+    return dict(sheets=report.plain_sheets(snapshot, report.overview(snapshot)))
+
 def handle_export_excel(ctx, method, p):
     spec = p['spec']
     snap = ctx.export_snapshot(p['survey_id'], spec['analysis_ids'], spec['include_representative'], spec.get('comparisons', []))

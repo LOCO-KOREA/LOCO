@@ -143,3 +143,42 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-bar { display: flex; align-items: stretch; gap: 12px; margin-bottom: 20px; }
 .quick-bar .quick-steps { flex: 1; margin: 0; }
 .quick-home-link { align-self: center; white-space: nowrap; }
+.quick-none { margin-top: 10px; }
+.quick-none summary { cursor: pointer; color: var(--color-muted); font-size: 13px; }
+
+/* AI intake: one sentence about the work fills the question boxes. */
+.quick-intake { margin-top: 18px; border: 1px solid var(--color-primary-line); border-radius: 12px; padding: 14px 16px; background: var(--color-primary-soft); }
+.quick-intake h3 { margin: 0 0 6px; font-size: 16px; }
+.quick-intake h3 small { font-weight: 400; color: var(--color-muted); }
+.quick-intake textarea { width: 100%; min-height: 76px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 8px; font: inherit; resize: vertical; background: var(--color-surface); }
+.quick-intake .quick-nav { margin-top: 10px; }
+.quick-intake-result { margin: 12px 0; }
+.quick-intake-result h4 { margin: 0 0 4px; font-size: 15px; }
+.quick-intake-list { list-style: none; padding: 0; margin: 8px 0; }
+.quick-intake-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--color-line); font-size: 14px; }
+.quick-intake-list small { display: block; color: var(--color-muted); font-size: 12px; margin-top: 2px; }
+.quick-intake-list button { font-size: 12px; padding: 4px 10px; flex: none; }
+.quick-section { margin: 20px 0 8px; font-size: 14px; color: var(--color-secondary); }
+.quick-later { margin-top: 18px; }
+.quick-later summary { cursor: pointer; color: var(--color-primary); font-weight: 600; margin-bottom: 10px; }
+
+/* Excel screen: check list, sheet preview, save. */
+.quick-excel-page > .panel { margin-bottom: 16px; }
+.quick-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.quick-tabs button { border: 1px solid var(--color-line); border-radius: 8px 8px 0 0; padding: 8px 14px; background: var(--color-surface-soft); cursor: pointer; font: inherit; }
+.quick-tabs button.selected { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.quick-sheet-wrap { overflow-x: auto; margin: 6px 0 14px; border: 1px solid var(--color-line); border-radius: 8px; }
+.quick-sheet { border-collapse: collapse; width: 100%; font-size: 13px; }
+.quick-sheet th { background: #1f3a5f; color: #fff; text-align: left; padding: 8px 10px; white-space: nowrap; }
+.quick-sheet td { padding: 7px 10px; border-top: 1px solid var(--color-line); vertical-align: top; max-width: 380px; overflow-wrap: anywhere; }
+.quick-sheet tbody tr:nth-child(even) td { background: #f4f6f8; }
+.quick-sheet td.missing { background: #fce4d6 !important; }
+.quick-sheet td.review { background: #fff2cc !important; }
+.quick-sheet td.empty { color: var(--color-muted); text-align: center; }
+.quick-sheet.form td { border: 1px solid var(--color-line); }
+.quick-sheet.form tbody tr:nth-child(even) td { background: transparent; }
+.quick-sheet.form td.missing { background: #fce4d6 !important; }
+.quick-sheet.form td.review { background: #fff2cc !important; }
+.quick-sheet td.label { background: #e6ebf2 !important; color: #1f3a5f; font-weight: 600; vertical-align: middle; }
+.quick-sheet.wide th { white-space: normal; min-width: 72px; }
+.quick-sheet-heading { margin: 16px 0 4px; font-size: 14px; color: var(--color-primary); }

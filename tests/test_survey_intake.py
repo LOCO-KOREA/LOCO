@@ -39,8 +39,8 @@ class SurveyIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'severity'):
             normalize_survey(survey)
 
-    def test_only_disease_trigger_adds_form_based_sheets(self):
-        for cause,expected in [('NEW_TASK_OR_EQUIPMENT',4),('DISEASE_CASE',6)]:
+    def test_symptom_sheet_follows_the_responses_and_the_form_sheet_follows_the_cause(self):
+        for cause, boxes in [('NEW_TASK_OR_EQUIPMENT', {'새로운 작업·설비를 도입한 경우'}), ('DISEASE_CASE', {'근골격계질환자가 발생했거나 업무상 질병으로 인정받은 경우'})]:
             with self.subTest(cause=cause), tempfile.TemporaryDirectory() as folder:
                 survey=normalize_survey(base_survey(survey_type='OCCASIONAL',occasional_cause=cause))
                 survey['participation']={'status':'YES','role':'AFFECTED_WORKER','participant_code':'W-1','method':'INTERVIEW','date':'2026-10-23','notes':'작업 방법 의견'}
@@ -58,26 +58,41 @@ class SurveyIntakeTests(unittest.TestCase):
                           'include_representative':False,'comparison_specs':[],'comparison_analyses':[],
                           'exported_at':'2026-10-23T00:00:00+00:00'}
                 rendered=workbook.render(snapshot,destination)
-                self.assertEqual(len(rendered['sheets']),expected)
+                self.assertEqual(rendered['sheets'],['유해요인조사표','부담작업 해당 여부','체크리스트','증상조사표','자세 분석(REBA)','입력한 값','확인사항'])
                 book=load_workbook(destination,data_only=False)
                 try:
-                    self.assertEqual(len(book.sheetnames),expected)
-                    if cause=='DISEASE_CASE':
-                        self.assertEqual(book.sheetnames[-2:],['별지1 유해요인조사표','별지2 증상조사표'])
-                        form=book['별지1 유해요인조사표']
-                        form_values=[cell.value for row in form.iter_rows() for cell in row]
-                        self.assertIn('W-1',form_values)
-                        self.assertIn('작업 방법 의견',form_values)
-                        self.assertIn('물량 증가',form_values)
-                        self.assertIn('익명 설문 1건',form_values)
-                        symptoms=book['별지2 증상조사표']
-                        self.assertIn('목 통증정도', [cell.value for cell in symptoms[3]])
-                        self.assertEqual(symptoms.cell(4,1).value,'익명-001')
-                        self.assertIsNone(symptoms.cell(4,2).value)
-                        self.assertIn('BOTH',[cell.value for cell in symptoms[4]])
-                        self.assertIn('WEEK_TO_MONTH',[cell.value for cell in symptoms[4]])
+                    main=[str(cell.value) for row in book['유해요인조사표'].iter_rows() for cell in row if cell.value not in (None,'')]
+                    text='\n'.join(main)
+                    self.assertIn('☑ 수시조사',text)
+                    for label in boxes:
+                        self.assertRegex(text,r'☑ [^\n]*'+label)
+                    other=[label for label in ('새로운 작업·설비를 도입한 경우','근골격계질환자가 발생했거나 업무상 질병으로 인정받은 경우') if label not in boxes]
+                    for label in other:
+                        self.assertRegex(text,r'☐ [^\n]*'+label)
+                    self.assertIn('W-1',text)
+                    self.assertIn('작업 방법 의견',text)
+                    self.assertIn('물량 증가',text)
+                    self.assertIn('익명 설문 1건',text)
+                    symptoms=[[cell.value for cell in row] for row in book['증상조사표'].iter_rows()]
+                    flat=[value for row in symptoms for value in row if value not in (None,'')]
+                    self.assertIn('응답 1 · 익명-001',flat)
+                    self.assertIn('양쪽',flat)
+                    self.assertIn('1주일~1개월 미만',flat)
+                    self.assertIn('중간 정도 통증',flat)
+                    for code in ('BOTH','WEEK_TO_MONTH','MODERATE','UNKNOWN'):
+                        self.assertNotIn(code,flat)
                 finally:
                     book.close()
+
+    def test_a_survey_without_responses_has_no_symptom_sheet(self):
+        with tempfile.TemporaryDirectory() as folder:
+            survey=normalize_survey(base_survey())
+            survey.update(survey_id=1,metadata_revision=0,review={'reviewed':False})
+            snapshot={'survey':survey,'tasks':[],'analyses':[],'unanalysed_task_ids':[],'include_representative':False,'comparison_specs':[],'comparison_analyses':[],
+                      'exported_at':'2026-10-23T00:00:00+00:00'}
+            rendered=workbook.render(snapshot,str(Path(folder)/'report.xlsx'))
+            self.assertNotIn('증상조사표',rendered['sheets'])
+            self.assertEqual(rendered['sheets'][:3],['유해요인조사표','부담작업 해당 여부','체크리스트'])
 
     def test_incomplete_survey_context_is_reported_instead_of_silent_completion(self):
         survey=normalize_survey(base_survey())

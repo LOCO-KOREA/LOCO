@@ -75,5 +75,14 @@ class GptBoundary(unittest.TestCase):
         self.assertEqual(reason, 'NO_API_KEY')
 
 
+
+class WarmUp(unittest.TestCase):
+    def test_warm_up_loads_the_sdk_in_the_background_without_blocking_or_failing(self):
+        import sys
+        thread = client.warm_up()
+        self.assertTrue(thread.daemon)
+        thread.join(120)
+        self.assertIn('openai', sys.modules)
+
 if __name__ == '__main__':
     unittest.main()
