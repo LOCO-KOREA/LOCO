@@ -1,6 +1,6 @@
-# 적응형 추가 확인 계약 · 2026-10-22
+# 적응형 추가 확인 계약 · 2026-10-23
 
-사진·작업 설명 → AI 자동 정리·저장 → 부족한 정보만 대화 팝업에서 확인 → 결과 → 검토·설명 → Excel 순서다. 사용자가 기본 입력 폼을 모두 채우는 흐름이 아니다. AI가 기존 설명·MoveNet 값으로 채울 수 있는 것을 먼저 채우고, 팝업에서 한 번에 한 질문만 한다. 사용자는 자연어 답변이나 빠른 선택으로 답하며 정리·저장·계산 연결은 앱이 처리한다. 새 운영 승인·배포 차단·AI 성공 필수 절차를 추가하지 않는다.
+사진·작업 설명 → AI 자동 정리·저장 → 부족한 정보만 대화 팝업에서 확인 → 결과 → 검토·설명 → Excel 순서다. 사용자가 기본 입력 폼을 모두 채우는 흐름이 아니다. AI가 기존 설명·MoveNet 값으로 채울 수 있는 것을 먼저 채우고, 팝업에서 한 번에 한 질문만 한다. 선택지가 있는 질문은 선택 버튼으로 답하고 필요한 경우 ‘직접 설명하기’를 열어 자연어로 보충한다. 숫자·텍스트 질문은 답변창을 기본 제공하며 정리·저장·계산 연결은 앱이 처리한다. 새 운영 승인·배포 차단·AI 성공 필수 절차를 추가하지 않는다.
 
 ## 공통 계약과 모듈
 
@@ -15,15 +15,20 @@
 | `ergo/service/intake.py` | 사진 추론, 회차 저장, revision 충돌, 서비스 조정 |
 | `frontend/intake/client.js` | 계약 조회, 입력 자동 저장, 응답 순서·화면 수명 관리 |
 | `frontend/intake/view.js`, `intake.css` | 저장된 정보/수정, 추가 질문, 자연어 답변 화면 |
-| `frontend/intake/dialog.js` | 자동으로 열리는 대화 팝업, 질문 하나, 자연어 답변·빠른 응답·닫기·현재 결과 |
+| `frontend/intake/dialog.js` | 자동으로 열리는 대화 팝업, 질문 하나, 선택 우선·직접 설명·닫기·현재 결과 |
+| `frontend/intake/activity.js` | 처리 중 애니메이션·실제 경과 초·15초/45초 대기 안내 |
 
 ## 서비스 DTO
 
 - `intake_contract {}` → `{version,session_key,methods,policy,states,sources,ai_states,fields}`. 질문 수는 `policy.question_limit=1`, 답변 예시는 필드의 `reply_example`을 사용한다.
 - `intake_session {task_id,views?}` → 세션 복원/생성, 사진 측정 저장, 현재 상태. `views`는 방향→같은 작업 사진 ID이며 빈 객체도 가능하다.
-- `intake_turn {task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at?}` → 직접 답변을 우선 저장하고, `plan`이 참이면 실제 AI로 설명 추출과 다음 질문을 요청한다. `plan=false`는 선택/숫자 입력 자동 저장 경로다. AI 실패 시에도 직접 답변과 기존 값은 유지한다.
+- `intake_turn {task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at?}` → 직접 답변을 우선 저장한다. `plan=true`이고 구조화한 `answers`만 있으며 `text`가 비어 있으면 외부 AI 재호출 없이 저장 후 다음 질문을 로컬 계획한다. 자유문장 추출과 `answers`·`text`가 모두 빈 명시적 재시도는 기존 AI 경로를 유지한다. `plan=false`는 직접 편집 자동 저장 경로다. AI 실패 시에도 직접 답변과 기존 값은 유지한다.
 
-직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,complete,judgments,reba,preview,reason,dropped,messages,ai}`다. `ai`는 `{status,model,reasoning_effort,requested_reasoning_effort,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED를 표시하지 않는다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
+직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,progress,complete,judgments,reba,preview,reason,dropped,messages,ai}`다. `ai`는 `{status,model,reasoning_effort,requested_reasoning_effort,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED로 기록하지 않는다. 사용자 팝업에서는 모델·추론 강도·연결 성공 상태를 숨기고 처리 중·실패만 일반 안내로 표시한다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
+
+질문 항목은 선택적으로 `paired_question`을 포함한다. 서비스는 현재 누락 후보에 같은 manual 항목의 반대쪽(LEFT/RIGHT)이나 반대쪽 사진 방향(`view_LEFT`/`view_RIGHT`)이 있을 때만 기존 질문 DTO 형태의 짝 질문을 붙인다. KNOWN이거나 USER가 UNKNOWN으로 답한 쪽은 다시 묻지 않는다. 이는 서비스가 만든 표시 메타데이터이며 AI가 임의로 짝 질문을 만들지 않는다. 최상위 `questions`는 한 항목을 유지한다. 관련 항목 묶음은 선택적으로 `answer_questions:[AdaptiveIntakeQuestion,...]`와 `group_title:string`을 포함한다. 각 member는 고유 target·condition·identity와 선택지를 유지하며 중첩 pair/group은 포함하지 않는다. `answer_questions`가 있으면 그 목록을 사용하고 root의 짝 질문을 중복 표시하지 않는다.
+
+`progress`는 `{completed_count,total_count,remaining_count,percent,dynamic:true}`다. 현재 작업·조건·사진에 필요한 확인 범위에서 처리한 항목과 남은 질문 후보를 집계하며, 한 번에 보여 주는 `questions` 배열 길이나 저장된 fact 전체 개수로 진행률을 계산하지 않는다. 알려진 값과 사용자가 모름으로 넘긴 항목은 확인 처리로 세지만, 무관한 조건·사진 항목은 제외한다. `total_count=completed_count+remaining_count`, 퍼센트는 처리 비율을 정수 내림하며 대상이 0개이면 100이다. 답변으로 작업 종류·조건이 드러나면 전체 항목과 퍼센트가 바뀔 수 있다. 이 값은 추가 질문 확인 진행이며 계산 완성을 나타내는 `complete`와 별개다. 100%여도 모름·검토 항목은 결과에 남을 수 있다. 진행률은 응답 시 계산하는 메타데이터이며 DB 스키마나 분석 snapshot을 변경하지 않는다.
 
 각 fact는 `{target,condition,value,state,source,quote,updated_at,conflict?,angles?,origin?}`다. 상태는 KNOWN(사용 가능), ESTIMATED(사진에서 읽었으나 낮은 신뢰도/경계), UNKNOWN(모름·재확인), CONFLICT(서로 다른 진술)다. 출처는 USER/AI/MOVENET/SAVED다. 대상 항목의 type과 choices에서 모델 응답의 항목별 schema를 생성해 숫자/선택 값이 섞이지 않게 한다. 낮은 신뢰도 추정은 후보로 저장하고 한 번의 사용 선택으로 반영할 수 있다. 실제 관측값으로 몰래 승격하지 않는다.
 
@@ -43,9 +48,9 @@ AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target
 
 기존 `TASK.input_json.conditions`의 선택 키에 세션을 보관한다. 실제 값은 기존 conditions/legal/capture/manual에도 저장하므로 결과·Excel·고급 편집이 같은 값을 사용한다. 물리 여섯 테이블, 기존 분석/출력 snapshot, 이전 자료는 유지한다. 값이 없는 이전 자료는 기존 계약대로 읽는다.
 
-선택은 즉시, 숫자·텍스트 칸은 입력 중 짧은 지연 후 또는 필드를 떠날 때 저장한다. 결과 생성 전에 저장 요청을 기다린다. AI 네트워크 대기 중에는 DB 트랜잭션을 잡지 않는다. 입력 revision이 바뀐 뒤 도착한 AI 응답은 최신 사용자 값을 덮어쓰지 않는다. 삭제한 작업을 복원하지 않는다.
+일반 단일 선택은 즉시 저장하고, 좌우 짝 질문은 양쪽 선택을 모아 한 번 저장한다. 관련 항목 그룹은 하나 이상 선택하면 선택한 항목만 모아 저장한다. 숫자·텍스트 칸은 입력 중 짧은 지연 후 또는 필드를 떠날 때 저장한다. 결과 생성 전에 저장 요청을 기다린다. AI 네트워크 대기 중에는 DB 트랜잭션을 잡지 않는다. 입력 revision이 바뀐 뒤 도착한 AI 응답은 최신 사용자 값을 덮어쓰지 않는다. 삭제한 작업을 복원하지 않는다.
 
-기본 화면에는 항목별 빈 입력칸이나 전체 질문 목록을 노출하지 않는다. 자동 정리 직후 대화 팝업이 열리고, 답변 뒤 AI가 정리해 다음 누락 질문을 고른다. 추출 전 누락 목록에서 만든 질문이 답변 반영 후 이미 해결됐다면, 추출값을 먼저 저장한 뒤 갱신된 누락만 AI에 다시 보내 질문을 만든다. 직접 값 수정은 요약의 ‘수정’을 명시적으로 선택할 때만 제공한다. 팝업은 Esc/닫기/나중에 확인이 가능하며 현재 정보로 결과를 볼 수 있다. AI 실패 시 응답 실패와 재연결을 표시하고 답변 문장을 보존한다. 문장 없이 재시도해도 마지막 저장 진술을 AI 문맥에서 버리지 않는다.
+기본 화면에는 항목별 빈 입력칸이나 전체 질문 목록을 노출하지 않는다. 자동 정리 직후 대화 팝업이 열리고 답변 저장 후 다음 누락 질문을 고른다. 선택값만 보낸 회차는 로컬에서 계획하고 자유문장 추출과 빈 재시도는 AI를 사용한다. 자유문장 경로에서 추출 전 누락 목록으로 만든 질문이 답변 반영 후 이미 해결됐다면, 추출값을 먼저 저장한 뒤 갱신된 누락만 AI에 다시 보내 질문을 만든다. 선택형 질문에 유효한 선택지가 있으면 선택지와 ‘모르겠어요’만 기본 표시하고 답변창·답변 보내기는 렌더링하지 않는다. ‘직접 설명하기’를 누르면 보조 버튼을 답변창으로 바꾸며 같은 질문의 문장 초안을 유지한다. 선택형 작성 중 ‘모르겠어요’는 선택지에만 두고 숫자·텍스트 질문에서는 답변창과 함께 제공한다. 답변이 정상 처리되어 다음 선택형 질문으로 넘어가면 작성 영역을 다시 접는다. 초기 작업 설명이나 답변이 AI 실패로 미처리 문장 초안으로 남으면 질문이 달라져도 작성란을 열어 유지한다. AI 오류의 재시도 버튼은 접힌 작성 영역 밖에 표시하므로 글을 쓰지 않고도 다시 연결할 수 있다. 직접 값 수정은 요약의 ‘수정’을 명시적으로 선택할 때만 제공한다. 팝업은 Esc/닫기/나중에 확인이 가능하며 현재 정보로 결과를 볼 수 있다. AI 실패 시 응답 실패와 재연결을 표시하고 답변 문장을 보존한다. 문장 없이 재시도해도 마지막 저장 진술을 AI 문맥에서 버리지 않는다.
 
 사진/모델 변경 시 영향을 받는 사진 추정만 재평가하며 작업 전체의 시간·횟수는 유지한다. 고급 편집에서 바뀐 실제 값은 세션보다 우선한다. 세션 이력은 작업 입력 변경으로서 snapshot에 보존하지만 전후 비교의 작업 조건 변화 목록에는 보조 세션 메타데이터를 펼쳐 쓰지 않는다.
 
@@ -53,4 +58,18 @@ AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target
 
 ## 공통 AI 설정
 
-`ergo/ai_config.py`는 공급자 클라이언트·DB와 독립적인 설정 계약이다. get_settings의 gpt_contract.fields/defaults가 두 설정 화면과 모든 AI 요청에 공통으로 쓰인다. 입력 정리·후속 질문·설명/기존 한 줄 입력에 별도 모델·시간·토큰 상수를 두지 않는다. `LOCO_AI_MODEL`, `LOCO_AI_REASONING_EFFORT`, `LOCO_AI_TIMEOUT_SECONDS`, `LOCO_AI_MAX_OUTPUT_TOKENS`가 초기값을 지정하며 APP_SETTINGS JSON의 명시값이 우선한다. 현재 기본 조합은 `gpt-6-luna` / `xhigh`다. 추론 미지원 모델은 추론 강도를 빈 값(전송 안 함)으로 설정할 수 있고 자동 모델 대체는 하지 않는다. 키는 기존 OPENAI_API_KEY 환경에서만 읽는다. 설정 변경은 이전 연결 상태를 미요청으로 바꾸며 다음 요청의 실제 응답이 와야 다시 연결 성공으로 표시한다.
+`ergo/ai_config.py`는 공급자 클라이언트·DB와 독립적인 설정 계약이다. get_settings의 gpt_contract.fields/defaults가 두 설정 화면과 모든 AI 요청에 공통으로 쓰인다. 입력 정리·후속 질문·설명/기존 한 줄 입력에 별도 모델·시간·토큰 상수를 두지 않는다. `LOCO_AI_MODEL`, `LOCO_AI_REASONING_EFFORT`, `LOCO_AI_TIMEOUT_SECONDS`, `LOCO_AI_MAX_OUTPUT_TOKENS`가 초기값을 지정하며 APP_SETTINGS JSON의 명시값이 우선한다. 현재 기본 조합은 `gpt-6-luna` / `xhigh`다. 추론 미지원 모델은 추론 강도를 빈 값(전송 안 함)으로 설정할 수 있고 자동 모델 대체는 하지 않는다. 키는 기존 OPENAI_API_KEY 환경에서만 읽는다. 설정 변경은 이전 연결 상태를 미요청으로 바꾸며 다음 요청의 실제 응답이 와야 내부 연결 성공 상태를 갱신한다.
+
+추가 확인 팝업에는 가로 진행 막대·퍼센트·확인한/전체/남은 항목 수를 함께 표시한다. 답변에 따라 항목 수가 달라질 수 있음을 안내하고, 이전 서비스처럼 progress가 없거나 잘못된 응답에서는 임의 퍼센트를 만들지 않고 확인 가능한 남은 항목 수만 보여 준다. 제목·하단 이동 버튼과 스크롤 본문을 분리하고, 답변창은 글자 16px·최소 높이 120px로 표시한다.
+
+## 좌우 함께 확인 (2026-10-23)
+
+좌우 짝 질문은 한 화면에서 왼쪽·오른쪽을 각각 선택한다. 각 쪽에 ‘모르겠어요’를 제공하고 양쪽에 응답한 뒤 ‘선택한 답변 저장’으로 기존 `intake_turn.answers`에 두 항목을 한 번 보낸다. 미선택 쪽을 0·NO나 반대쪽 값으로 채우지 않는다. ‘직접 설명하기’는 계속 사용할 수 있다. 이미 알려진 쪽이나 USER 모름은 짝 질문에서 제외하고 남은 쪽만 묻는다. 진행률은 묶음 화면 수가 아닌 원래 확인 필드 수를 유지하며 저장·revision·기존 snapshot 의미를 바꾸지 않는다.
+
+## 관련 항목 묶음과 처리 중 안내 (2026-10-23)
+
+현재 미확인인 몸통·목 최대 6개, 다리 3개, 움직임·힘 4개, 양팔·손목의 추가 자세 8개, 작업 특징 최대 9개를 관련 묶음으로 표시한다. 각 행에 항목과 선택 상자를 두고 ‘선택 안 함’과 명시적 ‘모름’을 구분한다. 하나 이상 선택하면 선택한 답변만 한 요청으로 저장하며, 남겨 둔 항목을 NO·0으로 만들지 않는다. KNOWN·USER 모름은 재질문하지 않는다. 단일/좌우 짝 질문과 직접 설명은 계속 제공한다.
+
+진행률은 질문 화면 수가 아닌 확인 필드 수다. 예를 들어 남은 항목 40개가 보여도 40번의 팝업 응답을 뜻하지 않으며 한 묶음에서 여러 필드를 처리할 수 있다. 사용자 미처리 문장 초안은 선택값의 로컬 저장으로 처리 완료·삭제하지 않고 보존한다.
+
+팝업과 일반 페이지에서 처리 중에는 작업 문구·회전 표시·왕복하는 막대·실제 경과 초를 보여 준다. 15초와 45초 이후 대기 안내를 바꾸고 매초 경과 숫자만 갱신한다. 이 막대는 처리 중 표시이며 완료 퍼센트나 남은 시간 추정이 아니다. 움직임 줄이기 설정에서는 회전과 막대 이동을 멈추고 경과 시간은 유지한다. 제목·하단 버튼과 본문 스크롤 구조, 모델·추론 강도·연결 성공 상태 비노출을 유지한다.

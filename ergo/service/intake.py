@@ -88,15 +88,16 @@ def _save(ctx, task, session, preview):
 def _response(task,session,preview,*,reason=None,proposed=(),dropped=()):
     assessment=planner.assess(task,session['facts'],session['views'])
     suggestions=proposed or session.get('suggestions',[])
-    questions=planner.choose(assessment['candidates'],suggestions)
+    questions=[planner.with_answer_questions(planner.with_paired_question(question,assessment['candidates']),assessment['candidates'],session['facts']) for question in planner.choose(assessment['candidates'],suggestions)]
     catalogue={f['target']:f for f in contract.fields()}
     rows=[dict(f,identity=identity,label=catalogue[f['target']]['label'],unit=catalogue[f['target']]['unit'])
           for identity,f in session['facts'].items() if f['target'] in catalogue]
     return dict(task=task,contract=contract.public_contract(),facts=rows,questions=questions,
         remaining_count=assessment['missing_count'],complete=assessment['complete'],
+        progress=planner.progress(task,session['facts'],session['views'],assessment['candidates']),
         judgments=assessment['judgments'],reba=assessment['reba'],preview=preview,
         reason=reason,dropped=list(dropped),messages=session['messages'],
-        ai=copy.deepcopy(session.get('last_ai') or dict(status=contract.AI_STATES[0],model=None,reason=None)))
+        ai=copy.deepcopy(dict(status=contract.AI_STATES[0],model=None,reason=None) if session.get('local_answers_only') else session.get('last_ai') or dict(status=contract.AI_STATES[0],model=None,reason=None)))
 
 
 def handle_intake_session(ctx,method,p):
@@ -123,10 +124,17 @@ def handle_intake_turn(ctx,method,p):
         title=re.split(r'[.!?。\n]',text,1)[0][:contract.POLICY['auto_title_length']].strip()
         if title: session['facts'][contract.key('task_name')]=facts.fact(by_target['task_name'],title,'SAVED',title)
     if text or p.get('answers'): session['messages'].append(dict(text=text,answers=p.get('answers',[])))
+    local_answers_only = bool(p.get('plan', True) and p.get('answers') and not text)
+    if p.get('plan', True):
+        if local_answers_only:
+            session['local_answers_only'] = True
+            session['suggestions'] = []
+        else:
+            session.pop('local_answers_only', None)
     # Direct edits survive even if the subsequent model request fails or times out.
     task,ok=_save(ctx,task,session,preview)
     if not ok: return handle_intake_session(ctx,method,dict(task_id=p['task_id']))
-    if not p.get('plan',True): return _response(task,session,preview)
+    if not p.get('plan',True) or local_answers_only: return _response(task,session,preview)
     assessment=planner.assess(task,session['facts'],session['views'])
     reason=None; raw=None
     settings=ctx.settings()

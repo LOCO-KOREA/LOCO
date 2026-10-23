@@ -5,10 +5,18 @@ const root=path.resolve(__dirname,'..'),directory=process.env.LOCO_VERIFY_DIR||p
 const text='20kg 상자를 하루 30번 옮기는 작업입니다. 하루 전체 작업시간은 8시간이고 연 220일 하며 일회성 작업은 아닙니다. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 사진에서도 이 20kg 상자를 들고 있고 양손으로 잡기 좋은 손잡이가 있습니다.';
 let app,page; const receipt={kind:'external OpenAI account + real Electron/Python/SQLite/MoveNet; synthetic work statement and public photo',checks:[],errors:[]};
 async function api(method,params={}){const r=await page.evaluate(async p=>window.loco.call(p.method,p.params),{method,params});assert.equal(r.ok,true,JSON.stringify(r.error));return r.value;}
+// Choice questions start with quick replies; these scenarios explicitly use free-text fallback.
+async function fillIntakeReply(text) {
+  const dialog = page.locator('[data-intake-dialog][open]');
+  await dialog.waitFor();
+  const write = dialog.locator('[data-quick="intake-write"]');
+  if (await write.count()) await write.click();
+  await dialog.locator('[data-intake-reply]').fill(text);
+}
 async function main(){
  if(process.env.LOCO_LIVE_AI!=='1'||!process.env.OPENAI_API_KEY||!process.env.LOCO_LIVE_MODEL)throw Error('Use explicit LOCO_LIVE_AI=1, OPENAI_API_KEY and LOCO_LIVE_MODEL for this external test.');
  await fs.mkdir(directory,{recursive:true});
- const env={...process.env,LOCO_HIDDEN:'1',LOCO_DB_PATH:path.join(directory,'loco.db'),LOCO_PYTHON:path.join(root,'.venv/Scripts/python.exe'),LOCO_MOVENET_MODEL:path.join(root,'models/movenet_lightning.tflite')};
+ const env={...process.env,LOCO_HIDDEN:'1',LOCO_DB_PATH:path.join(directory,'loco.db'),LOCO_PYTHON:process.env.LOCO_PYTHON||path.join(root,'.venv/Scripts/python.exe'),LOCO_MOVENET_MODEL:path.join(root,'models/movenet_lightning.tflite')};
  delete env.ELECTRON_RUN_AS_NODE;delete env.OPENAI_BASE_URL;
  app=await _electron.launch({executablePath:require('../frontend/node_modules/electron'),args:[`--user-data-dir=${path.join(directory,'profile')}`,path.join(root,'frontend')],cwd:root,env});
  page=await app.firstWindow();page.setDefaultTimeout(60000);page.on('pageerror',error=>receipt.errors.push(error.message));
@@ -36,9 +44,11 @@ async function main(){
  receipt.model=process.env.LOCO_LIVE_MODEL;receipt.task_id=task.task_id;receipt.ai_fact_count=facts.filter(f=>f.source==='AI').length;
  receipt.photo_point_count=17; // verified below from the actual saved preview endpoint
  const session=await api('intake_session',{task_id:task.task_id});
+ assert.equal(session.ai.status,'CONNECTED');assert.equal(session.ai.model,settings.gpt_model);assert.ok(session.ai.response_id?.startsWith('resp_'),'actual success is recorded by the service, independently of hidden connection labels');
+ assert.ok(!(await page.locator('[data-intake-dialog]').innerText()).includes(settings.gpt_model),'model details must stay out of the user dialog');
  receipt.photo_point_count=session.preview.views.RIGHT.points.length;assert.equal(receipt.photo_point_count,17);
  receipt.reason=session.reason;receipt.questions=session.questions.map(q=>({target:q.target,text:q.text}));
-  await page.locator('[data-intake-reply]').fill('이 20kg 상자를 1분에 1번씩 하루 30분 들어 올려요. 지금 말한 20kg 조건이 이 작업의 모든 조건입니다.');
+  await fillIntakeReply('이 20kg 상자를 1분에 1번씩 하루 30분 들어 올려요. 지금 말한 20kg 조건이 이 작업의 모든 조건입니다.');
   await page.locator('[data-quick="adaptive-next"]').click();
   await page.waitForFunction(()=>!document.querySelector('#quick-workspace .quick-busy'));
   await page.waitForFunction(()=>!document.querySelector('[data-quick="adaptive-next"]')?.disabled);

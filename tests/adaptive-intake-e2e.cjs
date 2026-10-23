@@ -40,7 +40,7 @@ async function api(method, params = {}) {
   assert.equal(result.ok, true, JSON.stringify(result.error)); return result.value;
 }
 async function launch() {
-  const env = {...process.env, LOCO_HIDDEN:'1', LOCO_PYTHON:path.join(root,'.venv/Scripts/python.exe'),
+  const env = {...process.env, LOCO_HIDDEN:'1', LOCO_PYTHON:process.env.LOCO_PYTHON||path.join(root,'.venv/Scripts/python.exe'),
     LOCO_DB_PATH:path.join(directory,'loco.db'), LOCO_MOVENET_MODEL:path.join(root,'models/movenet_lightning.tflite'),
     OPENAI_API_KEY:'local-protocol-fixture-only', OPENAI_BASE_URL:`http://127.0.0.1:${server.address().port}/v1/`};
   delete env.ELECTRON_RUN_AS_NODE;
@@ -48,6 +48,14 @@ async function launch() {
   page = await application.firstWindow(); page.setDefaultTimeout(25000);
   page.on('pageerror', error => receipt.errors.push(error.message));
   await page.locator('#connection.connected').waitFor();
+}
+// Choice questions start with quick replies; these scenarios explicitly use free-text fallback.
+async function fillIntakeReply(text) {
+  const dialog = page.locator('[data-intake-dialog][open]');
+  await dialog.waitFor();
+  const write = dialog.locator('[data-quick="intake-write"]');
+  if (await write.count()) await write.click();
+  await dialog.locator('[data-intake-reply]').fill(text);
 }
 async function main() {
   await fs.mkdir(directory,{recursive:true}); await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve)); await launch();
@@ -61,6 +69,7 @@ async function main() {
   await page.locator('[data-intake-dialog][open]').waitFor();
   const survey=(await api('list_surveys'))[0], task=(await api('list_tasks',{survey_id:survey.survey_id}))[0];
   receipt.taskId=task.task_id; receipt.surveyId=survey.survey_id;
+  const connected=await api('intake_session',{task_id:task.task_id});assert.equal(connected.ai.status,'CONNECTED');assert.ok(connected.ai.response_id?.startsWith('resp_'));
   assert.equal(task.conditions.daily_work_min,480);
   assert.equal(task.legal.criteria[7].rows[0].load_mass_kg,20);
   assert.equal(task.legal.criteria[7].rows[0].lift_count_day,30);
@@ -68,18 +77,21 @@ async function main() {
   assert.ok(task.conditions.intake_session.facts['manual.COMMON.trunk_base@default']);
   mark('photo and explanation are saved in real SQLite before opening follow-up questions');
   assert.equal(await page.locator('[data-intake-dialog] input[type="number"]').count(),0);
-  assert.equal(await page.locator('[data-intake-question^="card.lift.load_mass_kg@"]').count(),0);
-  assert.equal(await page.locator('[data-intake-question^="card.lift.lift_count_day@"]').count(),0);
-  assert.equal(await page.locator('[data-intake-question^="daily_work_min@"]').count(),0);
+  assert.equal(await page.locator('[data-intake-question^="card.lift.load_mass_kg@"], [data-intake-group-value^="card.lift.load_mass_kg@"], [data-intake-pair-pick^="card.lift.load_mass_kg@"]').count(),0);
+  assert.equal(await page.locator('[data-intake-question^="card.lift.lift_count_day@"], [data-intake-group-value^="card.lift.lift_count_day@"], [data-intake-pair-pick^="card.lift.lift_count_day@"]').count(),0);
+  assert.equal(await page.locator('[data-intake-question^="daily_work_min@"], [data-intake-group-value^="daily_work_min@"], [data-intake-pair-pick^="daily_work_min@"]').count(),0);
   assert.ok(await page.locator('[data-intake-question]').count()<=3);
   mark('only missing fields are shown; known values inside a partially filled card are not asked again');
-  await page.locator('[data-intake-reply]').fill('사진도 같은 20kg 상자예요. 양손으로 잡기 좋은 손잡이가 있어요.');
+  await fillIntakeReply('사진도 같은 20kg 상자예요. 양손으로 잡기 좋은 손잡이가 있어요.');
   await page.locator('[data-quick="adaptive-next"]').click();
   await page.locator('[data-intake-question="manual.COMMON.static_over_1min@default"]').waitFor();
-  await page.locator('[data-intake-pick="manual.COMMON.static_over_1min@default"][data-value=""]').click();
+  const staticGroup=page.locator('[data-intake-group-value="manual.COMMON.static_over_1min@default"]');
+  if(await staticGroup.count()){
+    await staticGroup.selectOption('__unknown__');await page.locator('[data-quick="intake-group-save"]').click();
+  }else await page.locator('[data-intake-pick="manual.COMMON.static_over_1min@default"][data-value=""]').click();
   await page.locator('[data-intake-question="manual.COMMON.static_over_1min@default"]').waitFor({state:'detached'});
-  assert.equal(await page.locator('[data-intake-question^="manual.LEFT.coupling@"]').count(),0);
-  assert.equal(await page.locator('[data-intake-question^="manual.RIGHT.coupling@"]').count(),0);
+  assert.equal(await page.locator('[data-intake-question^="manual.LEFT.coupling@"], [data-intake-group-value^="manual.LEFT.coupling@"], [data-intake-pair-pick^="manual.LEFT.coupling@"]').count(),0);
+  assert.equal(await page.locator('[data-intake-question^="manual.RIGHT.coupling@"], [data-intake-group-value^="manual.RIGHT.coupling@"], [data-intake-pair-pick^="manual.RIGHT.coupling@"]').count(),0);
   const saved=(await api('get_task',{task_id:task.task_id})).task;
   assert.equal(saved.capture.slots[0].observation.measured_load_kg,20);
   assert.equal(saved.manual.find(m=>m.scope==='LEFT'&&m.field==='coupling').value,'GOOD');
@@ -91,8 +103,8 @@ async function main() {
   assert.equal(restored.conditions.intake_session.facts['manual.COMMON.static_over_1min@default'].value,null);
   assert.equal(await page.locator('[data-intake-question="manual.COMMON.static_over_1min@default"]').count(),0);
   mark('restart restores persisted values, source evidence and declined unknowns');
-  mode='failure'; await page.locator('[data-intake-reply]').fill('다음 질문을 다시 확인해 주세요.'); await page.locator('[data-quick="adaptive-next"]').click();
-  await page.locator('[data-intake-dialog]').getByText('AI 연결을 확인하지 못했어요. 입력한 정보는 유지돼요.',{exact:false}).waitFor();
+  mode='failure'; await fillIntakeReply('다음 질문을 다시 확인해 주세요.'); await page.locator('[data-quick="adaptive-next"]').click();
+  await page.locator('[data-intake-dialog]').getByText('답변 정리를 완료하지 못했어요.',{exact:false}).waitFor();
   assert.equal(await page.locator('[data-intake-dialog] [data-quick="next"]').isEnabled(),true);
   mark('AI failure keeps the workflow and current-result button available');
   await page.locator('[data-intake-dialog] [data-quick="next"]').click(); await page.locator('[data-quick="review"]').waitFor();

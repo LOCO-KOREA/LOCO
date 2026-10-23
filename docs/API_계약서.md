@@ -324,11 +324,15 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 
 | intake_contract | 없음 | AdaptiveIntakeContract {version,session_key,methods,policy,states,sources,ai_states,fields} |
 | intake_session | task_id,views? | AdaptiveIntakeState (세션 복원·사진 측정 자동 저장·현재 추가 질문) |
-| intake_turn | task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at? | AdaptiveIntakeState (직접 답변 우선 저장, AI 추출·추가 질문, 실패 대체) |
+| intake_turn | task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at? | AdaptiveIntakeState (직접 답변 우선 저장, 선택값은 로컬 후속 계획, 문장 추출·재시도는 AI) |
 
 적응형 입력의 DTO·상태·단위·조건별 연결·저장 의미는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다. `conditions.intake_session`은 선택 JSON 메타데이터이며 실제 입력은 기존 legal/capture/manual/conditions에도 기록한다. `intake_contract`가 내보내는 변수와 catalogue를 프론트·서비스·AI 응답 schema가 공유한다.
 
-AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·응답 모델·요청/응답 추론 강도·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다.
+추가 확인 질문은 선택적으로 `paired_question?:AdaptiveIntakeQuestion`을 포함한다(2026-10-23). 현재 누락 후보에 같은 manual 항목의 반대쪽(LEFT/RIGHT)이나 반대쪽 사진 방향(`view_LEFT`/`view_RIGHT`)이 있을 때 서비스가 기존 질문 DTO 형태로 붙이며, KNOWN·USER UNKNOWN인 쪽은 제외한다. 최상위 `questions` 길이 제한 1은 유지한다. 관련 필드 묶음은 `answer_questions?:AdaptiveIntakeQuestion[]`와 `group_title?:string`을 추가하며, member는 중첩 pair/group 없는 기존 질문 DTO다. 몸통·목 6개, 다리 3개, 움직임·힘 4개, 양팔·손목 추가 자세 8개, 작업 특징 최대 9개 범위에서 미확인 항목을 묶는다. `answer_questions`가 있으면 화면은 이 목록을 우선 사용하고 짝 질문을 중복 표시하지 않는다. 좌우 짝 질문은 양쪽 응답을 받은 뒤 `intake_turn.answers`에 두 `{target,condition,value,quote?}`를 함께 보내고 기존 revision 검사를 적용한다. 관련 그룹은 하나 이상 선택한 member만 함께 보내며 선택하지 않은 항목은 answers에 포함하지 않는다. 각 쪽의 UNKNOWN은 독립적이며 미선택 쪽을 0·NO나 반대쪽 값으로 추정하지 않는다.
+
+AdaptiveIntakeState의 `progress={completed_count,total_count,remaining_count,percent,dynamic:true}`는 현재 필요한 추가 확인 항목의 진행률이다. 질문 배열은 한 번에 하나로 제한되므로 그 길이를 전체 질문 수로 사용하지 않는다. 좌우 짝 질문과 관련 항목 그룹도 원래 필드 수로 집계하며 묶음 화면 수로 진행률을 바꾸지 않는다. 남은 40개는 질문 화면 40개를 뜻하지 않는다. 퍼센트·처리/전체/남은 항목은 서버 값으로 표시하고 답변에 따른 대상 변화를 안내한다. USER 모름도 확인 처리에 포함하지만 계산 완성인 `complete`와 구분한다. 상세 집계·구버전 응답 표시는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다.
+
+AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·응답 모델·요청/응답 추론 강도·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 이 메타데이터는 내부 진단에 유지하며 사용자 팝업은 모델·추론 강도·연결 성공 상태를 숨기고 처리 중·실패만 일반 안내로 표시한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다. `plan=true`이고 `answers`만 있으며 공백을 제거한 `text`가 비면 외부 AI를 재호출하지 않고 저장 후 다음 질문을 로컬 계획한다. 이 로컬 회차의 ai.status는 NOT_REQUESTED이며 이전 내부 AI 진단과 미처리 문장 초안을 새 성공으로 바꾸거나 삭제하지 않는다. 자유문장 추출과 answers/text 모두 없는 명시적 재시도는 기존 AI 경로를 유지한다.
 
 재계산 요청은 해당 모듈 scope=true의 명시적 요청이다. scope가 바뀌면 revision을 한 번 갱신해 새 분석을 만들고 다른 scope는 유지한다. GPT는 별도 스레드에서 같은 request_id로 응답해 일반 요청 읽기를 막지 않는다.
 

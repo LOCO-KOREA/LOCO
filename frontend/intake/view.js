@@ -1,15 +1,16 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const SOURCE = {USER:'직접 입력',AI:'작업 설명',MOVENET:'사진 측정',SAVED:'저장된 입력'};
-const REASON = {DISABLED:'AI가 꺼져 있어 남은 항목을 직접 입력할 수 있어요.',NO_API_KEY:'AI 키가 없어 남은 항목을 직접 입력할 수 있어요.',TIMEOUT:'AI 응답이 늦어 직접 입력할 수 있는 질문을 보여 드려요.',API_ERROR:'AI 연결을 확인하지 못했어요. 입력한 정보는 유지돼요.',INVALID_STRUCTURED_CONTENT:'AI 응답을 읽지 못했어요. 남은 항목을 직접 입력할 수 있어요.'};
 const conditionLabel = (condition, state) => condition && condition !== state.contract.policy.default_condition ? ` · ${esc(condition)}` : '';
 function display(field, value) {
   if (value == null) return '모름';
   return field?.choices?.find(c => String(c.value) === String(value))?.label ?? `${value}${field?.unit ? ' '+field.unit : ''}`;
 }
 export function connectionStatus(intake, busy=false) {
-  const ai=intake.state?.ai;
-  const label=busy ? 'AI가 답변을 정리하고 있어요' : ai?.status==='CONNECTED' ? `AI 응답 확인 · ${ai.model || '모델 연결됨'}${ai.reasoning_effort ? ' · '+ai.reasoning_effort : ''}` : ai?.status==='ERROR' ? `AI 응답 실패 · ${REASON[ai.reason] || ai.reason || '다시 시도해 주세요.'}` : 'AI 응답을 아직 확인하지 않았어요';
-  return `<p class="intake-ai-status" data-ai-state="${esc(busy ? 'REQUESTING' : ai?.status || 'NOT_REQUESTED')}" role="status">${esc(label)}</p>`;
+  // Model identifiers, reasoning options and provider errors are internal details.
+  if (!busy && intake.state?.ai?.status !== 'ERROR') return '';
+  const status = busy ? 'REQUESTING' : 'ERROR';
+  const label = busy ? '답변을 정리하고 있어요' : '답변 정리를 완료하지 못했어요. 선택지로 답하거나 다시 시도해 주세요.';
+  return `<p class="intake-ai-status" data-ai-state="${status}" role="status">${label}</p>`;
 }
 function editor(intake, field, identity) {
   const value = intake.value(identity), state = intake.state;
@@ -23,7 +24,7 @@ export function renderSummary(intake) {
     const field = state.contract.fields.find(f => f.target === fact.target);
     return `<li><div><strong>${esc(fact.label)}${conditionLabel(fact.condition,state)}</strong><span>${esc(display(field,fact.value))}</span><small>${esc(SOURCE[fact.source] || fact.source)}${fact.quote ? ' · '+esc(fact.quote) : ''}${fact.state === 'CONFLICT' ? ' · 다른 값이 있어 확인 필요' : ''}</small></div><button type="button" data-intake-edit="${esc(fact.identity)}">수정</button>${intake.editing === fact.identity ? `<div class="intake-edit">${editor(intake,field,fact.identity)}</div>` : ''}</li>`;
   };
-  return `<section class="intake-summary"><details${intake.editing ? ' open' : ''}><summary>자동으로 정리한 정보 ${known.length}개 · 저장된 값 보기·수정</summary><ul>${known.map(row).join('')}</ul>${issues.length ? `<h4>모름·확인 필요 ${issues.length}개</h4><ul>${issues.map(row).join('')}</ul>` : ''}${known.length ? '' : '<p>사진 측정이나 작업 설명에서 파악한 값이 여기에 저장돼요.</p>'}</details><p class="intake-save" role="status">${intake.saveError ? esc(intake.saveError) : intake.saving ? '입력을 저장하고 있어요…' : '입력과 출처를 이 작업에 저장했어요.'}</p></section>`;
+  return `<section class="intake-summary"><details${intake.editing ? ' open' : ''}><summary>자동으로 정리한 정보 ${known.length}개 · 저장된 값 보기·수정</summary><ul>${known.map(row).join('')}</ul>${issues.length ? `<h4>모름·확인 필요 ${issues.length}개</h4><ul>${issues.map(row).join('')}</ul>` : ''}${known.length ? '' : '<p>사진 측정이나 작업 설명에서 파악한 값이 여기에 저장돼요.</p>'}</details><p class="intake-save" role="status">${intake.saveError ? '입력을 저장하지 못했어요. 입력한 내용은 유지되니 다시 시도해 주세요.' : intake.saving ? '입력을 저장하고 있어요…' : '입력과 출처를 이 작업에 저장했어요.'}</p></section>`;
 }
 export function renderQuestions(intake, busy) {
   const state = intake.state; if (!state) return '';

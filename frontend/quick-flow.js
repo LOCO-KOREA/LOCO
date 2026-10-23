@@ -2,6 +2,7 @@ import {selectPhotoCrop} from './photo-crop.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
+import {renderActivity,updateActivity} from './intake/activity.js';
 import {enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
 //   home -> photos (left / front-back / right) -> provisional REBA -> questions -> result -> review, AI explanation, Excel, before/after.
@@ -158,16 +159,18 @@ export class QuickFlow {
     host.addEventListener('toggle', event => { if (event.target.classList?.contains('quick-later')) this.laterOpen = event.target.open; }, true);
     document.addEventListener('keydown', event => {
       if ((this.step === 'questions' || this.intake.dialogOpen) && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        const next = host.querySelector(this.intake.dialogOpen ? '[data-intake-dialog] [data-quick="adaptive-next"]' : '[data-quick="next"]');
+        const dialogActions=document.activeElement?.matches('[data-intake-reply]')?['adaptive-next']:['intake-group-save','intake-pair-save','adaptive-next'];
+        const next = this.intake.dialogOpen ? dialogActions.map(action=>host.querySelector(`[data-intake-dialog] [data-quick="${action}"]`)).find(Boolean) : host.querySelector('[data-quick="next"]');
         if (next && !next.disabled) { event.preventDefault(); next.click(); }
       }
     });
   }
 
-  reset() {
+  reset({preserveActivity=false}={}) {
+    if(!preserveActivity) { clearInterval(this.busyTimer); this.busyTimer=null; this.busyStartedAt=null; }
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
-    Object.assign(this, {step: 'start', busy: false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
+    Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
       result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, overview: null});
   }
 
@@ -175,8 +178,11 @@ export class QuickFlow {
 
   async run(label, action) {
     if (this.busy) return;
-    this.busy = label || true; this.render();
-    try { await action(); } catch (error) { this.onError(error); } finally { this.busy = false; this.render(); }
+    this.busy = label || true; this.busyStartedAt=Date.now(); this.render();
+    const busyTimer=setInterval(()=>{if(this.busyTimer===busyTimer&&this.busy)updateActivity(this.host,Math.floor((Date.now()-this.busyStartedAt)/1000));},1000);
+    this.busyTimer=busyTimer;
+    try { await action(); } catch (error) { this.onError(error); }
+    finally { clearInterval(busyTimer); if(this.busyTimer===busyTimer) { this.busyTimer=null; this.busyStartedAt=null; this.busy = false; this.render(); } }
   }
 
   // ================= home
@@ -205,7 +211,7 @@ export class QuickFlow {
         if (photo && !photos[view]) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};
       }
       const settings = this.settings || await this.api('get_settings');
-      this.reset();
+      this.reset({preserveActivity:true});
       Object.assign(this, {survey, task, photos, result: bundle.analysis, reopened: true, stale: false, step: 'result', settings});
       if (this.intake.hasSession(task)) { const restored = await this.intake.open(task.task_id); this.preview = restored.preview; this.task = restored.task; }
     });
@@ -684,10 +690,23 @@ export class QuickFlow {
       if (this.intake?.state) this.finish();
       else if (!this.ai && this.group < this.groups().length - 1) { this.group++; this.render(); window.scrollTo({top: 0}); } else this.finish();
     }
+    else if (d.quick === 'intake-write') { this.intake.writingFor=this.intake.questions[0]?.identity; this.intake.focusPair=null; this.render(); }
+    else if (d.intakePairPick) {
+      const field=this.intake.field(d.intakePairPick);
+      if(field) { this.intake.pairValues.set(field.identity,this.intake.parseValue(field.identity,d.value)); this.intake.focusPair=field.identity; this.render(); }
+    }
+    else if (d.quick === 'intake-group-save') {
+      const answers=this.intake.selectedAnswers();
+      if(answers.length) this.respondIntake('',answers);
+    }
+    else if (d.quick === 'intake-pair-save') {
+      const q=this.intake.questions[0],group=q?.paired_question?[q,q.paired_question]:[];
+      if(group.length===2&&group.every(field=>this.intake.pairValues.has(field.identity))) this.respondIntake('',group.map(field=>({target:field.target,condition:field.condition,value:this.intake.pairValues.get(field.identity)})));
+    }
     else if (d.quick === 'adaptive-next') this.respondIntake();
     else if (d.intakePick) {
-      const field=this.intake.field(d.intakePick),value=this.intake.parseValue(d.intakePick,d.value);
-      this.respondIntake('',[{target:field.target,condition:field.condition,value}]);
+      const field=this.intake.field(d.intakePick);
+      if(field) this.respondIntake('',[{target:field.target,condition:field.condition,value:this.intake.parseValue(d.intakePick,d.value)}]);
     }
     else if (d.intakeEdit) { this.intake.editing = this.intake.editing === d.intakeEdit ? null : d.intakeEdit; this.render(); }
     else if (d.intakeChoice) {
@@ -728,12 +747,13 @@ export class QuickFlow {
 
   async respondIntake(text=this.intake.text,answers=[]) {
     let ready=false;
-    await this.run('AI가 답변을 정리하고 저장하고 있어요…',async()=>{
-      await this.intake.flush();await this.ensureAiOn();
+    const needsAi=Boolean(text.trim())||!answers.length;
+    await this.run(needsAi?'답변을 정리하고 있어요…':'답변을 저장하고 있어요…',async()=>{
+      await this.intake.flush();if(needsAi)await this.ensureAiOn();
       const state=await this.intake.turn(text,answers);
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
-      ready=!state.questions.length&&!state.reason;
+      ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
       if(ready)this.intake.dialogOpen=false;
     });
     if(ready)await this.finish();
@@ -749,6 +769,13 @@ export class QuickFlow {
     const el = event.target;
     const d = el.dataset;
     if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
+    else if (d.intakeGroupValue) {
+      if(!this.busy&&this.intake.selectGroupValue(d.intakeGroupValue,el.value)) {
+        const save=this.host.querySelector('[data-intake-dialog] [data-quick="intake-group-save"]');
+        if(save)save.disabled=!this.intake.selectedAnswers().length;
+        this.keepDraft();
+      }
+    }
     else if (d.intakeValue) {
       const value = this.intake.parseValue(d.intakeValue, el.value);
       this.intake.values.set(d.intakeValue, value);
@@ -797,7 +824,8 @@ export class QuickFlow {
     const index = STEPS.findIndex(([id]) => id === this.step);
     const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-home-link" data-quick="home-bar" title="${this.task && !this.result ? '작성 중인 내용은 저장돼요. 홈에서 이어서 할 수 있어요.' : ''}">홈으로</button></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
-    const busy = typeof this.busy === 'string' && this.busy ? `<div class="quick-busy" role="status">${esc(this.busy)}</div>` : '';
+    this.intake.busyElapsedSeconds=this.busy&&this.busyStartedAt!=null?Math.floor((Date.now()-this.busyStartedAt)/1000):0;
+    const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
     this.host.innerHTML = `${bar}${busy}${body}${this.intake.dialog(this.busy)}`;
     this.intake.mount(this.host,this.busy);
     this.keepDraft();
@@ -827,7 +855,7 @@ export class QuickFlow {
       }
       if (!Object.keys(photos).length && !this.intake.hasSession(full.task)) throw new Error('이어 갈 사진을 찾지 못했어요. 새 분석으로 시작해 주세요.');
       const settings = this.settings;
-      this.reset();
+      this.reset({preserveActivity:true});
       Object.assign(this, {survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.ai?.text ?? '', stale: true, settings, step: 'start'});
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {

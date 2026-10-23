@@ -1,5 +1,5 @@
 """Find unanswered inputs using the real calculators; let AI select and phrase them."""
-from .contract import fields, key, POLICY, LIFT_FIELDS
+from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS
 from ergo.engine.burden_rules import calculate_v2
 from ergo.engine.reba_scoring import calculate_reba
 
@@ -19,11 +19,14 @@ def paths(field, condition):
 
 
 def assess(task, facts, views):
+    return _assess(task, facts, views, fields())
+
+
+def _assess(task, facts, views, catalogue, only_identity=None):
     judgments=calculate_v2(task['conditions'],task['legal'])['judgments']
     reba=calculate_reba(task, None) if views else None
     missing=set(p for j in judgments if j['computed_status'] in ('NEEDS_INPUT','NEEDS_REVIEW') for p in j['missing_fields'])
     if reba: missing.update(p for row in reba['slots'] for p in row['missing_fields'])
-    catalogue=fields()
     known=lambda t: (facts.get(key(t)) or {}).get('value')
     has=lambda t: key(t) in facts
     unknown_work=[f for f in catalogue if f['destination']['type']=='work_type' and not has(f['target'])]
@@ -31,6 +34,7 @@ def assess(task, facts, views):
     candidates=[]
     for field in catalogue:
         t=field['target']; d=field['destination']; kind=d['type']
+        if only_identity is not None and not (only_identity.startswith(t + '@') or t == 'other_work'): continue
         if kind=='task': continue  # A report title can be edited later; it is not a calculation gap.
         if kind in ('context','view','manual','load','load_kg','load_link') and not views: continue
         if kind=='view' and d['view'] not in views: continue
@@ -45,6 +49,7 @@ def assess(task, facts, views):
         conditions=sorted({f['condition'] for f in facts.values() if f['target'].startswith('card.'+str(field['gate'])+'.')}) or [POLICY['default_condition']]
         if kind!='criterion' or not (d.get('mapping',{}).get('row') or d.get('mapping',{}).get('lift')): conditions=[POLICY['default_condition']]
         for condition in conditions:
+            if only_identity is not None and key(t,condition) != only_identity and t != 'other_work': continue
             item=facts.get(key(t,condition))
             if item and (item['state']=='KNOWN' or item['state']=='UNKNOWN' and item['source']=='USER'): continue
             relevant=bool(set(paths(field,condition)) & missing)
@@ -67,6 +72,149 @@ def assess(task, facts, views):
     candidates.sort(key=lambda c:(c['priority'],c['target'],c['condition']))
     return dict(judgments=judgments,reba=reba,candidates=candidates,
                 missing_count=len(candidates),complete=not any(j['computed_status'] in ('NEEDS_INPUT','NEEDS_REVIEW') for j in judgments) and (not reba or reba['status']=='COMPLETE'))
+
+
+def _without_value(task, field, condition, views):
+    """Clear just this field's calculator input without replaying the saved facts."""
+    d = field['destination']; kind = d['type']
+    value = dict(task)
+    if kind == 'conditions':
+        value['conditions'] = dict(task['conditions'], **{d['field']: None})
+    elif kind in ('work_type', 'complete', 'criterion'):
+        value['legal'] = dict(task['legal'])
+        mapping = d.get('mapping', {})
+        if 'exposure' in mapping:
+            value['legal']['exposures'] = [dict(row, minutes=None) if row['condition_code'] == mapping['exposure'] else row for row in task['legal']['exposures']]
+        else:
+            criteria = value['legal']['criteria'] = list(task['legal']['criteria'])
+            for n in d['criteria']:
+                criterion = criteria[n - 1] = dict(criteria[n - 1])
+                if kind == 'work_type': criterion['condition_present'] = 'UNKNOWN'
+                elif kind == 'complete': criterion['rows_complete'] = 'UNKNOWN'
+                elif 'criterion' in mapping: criterion[mapping['criterion']] = 'UNKNOWN'
+                else:
+                    name = mapping.get('lift') or mapping.get('row')
+                    if 'lift' in mapping and name not in LIFT_FIELDS[n]: continue
+                    criterion['rows'] = [dict(row, **{name: None}) if row['row_id'] == condition else row for row in criterion.get('rows', [])]
+    elif kind == 'manual':
+        primary_photo = next((views[view] for view in PHOTO_VIEWS if view in views), None)
+        primary = next((slot for slot in task['capture']['slots'] if slot['photo_id'] == primary_photo), None)
+        value['manual'] = [row for row in task['manual'] if not (primary and row['slot_no'] == primary['slot_no'] and row['photo_id'] == primary['photo_id'] and row['scope'] == d['scope'] and row['field'] == d['field'])]
+    return value
+
+
+def progress(task, facts, views, candidates):
+    """Count resolved inputs only while they belong to the current question scope.
+
+    Clearing one answer and planning again makes the calculators decide relevance:
+    saved values for an inactive work type, removed photo or satisfied alternative
+    cannot inflate progress. This is a dynamic field count, not a promise of a
+    fixed number of turns, and USER unknown means handled rather than calculated.
+    The probe uses copies; actual inputs and snapshots stay untouched.
+    """
+    catalogue = fields(); by_target = {field['target']: field for field in catalogue}
+    completed = 0
+    for identity, item in facts.items():
+        field = by_target.get(item['target'])
+        if not field or field['destination']['type'] == 'task': continue
+        if item['state'] != 'KNOWN' and not (item['state'] == 'UNKNOWN' and item['source'] == 'USER'): continue
+        # A confirmed work feature remains part of the scope even when the other
+        # unknown work features are currently folded into one other_work question.
+        if field['destination']['type'] == 'work_type':
+            completed += 1
+            continue
+        # Removing only the fact leaves its saved conditions/manual/row value.
+        # Clear both the fact and the actual calculator input for this probe.
+        probe = dict(facts); del probe[identity]
+        without_value = _without_value(task, field, item['condition'], views)
+        if any(candidate['identity'] == identity for candidate in _assess(without_value, probe, views, catalogue, only_identity=identity)['candidates']):
+            completed += 1
+    remaining = len(candidates)
+    total = completed + remaining
+    return dict(completed_count=completed, total_count=total, remaining_count=remaining,
+                percent=completed * 100 // total if total else 100, dynamic=True)
+
+
+def with_paired_question(question, candidates):
+    """Present two unresolved sides together without changing field ownership/counts."""
+    result = {name: value for name, value in question.items() if name != 'paired_question'}
+    if not any(candidate['identity'] == question['identity'] for candidate in candidates): return result
+    destination = question['destination']; kind = destination['type']
+    side_key = 'scope' if kind == 'manual' else 'view' if kind == 'view' else None
+    side = destination.get(side_key) if side_key else None
+    if side not in ('LEFT', 'RIGHT'): return result
+    other_side = 'RIGHT' if side == 'LEFT' else 'LEFT'
+    for candidate in candidates:
+        other = candidate['destination']
+        if candidate['condition'] != question['condition'] or other['type'] != kind: continue
+        if other.get(side_key) != other_side: continue
+        if kind == 'manual' and other['field'] != destination['field']: continue
+        result['paired_question'] = {name: value for name, value in candidate.items() if name != 'paired_question'}
+        break
+    return result
+
+
+def with_answer_questions(question, candidates, saved_facts):
+    """Group only pending related inputs; every member keeps its own answer target."""
+    metadata = {'answer_questions', 'group_title'}
+    result = {name: value for name, value in question.items() if name not in metadata}
+    if not any(candidate['identity'] == question['identity'] for candidate in candidates): return result
+    destination = question['destination']; kind = destination['type']
+    condition = question['condition']
+    virtual_work = kind == 'other_work'
+
+    def unresolved(candidate):
+        item = saved_facts.get(candidate['identity'])
+        return not item or not (item['state'] == 'KNOWN' or item['state'] == 'UNKNOWN' and item['source'] == 'USER')
+
+    if kind == 'work_type' or virtual_work:
+        title = '작업 특징을 함께 확인해 주세요'
+        if virtual_work:
+            members = []
+            for field in fields():
+                if field['destination']['type'] != 'work_type': continue
+                member = dict(field, condition=condition, identity=key(field['target'], condition), text=field['question'],
+                    reason='이 작업 특징이 있는지 확인해 주세요.')
+                if not unresolved(member): continue
+                item = saved_facts.get(member['identity'])
+                if item and item['state'] == 'CONFLICT':
+                    member.update(priority=0, reason='앞서 기록한 값과 새 설명이 달라 확인이 필요해요.')
+                members.append(member)
+        else:
+            members = [candidate for candidate in candidates if candidate['destination']['type'] == 'work_type']
+    elif kind == 'manual':
+        common_groups = (
+            ('몸통·목 자세를 함께 확인해 주세요', {'trunk_base', 'neck_base', 'trunk_twisted', 'trunk_side_bent', 'neck_twisted', 'neck_side_bent'}),
+            ('다리 자세를 함께 확인해 주세요', {'legs_support', 'seated', 'knee_band'}),
+            ('작업 중 움직임과 힘을 함께 확인해 주세요', {'shock_force', 'static_over_1min', 'small_repeat_over_4min', 'rapid_change_or_unstable'}),
+        )
+        arm_flags = {'arm_abducted_or_rotated', 'shoulder_raised', 'arm_supported_or_gravity_assisted', 'wrist_deviated_or_twisted'}
+        scope = destination['scope']; name = destination['field']
+        names = None
+        if scope == 'COMMON':
+            for title, group in common_groups:
+                if name in group:
+                    names = group
+                    break
+        elif scope in ('LEFT', 'RIGHT') and name in arm_flags:
+            title = '양팔·손목의 추가 자세를 함께 확인해 주세요'
+            names = arm_flags
+        if names is None: return result
+        members = [candidate for candidate in candidates if candidate['destination']['type'] == 'manual'
+            and candidate['destination']['field'] in names
+            and (candidate['destination']['scope'] == 'COMMON' if scope == 'COMMON' else candidate['destination']['scope'] in ('LEFT', 'RIGHT'))]
+    else:
+        return result
+    members = [candidate for candidate in members if candidate['condition'] == condition and unresolved(candidate)]
+    if not virtual_work:
+        members = [question] + [candidate for candidate in members if candidate['identity'] != question['identity']]
+        if not unresolved(question): return result
+    if len(members) < (1 if virtual_work else 2): return result
+    # Members never recursively carry a pair/group; the root may keep its pair for older renderers.
+    nested = metadata | {'paired_question'}
+    result['answer_questions'] = [{name: value for name, value in candidate.items() if name not in nested} for candidate in members]
+    result['group_title'] = title
+    return result
 
 
 def choose(candidates, proposed=()):
