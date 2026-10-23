@@ -1,6 +1,7 @@
 """Find unanswered inputs using the real calculators; let AI select and phrase them."""
 from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS
 from .photo_load import photo_load
+from . import photo_facts
 from ergo.engine.burden_rules import calculate_v2
 from ergo.engine.reba_scoring import calculate_reba
 from ergo.pose_contract import WRIST_REASONS
@@ -60,11 +61,15 @@ def _assess(task, facts, views, catalogue, only_identity=None):
         if field['gate'] and known('work_type.'+field['gate'])!='YES': continue
         conditions=sorted({f['condition'] for f in facts.values() if f['target'].startswith('card.'+str(field['gate'])+'.')}) or [POLICY['default_condition']]
         if kind!='criterion' or not (d.get('mapping',{}).get('row') or d.get('mapping',{}).get('lift')): conditions=[POLICY['default_condition']]
+        if kind=='manual':conditions=[photo_facts.condition(slot['photo_id']) for slot in task['capture']['slots'] if slot.get('analysis_target',True) and slot.get('photo_id') in views.values()]
+        if kind=='manual' and only_identity==key(t):conditions=[POLICY['default_condition']]
         for condition in conditions:
             if only_identity is not None and key(t,condition) != only_identity and t != 'other_work': continue
-            item=facts.get(key(t,condition))
+            owner=photo_facts.photo_id(dict(condition=condition),views) if kind=='manual' else None
+            item=photo_facts.fact_for(facts,t,owner,views) if kind=='manual' else facts.get(key(t,condition))
             if item and (item['state']=='KNOWN' or item['state']=='UNKNOWN' and item['source']=='USER'): continue
             relevant=bool(set(paths(field,condition)) & missing)
+            if kind=='manual':relevant=any(row['photo_id']==owner and bool(set(paths(field,condition)) & set(row['missing_fields'])) for row in (reba or {}).get('slots',[]))
             if kind=='criterion' and not relevant and not (item and item['state']=='CONFLICT'):
                 # No row exists yet: ask the first row's facts only when that criterion still needs input.
                 relevant=any(j['criterion_no'] in d['criteria'] and j['computed_status']=='NEEDS_INPUT' for j in judgments) and not any(task['legal']['criteria'][n-1].get('rows') for n in d['criteria'])
@@ -75,11 +80,14 @@ def _assess(task, facts, views, catalogue, only_identity=None):
             question=field['question']
             if t=='other_work': question+=' '+ ' · '.join(f['label'] for f in unknown_work)
             if t=='load_link': question=f"사진 속 물건도 설명한 {next(iter(masses))}kg 물건인가요?"
+            if kind=='manual':question=photo_facts.label(owner,views)+' · '+question
             reason='결과 계산에 필요한 정보가 아직 없어요.'
             measurement_reason=bool(item and item['source'] in ('POSE','MOVENET') and item.get('measurement_diagnostic') in WRIST_REASONS)
             if measurement_reason: reason=WRIST_REASONS[item['measurement_diagnostic']]
+            elif item and item.get('measurement_reason'):reason=item['measurement_reason'];measurement_reason=True
             if item and item['state']=='CONFLICT': reason='앞서 기록한 값과 새 설명이 달라 확인이 필요해요.'
             candidates.append(dict(field,target=t,condition=condition,text=question,reason=reason,
+                **(dict(photo_id=owner,photo_label=photo_facts.label(owner,views),label=photo_facts.label(owner,views)+' · '+field['label'],display_condition=photo_facts.label(owner,views),legacy_primary=owner==next((views[view] for view in PHOTO_VIEWS if view in views),None)) if kind=='manual' else {}),
                 identity=key(t,condition),priority=0 if item and item['state']=='CONFLICT' else field['priority'],photo_measurement_reason=measurement_reason))
     if any(c['target']=='other_work' for c in candidates) and not has('other_work'):
         candidates=[c for c in candidates if c['destination']['type']!='work_type']
@@ -111,8 +119,8 @@ def _without_value(task, field, condition, views):
                     if 'lift' in mapping and name not in LIFT_FIELDS[n]: continue
                     criterion['rows'] = [dict(row, **{name: None}) if row['row_id'] == condition else row for row in criterion.get('rows', [])]
     elif kind == 'manual':
-        primary_photo = next((views[view] for view in PHOTO_VIEWS if view in views), None)
-        primary = next((slot for slot in task['capture']['slots'] if slot['photo_id'] == primary_photo), None)
+        owner=photo_facts.photo_id(dict(condition=condition),views)
+        primary = next((slot for slot in task['capture']['slots'] if slot['photo_id'] == owner), None)
         value['manual'] = [row for row in task['manual'] if not (primary and row['slot_no'] == primary['slot_no'] and row['photo_id'] == primary['photo_id'] and row['scope'] == d['scope'] and row['field'] == d['field'])]
     return value
 
@@ -129,6 +137,7 @@ def progress(task, facts, views, candidates):
     catalogue = fields(); by_target = {field['target']: field for field in catalogue}
     completed = 0
     for identity, item in facts.items():
+        if item.get('alias_of'):continue
         field = by_target.get(item['target'])
         if not field or field['destination']['type'] == 'task': continue
         if item['state'] != 'KNOWN' and not (item['state'] == 'UNKNOWN' and item['source'] == 'USER'): continue
@@ -140,6 +149,7 @@ def progress(task, facts, views, candidates):
         # Removing only the fact leaves its saved conditions/manual/row value.
         # Clear both the fact and the actual calculator input for this probe.
         probe = dict(facts); del probe[identity]
+        if item['target'].startswith('manual.') and (probe.get(key(item['target'])) or {}).get('alias_of')==identity:probe.pop(key(item['target']),None)
         without_value = _without_value(task, field, item['condition'], views)
         if any(candidate['identity'] == identity for candidate in _assess(without_value, probe, views, catalogue, only_identity=identity)['candidates']):
             completed += 1
@@ -233,17 +243,22 @@ def with_answer_questions(question, candidates, saved_facts):
 
 def choose(candidates, proposed=()):
     by_id={c['identity']:c for c in candidates}; chosen=[]; seen=set()
+    by_id.update({key(c['target']):c for c in candidates if c.get('legacy_primary')})
     for candidate in candidates:
         if candidate['priority']==0:
             chosen.append(candidate); seen.add(candidate['identity'])
     for p in proposed if isinstance(proposed,list) else []:
         if not isinstance(p,dict): continue
         identity=key(p.get('target',''),p.get('condition'))
-        if identity not in by_id or identity in seen: continue
+        if identity not in by_id: continue
         original=by_id[identity]
+        identity=original['identity']
+        if identity in seen:continue
         # A question may change wording, never the field, choices, units or ownership.
         text=p.get('text'); reason=p.get('reason')
-        chosen.append(dict(original,text=text[:300] if isinstance(text,str) and text.strip() else original['text'],
+        display_text=text[:300] if isinstance(text,str) and text.strip() and photo_facts.PHOTO_POLICY['condition_prefix'] not in text else original['text']
+        if original.get('photo_label') and not display_text.startswith(original['photo_label']):display_text=original['photo_label']+' · '+display_text
+        chosen.append(dict(original,text=display_text,
                            reason=reason[:300] if not original.get('photo_measurement_reason') and isinstance(reason,str) and reason.strip() else original['reason']))
         seen.add(identity)
     for candidate in candidates:
@@ -264,10 +279,13 @@ def form_fields(task, saved, views, candidates):
             if identity in saved or work_feature_needed(field,judgments):
                 result[identity] = dict(field, identity=identity, condition=POLICY['default_condition'])
     for identity, item in saved.items():
+        if item.get('alias_of') or not photo_facts.active(item,views):continue
         field = by_target.get(item['target'])
         if not field or field['destination']['type'] in ('task', 'other_work'): continue
         probe = dict(saved); probe.pop(identity)
+        if item['target'].startswith('manual.') and (probe.get(key(item['target'])) or {}).get('alias_of')==identity:probe.pop(key(item['target']),None)
         relevant = _assess(_without_value(task, field, item['condition'], views), probe, views, catalogue, only_identity=identity)['candidates']
         if any(c['identity'] == identity for c in relevant):
-            result.setdefault(identity,dict(field, identity=identity, condition=item['condition']))
+            metadata=dict(photo_id=item['photo_id'],photo_label=item.get('photo_label'),display_condition=item.get('photo_label'),label=item.get('photo_label','등록한 사진')+' · '+field['label']) if field['destination']['type']=='manual' and item.get('photo_id') is not None else {}
+            result.setdefault(identity,dict(field, identity=identity, condition=item['condition'],**metadata))
     return list(result.values())

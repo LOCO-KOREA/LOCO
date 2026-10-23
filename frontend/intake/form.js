@@ -9,7 +9,8 @@ export function renderForm(intake,busy) {
     const input=f.kind==='choice'?`<select ${attrs}><option value="" ${value==null?'selected':''}>모름 / 미확인</option>${f.choices.map(c=>`<option value="${esc(c.value)}" ${value===c.value?'selected':''}>${esc(c.label)}</option>`).join('')}</select>`:
       `<input ${attrs} type="${f.kind==='number'?'number':'text'}" ${f.kind==='number'?`min="0" step="any" ${f.maximum!=null?`max="${f.maximum}"`:''}`:''} value="${esc(value)}" placeholder="미확인">`;
     const status=saved?.state==='CONFLICT'?'<small class="quick-warn">기존 설명과 다른 값이 있어 확인이 필요해요.</small>':saved?.state==='ESTIMATED'?`<small>사진 추정: ${esc(f.choices?.find(c=>c.value===saved.value)?.label??saved.value)} · 직접 확인해 주세요.</small>`:saved?.source==='AI'&&saved.state==='KNOWN'?'<small>설명에서 자동 정리</small>':'';
-    return `<div class="intake-group-item"><label class="intake-group-question"><span>${esc(f.label)}${f.unit?` <small>(${esc(f.unit)})</small>`:''}</span>${input}</label>${status}</div>`;
+    const reason=f.destination.type==='manual'&&f.reason?`<small class="intake-measurement-reason">${esc(f.reason)}</small>`:'';
+    return `<div class="intake-group-item"><label class="intake-group-question"><span>${esc(f.label)}${f.unit?` <small>(${esc(f.unit)})</small>`:''}</span>${input}</label>${status}${reason}</div>`;
   };
   const handled=f=>{const saved=facts.find(s=>s.identity===f.identity);return saved?.state==='KNOWN'||saved?.state==='UNKNOWN'&&saved.source==='USER';};
   const pending=fields.filter(f=>!handled(f)), confirmed=fields.filter(handled);
@@ -18,7 +19,7 @@ export function renderForm(intake,busy) {
   const limit=intake.state.contract.policy.form_prompt_limit||3;
   const prompt=stage===0&&core.length?'설명한 작업 외에 아래 작업도 하나요?':core.length?core.slice(0,limit).map(f=>f.label+(f.unit?` (${f.unit})`:'')).join(' · '):'';
   const groups=new Map();
-  for(const field of pending) {const key=(field.group||'기본 작업 정보')+(field.condition!=='default'?' · '+field.condition:'');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(field);}
+  for(const field of pending) {const photo=field.photo_label||field.display_condition;const condition=field.condition&&!field.condition.startsWith(intake.state.contract.photo_policy?.condition_prefix||'photo:')&&field.condition!=='default'?field.condition:'';const key=(field.group||'기본 작업 정보')+(photo||condition?' · '+(photo||condition):'');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(field);}
   const sections=[...groups].map(([title,rows])=>{
     const photoOnly=rows.every(optional);
     return photoOnly?`<details class="intake-form-section" data-intake-photo-optional><summary>${esc(title)} · 사진 점수를 더 확인할 때</summary>${rows.map(control).join('')}</details>`:`<section class="intake-form-section"><h3>${esc(title)}</h3>${rows.map(control).join('')}</section>`;

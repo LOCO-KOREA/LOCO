@@ -424,7 +424,8 @@ class PairedAdaptiveIntake(unittest.TestCase):
         self.assertEqual(len(state['questions']), 1)
         question = state['questions'][0]
         self.assertEqual(question['target'], 'manual.RIGHT.shoulder_raised')
-        self.assertEqual(question['text'], '이쪽 정보를 확인해 주세요.')
+        self.assertTrue(question['text'].endswith('이쪽 정보를 확인해 주세요.'))
+        self.assertIn('왼쪽에서 찍은 사진',question['text'])
         self.assertEqual(question['paired_question']['target'], 'manual.LEFT.shoulder_raised')
         self.assertNotIn('paired_question', question['paired_question'])
         session = state['task']['conditions'][contract.SESSION_KEY]

@@ -221,6 +221,31 @@ FRONT_FIELDS = {'trunk_turn': [('COMMON', 'trunk_side_bent')], 'neck_turn': [('C
                 'arm_abducted': [('LEFT', 'arm_abducted_or_rotated'), ('RIGHT', 'arm_abducted_or_rotated')]}
 
 
+def front_observations(points,confidence_min=0.5,boundary_deg=5,*,width=None,height=None):
+    """Positive frontal observations, retaining each body's side and actual confidence.
+
+    A small angle cannot establish NO: axial rotation is not observed in this plane.
+    """
+    by_name={point['name']:point for point in points};result=[]
+    base_names=['left_shoulder','right_shoulder','left_hip','right_hip']
+    specs=[('COMMON','trunk_side_bent','trunk_turn',TRUNK_SIDE_DEG,base_names,points),
+           ('COMMON','neck_side_bent','neck_turn',NECK_SIDE_DEG,base_names+['nose'],points)]
+    for side in ('LEFT','RIGHT'):
+        opposite='right' if side=='LEFT' else 'left'
+        scoped=[point for point in points if point['name']!=opposite+'_elbow']
+        specs.append((side,'arm_abducted_or_rotated','arm_abducted',ARM_ABDUCTION_DEG,base_names+[side.lower()+'_elbow'],scoped))
+    for scope,field,kind,threshold,names,scoped in specs:
+        row=next((row for row in front_measure(scoped,confidence_min) if row['key']==kind),None)
+        if row is None or not all(name in by_name for name in names):continue
+        confidence=min(by_name[name]['confidence'] for name in names);positive=row['suggested'];boundary=abs(row['value_deg']-threshold)<=boundary_deg
+        in_frame=all(by_name[name]['x_px']>=0 and by_name[name]['y_px']>=0 and (width is None or by_name[name]['x_px']<width) and (height is None or by_name[name]['y_px']<height) for name in names)
+        result.append(dict(scope=scope,field=field,value='YES' if positive else None,
+            low_confidence=confidence<confidence_min or not in_frame,boundary_review=boundary,
+            measurement_reason='사진 밖에 있는 관절이 있어 자세를 직접 확인해 주세요.' if not in_frame else '사진에서 읽은 옆 기울임을 확인해 주세요.' if positive else '이 사진의 작은 각도만으로 비틀림이나 회전이 없다고 확인할 수는 없어요.',
+            angles=[dict(side=scope,angle_code='FRONT_'+kind.upper(),value_deg=row['value_deg'],min_confidence=confidence,coordinate_space='ORIGINAL_IMAGE_2D')]))
+    return result
+
+
 def provisional(measured, front, settings, seated=False):
     """No-burden provisional REBA from photo measurements and frontal suggestions.
 

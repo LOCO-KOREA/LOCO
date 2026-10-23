@@ -28,7 +28,7 @@ def handle_quick_preview(ctx, method, p):
         with ctx.analysis_lock:
             pose = pose_engine.process(slot, {'photos': [photo], 'settings': settings})
         guess = quick_assess.guess_view(pose['points'], confidence) if pose['points'] else None
-        rows=[]
+        rows=[];measured=[];front_here=[];front_measured=[];seated_here=False;signal_details={}
         notes = [d for d in pose['diagnostics'] if d['code'] != 'INVALID_CAMERA']
         label = quick_assess.VIEW_KO[view]
         if not pose['points']:
@@ -41,6 +41,8 @@ def handle_quick_preview(ctx, method, p):
                 notes.append(dict(code='NOT_FRONT', message=f'{label}이 옆모습으로 보여요. 기울임 제안은 쓰지 않아요.', field_path=None))
             else:
                 front = quick_assess.front_measure(pose['points'], confidence)
+                front_here=front
+                front_measured=quick_assess.front_observations(pose['points'],confidence,width=photo.get('width_px'),height=photo.get('height_px'))
         elif guess['orientation'] == 'FRONT':
             notes.append(dict(code='NOT_SIDE', message=f'{label}이 옆모습이 아니라 정면으로 보여요. 이 사진의 각도는 쓰지 않아요.', field_path=None))
         elif photo.get('width_px') and photo.get('height_px'):
@@ -50,7 +52,13 @@ def handle_quick_preview(ctx, method, p):
                 notes.append(dict(code='OTHER_SIDE', message=f'{label} 칸인데 {other} 몸이 더 잘 보여서 {other} 몸 기준으로 쟀어요. 칸이 맞는지 확인해 주세요.', field_path=None))
             rows, measured = quick_assess.side_measure(pose['points'], photo['width_px'], photo['height_px'], settings, near, guess['forward_direction'], view,
                                                        oblique=guess['orientation'] == 'OBLIQUE')
-            seated = seated or quick_assess.seated_signal(pose['points'], near, confidence)
+            seated_here=quick_assess.seated_signal(pose['points'],near,confidence)
+            if seated_here:
+                refs=[point for point in pose['points'] if point['name'] in [near.lower()+'_'+joint for joint in ('hip','knee','ankle')]]
+                minimum=min(point['confidence'] for point in refs)
+                in_frame=all(0<=point['x_px']<photo['width_px'] and 0<=point['y_px']<photo['height_px'] for point in refs)
+                signal_details['seated']=dict(body_side=near,min_confidence=minimum,in_frame=in_frame,low_confidence=minimum<confidence or not in_frame)
+            seated = seated or seated_here
             rows_by_view.setdefault(near, []).extend(rows)
             side_groups.append(measured)
         if pose['points'] and not rows:
@@ -61,8 +69,11 @@ def handle_quick_preview(ctx, method, p):
                 measurement_issues.append(dict(scope=row['side'],field='wrist_base',view=view,angle=row,reason=row['diagnostic'],code=row['diagnostic_code']))
         overhead = overhead or bool(pose['points']) and quick_assess.arm_overhead_signal(pose['points'], confidence)
         diagnostics += notes
+        view_signals=quick_assess.posture_signals({guess['camera_side']:rows},settings['posture_profile']) if guess and guess.get('camera_side') in ('LEFT','RIGHT') and rows else {}
+        view_signals.update(seated=seated_here,arm_raised=bool(pose['points']) and quick_assess.arm_overhead_signal(pose['points'],confidence))
         views[view] = dict(photo_id=photo['photo_id'], width_px=photo.get('width_px'), height_px=photo.get('height_px'),
-                           points=pose['points'], angles=rows, guess=guess, diagnostics=notes,engine=pose.get('engine'),
+                           points=pose['points'], angles=rows, measured=measured,front=front_here,front_measurements=front_measured,
+                           signals=view_signals,signal_details=signal_details,guess=guess, diagnostics=notes,engine=pose.get('engine'),
                            world_points=pose.get('world_points',[]),world_angles=pose.get('world_angles',[]),connections=pose.get('connections',[]),quality=pose.get('quality'))
     measured = quick_assess.merge_measured(*side_groups)
     signals = quick_assess.posture_signals(rows_by_view, settings['posture_profile'])

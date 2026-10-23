@@ -12,13 +12,19 @@ class InputTrace:
         current=source.get('input_revision')
         self.facts=session.get('facts',{}) if current is None or current==session.get('projected_revision') else {}
         self.catalogue={field['target']:field for field in fields()}
+        self.primary_photo=next((slot.get('photo_id') for slot in (source.get('capture') or {}).get('slots',[]) if slot.get('analysis_target')),None)
 
-    def lookup(self,kind,value,*,field=None,criterion=None,condition=None,scope=None,view=None):
+    def lookup(self,kind,value,*,field=None,criterion=None,condition=None,scope=None,view=None,photo_id=None):
         for fact in self.facts.values():
+            if fact.get('alias_of'):continue
             definition=self.catalogue.get(fact.get('target'))
             if not definition:continue
             destination=definition['destination']
             if destination['type']!=kind:continue
+            if kind=='manual':
+                from ergo.intake.photo_facts import photo_id as owner_of
+                owner=owner_of(fact,{'LEFT':self.primary_photo})
+                if owner!=(photo_id if photo_id is not None else self.primary_photo):continue
             if criterion is not None and criterion not in destination.get('criteria',[]):continue
             if condition is not None and fact['condition']!=condition:continue
             if scope is not None and destination.get('scope')!=scope:continue

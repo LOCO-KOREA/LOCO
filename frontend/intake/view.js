@@ -1,6 +1,6 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const SOURCE = {USER:'직접 입력',AI:'작업 설명',POSE:'사진 측정',MOVENET:'사진 측정',SAVED:'저장된 입력'};
-const conditionLabel = (condition, state) => condition && condition !== state.contract.policy.default_condition ? ` · ${esc(condition)}` : '';
+const conditionLabel = (condition, state) => condition && !condition.startsWith(state.contract.photo_policy?.condition_prefix||'photo:') && condition !== state.contract.policy.default_condition ? ` · ${esc(condition)}` : '';
 function display(field, value) {
   if (value == null) return '모름';
   return field?.choices?.find(c => String(c.value) === String(value))?.label ?? `${value}${field?.unit ? ' '+field.unit : ''}`;
@@ -19,7 +19,8 @@ function editor(intake, field, identity) {
 }
 export function renderSummary(intake) {
   const state = intake.state; if (!state) return '';
-  const known = state.facts.filter(f => f.state === 'KNOWN'), issues = state.facts.filter(f => f.state !== 'KNOWN');
+  const visible=state.facts.filter(f=>!f.alias_of&&f.photo_active!==false);
+  const known = visible.filter(f => f.state === 'KNOWN'), issues = visible.filter(f => f.state !== 'KNOWN');
   const row = fact => {
     const field = state.contract.fields.find(f => f.target === fact.target);
     return `<li><div><strong>${esc(fact.label)}${conditionLabel(fact.condition,state)}</strong><span>${esc(display(field,fact.value))}</span><small>${esc(SOURCE[fact.source] || fact.source)}${fact.quote ? ' · '+esc(fact.quote) : ''}${fact.state === 'CONFLICT' ? ' · 다른 값이 있어 확인 필요' : ''}</small></div><button type="button" data-intake-edit="${esc(fact.identity)}">수정</button>${intake.editing === fact.identity ? `<div class="intake-edit">${editor(intake,field,fact.identity)}</div>` : ''}</li>`;

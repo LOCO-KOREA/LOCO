@@ -117,7 +117,9 @@ class WristProjection(unittest.TestCase):
         for value in (1,None):
             initial=facts.apply_answers({},[dict(target='context',value='YES'),dict(target='manual.LEFT.wrist_base',value=value)])
             saved=facts.add_photo_facts(initial,preview,dict(LEFT=7))
-            self.assertEqual(saved[contract.key('manual.LEFT.wrist_base')],initial[contract.key('manual.LEFT.wrist_base')])
+            original=initial[contract.key('manual.LEFT.wrist_base')];bound=saved[contract.key('manual.LEFT.wrist_base')]
+            self.assertEqual({key:bound[key] for key in original},original)
+            self.assertEqual(bound['photo_id'],7)
 
     def test_failed_measurement_and_boundary_retain_specific_reason_in_plan_and_form(self):
         for code in ('WRIST_PLANE_UNCLEAR','WRIST_HAND_OUT_OF_FRAME','WRIST_POINTS_LOW_CONFIDENCE','WRIST_BOUNDARY'):

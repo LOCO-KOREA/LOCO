@@ -84,13 +84,16 @@ def fields():
         choices=YES_NO, priority=18, group='사진 속 물건 확인')
     add('other_work', '아직 확인하지 못한 아래 작업 특징이 있나요?', 'choice', dict(type='other_work'),
         choices=[dict(value='NO',label='아래 특징은 모두 없어요'),dict(value='YES',label='해당하는 특징이 있어요')], priority=80, group='나머지 작업 특징')
-    for field in result: field['ai_writable']=field['target']!='other_work'
+    for field in result:
+        field['ai_writable']=field['target']!='other_work'
+        field['photo_scoped']=field['destination']['type']=='manual'
     for field in result: field['derivations']=[DURATION_SUM] if field['target']=='daily_work_min' else []
     return result
 
 
 def public_contract():
-    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY, states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
+    from .photo_facts import PHOTO_POLICY
+    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY,photo_policy=PHOTO_POLICY, states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
 
 
 def response_schema(catalogue=None):

@@ -11,6 +11,8 @@ from .display import KIND, SOURCE, STATUS, UNIT, VALUE
 from .labels import CRITERIA, EXPOSURES, MANUAL, RESULT_LABELS, criterion_name, input_label, reason_label, unit_for
 from .input_trace import InputTrace
 from ergo.user_language import user_text
+from ergo.intake.photo_facts import VIEW_LABELS
+from ergo.pose_contract import WRIST_POLICY
 
 KST = timezone(timedelta(hours=9))
 SIDE = {'LEFT': '왼쪽', 'RIGHT': '오른쪽', 'COMMON': '공통', 'BOTH': '양쪽', 'FRONT': '정면·후면'}
@@ -18,6 +20,7 @@ CAMERA = {'LEFT': '왼쪽 몸이 보이는 쪽에서', 'RIGHT': '오른쪽 몸�
 FACING = {'SCREEN_LEFT': '사진의 왼쪽', 'SCREEN_RIGHT': '사진의 오른쪽'}
 ANGLE = {'TRUNK_TILT_VERT': '몸통 기울기', 'NECK_TILT_VERT_PROXY': '목 기울기(추정)', 'NECK_FLEX_TRUNK_PROXY': '목 굽힘(몸통 기준, 추정)', 'UPPER_ARM_RAISE_VERT': '위팔 들림',
          'UPPER_ARM_FLEX_TRUNK': '위팔 굽힘(몸통 기준)', 'ELBOW_FLEX': '팔꿈치 굽힘', 'KNEE_FLEX': '무릎 굽힘'}
+ANGLE[WRIST_POLICY['angle_code']]='손목 굽힘(사진에서 측정)'
 TAG = {'NECK_FORWARD_PROXY': '목을 앞으로 숙임', 'TRUNK_FLEX': '몸통을 앞으로 굽힘', 'TRUNK_EXT': '몸통을 뒤로 젖힘', 'UPPER_ARM_RAISE': '위팔을 들어 올림', 'HAND_ABOVE_HEAD': '손이 머리 위',
        'ELBOW_ABOVE_SHOULDER': '팔꿈치가 어깨 위', 'ELBOW_BEHIND_TRUNK': '팔꿈치가 몸통 뒤', 'NECK_TWIST': '목을 비틂', 'TRUNK_TWIST': '몸통을 비틂', 'SQUAT': '쪼그림', 'KNEEL': '무릎을 꿇음'}
 SCOPE_PLAIN = {'pose': '사진에서 자세 읽기', 'tags': '자세 표시', 'reba': 'REBA 점수', 'judgment': '법정 기준 판정'}
@@ -131,7 +134,7 @@ def _sheet(name, lead, tables, notes=None, title=None):
 
 
 def _slot_names(source):
-    return {s.get('slot_no'): (s.get('label') or f"사진 {s.get('slot_no')}") for s in (source.get('capture') or {}).get('slots', [])}
+    return {s.get('slot_no'): VIEW_LABELS.get(s.get('label'),s.get('label') or f"사진 {s.get('slot_no')}") for s in (source.get('capture') or {}).get('slots', [])}
 
 
 def _context(snapshot, ov):
@@ -256,7 +259,7 @@ def _manual_rows(name, source):
     trace=InputTrace(source)
     primary=next((s for s in (source.get('capture') or {}).get('slots',[]) if s.get('analysis_target')),None)
     for m in source.get('manual') or []:
-        origin=trace.lookup('manual',m.get('value'),scope=m.get('scope'),field=m.get('field')) if primary and m.get('photo_id')==primary.get('photo_id') and m.get('slot_no')==primary.get('slot_no') else None
+        origin=trace.lookup('manual',m.get('value'),scope=m.get('scope'),field=m.get('field'),photo_id=m.get('photo_id'))
         origin=origin or (SOURCE_PLAIN.get(m.get('source'),m.get('source') or ''),note((m.get('evidence') or {}).get('text')))
         key = (m.get('slot_no'), m.get('field'), json.dumps(m.get('value')), *origin)
         if key not in groups:

@@ -7,6 +7,7 @@ import re
 from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS
 from .grounding import evidence_quote, number_grounded, number_proof, unknown_evidence
 from .photo_load import photo_load
+from . import photo_facts
 from ergo.engine.task_defaults import now
 
 TITLE_SENTENCE_END=re.compile(r'(?<!\d)\.|\.(?!\d)|[!?。\n]')
@@ -74,7 +75,9 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
         condition = item.get('condition') or POLICY['default_condition']
         if not isinstance(condition,str) or len(condition)>80:
             record(item,index,'REJECTED','BAD_CONDITION'); continue
-        if not field['conditioned']: condition=POLICY['default_condition']
+        if not field['conditioned'] and not (field['destination']['type']=='manual' and condition.startswith(photo_facts.PHOTO_POLICY['condition_prefix'])): condition=POLICY['default_condition']
+        if field['destination']['type']=='manual' and condition.startswith(photo_facts.PHOTO_POLICY['condition_prefix']) and not any(f.get('condition')==condition for f in existing.values()):
+            record(item,index,'REJECTED','BAD_CONDITION',condition);continue
         focused = [f for f in focus if f['target']==field['target']]
         if condition==POLICY['default_condition'] and len(focused)==1: condition=focused[0]['condition']
         identity = key(field['target'],condition)
@@ -131,7 +134,7 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
     return result,dropped
 
 
-def apply_answers(existing, answers, candidates=()):
+def apply_answers(existing, answers, candidates=(), *, photo_views=None):
     result = copy.deepcopy(existing)
     catalogue = {f['target']:f for f in fields()}
     for item in answers:
@@ -139,7 +142,9 @@ def apply_answers(existing, answers, candidates=()):
         field = catalogue[item['target']]
         condition = item.get('condition') or POLICY['default_condition']
         if not isinstance(condition,str) or len(condition)>80: raise ValueError('작업 조건 이름은 80자 이내로 입력하세요.')
-        if not field['conditioned']: condition=POLICY['default_condition']
+        if field['destination']['type']=='manual' and condition.startswith(photo_facts.PHOTO_POLICY['condition_prefix']):
+            if photo_views is not None and photo_facts.photo_id(dict(condition=condition),photo_views) not in photo_views.values():raise ValueError('현재 작업에 등록된 사진의 자세만 수정할 수 있어요.')
+        elif not field['conditioned']: condition=POLICY['default_condition']
         value = normalize(field,item.get('value'))
         identity=key(field['target'],condition)
         prior=result.get(identity)
@@ -155,38 +160,7 @@ def apply_answers(existing, answers, candidates=()):
 
 
 def add_photo_facts(existing, preview, views):
-    result=copy.deepcopy(existing); catalogue={f['target']:f for f in fields()}
-    primary=next((v for v in PHOTO_VIEWS if v in views),None)
-    source='POSE' if (preview.get('views',{}).get(primary,{}).get('engine') or {}).get('provider')=='mediapipe' else 'MOVENET'
-    for view,data in preview.get('views',{}).items():
-        direction=(data.get('guess') or {}).get('forward_direction')
-        target='view_'+view
-        if direction and target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
-            result[key(target)]=fact(catalogue[target],direction,source,'사진에서 바라보는 방향 추정')
-    for measured in preview.get('measured',[]):
-        if measured['view']!=primary: continue
-        target=f"manual.{measured['scope']}.{measured['field']}"
-        if target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
-            f=fact(catalogue[target],measured['value'],source,' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
-            f['angles']=measured['angles']
-            if measured.get('low_confidence') or measured.get('boundary_review'): f['state']='ESTIMATED'
-            if measured['field']=='wrist_base' and measured.get('boundary_review'): f['measurement_diagnostic']='WRIST_BOUNDARY'
-            result[key(target)]=f
-    for issue in preview.get('measurement_issues',[]):
-        if issue['view']!=primary: continue
-        target=f"manual.{issue['scope']}.{issue['field']}"
-        prior=result.get(key(target))
-        if target in catalogue and (prior is None or prior['source'] in PHOTO_SOURCES and prior['state']=='UNKNOWN'):
-            details=dict(measurement_diagnostic=issue['code'],angles=[issue['angle']],
-                photo_measurement=dict(view=issue['view'],photo_id=views.get(issue['view']),engine=preview.get('views',{}).get(issue['view'],{}).get('engine')))
-            if prior and prior.get('value') is None and prior.get('source')==source and prior.get('quote')==issue['reason'] and all(prior.get(name)==value for name,value in details.items()):
-                continue # Reopening unchanged uncertainty is a read, not a fresh observation.
-            f=fact(catalogue[target],None,source,issue['reason'])
-            f.update(details)
-            result[key(target)]=f
-    if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source'] in PHOTO_SOURCES):
-        result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES',source,'사진에서 앉은 자세 감지')
-    return result
+    return photo_facts.add(existing,preview,views)
 
 
 def project(task, facts, views, preview):
@@ -212,6 +186,7 @@ def project(task, facts, views, preview):
     manual={(m['slot_no'],m['scope'],m['field']):m for m in value['manual'] if any(s['slot_no']==m['slot_no'] and s['photo_id']==m['photo_id'] for s in slots)}
     row_values={}
     for item in facts.values():
+        if item.get('alias_of'):continue
         field=catalogue.get(item['target'])
         if not field: continue
         destination=field['destination']; kind=destination['type']; val=item['value']
@@ -224,13 +199,16 @@ def project(task, facts, views, preview):
         elif kind=='complete':
             for n in destination['criteria']: value['legal']['criteria'][n-1]['rows_complete']=val or 'UNKNOWN'
         elif kind=='manual' and primary_id is not None:
-            identity=(1,destination['scope'],destination['field'])
+            owner=photo_facts.photo_id(item,views)
+            slot=next((slot for slot in slots if slot['photo_id']==owner),None)
+            if slot is None:continue
+            identity=(slot['slot_no'],destination['scope'],destination['field'])
             if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not usable:
                 manual.pop(identity,None); continue
             source='AUTO_ACCEPTED' if item['source'] in PHOTO_SOURCES else 'INTERVIEW'
             ev=evidence(item)
-            if source=='AUTO_ACCEPTED': ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True))
-            manual[identity]=dict(slot_no=1,photo_id=primary_id,scope=destination['scope'],field=destination['field'],value=val,source=source,evidence=ev)
+            if source=='AUTO_ACCEPTED': ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True,photo_id=owner,view=item.get('view'),photo_proof=item.get('photo_proof')))
+            manual[identity]=dict(slot_no=slot['slot_no'],photo_id=owner,scope=destination['scope'],field=destination['field'],value=val,source=source,evidence=ev)
         elif kind=='criterion':
             mapping=destination['mapping']
             if 'exposure' in mapping:
@@ -298,4 +276,13 @@ def read_values(task):
             values[key(field['target'],condition)]=fact(field,number,'SAVED','저장된 입력',condition)
         if val is not None and val not in ('UNKNOWN','NOT_APPLICABLE',''):
             values[key(field['target'])]=fact(field,val,'SAVED','저장된 입력')
+    catalogue={field['target']:field for field in fields()}
+    for row in task['manual']:
+        target=f"manual.{row['scope']}.{row['field']}"
+        if target not in catalogue or row['value'] in (None,'UNKNOWN','NOT_APPLICABLE',''):continue
+        slot=next((slot for slot in slots if slot['slot_no']==row['slot_no'] and slot['photo_id']==row['photo_id']),None)
+        if slot is None:continue
+        item=fact(catalogue[target],row['value'],'SAVED','저장된 입력',photo_facts.condition(row['photo_id']))
+        item.update(photo_id=row['photo_id'],view=slot.get('label'),photo_label=photo_facts.VIEW_LABELS.get(slot.get('label'),'등록한 사진'))
+        values[key(target,item['condition'])]=item
     return values
