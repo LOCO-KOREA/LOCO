@@ -56,7 +56,7 @@ export function renderDialog(intake,busy) {
     return `<div class="intake-group-item"><label class="intake-group-question"><span>${esc(field.label||field.text)}</span><select data-intake-group-value="${esc(field.identity)}" aria-label="${esc(field.label||field.text)}" ${busy?'disabled':''}>${options}</select></label>${details(field,false,true)}</div>`;
   }).join('')}</div><div class="intake-dialog-actions"><button type="button" class="primary" data-quick="intake-group-save" ${busy||!groupReady?'disabled':''}>선택한 항목 저장</button></div>`;
   const send=()=>`<button type="button" class="primary" data-quick="adaptive-next" ${busy||!intake.text.trim()&&state.ai?.status!=='ERROR'?'disabled':''}>${busy?'답변을 정리하는 중…':state.ai?.status==='ERROR'?'다시 시도':'답변 보내기'}</button>`;
-  return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title" aria-busy="${Boolean(busy)}"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 추가 확인</span><h2 id="intake-dialog-title">${q?'작업 정보를 확인해요':'추가 질문 확인을 마쳤어요'}</h2></div><button type="button" data-quick="intake-close" aria-label="추가 질문 닫기">×</button></header>
+  return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title" aria-busy="${Boolean(busy)}"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 추가 확인</span><h2 id="intake-dialog-title">${q?'작업 정보를 확인해요':'추가 질문 확인을 마쳤어요'}</h2></div></header>
     ${busy?renderActivity(typeof busy==='string'?busy:'답변을 정리하고 있어요',intake.busyElapsedSeconds):''}${progressPanel(state)}<div class="intake-dialog-body">${busy?'':connectionStatus(intake,false)}<p class="intake-auto-note">설명·사진에서 ${auto}개 정보를 자동으로 정리했어요. 이미 아는 것은 다시 묻지 않아요.</p>
     ${q?`<article data-intake-question="${esc(q.identity)}">${condition}<h3>${grouped?esc(q.group_title||'관련된 항목을 함께 확인해 주세요'):paired?'왼쪽과 오른쪽을 함께 확인해 주세요':esc(q.text)}</h3>${grouped?'':`<p class="quick-note">${paired?'양쪽의 값을 각각 선택하고 한 번에 저장해 주세요.':esc(q.reason)}</p>`}${coverage.length?`<p class="intake-auto-note">확인할 특징: ${coverage.map(esc).join(' · ')}</p>`:''}${grouped?groupPanel():paired?pairedPanel():details(q)+(hasChoices?replies(q):'')}</article>`:''}
     ${!writing?`<button type="button" class="intake-write-toggle" data-quick="intake-write" aria-expanded="false" aria-controls="intake-writing" ${busy?'disabled':''}>직접 설명하기</button>`:''}
@@ -64,7 +64,7 @@ export function renderDialog(intake,busy) {
     <div class="intake-dialog-actions">${send()}${q&&!hasChoices?choice(q,null,'모르겠어요'):''}</div>`:''}</div>
     ${intake.saveError?'<p class="quick-warn">답변을 저장하지 못했어요. 입력한 내용은 유지돼요. 다시 시도해 주세요.</p>':''}
     ${!writing&&state.ai?.status==='ERROR'?`<div class="intake-dialog-actions">${send()}</div>`:''}</div>
-    <footer class="intake-dialog-footer"><button type="button" data-quick="intake-close">나중에 확인</button><button type="button" data-quick="next" ${busy?'disabled':''}>현재 정보로 결과 보기 →</button></footer></dialog>`;
+    <footer class="intake-dialog-footer"><button type="button" data-quick="intake-close">나중에 확인</button><button type="button" data-quick="next" ${busy?'disabled':''}>현재 정보로 결과 보기</button></footer></dialog>`;
 }
 
 export function mountDialog(host,busy,focusPair=null) {
