@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
  const {renderQuickExplanation}=await import('../frontend/quick-explanation.js');
  const {AdaptiveIntake}=await import('../frontend/intake/client.js');
  const {QuickFlow}=await import('../frontend/quick-flow.js');
+ assert.equal(userText('AI가 정리했어요.'),'AI가 정리했어요.');assert.equal(userText('계산 초안 상태는 NEEDS_INPUT입니다.'),'계산에 필요한 정보가 아직 없어요.');
  const raw='NEEDS_INPUT입니다. NOT_APPLICABLE이고 YES, NO, UNKNOWN입니다. 20kg · 0분';
  const display=userText(raw);
  assert.doesNotMatch(display,/NEEDS_INPUT|NOT_APPLICABLE|YES|UNKNOWN/);
