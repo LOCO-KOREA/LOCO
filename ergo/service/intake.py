@@ -8,6 +8,7 @@ from uuid import uuid4
 from pathlib import Path
 from ergo.intake import contract, facts, planner
 from ergo.intake import history as receipts
+from ergo.intake import source_coverage
 from ergo.gpt import client
 from ergo import ai_config
 from ergo import pose_contract
@@ -126,7 +127,7 @@ def _reconcile_late(ctx,task,turn,session):
                     outcomes=[]
                     latest['facts'],dropped=facts.merge_model(latest['facts'],request['answers'],(message or {}).get('text',''),focus=focus,
                         prior_texts=[m['text'] for m in latest['messages'] if m.get('text')],outcomes=outcomes,reconcile=True,preserve_conflicts=request['phase']=='FOLLOWUP',
-                        protect_photo_context=session.get('photo_signature')!=latest.get('photo_signature'))
+                        protect_photo_context=source_coverage.photo_changed(request.get('context',{}),session,latest))
                     receipts.record_decisions(latest,reconciled,outcomes,index)
             turns=latest.setdefault('turns',[])
             found=next((i for i,t in enumerate(turns) if t['turn_id']==turn['turn_id']),None)
@@ -143,6 +144,14 @@ def handle_intake_session(ctx,method,p):
     saved,ok=_save(ctx,task,session,preview)
     if not ok: return handle_intake_session(ctx,method,dict(task_id=p['task_id']))
     return _response(saved,session,preview)
+
+
+def _resume_coverage(ctx,task,turn,session):
+    response=_reconcile_late(ctx,task,turn,session)
+    if response['task']['created_at']!=task['created_at']:return None,response
+    resumed=copy.deepcopy(response['task']['conditions'].get(contract.SESSION_KEY) or {})
+    saved_turn=next((item for item in resumed.get('turns',[]) if item['turn_id']==turn['turn_id']),None)
+    return (response['task'],resumed,response['preview'],saved_turn) if saved_turn else None,response
 
 
 def handle_intake_turn(ctx,method,p):
@@ -184,9 +193,11 @@ def handle_intake_turn(ctx,method,p):
     settings=ctx.settings()
     started=time.monotonic()
     source_context=receipts.context(session,message['message_id'] if message else None)
+    source_scope=source_coverage.photo_scope(session,preview)
+    source_context['source_photo_scope']=copy.deepcopy(source_scope)
     prior_texts=[m['text'] for m in session['messages'] if m is not message and m.get('text')]
     if settings['gpt_enabled'] and settings.get('gpt_model'):
-        payload=dict(phase='EXTRACT_AND_PLAN',text=text,known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
+        payload=dict(phase='EXTRACT_AND_PLAN',text=text,known=source_coverage.known_values(session),source_photo_scope=copy.deepcopy(source_scope),
             targets=contract.fields(),missing=assessment['candidates'],asked=focus,
             question_limit=contract.POLICY['question_limit'],
             prior_user_text=source_context['texts'])
@@ -197,31 +208,46 @@ def handle_intake_turn(ctx,method,p):
         reasoning_effort=(raw or {}).get('_connection',{}).get('reasoning_effort'),requested_reasoning_effort=settings['gpt_reasoning_effort'],
         response_id=(raw or {}).get('_connection',{}).get('response_id'))
     receipts.request(turn,'EXTRACT_AND_PLAN',raw,reason,session['last_ai'],source_context)
+    reconciled=False
     with ctx.db_lock:
         latest=ctx.require('task',task['task_id'])
         if latest['input_revision']!=task['input_revision'] or latest['created_at']!=task['created_at']:
-            return _reconcile_late(ctx,task,turn,session)
+            if not text or not settings['gpt_enabled'] or not settings.get('gpt_model'):return _reconcile_late(ctx,task,turn,session)
+            resumed,response=_resume_coverage(ctx,task,turn,session)
+            if resumed is None:return response
+            task,session,preview,turn=resumed
+            reconciled=True
     dropped=[]
-    if isinstance(raw,dict):
+    if isinstance(raw,dict) and not reconciled:
         outcomes=[]
         session['facts'],dropped=facts.merge_model(session['facts'],raw.get('answers'),text,focus=focus,
             prior_texts=prior_texts,outcomes=outcomes,reconcile=stale_client,protect_photo_context=stale_client)
         receipts.record_decisions(session,turn,outcomes)
         session['suggestions']=raw.get('questions',[])
-    session['last_dropped']=dropped
+    if not reconciled:session['last_dropped']=dropped
     projected=facts.project(task,session['facts'],session['views'],preview)
     assessment=planner.assess(projected,session['facts'],session['views'])
     admissible={q['identity'] for q in assessment['candidates']}
     has_ai_question=any(contract.key(q.get('target',''),q.get('condition')) in admissible for q in session.get('suggestions',[]) if isinstance(q,dict))
-    # Extraction can reveal a new condition. Save the extracted facts before asking AI
-    # to phrase the actual remaining gap; never hold a DB lock during either request.
-    if isinstance(raw,dict) and assessment['candidates'] and not has_ai_question:
-        task,ok=_save(ctx,task,session,preview)
-        if not ok: return _reconcile_late(ctx,task,turn,session)
+    # A valid next question is not proof that every explicit source fact was saved.
+    # Each new natural statement gets one source check, including a failed extraction.
+    # Blank manual retries retain their existing question-planning behavior.
+    coverage=bool(text and settings['gpt_enabled'] and settings.get('gpt_model') and contract.POLICY['source_coverage_passes'])
+    if coverage or isinstance(raw,dict) and assessment['candidates'] and not has_ai_question:
+        saved,ok=_save(ctx,task,session,preview)
+        if not ok:
+            resumed,response=_resume_coverage(ctx,task,turn,session)
+            if resumed is None:return response
+            task,session,preview,turn=resumed;reconciled=True
+            assessment=planner.assess(task,session['facts'],session['views'])
+        else:task=saved
         followup_context=receipts.context(session)
-        payload.update(phase='FOLLOWUP',text='',known=[dict(target=f['target'],condition=f['condition'],value=f['value'],state=f['state'],source=f['source']) for f in session['facts'].values()],
-            missing=assessment['candidates'],asked=[],prior_user_text=followup_context['texts'])
-        followup,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)
+        followup_context['source_photo_scope']=copy.deepcopy(source_scope)
+        followup_payload=source_coverage.payload(payload,session,preview,turn,followup_context,source_scope,assessment['candidates'])
+        if not coverage:followup_payload.update(text='',purpose='QUESTION_PLANNING')
+        session.pop('local_answers_only',None)
+        followup,reason=client.adaptive_intake(followup_payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)
+        session.setdefault('last_ai',dict(model=settings.get('gpt_model'),requested_reasoning_effort=settings['gpt_reasoning_effort']))
         session['last_ai'].update(status=contract.AI_STATES[1] if isinstance(followup,dict) and reason is None else contract.AI_STATES[2],
             model=(followup or {}).get('_connection',{}).get('model') or settings.get('gpt_model'),
             reasoning_effort=(followup or {}).get('_connection',{}).get('reasoning_effort'),
@@ -231,15 +257,16 @@ def handle_intake_turn(ctx,method,p):
         if isinstance(followup,dict):
             outcomes=[]
             session['facts'],additional=facts.merge_model(session['facts'],followup.get('answers'),text,focus=focus,
-                prior_texts=prior_texts,outcomes=outcomes,preserve_conflicts=True,reconcile=stale_client,protect_photo_context=stale_client)
+                prior_texts=prior_texts,outcomes=outcomes,preserve_conflicts=True,reconcile=stale_client or reconciled,
+                protect_photo_context=stale_client or source_coverage.photo_changed(followup_context,session,session))
             receipts.record_decisions(session,turn,outcomes,len(turn['requests'])-1)
             dropped.extend(additional);session['last_dropped']=dropped
             session['suggestions']=followup.get('questions',[])
             projected=facts.project(task,session['facts'],session['views'],preview)
             assessment=planner.assess(projected,session['facts'],session['views'])
     session['suggestions']=[dict(target=q['target'],condition=q['condition'],text=q['text'],reason=q['reason']) for q in planner.choose(assessment['candidates'],session.get('suggestions',[]))]
-    turn['status']='ERROR' if reason else 'COMPLETE'
+    turn['status']='ERROR' if reason else 'RECONCILED' if reconciled else 'COMPLETE'
     saved,ok=_save(ctx,task,session,preview)
     if not ok: return _reconcile_late(ctx,task,turn,session)
     if any(item['reason']=='PHOTO_CONTEXT_CONFIRMATION_REQUIRED' for item in dropped):reason='INPUT_CHANGED'
-    return _response(saved,session,preview,reason=reason,proposed=session['suggestions'],dropped=dropped)
+    return _response(saved,session,preview,reason=reason or ('INPUT_CHANGED' if reconciled else None),proposed=session['suggestions'],dropped=dropped)

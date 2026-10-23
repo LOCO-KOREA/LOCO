@@ -86,3 +86,7 @@ AUD-01/02/03/05/06/07/08의 회귀 기준은 `tests/test_intake_persistence.py`,
 ## 명시적 모름의 형식 표현 보존 (2026-10-23)
 
 “사진 물건과 두 중량의 연결은 모릅니다.”에서 검증된 UNKNOWN 제안은 기존 fact에 `value=null,state=UNKNOWN,source=USER,origin=AI`로 저장한다. 두 중량 조건을 합치거나 사진 하중을 0으로 채우지 않는다. EXTRACT/FOLLOWUP 원본 제안과 결정·source_message_ids는 보존한다. 재시작·동일 경로 조회 후에도 사실·revision이 유지되며 이후 USER 편집은 과거 분석 snapshot을 재작성하지 않는다. 물리 스키마나 API 키는 바꾸지 않는다.
+
+## 질문 전 원문 교차확인 (2026-10-23)
+
+새 자연어를 저장한 회차는 질문을 보여 주기 전에 FOLLOWUP 원문 교차확인을 한 번 수행한다. 다른 유효 질문이 있어도 앞선 제안·거절사유·현재 사실·원문 당시 사진 범위를 대조하여 빠진 명시 사실을 추가한다. 조회/중복 읽기, 직접 선택 답변만의 저장, plan=false에는 추가 호출하지 않는다. 기존 원문 검증·USER 우선권·지연 재조정·불변 snapshot을 유지하며 만료 조건을 추가하지 않는다. 상세 계약은 [원문 교차확인](verification/2026-10-23-source-coverage.md)을 따른다.

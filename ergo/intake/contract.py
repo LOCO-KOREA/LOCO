@@ -7,7 +7,7 @@ VERSION = 'ADAPTIVE_INTAKE_V1'
 SESSION_KEY = AUXILIARY_CONDITION_KEYS[0]
 METHODS = dict(contract='intake_contract', session='intake_session', turn='intake_turn')
 POLICY = dict(question_limit=1, text_limit=2400, autosave_delay_ms=500, quick_review_interval=5,
-              default_condition='default', unknown='UNKNOWN', history_context_chars=None, auto_title_length=60)
+              default_condition='default', unknown='UNKNOWN', history_context_chars=None, auto_title_length=60, source_coverage_passes=1)
 
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')

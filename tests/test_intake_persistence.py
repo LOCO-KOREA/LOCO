@@ -138,7 +138,9 @@ class IntakePersistence(unittest.TestCase):
         receipt=next(turn for turn in restored['history'] if turn['requests'])
         self.assertEqual(receipt['status'],'RECONCILED')
         self.assertEqual(receipt['requests'][0]['connection']['response_id'],'late-id')
-        self.assertEqual([d['outcome'] for d in receipt['decisions']],['REJECTED','ACCEPTED'])
+        self.assertEqual([d['outcome'] for d in receipt['decisions'] if d['request_index']==0],['REJECTED','ACCEPTED'])
+        self.assertEqual([request['phase'] for request in receipt['requests']],['EXTRACT_AND_PLAN','FOLLOWUP'])
+        self.assertEqual([d['outcome'] for d in receipt['decisions'] if d['request_index']==1],['REJECTED','UNCHANGED'])
         self.assertTrue(any(d['target']=='daily_work_min' for d in restored['diagnostics']))
 
     def test_followup_proposals_remain_visible_without_resolving_extract_rejections(self):
