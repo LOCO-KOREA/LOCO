@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 from PIL import Image
 from ergo.service.application import create_service
+from ergo import photo_identity
 from ergo.vision import contract
 
 def response(marker='원래 사진'):
@@ -64,5 +65,30 @@ class VisionOwnership(unittest.TestCase):
             self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(target='daily_work_min',value=420)],plan=False))
         state=self.pending(remove);self.assertEqual(self.ctx.dispatch('get_task',dict(task_id=self.task_id))['photos'],[]);self.assertFalse(state['photo_vision']['photos']);self.assertFalse(any(row['source']=='VISION' for row in state['facts']));self.assertEqual(state['task']['conditions']['daily_work_min'],420)
         self.assertTrue(any(row['photo_id']==self.owner and row['status']=='STALE' and row['raw_response']['summary']==response()['summary'] for row in state['photo_vision']['history']))
+
+    def test_deleted_and_reimported_identical_bytes_reused_id_cannot_adopt_the_old_response(self):
+        old_token=self.photo[photo_identity.REGISTRATION_KEY];created=[]
+        def replace():
+            self.ctx.dispatch('delete_photo',dict(photo_id=self.owner))
+            photo=self.ctx.dispatch('import_photos',dict(task_id=self.task_id,file_paths=[str(self.original)]))['added'][0];created.append(photo)
+            self.assertEqual(photo['photo_id'],self.owner);self.assertNotEqual(photo[photo_identity.REGISTRATION_KEY],old_token)
+            self.ctx.dispatch('intake_session',dict(task_id=self.task_id,views=dict(RIGHT=self.owner)))
+        state=self.pending(replace);self.assertFalse(state['photo_vision']['photos']);self.assertFalse(any(row['source']=='VISION' for row in state['facts']))
+        self.assertTrue(any(row['photo_id']==self.owner and row['status']=='STALE' for row in state['photo_vision']['history']))
+        with patch('ergo.vision.client.observe',return_value=(response('재등록 사진'),None)) as call:current=self.turn()
+        self.assertEqual(call.call_count,1);self.assertEqual(current['photo_vision']['photos'][0]['summary'],response('재등록 사진')['summary'])
+        self.assertEqual(current['photo_vision']['photos'][0]['owner']['photo_generation'],created[0][photo_identity.REGISTRATION_KEY])
+
+    def test_negative_context_clears_projection_but_yes_reuses_cache_and_preserves_user_unknown(self):
+        with patch('ergo.vision.client.observe',return_value=(response(),None)) as call:
+            initial=self.turn();self.assertTrue(any(row['source']=='VISION' for row in initial['facts']))
+            negative=self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(target='context',value='NO')],plan=False))
+            self.assertFalse(any(row['source']=='VISION' and row['state']=='KNOWN' for row in negative['facts']));self.assertFalse(negative['task']['manual'])
+            self.assertEqual(negative['photo_vision']['photos'][0]['raw_response'],initial['photo_vision']['photos'][0]['raw_response'])
+            self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(target='manual.COMMON.trunk_twisted',condition=self.condition,value=None,quote='사람이 모름으로 확인했어요.')],plan=False))
+            restored=self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(target='context',value='YES')],plan=False))
+            saved=next(row for row in restored['facts'] if row['identity']=='manual.COMMON.trunk_twisted@'+self.condition)
+            self.assertEqual((saved['source'],saved['state'],saved['value']),('USER','UNKNOWN',None));self.assertEqual(call.call_count,1)
+            json.dumps(restored,allow_nan=False)
 
 if __name__=='__main__':unittest.main()
