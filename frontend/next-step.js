@@ -22,7 +22,7 @@ export function renderNextStep(host, step, screens) {
   const go = document.createElement('button');
   go.type = 'button';
   go.dataset.nextStep = step.screen;
-  go.textContent = `${target ? target.name : step.screen} 열기 →`;
+  go.textContent = `${target ? target.name : step.screen} 열기`;
   host.append(text, go);
   host.dataset.screen = step.screen;
   host.hidden = false;

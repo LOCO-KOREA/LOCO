@@ -218,7 +218,7 @@ export class QuickFlow {
   }
 
   async workspaceBack() {
-    if (this.busy || this.photoOperation) return;
+    if (this.busy || this.photoOperation || this.intake?.saving) return;
     const index = WORKSPACE_STEPS.indexOf(this.step);
     if (index <= 0) return this.workspaceHome();
     let target = WORKSPACE_STEPS[index - 1];
@@ -769,6 +769,7 @@ export class QuickFlow {
     else if (d.quick === 'new') { const old = readDraft(); writeDraft(null); if (old && old.surveyId !== readWorkspaceDraft()?.survey?.id) this.api('delete_survey', {survey_id: old.surveyId}).catch(() => {}); this.reset(); this.render(); }
     else if (d.quick === 'workspace-save') this.saveWorkspace();
     else if (d.quick === 'workspace-back') this.workspaceBack();
+    else if (d.quick === 'workspace-top') window.scrollTo({top: 0, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     else if (d.quick === 'workspace-resume') this.resumeWorkspace();
     else if (d.quick === 'resume') this.resumeDraft();
     else if (d.quick === 'discard-draft') this.discardDraft();
@@ -1045,7 +1046,7 @@ export class QuickFlow {
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
       <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
-      <div class="quick-nav"><button data-quick="home">홈으로</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기 →' : '사진·작업 설명 정리 →'}</button></div>`;
+      <div class="quick-nav"><button data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
   }
 
   pointsFor(view) {
@@ -1083,7 +1084,7 @@ export class QuickFlow {
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
         ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
         ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
-        <div class="quick-nav"><button data-quick="photos">← 사진·작업 설명</button><button class="primary" data-quick="questions">부족한 부분만 확인 →</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기 →</button>' : ''}</div>
+        <div class="quick-nav"><button class="quick-back" data-quick="photos">뒤로 가기</button><button class="primary" data-quick="questions">부족한 부분만 확인</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
       </section></div>`;
   }
 
@@ -1135,8 +1136,8 @@ export class QuickFlow {
         ${todo.map(g => `<h4 class="quick-section">${esc(g.name)}</h4>${g.questions.map(q => this.question(q)).join('')}`).join('')}
         ${later.length ? `<details class="quick-later" ${this.laterOpen ? 'open' : ''}><summary>조사 정보·작업장 상황 (나중에 입력해도 돼요)</summary>${later.map(g => g.questions.map(q => this.question(q)).join('')).join('')}</details>` : ''}
         ${ready ? '' : '<p class="quick-note">확인할 질문에 답해 주세요. 모르면 "모름"을 고르면 돼요. 숫자는 0 이상이고, 하루 시간은 1440분 이하예요.</p>'}
-        <div class="quick-nav"><button data-quick="prev">← 이전</button>
-          <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>최종 결과 계산 →</button></div>
+        <div class="quick-nav"><button data-quick="prev">이전</button>
+          <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>최종 결과 계산</button></div>
       </section></div>`;
   }
 
@@ -1176,8 +1177,8 @@ export class QuickFlow {
         ${hasCards ? '<div class="quick-bulk"><button type="button" data-quick="allno">아직 답하지 않은 기준은 모두 "아니오"로 (직접 확인했어요)</button></div>' : ''}
         ${group.questions.map(q => this.question(q)).join('')}
         ${ready ? '' : '<p class="quick-note">모든 질문에 답해 주세요. 모르면 "모름"을 고르면 돼요. 숫자는 0 이상이고, 하루 시간은 1440분 이하예요.</p>'}
-        <div class="quick-nav"><button data-quick="prev" ${this.group === 0 ? 'disabled' : ''}>← 이전</button>
-          <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>${last ? '최종 결과 계산 →' : '다음 →'}</button></div>
+        <div class="quick-nav"><button data-quick="prev" ${this.group === 0 ? 'disabled' : ''}>이전</button>
+          <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>${last ? '최종 결과 계산' : '다음'}</button></div>
       </section></div>`;
   }
 
@@ -1234,7 +1235,7 @@ export class QuickFlow {
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
-        <div class="quick-nav"><button data-quick="home">홈으로</button><button data-quick="preview">Excel 미리보기 →</button>${this.intake?.state ? '<button data-quick="questions">← 입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
+        <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button data-quick="preview">Excel 미리보기</button><button class="primary" data-quick="review">검토하고 설명 만들기</button></div></section>
         ${this.comparePanel()}</div></div>`;
   }
 
@@ -1274,7 +1275,7 @@ export class QuickFlow {
         <div class="quick-nav left"><button class="primary" data-quick="reviewed">검토 완료로 표시</button>${reviewed ? '<button data-quick="unreview">검토 표시 해제</button>' : ''}</div>
         <p class="quick-note">${reviewed ? '<b>검토 완료</b>로 표시되어 있어요.' : '아직 검토 표시가 없어요.'} 검토 표시는 계산 완전성과 별개예요.</p></section>
       ${this.aiPanel()}
-      <section class="panel"><div class="quick-nav"><button data-quick="result">← 결과 보기</button><button class="primary" data-quick="preview">Excel 미리보기 →</button></div></section></div></div>`;
+      <section class="panel"><div class="quick-nav"><button class="quick-back" data-quick="result">뒤로 가기</button><button class="primary" data-quick="preview">Excel 미리보기</button></div></section></div></div>`;
   }
 
   // Excel: what is missing, a preview of the sheets exactly as the file will contain them, and the save button.
@@ -1287,8 +1288,8 @@ export class QuickFlow {
         ${this.exported ? `<p class="quick-ok">저장한 파일: ${esc(this.exported.file_path)}</p>` : ''}
         <div class="quick-nav left"><button class="primary" data-quick="excel">Excel로 저장</button></div></section>
       <section class="panel"><h3>그다음</h3>
-        <div class="quick-nav left"><button data-quick="review">← 검토로</button><button data-quick="improve">개선 후 사진으로 다시 비교</button>
-          <button data-quick="home">홈으로</button><button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
+        <div class="quick-nav left"><button data-quick="workspace-back">뒤로 가기</button><button data-quick="improve">개선 후 사진으로 다시 비교</button>
+          <button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
   }
 
   excelPreviewPanel() {
