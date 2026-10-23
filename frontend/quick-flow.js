@@ -1,4 +1,5 @@
 import {selectPhotoCrop} from './photo-crop.js';
+import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord} from './quick-workspace-draft.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
@@ -141,8 +142,10 @@ export function settledByIntake(q, answers, items) {
 }
 
 export class QuickFlow {
-  constructor({host, api, notify, onError, onOpenDetail}) {
+  constructor({host, toolbar, api, notify, onError, onOpenDetail}) {
     Object.assign(this, {host, api, notify, onError, onOpenDetail});
+    this.toolbar = toolbar;
+    toolbar?.addEventListener('click', event => this.click(event));
     this.intake = new AdaptiveIntake({api, notify, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveError || '입력을 저장했어요.'; this.keepDraft(); } else this.render(); }});
     this.reset();
     this.step = 'home';
@@ -186,9 +189,90 @@ export class QuickFlow {
   }
 
   // ================= home
+  async saveWorkspace(announce = true) {
+    if (this.busy || this.photoOperation || this.step === 'home') return false;
+    let saved = false;
+    await this.run('작성 중인 내용을 임시 저장하고 있어요…', async () => {
+      await this.intake.flush();
+      if (this.task) {
+        // Photo registration can advance the task revision without refreshing this screen's DTO.
+        const fresh = (await this.api('get_task', {task_id: this.task.task_id})).task;
+        if (fresh.created_at !== this.task.created_at || fresh.survey_id !== this.survey?.survey_id)
+          throw Error('저장 대상이 삭제되었거나 교체됐어요. 현재 기록을 확인해 주세요.');
+        this.task = fresh;
+      }
+      writeWorkspaceDraft(captureWorkspace(this));
+      // The old draft's discard/new path must never delete this checkpoint's survey.
+      const old = readDraft();
+      if (old && old.surveyId === this.survey?.survey_id) writeDraft(null);
+      saved = true;
+      if (announce) this.notify('현재 화면과 작성 중 내용을 이 PC에 임시 저장했어요.');
+    });
+    return saved;
+  }
+
+  async workspaceHome() {
+    if (this.busy || this.photoOperation || this.step === 'home') return;
+    if (!await this.saveWorkspace(false)) return;
+    this.reset(); this.step = 'home'; await this.loadHome();
+  }
+
+  async workspaceBack() {
+    if (this.busy || this.photoOperation) return;
+    const index = WORKSPACE_STEPS.indexOf(this.step);
+    if (index <= 0) return this.workspaceHome();
+    let target = WORKSPACE_STEPS[index - 1];
+    if (['questions', 'provisional'].includes(target) && !this.preview) target = 'start';
+    this.intake.dialogOpen = false;
+    this.step = target; this.render(); window.scrollTo({top: 0});
+  }
+
+  async resumeWorkspace() {
+    const draft = readWorkspaceDraft();
+    if (!draft) return;
+    await this.run('임시 저장한 화면을 불러오고 있어요…', async () => {
+      let loaded;
+      try { loaded = await loadWorkspace(draft, this.api); }
+      catch (error) {
+        if (!missingWorkspaceRecord(error)) throw error;
+        this.workspaceUnavailable = JSON.stringify(draft);
+        this.notify('이어 갈 기록이 삭제되었거나 현재 데이터에 없어 목록에서 제외했어요.');
+        return;
+      }
+      // Restore display candidates locally. intake_session/quick_preview can run pose inference
+      // or project inputs; neither belongs to reopening an explicitly saved UI checkpoint.
+      const preview = draft.preview || null;
+      const contract = draft.adaptive ? await this.intake.loadContract() : null;
+      if (draft.adaptive && draft.intake.state?.contract?.version !== contract.version)
+        throw Error('입력 화면 형식이 변경됐어요. 최신 기록을 열어 확인해 주세요. 임시 메모는 보관돼요.');
+      const settings = this.settings;
+      this.reset({preserveActivity: true});
+      Object.assign(this, loaded, draft.ui, {settings, preview, busy: '임시 저장한 화면을 불러오고 있어요…', step: draft.step});
+      if (draft.adaptive) {
+        this.intake.state = {...draft.intake.state, task: this.task, contract};
+        this.intake.questions = draft.intake.questions;
+      }
+      Object.assign(this.intake, {text: draft.intake.text, dialogOpen: draft.intake.dialogOpen,
+        editing: draft.intake.editing, writingFor: draft.intake.writingFor, focusPair: draft.intake.focusPair,
+        values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
+      if (this.baseline && this.result) await this.compare();
+      if (draft.step === 'excel') {
+        const args = {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons: this.comparison ? [this.comparison.spec] : []};
+        [this.overview, this.excelPreview] = await Promise.all([this.api('preview_excel', args), this.api('preview_excel_sheets', args)]);
+      }
+    });
+  }
+
   async loadHome() {
     await this.run('', async () => {
       this.surveys = await this.api('list_surveys');
+      const checkpoint = readWorkspaceDraft();
+      this.workspaceUnavailable = null;
+      if (checkpoint?.task) {
+        try {
+          if (!await workspaceTargetAvailable(checkpoint, this.api)) this.workspaceUnavailable = JSON.stringify(checkpoint);
+        } catch { /* Keep the checkpoint available for retry after a transient service failure. */ }
+      }
       this.settings = await this.api('get_settings');
       await this.intake.loadContract();
       this.step = 'home';
@@ -221,7 +305,12 @@ export class QuickFlow {
     if (this.confirmDelete !== id) { this.confirmDelete = id; return this.render(); }
     this.confirmDelete = null;
     await this.run('삭제하고 있어요…', async () => {
+      const checkpoint = readWorkspaceDraft();
+      const target = checkpoint?.survey?.id === id ? await this.api('get_survey', {survey_id: id}) : null;
       await this.api('delete_survey', {survey_id: id});
+      if (target) clearWorkspaceDraftForSurvey(target);
+      const old = readDraft();
+      if (target && old?.surveyId === id && old.createdAt === target.created_at) writeDraft(null);
       this.surveys = await this.api('list_surveys');
       this.notify('기록을 삭제했어요. 원본 사진과 Excel 파일은 그대로예요.');
     });
@@ -677,10 +766,13 @@ export class QuickFlow {
     else if (d.del) this.deleteSurvey(Number(d.del));
     else if (d.crit) this.critClick(d);
     else if (d.concl) this.conclude(Number(d.concl), d.status);
-    else if (d.quick === 'new') { const old = readDraft(); writeDraft(null); if (old) this.api('delete_survey', {survey_id: old.surveyId}).catch(() => {}); this.reset(); this.render(); }
+    else if (d.quick === 'new') { const old = readDraft(); writeDraft(null); if (old && old.surveyId !== readWorkspaceDraft()?.survey?.id) this.api('delete_survey', {survey_id: old.surveyId}).catch(() => {}); this.reset(); this.render(); }
+    else if (d.quick === 'workspace-save') this.saveWorkspace();
+    else if (d.quick === 'workspace-back') this.workspaceBack();
+    else if (d.quick === 'workspace-resume') this.resumeWorkspace();
     else if (d.quick === 'resume') this.resumeDraft();
     else if (d.quick === 'discard-draft') this.discardDraft();
-    else if (d.quick === 'home' || d.quick === 'home-bar') { this.reset(); this.step = 'home'; this.loadHome(); }
+    else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
     else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state)this.intake.dialogOpen=true; this.render(); }
@@ -821,8 +913,12 @@ export class QuickFlow {
 
   // ================= views
   render() {
+    if (this.toolbar) {
+      this.toolbar.hidden = this.step === 'home';
+      for (const button of this.toolbar.querySelectorAll('button')) button.disabled = Boolean(this.busy || this.photoOperation);
+    }
     const index = STEPS.findIndex(([id]) => id === this.step);
-    const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-home-link" data-quick="home-bar" title="${this.task && !this.result ? '작성 중인 내용은 저장돼요. 홈에서 이어서 할 수 있어요.' : ''}">홈으로</button></div>`;
+    const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
     this.intake.busyElapsedSeconds=this.busy&&this.busyStartedAt!=null?Math.floor((Date.now()-this.busyStartedAt)/1000):0;
     const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
@@ -833,6 +929,7 @@ export class QuickFlow {
 
   // An unfinished analysis (photos chosen, answers partly given) is kept so it can be continued after closing the app.
   keepDraft() {
+    if (readWorkspaceDraft()?.task?.id === this.task?.task_id && this.task) return;
     if (!['start', 'provisional', 'questions'].includes(this.step) || !this.task || this.result || this.reopened) return;
     writeDraft({
       surveyId: this.survey.survey_id, surveyTitle: this.survey.title, createdAt: this.survey.created_at, taskId: this.task.task_id, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
@@ -876,7 +973,7 @@ export class QuickFlow {
   async discardDraft() {
     const draft = readDraft();
     writeDraft(null);
-    if (draft) await this.api('delete_survey', {survey_id: draft.surveyId}).catch(() => {});
+    if (draft && draft.surveyId !== readWorkspaceDraft()?.survey?.id) await this.api('delete_survey', {survey_id: draft.surveyId}).catch(() => {});
     await this.loadHome();
   }
 
@@ -889,7 +986,10 @@ export class QuickFlow {
     const draftCard = draftSurvey ? `<section class="panel quick-draft"><div><strong>작성 중이던 분석이 있어요</strong>
       <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
       <div class="quick-list-actions"><button class="primary" data-quick="resume">이어서 하기</button><button data-quick="discard-draft">버리기</button></div></section>` : '';
-    return `${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
+    const checkpoint = readWorkspaceDraft();
+    const checkpointVisible = checkpoint && this.workspaceUnavailable !== JSON.stringify(checkpoint) && (!checkpoint.survey || list.some(row => row.survey_id === checkpoint.survey.id));
+    const checkpointCard = checkpointVisible ? `<section class="panel quick-draft"><div><strong>임시 저장한 작업이 있어요</strong><span>${WORKSPACE_STEPS.indexOf(checkpoint.step) + 1}단계 · ${esc(new Date(checkpoint.savedAt).toLocaleString('ko-KR'))} · 이 PC에 보관</span></div><button class="primary" data-quick="workspace-resume">이어서 하기</button></section>` : '';
+    return `${checkpointCard}${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
       <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 Excel까지 이어져요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>
       <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
@@ -913,7 +1013,7 @@ export class QuickFlow {
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
       <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
-      <div class="quick-nav"><button data-quick="home">← 처음으로</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기 →' : '사진·작업 설명 정리 →'}</button></div>`;
+      <div class="quick-nav"><button data-quick="home">홈으로</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기 →' : '사진·작업 설명 정리 →'}</button></div>`;
   }
 
   pointsFor(view) {
@@ -951,7 +1051,7 @@ export class QuickFlow {
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
         ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
         ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
-        <div class="quick-nav"><button data-quick="photos">← 사진·작업 설명</button><button class="primary" data-quick="questions">부족한 부분만 확인 →</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
+        <div class="quick-nav"><button data-quick="photos">← 사진·작업 설명</button><button class="primary" data-quick="questions">부족한 부분만 확인 →</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기 →</button>' : ''}</div>
       </section></div>`;
   }
 
@@ -1102,7 +1202,7 @@ export class QuickFlow {
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
-        <div class="quick-nav"><button data-quick="home">처음으로</button><button data-quick="preview">Excel 미리보기</button>${this.intake?.state ? '<button data-quick="questions">입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
+        <div class="quick-nav"><button data-quick="home">홈으로</button><button data-quick="preview">Excel 미리보기 →</button>${this.intake?.state ? '<button data-quick="questions">← 입력 보완</button>' : ''}<button class="primary" data-quick="review">검토하고 설명 만들기 →</button></div></section>
         ${this.comparePanel()}</div></div>`;
   }
 
@@ -1156,7 +1256,7 @@ export class QuickFlow {
         <div class="quick-nav left"><button class="primary" data-quick="excel">Excel로 저장</button></div></section>
       <section class="panel"><h3>그다음</h3>
         <div class="quick-nav left"><button data-quick="review">← 검토로</button><button data-quick="improve">개선 후 사진으로 다시 비교</button>
-          <button data-quick="home">처음으로</button><button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
+          <button data-quick="home">홈으로</button><button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
   }
 
   excelPreviewPanel() {

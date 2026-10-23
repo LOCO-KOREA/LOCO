@@ -142,12 +142,12 @@ document.addEventListener('click',event=>{
   databaseLocation.initialize();
 });
 $('#close-database-settings').addEventListener('click',()=>$('#database-settings').close());
-const quickUI=new QuickFlow({host:$('#quick-workspace'),api,notify,onError:showError,onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
+const quickUI=new QuickFlow({host:$('#quick-workspace'),toolbar:$('#quick-toolbar'),api,notify,onError:showError,onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
 function setMode(mode){
   const quick=mode==='quick';
   document.body.classList.toggle('quick-mode',quick);$('#quick-workspace').hidden=!quick;
   $('#mode-toggle').textContent=quick?'고급 편집':'간편 화면';
-  if(quick){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='사진·작업 설명 → 자동 정리 → 추가 확인 → 결과 → 검토·설명 → Excel';quickUI.open();}
+  if(quick){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='';quickUI.open();}
   else{page('S01');if(window.loco)perform(refresh);}
 }
 $('#mode-toggle').addEventListener('click',()=>setMode(document.body.classList.contains('quick-mode')?'detail':'quick'));
