@@ -12,6 +12,7 @@ from ergo.intake import source_coverage, photo_facts
 from ergo.gpt import client
 from ergo import ai_config
 from ergo import pose_contract
+from ergo import photo_identity
 from ergo.pose import engine as pose_engine
 from ergo.engine.task_defaults import now
 from .quick import handle_quick_preview
@@ -31,7 +32,7 @@ def _prepare(ctx, task_id, requested_views=None):
             photo=photos[identity]
             try: digest=hashlib.sha256(Path(photo['file_path']).read_bytes()).hexdigest()
             except OSError: digest='unreadable'
-            signatures.append([view,identity,digest])
+            signatures.append([view,identity,digest,photo_identity.identity(photo)])
         settings=ctx.settings()['analysis']
     photo_signature=json.dumps(signatures,ensure_ascii=False,sort_keys=True)
     fingerprint=hashlib.sha256((photo_signature+json.dumps(dict(settings=settings,model=pose_engine.fingerprint(settings['pose_model'])),sort_keys=True)).encode()).hexdigest()
@@ -41,7 +42,10 @@ def _prepare(ctx, task_id, requested_views=None):
     invalidated=set()
     if session.get('photo_signature') and session['photo_signature']!=photo_signature:
         old_views=session.get('views',{});old_signatures=json.loads(session['photo_signature'])
-        old_hashes={identity:digest for _,identity,digest in old_signatures};new_hashes={identity:digest for _,identity,digest in signatures}
+        new_hashes={entry[1]:(entry[2],entry[3]) for entry in signatures}
+        old_hashes={entry[1]:(entry[2],entry[3] if len(entry)>3 else
+            new_hashes[entry[1]][1] if entry[1] in new_hashes and new_hashes[entry[1]][1].startswith(photo_identity.LEGACY_PREFIX) else None)
+            for entry in old_signatures}
         changed={identity for identity in set(old_hashes)|set(new_hashes) if old_hashes.get(identity)!=new_hashes.get(identity)}
         old_primary=next((old_views[view] for view in contract.PHOTO_VIEWS if view in old_views),None)
         primary=next((views[view] for view in contract.PHOTO_VIEWS if view in views),None)
@@ -78,7 +82,7 @@ def _prepare(ctx, task_id, requested_views=None):
         preview=handle_quick_preview(ctx,'quick_preview',dict(task_id=task_id,views=views)) if views else dict(views={},measured=[],front=[],signals={},score=None,questions=[],diagnostics=[])
         ctx.intake_previews[task_id]=(fingerprint,copy.deepcopy(preview))
     session.update(facts=current_facts,views=views,fingerprint=fingerprint,photo_signature=photo_signature,photo_observations=photo_facts.snapshot(preview,views))
-    photo_vision.refresh(task,session,ctx.settings(),preview)
+    photo_vision.refresh(task,session,ctx.settings(),preview,photos)
     session['facts']=facts.add_photo_facts(session['facts'],preview,views)
     selected=ai_config.values(ctx.settings())
     signature={key:selected[key] for key in ai_config.KEYS}
@@ -92,6 +96,7 @@ def _save(ctx, task, session, preview):
     with ctx.db_lock:
         current=ctx.require('task',task['task_id'])
         if current['input_revision']!=task['input_revision'] or current['created_at']!=task['created_at']: return current,False
+        photo_vision.apply_context(session)
         session['facts']=photo_facts.bind_aliases(session['facts'],session['views'])
         projected=facts.project(current,session['facts'],session['views'],preview)
         session['applied']={k:f['value'] for k,f in facts.read_values(projected).items()}

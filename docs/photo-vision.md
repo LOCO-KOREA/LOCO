@@ -26,3 +26,8 @@ observations는 activity,trunk,neck,knees,arm_left,arm_right,wrist_left,wrist_ri
 VISION의 계산 입력 근거는 면담이 아닌 OTHER이며, 허용된 관찰 후보의 manual.source는 AUTO_ACCEPTED다. photo_id·vision_signature·관찰·원제안 근거를 전용 JSON으로 보존한다. 숫자 각도 후보나 MediaPipe angles로 위장하지 않는다. 나중에 신뢰도·경계 검사를 통과한 MediaPipe 측정이 생기면 시각 관찰의 대체값을 측정값으로 바꿀 수 있다. 낮은 신뢰도나 경계 관측은 유효한 시각 관찰을 지우지 않는다.
 
 사진 또는 설정의 변경으로 시각 관찰 사실이 무효화되면 해당 사실이 소유한 계산 DTO 값도 함께 비운다. 동일한 값을 사람이 따로 확인한 근거는 지우지 않는다. 과거 분석·출력은 변경하지 않는다.
+### 사진 등록 세대와 사용자 사진 상황 우선권 (2026-10-23)
+
+`photo_identity.REGISTRATION_KEY`는 새 PHOTO.metadata_json 행에 UUID를 부여하며 update로 교체하지 않는다. 물리 스키마는 유지한다. legacy 행은 경로/소유 ID로 결정되는 토큰을 읽고 조회 중 metadata를 쓰지 않는다. 사진 signature는 [view,photo_id,원본SHA,등록세대]이며 과거 triple을 호환한다. 같은 SQLite ID·파일경로·바이트·view로 재등록해도 이전 이미지 및 텍스트 사진 응답이 새 등록에 적용되지 않는다.
+
+사용자가 context=NO로 사진 상황을 부정하면 raw 관찰과 캐시는 보존하되 VISION 소유 manual/작업특징 입력은 UNKNOWN으로 돌려 실제 투영값도 해제한다. USER·텍스트 AI·SAVED·POSE 소유 값은 건드리지 않는다. context=YES로 직접 정정하면 같은 이미지 관찰을 재사용하며 추가 이미지 API를 호출하지 않는다. 같은 turn의 텍스트 추출 뒤 저장에도 이 우선권을 적용한다.

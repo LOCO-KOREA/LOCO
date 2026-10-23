@@ -7,6 +7,7 @@ import os
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ergo import ai_config
+from ergo import photo_identity
 from ergo.engine.task_defaults import now
 from ergo.intake import contract as intake_contract, facts, photo_facts
 from ergo.vision import contract, images, client
@@ -33,7 +34,8 @@ def _context(session,view):
 
 def _descriptor(task,session,view,identity,digest,settings):
     selected=ai_config.values(settings)
-    owner=dict(task_id=task['task_id'],task_created_at=task['created_at'],photo_id=identity)
+    owner=dict(task_id=task['task_id'],task_created_at=task['created_at'],photo_id=identity,
+        photo_generation=session.get('photo_vision',{}).get('owners',{}).get(str(identity)))
     configuration=dict(version=contract.VERSION,prompt=contract.PROMPT_VERSION,policy=contract.policy(),
         model=selected['gpt_model'],reasoning_effort=selected['gpt_reasoning_effort'])
     context=_context(session,view)
@@ -42,13 +44,15 @@ def _descriptor(task,session,view,identity,digest,settings):
         owner=owner,source_sha256=digest,signature=signature,configuration=configuration,context=context)
 
 def _descriptors(task,session,settings):
-    source={(view,identity):digest for view,identity,digest in json.loads(session.get('photo_signature') or '[]')}
+    source={(entry[0],entry[1]):entry[2] for entry in json.loads(session.get('photo_signature') or '[]')}
     return [_descriptor(task,session,view,identity,source.get((view,identity),'unreadable'),settings)
         for view,identity in session.get('views',{}).items()]
 
-def refresh(task,session,settings,preview=None):
+def refresh(task,session,settings,preview=None,photos=None):
     """Pure cache selection/invalidation: never request a model during a read."""
     state=session.setdefault('photo_vision',dict(version=contract.VERSION,photos=[],history=[],catalogue=[]))
+    if photos is not None:
+        state['owners']={str(identity):photo_identity.identity(photos[identity]) for identity in session.get('views',{}).values() if identity in photos}
     records=state.get('photos',[])+state.get('history',[])
     desired=_descriptors(task,session,settings);selected=[]
     for item in desired:
@@ -83,7 +87,7 @@ def refresh(task,session,settings,preview=None):
                 # owned manual/global value instead of reviving it as SAVED.
                 session['facts'][identity]=dict(item,value=None,state='UNKNOWN',vision_signature=None,
                     quote='사진 또는 AI 사진 관찰 설정이 바뀌어 다시 확인',conflict=None)
-    for record in selected:_merge_candidates(session,record)
+    apply_context(session)
     return state
 
 def public(session):return copy.deepcopy(session.get('photo_vision') or dict(version=contract.VERSION,photos=[],history=[],catalogue=contract.public_contract()['catalogue']))
@@ -97,9 +101,25 @@ def _diagnostic(record,code,message,**context):
     item=dict(code=code,message=message,**context)
     if item not in record.setdefault('diagnostics',[]):record['diagnostics'].append(item)
 
+def apply_context(session):
+    """Honor a user's negative photo context while retaining the visual receipt."""
+    context=session.get('facts',{}).get(intake_contract.key('context'),{})
+    state=session.get('photo_vision',{})
+    if context.get('value')=='NO':
+        state['application_reason']='사용자가 사진 상황을 확인하지 않아 사진 관찰을 작업 입력에 적용하지 않았어요.'
+        for identity,item in list(session.get('facts',{}).items()):
+            if item.get('source')!=contract.SOURCE or item.get('value') is None:continue
+            session.setdefault('invalidated_photo_facts',{})[identity+'@'+str(item.get('vision_signature'))]=copy.deepcopy(item)
+            session['facts'][identity]=dict(item,value=None,state='UNKNOWN',vision_signature=None,
+                quote='사용자가 사진 상황을 확인하지 않아 관찰 적용에서 제외',conflict=None)
+        return
+    state.pop('application_reason',None)
+    for record in state.get('photos',[]):_merge_candidates(session,record)
+
 def _merge_candidates(session,record):
     raw=record.get('raw_response') or {}
     if record.get('status') not in ('OBSERVED','UNCERTAIN') or not contract.valid(raw):return
+    if session.get('facts',{}).get(intake_contract.key('context'),{}).get('value')=='NO':return
     threshold=contract.policy()['manual_confidence'];catalogue={field['target']:field for field in intake_contract.fields()}
     def confident(value):return type(value) in (int,float) and math.isfinite(value) and threshold<=value<=1
     candidates=raw['manual_candidates'];values={}
@@ -182,10 +202,14 @@ def observe_turn(ctx,task,session,preview,prepare,save):
     """Explicit planning only; every completed response is reconciled without a TTL."""
     settings=ai_config.values(ctx.settings())
     if not settings['gpt_enabled'] or not settings.get('gpt_model') or not session.get('views'):return task,session,preview,False
-    initial_signature=session.get('photo_signature');refresh(task,session,settings,preview)
+    initial_signature=session.get('photo_signature')
+    with ctx.db_lock:
+        current=ctx.require('task',task['task_id'])
+        if current['created_at']!=task['created_at']:raise LookupError(ERROR_MESSAGES['TASK_REPLACED'])
+        photos={photo['photo_id']:photo for photo in ctx.store('list_photos',task['task_id'])}
+    refresh(task,session,settings,preview,photos)
     cached={record['signature'] for record in session['photo_vision']['photos'] if record['status'] in ('OBSERVED','UNCERTAIN')}
-    photos={photo['photo_id']:photo for photo in ctx.store('list_photos',task['task_id'])}
-    jobs=[dict(descriptor=item,photo=photos[item['photo_id']]) for item in _descriptors(task,session,settings) if item['signature'] not in cached]
+    jobs=[dict(descriptor=item,photo=photos[item['photo_id']]) for item in _descriptors(task,session,settings) if item['signature'] not in cached and item['photo_id'] in photos]
     with ThreadPoolExecutor(max_workers=contract.policy()['parallelism']) as executor:
       pending=[executor.submit(_request,job,settings) for job in jobs]
       for future in as_completed(pending):

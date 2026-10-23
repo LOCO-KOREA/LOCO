@@ -203,3 +203,9 @@ AI가 실제 원문의 떨어진 완전한 문장들을 순서대로 인용했�
 사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
+
+### 사진 등록 세대와 사용자 사진 상황 우선권 (2026-10-23)
+
+`photo_identity.REGISTRATION_KEY`는 새 PHOTO.metadata_json 행에 UUID를 부여하며 update로 교체하지 않는다. 물리 스키마는 유지한다. legacy 행은 경로/소유 ID로 결정되는 토큰을 읽고 조회 중 metadata를 쓰지 않는다. 사진 signature는 [view,photo_id,원본SHA,등록세대]이며 과거 triple을 호환한다. 같은 SQLite ID·파일경로·바이트·view로 재등록해도 이전 이미지 및 텍스트 사진 응답이 새 등록에 적용되지 않는다.
+
+사용자가 context=NO로 사진 상황을 부정하면 raw 관찰과 캐시는 보존하되 VISION 소유 manual/작업특징 입력은 UNKNOWN으로 돌려 실제 투영값도 해제한다. USER·텍스트 AI·SAVED·POSE 소유 값은 건드리지 않는다. context=YES로 직접 정정하면 같은 이미지 관찰을 재사용하며 추가 이미지 API를 호출하지 않는다. 같은 turn의 텍스트 추출 뒤 저장에도 이 우선권을 적용한다.
