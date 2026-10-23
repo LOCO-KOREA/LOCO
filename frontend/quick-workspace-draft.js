@@ -41,7 +41,7 @@ export function captureWorkspace(flow) {
     photos: Object.fromEntries(Object.entries(flow.photos || {}).map(([view, item]) => [view, item.photo.photo_id])),
     adaptive: Boolean(flow.intake?.state), preview: flow.preview,
     ui: Object.fromEntries(['answers', 'group', 'review', 'aiDraft', 'aiEditorOpen', 'ai', 'intakeText',
-      'laterOpen', 'excelTab', 'reopened', 'stale'].map(key => [key, flow[key]])),
+      'laterOpen', 'excelTab', 'selectedPhotoView', 'reopened', 'stale'].map(key => [key, flow[key]])),
     intake: {formStage: flow.intake?.formStage, formValues: [...(flow.intake?.formValues||[])],state: flow.intake?.state, questions: flow.intake?.questions || [],
       text: flow.intake?.text || '', dialogOpen: Boolean(flow.intake?.dialogOpen),
       editing: flow.intake?.editing, writingFor: flow.intake?.writingFor, focusPair: flow.intake?.focusPair,
