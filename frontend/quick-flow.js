@@ -1,4 +1,5 @@
 import {selectPhotoCrop} from './photo-crop.js';
+import {photoAngleScene, renderPhotoAngles, renderPhotoSkeleton} from './photo-angle-overlay.js';
 import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord} from './quick-workspace-draft.js';
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
@@ -1059,10 +1060,13 @@ export class QuickFlow {
   }
 
   pointsFor(view) {
-    const fromPreview = this.preview?.views?.[view]?.points;
-    if (fromPreview) return fromPreview;
-    const id = this.photos[view]?.photo.photo_id;
-    return this.result?.pose?.slots?.find(slot => slot.photo_id === id)?.points || [];
+    return this.photoScene(view).points;
+  }
+
+  photoScene(view) {
+    const item = this.photos[view];
+    return item ? photoAngleScene({view, photo: item.photo, image: item.image, preview: this.preview,
+      result: this.result, step: this.step}) : {points: [], angles: []};
   }
 
   photoStrip() {
@@ -1076,10 +1080,11 @@ export class QuickFlow {
       const view = selected;
       const item = this.photos[view.id];
       const w = item.image.width_px || item.photo.width_px || 1, h = item.image.height_px || item.photo.height_px || 1, r = Math.max(w, h) / 120;
-      const p = Object.fromEntries(this.pointsFor(view.id).filter(x => x.confidence >= 0.3).map(x => [x.name, x]));
-      const lines = BONES.filter(([a, b]) => p[a] && p[b]).map(([a, b]) => `<line x1="${p[a].x_px}" y1="${p[a].y_px}" x2="${p[b].x_px}" y2="${p[b].y_px}"/>`).join('');
-      const dots = Object.values(p).map(x => `<circle cx="${x.x_px}" cy="${x.y_px}" r="${r}"/>`).join('');
-      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px">${lines}${dots}</svg></figure>`;
+      const scene = this.photoScene(view.id);
+      const skeleton = renderPhotoSkeleton(scene, BONES);
+      const sides = [...new Set(scene.angles.map(a => a.side).filter(Boolean))];
+      const note = scene.angles.length ? `${scene.origin === 'preview' ? '현재 사진의 1차 측정 후보' : '저장된 분석의 측정 각도'}${sides.length === 1 ? ` · ${sides[0] === 'LEFT' ? '왼쪽' : '오른쪽'} 관절` : ''}` : '이 사진은 표시할 수 있는 각도 근거가 없어요.';
+      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px" role="img" aria-label="${esc(VIEW_LABEL[view.id])} 관절 및 각도">${skeleton.markup}${renderPhotoAngles(scene)}</svg></figure><p class="quick-angle-note">${note}</p>${skeleton.hasLowConfidence ? '<p class="quick-confidence-note"><span class="quick-confidence-dot" aria-hidden="true"></span><span class="quick-confidence-line" aria-hidden="true"></span> 낮은 신뢰도 · 위치 확인 필요</p>' : ''}`;
     })() : '<div class="quick-photo-empty">등록된 사진이 없어요.</div>';
     return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
   }
