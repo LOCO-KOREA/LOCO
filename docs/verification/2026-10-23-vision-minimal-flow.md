@@ -39,3 +39,5 @@ $taskSource = 'C:\Users\금정산2-PC02\Documents\Codex\2026-10-22\https-github-
 & (Join-Path $taskRepo 'scripts\prepare-visible-vision-app.ps1') -RepoRoot $taskRepo -SourceDirectory $taskSource -RemoteDebuggingPort 18875
 # 출력된 새 경로의 launch-visible.ps1를 root가 별도로 실행한다.
 ```
+
+Windows 실제 시작에서 최초 PowerShell `Start-Process`가 빈 `ELECTRON_RUN_AS_NODE` 환경 키를 남겨 Electron이 Node 모드로 종료한 결함이 확인되었다. 생성 launcher는 Node `child_process.spawn`과 독립 env 객체를 사용하며 해당 키의 대소문자 변형도 삭제하도록 보정했다. Electron child는 `windowsHide:false`, `LOCO_HIDDEN=0`으로 시작한다. helper 전용 가상 spawn 시험은 공백 경로 인자, 환경 키 삭제·호출자 환경 보존, 별도 DB/profile, 실제 표시 옵션, PID 기록과 시작 실패 처리를 검사한다. 가상 시험은 실제 창이나 프로세스를 만들지 않는다. 실제 새 창의 연결·표시 검증은 root가 별도로 수행한다.

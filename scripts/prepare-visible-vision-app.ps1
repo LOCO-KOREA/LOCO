@@ -30,22 +30,10 @@ $configuration=@{
 $configuration | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $taskDestination 'launch-config.json') -Encoding utf8
 $launch=@'
 $ErrorActionPreference='Stop'
-$config=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'launch-config.json') -Raw | ConvertFrom-Json
-$updates=@{LOCO_DB_PATH=(Join-Path $config.destination_directory 'loco.db');LOCO_PYTHON=(Join-Path $config.repo_root '.venv\Scripts\python.exe');LOCO_MODELS_ROOT=$config.repo_root;LOCO_HIDDEN='0';PYTHONDONTWRITEBYTECODE='1'}
-$remove=@('ELECTRON_RUN_AS_NODE','LOCO_LIVE_TRACE','PYTHONPATH','LOCO_LIVE_AI','LOCO_EXPECT_PHOTO_VISION')
-$previous=@{}
-try{
-    foreach($name in @($updates.Keys)+$remove){$previous[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}
-    foreach($name in $updates.Keys){[Environment]::SetEnvironmentVariable($name,$updates[$name],'Process')}
-    foreach($name in $remove){[Environment]::SetEnvironmentVariable($name,$null,'Process')}
-    $electron=Join-Path $config.repo_root 'frontend\node_modules\electron\dist\electron.exe'
-    $profile=Join-Path $config.destination_directory 'profile'
-    $frontend=Join-Path $config.repo_root 'frontend'
-    $arguments=@(('--user-data-dir="'+$profile+'"'),('--remote-debugging-port='+$config.remote_debugging_port),('"'+$frontend+'"'))
-    $process=Start-Process -FilePath $electron -ArgumentList $arguments -WorkingDirectory $config.repo_root -WindowStyle Normal -RedirectStandardOutput (Join-Path $config.destination_directory 'app.stdout.log') -RedirectStandardError (Join-Path $config.destination_directory 'app.stderr.log') -PassThru
-    $process.Id | Set-Content -LiteralPath (Join-Path $config.destination_directory 'app.pid')
-    [pscustomobject]@{pid=$process.Id;database=$updates.LOCO_DB_PATH;source_sha=$config.source_sha;previous_app_untouched=$true} | ConvertTo-Json
-}finally{foreach($name in $previous.Keys){[Environment]::SetEnvironmentVariable($name,$previous[$name],'Process')}}
+$node=(Get-Command node -ErrorAction Stop).Source
+& $node (Join-Path $PSScriptRoot 'launch-visible.cjs') (Join-Path $PSScriptRoot 'launch-config.json')
+if($LASTEXITCODE -ne 0){throw '새 앱 시작 로그를 확인해 주세요. 기존 앱은 그대로입니다.'}
 '@
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launch_visible_clone.cjs') -Destination (Join-Path $taskDestination 'launch-visible.cjs')
 $launch | Set-Content -LiteralPath (Join-Path $taskDestination 'launch-visible.ps1') -Encoding utf8
 Write-Output ('Prepared only; no app launched: '+(Join-Path $taskDestination 'launch-visible.ps1'))

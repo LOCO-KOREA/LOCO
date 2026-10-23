@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),{EventEmitter}=require('node:events');
+const {createLaunchPlan,startClone}=require('../scripts/launch_visible_clone.cjs');
+(async()=>{
+ const config={repo_root:path.resolve('fixture app source'),destination_directory:path.resolve('fixture independent copy'),source_sha:'fixture-sha',remote_debugging_port:18875};
+ const environment={ELECTRON_RUN_AS_NODE:'1',electron_run_as_node:'',LOCO_HIDDEN:'1',loco_hidden:'1',PYTHONPATH:'fixture injection',LOCO_LIVE_TRACE:'fixture trace',OPENAI_API_KEY:'synthetic-key',KEEP_THIS:'kept'},before=JSON.stringify(environment);
+ const plan=createLaunchPlan(config,environment);
+ assert.equal(plan.file,path.join(config.repo_root,'frontend','node_modules','electron','dist','electron.exe'));
+ assert.deepEqual(plan.args,[`--user-data-dir=${path.join(config.destination_directory,'profile')}`,'--remote-debugging-port=18875',path.join(config.repo_root,'frontend')]);
+ assert.ok(plan.args.every(arg=>!arg.includes('"')),'spawn handles spaces as array arguments without shell quoting');
+ assert.equal(plan.options.cwd,config.repo_root);assert.equal(plan.options.detached,true);assert.equal(plan.options.windowsHide,false);assert.equal(plan.options.shell,false);
+ for(const key of Object.keys(plan.options.env))assert.ok(!['ELECTRON_RUN_AS_NODE','PYTHONPATH','LOCO_LIVE_TRACE'].includes(key.toUpperCase()));
+ assert.equal(plan.options.env.LOCO_HIDDEN,'0');assert.equal(plan.options.env.OPENAI_API_KEY,'synthetic-key');assert.equal(plan.options.env.KEEP_THIS,'kept');assert.equal(JSON.stringify(environment),before,'the calling environment is never mutated');
+ let invoked=0,unreferenced=0;const opened=[],closed=[],writes=new Map();
+ const files={openSync(file,mode){opened.push([file,mode]);return opened.length+9;},closeSync(fd){closed.push(fd);},writeFileSync(file,data){writes.set(file,data);}};
+ const spawn=(file,args,options)=>{invoked++;assert.equal(file,plan.file);assert.deepEqual(args,plan.args);assert.deepEqual(options.env,plan.options.env);assert.equal(options.windowsHide,false);assert.deepEqual(options.stdio,['ignore',10,11]);const child=new EventEmitter();child.pid=12345;child.unref=()=>unreferenced++;queueMicrotask(()=>child.emit('spawn'));return child;};
+ const receipt=await startClone(config,{spawn,files,environment});assert.equal(invoked,1);assert.equal(unreferenced,1);assert.deepEqual(closed,[10,11]);assert.equal(receipt.pid,12345);assert.equal(receipt.previous_app_untouched,true);assert.equal(writes.get(path.join(config.destination_directory,'app.pid')),'12345');assert.ok(!JSON.stringify(receipt).includes('synthetic-key'));
+ const failedWrites=[];let failedClosed=0;
+ await assert.rejects(startClone(config,{environment,files:{openSync(){return 7;},closeSync(){failedClosed++;},writeFileSync(){failedWrites.push(true);}},spawn(){const child=new EventEmitter();queueMicrotask(()=>child.emit('error',new Error('fixture spawn failure')));return child;}}),/fixture spawn failure/);
+ assert.equal(failedClosed,2);assert.deepEqual(failedWrites,[],'a failed process never receives a success PID receipt');
+ const wrapper=fs.readFileSync(path.join(__dirname,'../scripts/prepare-visible-vision-app.ps1'),'utf8');assert.match(wrapper,/launch-visible\.cjs/);assert.doesNotMatch(wrapper,/Start-Process|SetEnvironmentVariable|Stop-Process/);
+ console.log('PASS virtual visible Electron spawn, exact args and independent paths, case-insensitive environment deletion, preserved caller/key, process receipt and failure cleanup; no app started');
+})().catch(error=>{console.error(error);process.exitCode=1;});
