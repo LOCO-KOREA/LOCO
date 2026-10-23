@@ -312,7 +312,7 @@ def audit_source(directory,label,source,catalogue,cells,checks,defects,ledger):
             represented=[cell for row in display for cell in row['cells']]
             def own_quote(cell):
                 quote=cell.get('quote') or ''
-                for prefix in ('AI: ','USER: ','SAVED: ','POSE: ','MOVENET: '):
+                for prefix in ('AI: ','USER: ','SAVED: ','POSE: ','MOVENET: ','직접 입력: ','저장된 입력: ','사진 자동 측정: ','AI 사진 관찰: '):
                     if quote.startswith(prefix):quote=quote[len(prefix):];break
                 return quote
             if represented:finding('each output value keeps its own source quote',True,any(own_quote(cell)==fact.get('quote') for cell in represented),identity,expected_quote=fact.get('quote'),cells=represented)

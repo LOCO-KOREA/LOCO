@@ -4,7 +4,7 @@ Only display metadata is resolved here. No input values or judgments are changed
 """
 from ergo.intake.contract import SESSION_KEY,fields
 
-SOURCE_NAMES={'AI':'작업 설명(AI 정리)','USER':'직접 입력','SAVED':'저장된 입력','POSE':'사진 자동 측정','MOVENET':'사진 자동 측정'}
+SOURCE_NAMES={'AI':'작업 설명(AI 정리)','USER':'직접 입력','SAVED':'저장된 입력','POSE':'사진 자동 측정','MOVENET':'사진 자동 측정','VISION':'AI 사진 관찰'}
 
 class InputTrace:
     def __init__(self,source):
@@ -34,5 +34,7 @@ class InputTrace:
                 mapping=destination['mapping'];key=mapping.get('exposure') or mapping.get('criterion') or mapping.get('lift') or mapping.get('row')
             if field is not None and field!=key:continue
             if fact['value']!=value and not (fact['value'] is None and value=='UNKNOWN'):continue
-            return SOURCE_NAMES.get(fact['source'],fact['source']),f"{fact['source']}: {fact.get('quote','')}"
+            label=SOURCE_NAMES.get(fact['source'],'저장된 입력')
+            prefix='AI' if fact['source']=='AI' else label
+            return label,f"{prefix}: {fact.get('quote','')}"
         return None

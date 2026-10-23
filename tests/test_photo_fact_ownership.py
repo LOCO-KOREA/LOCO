@@ -39,8 +39,8 @@ class PhotoOwnership(unittest.TestCase):
         views=dict(LEFT=101,RIGHT=102);data=preview([observation('LEFT','COMMON','trunk_base',3,35),observation('RIGHT','COMMON','trunk_base',3,50)],views)
         saved=facts.add_photo_facts(self.seed(),data,views);task=facts.project(task_input({}),saved,views,data);task['conditions'][contract.SESSION_KEY]=dict(facts=saved)
         trace=InputTrace(task)
-        self.assertEqual(trace.lookup('manual',3,scope='COMMON',field='trunk_base',photo_id=101)[1],'POSE: 35°')
-        self.assertEqual(trace.lookup('manual',3,scope='COMMON',field='trunk_base',photo_id=102)[1],'POSE: 50°')
+        self.assertEqual(trace.lookup('manual',3,scope='COMMON',field='trunk_base',photo_id=101)[1],'사진 자동 측정: 35°')
+        self.assertEqual(trace.lookup('manual',3,scope='COMMON',field='trunk_base',photo_id=102)[1],'사진 자동 측정: 50°')
         rows=_manual_rows('작업',task)
         self.assertTrue(any('35°' in str(row) for row in rows));self.assertTrue(any('50°' in str(row) for row in rows))
 

@@ -42,7 +42,7 @@ def run(source,directory):
     for row in sheet:
         values=[cell.value for cell in row]
         for owner,quote in quotes.items():
-            if 'USER: '+quote in values:
+            if '직접 입력: '+quote in values:
                 assert any(photo_facts.VIEW_LABELS['LEFT' if owner==left else 'RIGHT'] in str(value) for value in values),values
                 assert not any(other in str(values) for other in quotes.values() if other!=quote),values
                 excel.append(dict(photo_id=owner,quote=quote,cells={cell.coordinate:cell.value for cell in row if cell.value is not None}))
