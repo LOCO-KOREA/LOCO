@@ -267,12 +267,36 @@ def _symptom_summary(survey):
     return ' · '.join(x for x in parts if x)
 
 
+def _next_input_text(item):
+    """Keep the original first action, grouping structured gaps for scanning."""
+    if not item.get('next_inputs'): return ''
+    first = item['next_inputs'][0]
+    if first.get('kind') != 'MISSING_INPUT' or not first.get('field_paths'): return first['message']
+    groups = {}
+    for path in first['field_paths']:
+        label = input_label(path)
+        scope, separator, name = label.partition(' · ')
+        if not separator: scope, name = '작업 조건', label
+        if scope == '공통':
+            field = path.split('.')[-1]
+            scope = '목·몸통' if field.startswith(('neck_', 'trunk_')) else '다리' if field in ('legs_support', 'seated', 'knee_band') else '움직임·힘'
+        scope = {'왼쪽': '왼팔·손목', '오른쪽': '오른팔·손목'}.get(scope, scope)
+        groups.setdefault(scope, []).append(name)
+    title = f"사진 {first['slot_no']} · 보완할 항목" if first.get('slot_no') is not None else '보완할 항목'
+    lines = [title]
+    for group, names in groups.items():
+        lines.append(f'【{group}】')
+        for start in range(0, len(names), 3):
+            lines.append('• ' + ' / '.join(names[start:start + 3]))
+    return '\n'.join(lines)
+
+
 def _result(c):
     rows = []
     for t in c['tasks']:
         item, counts = t['item'], t['item'].get('counts') or {}
-        first = item['next_inputs'][0]['message'] if item['next_inputs'] else ''
-        todo = f"입력이 더 필요한 기준 {_count_text(counts.get('needs_input_count'))} · 검토가 필요한 기준 {_count_text(counts.get('needs_review_count'))}" + (f'\n먼저 할 일: {first}' if first else '')
+        first = _next_input_text(item)
+        todo = f"입력이 더 필요한 기준 {_count_text(counts.get('needs_input_count'))}\n검토가 필요한 기준 {_count_text(counts.get('needs_review_count'))}" + (f'\n\n{first}' if first else '')
         rows.append([t['name'], _burden_text(t), _reba_text(t['analysis']), todo,
                      f"{CURRENTNESS.get(item.get('currentness'), item.get('currentness'))} · {REVIEW.get(item.get('review_status'), item.get('review_status'))}"])
     summary = _page(_grid(_table(['작업', '부담작업(호)', '자세 점수(REBA)', '더 입력·검토할 것', '결과 기준 · 검토 상태'], rows or [['', '', '', '', '']], WIDE, '라. 유해요인 조사 결과 (결과 요약)')))

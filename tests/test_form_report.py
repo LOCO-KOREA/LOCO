@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.report.form import CHECK_RULE
+from ergo.report.form import CHECK_RULE, _next_input_text
 from ergo.report.labels import CRITERION_RULE, HAZARD_KIND
 from ergo.service import application
 from tests.report_helpers import lifting_input, make_survey, run_analysis, update_survey
@@ -26,6 +26,15 @@ def row_with(sheet, first):
 
 
 class FormWorkbook(unittest.TestCase):
+    def test_next_input_groups_preserve_each_missing_field_and_review_message(self):
+        fields = ['common.neck_base', 'common.trunk_base', 'common.legs_support', 'left.wrist_base', 'right.wrist_base']
+        text = _next_input_text({'next_inputs': [dict(kind='MISSING_INPUT', slot_no=1, field_paths=fields, message='long')]})
+        for label in ['목·몸통', '다리', '왼팔·손목', '오른팔·손목', '목 굽힘', '몸통 굽힘', '다리 지지']:
+            self.assertIn(label, text)
+        self.assertEqual(text.count('손목 꺾임'), 2)
+        self.assertEqual(_next_input_text({'next_inputs': [dict(kind='REVIEW_REQUIRED', field_paths=fields, message='사진을 다시 검토하세요')]}), '사진을 다시 검토하세요')
+        self.assertEqual(_next_input_text({'next_inputs': []}), '')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         patcher = patch.object(application, 'DB', str(Path(self.temp.name) / 'loco.db'))

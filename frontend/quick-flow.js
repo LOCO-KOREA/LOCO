@@ -629,7 +629,20 @@ export class QuickFlow {
     for (const message of overview.survey_followups || []) lines.push(`<li><span>${esc(message)}</span>${jump(this.followupTarget(message))}</li>`);
     for (const next of item.next_inputs || []) {
       if (next.kind !== 'MISSING_INPUT' && next.kind !== 'REVIEW_REQUIRED') continue;
-      lines.push(`<li><span>${esc(next.message)}</span>${jump(next.criterion_no ? cardFor(next.criterion_no) : null)}</li>`);
+      let content=esc(next.message);
+      // Service messages already contain human labels; keep the original as a fallback.
+      const match=next.kind==='MISSING_INPUT'&&next.message?.match(/^([^:]+): (.+) 입력 필요$/);
+      if(match) {
+        const groups=new Map();
+        for(const label of match[2].split(', ')) {
+          const parts=label.split(' · '), scope=parts.length>1?parts.shift():'작업 조건', name=parts.join(' · ');
+          const group=scope==='공통'?(/몸통|목 /.test(name)?'목·몸통':/다리|무릎|앉아서/.test(name)?'다리':'움직임·힘'):scope==='왼쪽'?'왼팔·손목':scope==='오른쪽'?'오른팔·손목':scope;
+          if(!groups.has(group))groups.set(group,[]);
+          groups.get(group).push(name);
+        }
+        content=`<strong class="quick-check-heading">${esc(match[1])} · 입력 보완</strong><div class="quick-check-groups">${[...groups].map(([group,names])=>`<section><h4>${esc(group)}</h4><ul>${names.map(name=>`<li>${esc(name)}</li>`).join('')}</ul></section>`).join('')}</div>`;
+      }
+      lines.push(`<li><div class="quick-check-content">${content}</div>${jump(next.criterion_no ? cardFor(next.criterion_no) : null)}</li>`);
     }
     const counts = item.counts || {};
     return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>Excel 만들기 전 확인</h3>
@@ -1339,7 +1352,7 @@ export class QuickFlow {
       return `${t.heading ? `<h4 class="quick-sheet-heading">${esc(t.heading)}</h4>` : ''}<div class="quick-sheet-wrap"><table class="quick-sheet${kind}">${head}<tbody>${body}</tbody></table></div>`;
     };
     return `<div class="quick-tabs" role="tablist">${p.sheets.map((x, i) => `<button type="button" role="tab" aria-selected="${i === index}" class="${i === index ? 'selected' : ''}" data-quick="excel-tab" data-tab="${i}">${esc(x.name)}</button>`).join('')}</div>
-      ${sheet.lead ? `<p class="quick-note">${esc(sheet.lead)}</p>` : ''}${sheet.tables.map(table).join('')}${(sheet.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
-      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요. 대표 사진 이미지는 파일에만 들어가요.</p>`;
+      ${sheet.lead ? `<p class="quick-note">${esc(sheet.lead)}</p>` : ''}${sheet.tables.map(table).join('')}<div class="quick-sheet-notes">${(sheet.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
+      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요. 대표 사진 이미지는 파일에만 들어가요.</p></div>`;
   }
 }
