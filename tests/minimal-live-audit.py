@@ -48,10 +48,24 @@ trace = [json.loads(line) for line in (directory/'openai.jsonl').read_text(encod
 requests = [e for e in trace if e['kind'] == 'REQUEST']
 responses = [e for e in trace if e['kind'] == 'RESPONSE']
 check('real external response exists', True, bool(responses))
+vision_format = (stages[-1][1]['session'].get('contract', {}).get('photo_vision', {}).get('response_format_name')) if stages else None
+vision_requests = []
 for event in requests:
     check('external requested model', 'gpt-6-luna', event['request'].get('model'))
     check('external requested effort', 'xhigh', event['request'].get('reasoning', {}).get('effort'))
-    check('external request has no image bytes', False, 'data:image' in json.dumps(event['request']))
+    request = event['request']
+    name = request.get('text', {}).get('format', {}).get('name')
+    if vision_format and name == vision_format:
+        vision_requests.append(event)
+        images = [item for message in request.get('input', []) if isinstance(message.get('content'), list) for item in message['content'] if item.get('type') == 'input_image']
+        check('vision receives one actual image', 1, len(images))
+        check('vision actual image bytes exist', True, bool(images and images[0].get('image_url', '').startswith('data:image/')))
+    else:
+        check('text-only request has no image bytes', False, 'data:image' in json.dumps(request))
+if receipt.get('expect_photo_vision'):
+    check('public vision request format is configured', True, bool(vision_format))
+    case = read(directory/'case.json')
+    check('one vision call per registered photo and no calls for reads/direct answer saves', 1 if case.get('photo') else 0, len(vision_requests))
 for event in responses:
     check('actual response model', 'gpt-6-luna', event['response'].get('model'))
 write(directory/'audit.json', dict(checks=checks, defects=defects, ledger=ledger, counts=dict(checks=len(checks), defects=len(defects), fields=len(ledger)),
