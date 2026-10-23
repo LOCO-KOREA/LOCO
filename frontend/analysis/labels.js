@@ -7,7 +7,7 @@ const exposureNames={
 
 const inputNames={box_mass_kg:'상자 전체 중량',shelf_height_cm:'선반 상판 높이',daily_work_min:'하루 실제 작업시간',one_off:'1회성 작업 여부',planned_duration_months:'예정 작업기간',annual_work_days:'연간 작업일수',lift_count_day:'하루 들기 횟수',condition_present:'해당 작업조건 존재',unsupported:'신체·물체가 지지되지 않는 조건',posture_restricted:'자세를 자유롭게 바꾸기 어려운 조건',posture_interpretation_pending:'자세 해석 확인',rows_complete:'하루의 모든 해당 조건 행 기록 여부',pinch_mass_kg:'한손 손가락 집기 중량',pinch_force_kg_equiv:'손가락에 가해지는 힘',single_hand_mass_kg:'한손 들기 중량',grip_force_kg_equiv:'한손 쥐기 힘',below_knee_count_day:'무릎 아래에서 들기',above_shoulder_count_day:'어깨 위에서 들기',extended_arm_count_day:'팔을 뻗어 들기',union_count_day:'중복을 제외한 들기 횟수',lift_rate_min:'작업 중 분당 들기 횟수',impact_rate_hour:'작업 중 시간당 충격 횟수',effective_load_kg:'적용 하중',photo_id:'사진 배정'};
 
-const angleNames={TRUNK_TILT_VERT:'몸통 앞굽힘·뒤로 젖힘',NECK_TILT_VERT_PROXY:'목 기울기 참고값',NECK_FLEX_TRUNK_PROXY:'몸통 대비 목 기울기 참고값',UPPER_ARM_RAISE_VERT:'수직 기준 위팔 올림',UPPER_ARM_FLEX_TRUNK:'몸통 기준 위팔 굽힘',ELBOW_FLEX:'팔꿈치 굽힘',KNEE_FLEX:'무릎 굽힘'};
+const angleNames={TRUNK_TILT_VERT:'몸통 앞굽힘·뒤로 젖힘',NECK_TILT_VERT_PROXY:'목 기울기 참고값',NECK_FLEX_TRUNK_PROXY:'몸통 대비 목 기울기 참고값',UPPER_ARM_RAISE_VERT:'수직 기준 위팔 올림',UPPER_ARM_FLEX_TRUNK:'몸통 기준 위팔 굽힘',ELBOW_FLEX:'팔꿈치 굽힘',KNEE_FLEX:'무릎 굽힘',WRIST_FLEX_2D:'손목 굽힘·폄(사진 평면)'};
 
 const tagNames={NECK_FORWARD_PROXY:'목 앞기울임 참고',TRUNK_FLEX:'몸통 앞굽힘',TRUNK_EXT:'몸통 뒤로 젖힘',UPPER_ARM_RAISE:'위팔 올림',HAND_ABOVE_HEAD:'머리 위 손',ELBOW_ABOVE_SHOULDER:'어깨 위 팔꿈치',ELBOW_BEHIND_TRUNK:'몸통 뒤 팔꿈치',NECK_TWIST:'목 비틀림',TRUNK_TWIST:'몸통 비틀림',SQUAT:'쪼그림',KNEEL:'무릎 접촉'};
 

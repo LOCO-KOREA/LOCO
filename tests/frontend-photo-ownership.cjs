@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+(async()=>{
+ const {AdaptiveIntake}=await import('../frontend/intake/client.js');
+ const {renderSummary}=await import('../frontend/intake/view.js');
+ const {angleNames}=await import('../frontend/analysis/labels.js');
+ const {userText}=await import('../frontend/user-language.js');
+ const target='manual.RIGHT.wrist_base',condition='photo:102',identity=target+'@'+condition;
+ const field={target,identity,condition,label:'오른쪽에서 찍은 사진 · 오른쪽 손목 굽힘',photo_label:'오른쪽에서 찍은 사진',reason:'사진에서 손이 가려져 손목 각도를 확인하지 못했어요.',group:'자세',kind:'choice',choices:[{value:1,label:'15° 이내'},{value:2,label:'15° 초과'}],destination:{type:'manual'}};
+ const fact={...field,value:null,source:'POSE',state:'UNKNOWN',quote:field.reason};
+ const alias={...fact,identity:target+'@default',alias_of:identity,source:'USER',state:'UNKNOWN'};
+ const inactive={...fact,identity:target+'@photo:999',photo_active:false,source:'USER',label:'삭제된 사진의 손목'};
+ const intake=new AdaptiveIntake({api(){},notify(){},changed(){}});
+ intake.state={contract:{policy:{text_limit:2400,default_condition:'default'},photo_policy:{condition_prefix:'photo:'},fields:[field]},form_fields:[field],facts:[fact,alias,inactive],messages:[],history:[]};
+ intake.formStage=1;intake.dialogOpen=true;
+ const html=intake.dialog(false),visible=html.replace(/<[^>]*>/g,'');
+ assert.match(visible,/오른쪽에서 찍은 사진/);assert.match(visible,/오른쪽 손목/);assert.match(visible,/손이 가려져/);assert.doesNotMatch(visible,/photo:|manual\.|WRIST_FLEX|POSE|UNKNOWN/);
+ const summary=renderSummary(intake),summaryText=summary.replace(/<[^>]*>/g,'');
+ assert.equal((summary.match(/data-intake-edit=/g)||[]).length,1,'aliases and inactive observations are not duplicate cards');assert.doesNotMatch(summaryText,/삭제된 사진|photo:|UNKNOWN|POSE/);
+ assert.equal(intake.reviewCount(),0,'legacy aliases and deleted photos cannot inflate review counts');
+ fact.source='USER';assert.equal(intake.reviewCount(),1);assert.match(intake.dialog(false),/data-intake-confirmed/);
+ assert.match(angleNames.WRIST_FLEX_2D,/손목 굽힘/);assert.equal(userText('WRIST_FLEX_2D'),angleNames.WRIST_FLEX_2D);
+ console.log('PASS photo/body labels, truthful uncertainty, hidden internal IDs, alias/inactive summary and review exclusion, confirmed edits and wrist angle language');
+})().catch(e=>{console.error(e);process.exitCode=1;});

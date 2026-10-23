@@ -259,7 +259,7 @@ def choose(candidates, proposed=()):
         display_text=text[:300] if isinstance(text,str) and text.strip() and photo_facts.PHOTO_POLICY['condition_prefix'] not in text else original['text']
         if original.get('photo_label') and not display_text.startswith(original['photo_label']):display_text=original['photo_label']+' · '+display_text
         chosen.append(dict(original,text=display_text,
-                           reason=reason[:300] if not original.get('photo_measurement_reason') and isinstance(reason,str) and reason.strip() else original['reason']))
+                           reason=reason[:300] if not original.get('photo_measurement_reason') and isinstance(reason,str) and reason.strip() and photo_facts.PHOTO_POLICY['condition_prefix'] not in reason else original['reason']))
         seen.add(identity)
     for candidate in candidates:
         if len(chosen)>=POLICY['question_limit']: break

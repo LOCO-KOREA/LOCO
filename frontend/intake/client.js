@@ -88,7 +88,7 @@ export class AdaptiveIntake {
     return this.formFields(stage).filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity)}));
   }
   reviewCount() {
-    const userFacts=(this.state?.facts||[]).filter(f=>f.source==='USER'&&['KNOWN','UNKNOWN'].includes(f.state)).length;
+    const userFacts=(this.state?.facts||[]).filter(f=>!f.alias_of&&f.photo_active!==false&&f.source==='USER'&&['KNOWN','UNKNOWN'].includes(f.state)).length;
     return Math.max(userFacts,this.state?.messages?.length||0);
   }
   reviewInterval() {
