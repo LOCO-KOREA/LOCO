@@ -1,6 +1,6 @@
 import {userText} from './user-language.js';
 import {selectPhotoCrop} from './photo-crop.js';
-import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord} from './quick-workspace-draft.js';
+import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord, workspaceScopeMatches, workspaceMatchesDraft, workspaceDraftDiffers, draftsShareOwner} from './quick-workspace-draft.js';
 
 import {renderPoseSettings,readPoseSettings,poseForView,mountPoseSettings} from './pose-settings.js';
 import {DRAFT_POLICY,localDrafts,initializeDrafts,newDraftId,readExplanationDraft,saveExplanationDraft,clearExplanationDraft} from './drafts.js';
@@ -176,7 +176,7 @@ export class QuickFlow {
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -193,6 +193,10 @@ export class QuickFlow {
   // ================= home
   async saveWorkspace(announce = true) {
     if (this.busy || this.photoOperation || this.step === 'home') return false;
+    if (!this.task && !this.intakeText?.trim() && !this.intake?.text?.trim() && !Object.keys(this.photos || {}).length) {
+      if (announce) this.notify('아직 작성한 내용이 없어요.');
+      return true; // An untouched new screen must not replace a meaningful checkpoint.
+    }
     let saved = false;
     await this.run('작성 중인 내용을 임시 저장하고 있어요…', async () => {
       await this.intake.flush();
@@ -206,7 +210,7 @@ export class QuickFlow {
       writeWorkspaceDraft(captureWorkspace(this));
       // The old draft's discard/new path must never delete this checkpoint's survey.
       const old = readDraft();
-      if (old && old.surveyId === this.survey?.survey_id) writeDraft(null);
+      if (workspaceMatchesDraft(readWorkspaceDraft(), old, this.drafts?.scope)) writeDraft(null);
       saved = true;
       if (announce) this.notify('현재 화면과 작성 중 내용을 이 PC에 임시 저장했어요.');
     });
@@ -234,7 +238,7 @@ export class QuickFlow {
     if (!draft) return;
     await this.run('임시 저장한 화면을 불러오고 있어요…', async () => {
       let loaded;
-      try { loaded = await loadWorkspace(draft, this.api); }
+      try { loaded = await loadWorkspace(draft, this.api, this.drafts?.scope); }
       catch (error) {
         if (!missingWorkspaceRecord(error)) throw error;
         this.workspaceUnavailable = JSON.stringify(draft);
@@ -248,8 +252,13 @@ export class QuickFlow {
       if (draft.adaptive && draft.intake.state?.contract?.version !== contract.version)
         throw Error('입력 화면 형식이 변경됐어요. 최신 기록을 열어 확인해 주세요. 임시 메모는 보관돼요.');
       const settings = this.settings;
+      const matching = this.quickDrafts().filter(value => workspaceMatchesDraft(draft, value, this.drafts?.scope));
+      // Reopening a manual checkpoint must never replace later automatic input.
+      const same = matching.find(value => !workspaceDraftDiffers(draft, value));
+      const draftOwnerId = draft.draftId || matching[0]?.ownerId || matching[0]?.id || newDraftId();
+      const draftId = same?.id || (matching.length ? newDraftId() : draftOwnerId);
       this.reset({preserveActivity: true});
-      Object.assign(this, loaded, draft.ui, {settings, preview, busy: '임시 저장한 화면을 불러오고 있어요…', step: draft.step});
+      Object.assign(this, loaded, draft.ui, {settings, preview, draftId, draftOwnerId, busy: '임시 저장한 화면을 불러오고 있어요…', step: draft.step});
       if (draft.adaptive) {
         this.intake.state = {...draft.intake.state, task: this.task, contract};
         this.intake.questions = draft.intake.questions;
@@ -270,10 +279,17 @@ export class QuickFlow {
       await initializeDrafts();
       this.surveys = await this.api('list_surveys');
       const checkpoint = readWorkspaceDraft();
+      // list_surveys is a summary DTO without created_at. Read only bookmarked
+      // parents before hiding rows or grouping a checkpoint by record lifetime.
+      const ownerIds=new Set([...this.quickDrafts().map(value=>value.surveyId),checkpoint?.survey?.id]);
+      await Promise.all(this.surveys.filter(row=>ownerIds.has(row.survey_id)&&!row.created_at).map(async row=>{
+        try { const parent=await this.api('get_survey',{survey_id:row.survey_id});if(parent.survey_id===row.survey_id)row.created_at=parent.created_at; }
+        catch { /* Missing or unavailable ownership must not hide an unrelated row. */ }
+      }));
       this.workspaceUnavailable = null;
       if (checkpoint?.task) {
         try {
-          if (!await workspaceTargetAvailable(checkpoint, this.api)) this.workspaceUnavailable = JSON.stringify(checkpoint);
+          if (!await workspaceTargetAvailable(checkpoint, this.api, this.drafts?.scope)) this.workspaceUnavailable = JSON.stringify(checkpoint);
         } catch { /* Keep the checkpoint available for retry after a transient service failure. */ }
       }
       this.settings = await this.api('get_settings');
@@ -312,7 +328,7 @@ export class QuickFlow {
       const checkpoint = readWorkspaceDraft();
       const target = checkpoint?.survey?.id === id ? await this.api('get_survey', {survey_id: id}) : null;
       await this.api('delete_survey', {survey_id: id});
-      if (target) clearWorkspaceDraftForSurvey(target);
+      if (target) clearWorkspaceDraftForSurvey(target, localStorage, this.drafts?.scope);
       for(const draft of this.quickDrafts().filter(item=>item.surveyId===id&&item.createdAt===target?.created_at))this.drafts.remove('quick',draft.id);
       const old = readDraft();
       if (target && old?.surveyId === id && old.createdAt === target.created_at) writeDraft(null);
@@ -978,7 +994,7 @@ export class QuickFlow {
   quickDrafts(){
     this.drafts||=localDrafts();
     const all=this.drafts.list('quick'),legacy=readDraft();
-    if(legacy&&(!legacy.scope||legacy.scope===this.drafts.scope)&&!all.some(value=>value.id===legacy.id||value.taskId&&value.taskId===legacy.taskId&&value.createdAt===legacy.createdAt))all.push({...legacy,id:legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`});
+    if(legacy&&(!legacy.scope||legacy.scope===this.drafts.scope)&&!all.some(value=>value.id===(legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`)))all.push({...legacy,id:legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`});
     return all.sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''));
   }
   startNew(){
@@ -994,12 +1010,11 @@ export class QuickFlow {
   editedExplanation(ai){return readExplanationDraft(this.result,ai,this.drafts)?.text??this.aiDraft??ai.edited_text??userText(ai.generated_text??'');}
   // Every unfinished record, including pre-task text, has its own durable bookmark.
   keepDraft() {
-    if (readWorkspaceDraft()?.task?.id === this.task?.task_id && this.task) return;
     if (!['start', 'provisional', 'questions'].includes(this.step) || this.result || this.reopened) return;
     if(!this.task&&!this.intakeText?.trim()&&!this.intake?.text?.trim()&&!Object.keys(this.photos||{}).length){if(this.draftId)this.clearCurrentDraft();return;}
-    this.drafts||=localDrafts();this.draftId||=newDraftId();
-    const draft={id:this.draftId,scope:this.drafts.scope,
-      surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
+    this.drafts||=localDrafts();this.draftId||=newDraftId();this.draftOwnerId||=this.draftId;
+    const draft={id:this.draftId,ownerId:this.draftOwnerId,scope:this.drafts.scope,
+      surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
       formStage:this.intake?.formStage||0, formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
     if(this.drafts.put('quick',this.draftId,draft)&&!writeDraft(draft))this.drafts.error='임시 저장 안내를 갱신하지 못했어요. 저장 공간을 확인해 주세요.';
@@ -1011,11 +1026,12 @@ export class QuickFlow {
     await this.run('작성 중이던 분석을 불러오고 있어요…', () => this.restoreDraft(draft));
   }
   async restoreDraft(draft){
-      if(!draft.taskId){const settings=this.settings;this.reset({preserveActivity:true});Object.assign(this,{draftId:draft.id,settings,intakeText:draft.intakeText||'',step:'start'});this.intake.text=draft.reply||'';return;}
+      if(!workspaceScopeMatches(draft,this.drafts?.scope))throw Error('다른 저장 파일에서 작성한 내용이에요. 원래 저장 파일에서 이어 주세요.');
+      if(!draft.taskId){const settings=this.settings;this.reset({preserveActivity:true});Object.assign(this,{draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,settings,intakeText:draft.intakeText||'',step:'start'});this.intake.text=draft.reply||'';return;}
       const survey = await this.api('get_survey', {survey_id: draft.surveyId});
       if (survey.created_at !== draft.createdAt) throw new Error('이 기록은 다른 데이터에서 작성하던 것이라 이어 갈 수 없어요.');
       const full = await this.api('get_task', {task_id: draft.taskId});
-      if(draft.taskCreatedAt&&full.task.created_at!==draft.taskCreatedAt)throw Error('작성하던 작업이 다른 작업으로 바뀌었어요. 기록을 확인해 주세요.');
+      if(full.task.task_id!==draft.taskId||full.task.survey_id!==survey.survey_id||draft.taskCreatedAt&&full.task.created_at!==draft.taskCreatedAt)throw Error('작성하던 작업이 다른 작업으로 바뀌었어요. 기록을 확인해 주세요.');
       const photos = {};
       const savedViews=Object.keys(draft.photos||{}).length?draft.photos:full.task.conditions?.[this.intake.contract?.session_key]?.views||Object.fromEntries(full.task.capture.slots.filter(slot=>slot.photo_id!=null).map(slot=>[slot.camera_side||'RIGHT',slot.photo_id]));
       for (const [view, photoId] of Object.entries(savedViews)) {
@@ -1024,7 +1040,7 @@ export class QuickFlow {
       }
       const settings = this.settings;
       this.reset({preserveActivity:true});
-      Object.assign(this, {draftId:draft.id,survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.intakeText??draft.ai?.text??'', stale: true, settings, step: 'start'});
+      Object.assign(this, {draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.intakeText??draft.ai?.text??'', stale: true, settings, step: 'start'});
       this.intake.text=draft.reply||'';
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {
@@ -1045,7 +1061,9 @@ export class QuickFlow {
   async discardDraft(id) {
     const draft = this.quickDrafts().find(value=>!id||value.id===id);if(!draft)return;
     if(draft.surveyId&&draft.createdAt&&!(readWorkspaceDraft()?.survey?.id===draft.surveyId&&readWorkspaceDraft()?.survey?.createdAt===draft.createdAt)){const surveys=await this.api('list_surveys');if(surveys.some(s=>s.survey_id===draft.surveyId)){const survey=await this.api('get_survey',{survey_id:draft.surveyId});if(survey.created_at!==draft.createdAt)throw Error('다른 조사로 바뀐 기록은 삭제하지 않았어요.');await this.api('delete_survey',{survey_id:draft.surveyId});}}
-    this.drafts.remove('quick',draft.id);if(readDraft()?.id===draft.id||!readDraft()?.id&&readDraft()?.taskId===draft.taskId)writeDraft(null);
+    const owned=this.quickDrafts().filter(value=>value.id===draft.id||draftsShareOwner(draft,value,this.drafts.scope));
+    for(const value of owned)this.drafts.remove('quick',value.id);
+    if(owned.some(value=>value.id===readDraft()?.id)||!readDraft()?.id&&draftsShareOwner(draft,readDraft(),this.drafts.scope))writeDraft(null);
     this.step='home';if(this.busy)this.surveys=await this.api('list_surveys');else await this.loadHome();
   }
 
@@ -1053,14 +1071,20 @@ export class QuickFlow {
     const list = (this.surveys || []).slice().sort((a, b) => (b.survey_date || '').localeCompare(a.survey_date || '') || b.survey_id - a.survey_id);
     const s = this.settings || {};
     const checkpoint=readWorkspaceDraft();
-    const drafts = this.quickDrafts().filter(draft=>!(checkpoint?.task?.id===draft.taskId&&checkpoint?.task?.createdAt===draft.taskCreatedAt));
+    const checkpointVisible = checkpoint && workspaceScopeMatches(checkpoint,this.drafts?.scope) && this.workspaceUnavailable !== JSON.stringify(checkpoint) && (!checkpoint.survey || list.some(row => row.survey_id === checkpoint.survey.id && row.created_at === checkpoint.survey.createdAt));
+    const allDrafts=this.quickDrafts(), matching=checkpointVisible?allDrafts.filter(draft=>workspaceMatchesDraft(checkpoint,draft,this.drafts?.scope)):[];
+    const drafts=allDrafts.filter(draft=>!matching.includes(draft));
+    const groups=[];
+    for(const draft of drafts){const group=groups.find(group=>draftsShareOwner(group[0],draft,this.drafts?.scope));if(group)group.push(draft);else groups.push([draft]);}
     const shown = list.filter(x => !drafts.some(draft=>draft.surveyId===x.survey_id&&draft.createdAt===x.created_at));
     const badge = x => x.review_current ? '<span class="badge current">검토 완료</span>' : '<span class="badge none">미검토</span>';
-    const draftCard = drafts.map(draft=>`<section class="panel quick-draft"><div><strong>${esc(draft.surveyTitle||'작성 중인 작업 설명')}</strong>
+    const otherVersions=(values,label='자동 보관한 다른 입력도 있어요')=>values.length?`<details class="quick-draft-versions"><summary>${label}</summary>${values.map(draft=>`<button data-quick="resume" data-draft="${esc(draft.id)}">${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 보관한 내용 이어가기</button>`).join('')}</details>`:'';
+    const draftCard = groups.map(([draft,...others])=>`<section class="panel quick-draft"><div><strong>${esc(draft.surveyTitle||'작성 중인 작업 설명')}</strong>
       <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
-      <div class="quick-list-actions"><button class="primary" data-quick="resume" data-draft="${esc(draft.id)}">이어서 하기</button><button data-quick="discard-draft" data-draft="${esc(draft.id)}">버리기</button></div></section>`).join('');
-    const checkpointVisible = checkpoint && this.workspaceUnavailable !== JSON.stringify(checkpoint) && (!checkpoint.survey || list.some(row => row.survey_id === checkpoint.survey.id));
-    const checkpointCard = checkpointVisible ? `<section class="panel quick-draft"><div><strong>임시 저장한 작업이 있어요</strong><span>${WORKSPACE_STEPS.indexOf(checkpoint.step) + 1}단계 · ${esc(new Date(checkpoint.savedAt).toLocaleString('ko-KR'))} · 이 PC에 보관</span></div><button class="primary" data-quick="workspace-resume">이어서 하기</button></section>` : '';
+      <div class="quick-list-actions"><button class="primary" data-quick="resume" data-draft="${esc(draft.id)}">이어서 하기</button><button data-quick="discard-draft" data-draft="${esc(draft.id)}">버리기</button></div>${otherVersions(others)}</section>`).join('');
+    // The same local prose can reopen newer DB input after the manual revision changed.
+    const versions=otherVersions(matching,'자동 보관한 내용으로 이어가기');
+    const checkpointCard = checkpointVisible ? `<section class="panel quick-draft"><div><strong>임시 저장한 작업이 있어요</strong><span>${WORKSPACE_STEPS.indexOf(checkpoint.step) + 1}단계 · ${esc(new Date(checkpoint.savedAt).toLocaleString('ko-KR'))} · 이 PC에 보관</span></div><button class="primary" data-quick="workspace-resume">이어서 하기</button>${versions}</section>` : '';
     return `${checkpointCard}${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
       <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 Excel까지 이어져요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>

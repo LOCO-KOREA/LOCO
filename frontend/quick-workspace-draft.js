@@ -1,6 +1,35 @@
 // UI checkpoints are separate from the disposable, unfinished-analysis draft.
 export const WORKSPACE_DRAFT_KEY = 'loco.quick.workspace-draft.v1';
 export const WORKSPACE_STEPS = ['start', 'provisional', 'questions', 'result', 'review', 'excel'];
+export const workspaceScopeMatches = (draft, scope) => !draft?.scope || !scope || draft.scope === scope;
+export function workspaceMatchesDraft(checkpoint, draft, scope) {
+  if (!checkpoint || !draft || !workspaceScopeMatches(checkpoint, scope) ||
+      !workspaceScopeMatches(draft, scope) || checkpoint.scope && draft.scope && checkpoint.scope !== draft.scope) return false;
+  if (checkpoint.task && draft.taskId != null) {
+    return checkpoint.task?.id != null && draft.taskId != null &&
+      Boolean(checkpoint.task.createdAt && draft.taskCreatedAt && checkpoint.survey?.createdAt && draft.createdAt) &&
+      checkpoint.task.id === draft.taskId && checkpoint.task.createdAt === draft.taskCreatedAt &&
+      checkpoint.survey.id === draft.surveyId && checkpoint.survey.createdAt === draft.createdAt;
+  }
+  // Parentless drafts have real UUIDs. Missing database IDs never establish ownership.
+  return Boolean(checkpoint.draftId && (draft.ownerId || draft.id) && checkpoint.draftId === (draft.ownerId || draft.id));
+}
+export function draftsShareOwner(left, right, scope) {
+  if (!left || !right) return false;
+  return workspaceMatchesDraft({scope: left.scope, draftId: left.ownerId || left.id,
+    survey: left.surveyId == null ? null : {id: left.surveyId, createdAt: left.createdAt},
+    task: left.taskId == null ? null : {id: left.taskId, createdAt: left.taskCreatedAt}}, right, scope);
+}
+export function workspaceDraftDiffers(checkpoint, draft) {
+  if (!checkpoint?.ui || !checkpoint.intake) return true; // Unknown content is not evidence of an identical version.
+  const before = {text: checkpoint.ui.intakeText || '', reply: checkpoint.intake.text || '',
+    answers: checkpoint.ui.answers || {}, group: checkpoint.ui.group || 0,
+    formStage: checkpoint.intake.formStage || 0, formValues: checkpoint.intake.formValues || [], photos: checkpoint.photos || {}};
+  const after = {text: draft.intakeText || '', reply: draft.reply || '', answers: draft.answers || {}, group: draft.group || 0,
+    formStage: draft.formStage || 0, formValues: draft.formValues || [], photos: draft.photos || {}};
+  return JSON.stringify(before) !== JSON.stringify(after) ||
+    draft.taskRevision != null && checkpoint.task?.revision != null && draft.taskRevision !== checkpoint.task.revision;
+}
 export function readWorkspaceDraft(storage = localStorage) {
   try {
     const value = JSON.parse(storage.getItem(WORKSPACE_DRAFT_KEY) || 'null');
@@ -13,13 +42,14 @@ export function writeWorkspaceDraft(value, storage = localStorage) {
   else storage.removeItem(WORKSPACE_DRAFT_KEY);
 }
 export const missingWorkspaceRecord = error => error?.code === 'NOT_FOUND' || /^NOT_FOUND:/.test(error?.message || '');
-export function clearWorkspaceDraftForSurvey(survey, storage = localStorage) {
+export function clearWorkspaceDraftForSurvey(survey, storage = localStorage, scope) {
   const draft = readWorkspaceDraft(storage);
-  if (draft?.survey?.id !== survey.survey_id || draft.survey.createdAt !== survey.created_at) return false;
+  if (!workspaceScopeMatches(draft, scope) || draft?.survey?.id !== survey.survey_id || draft.survey.createdAt !== survey.created_at) return false;
   writeWorkspaceDraft(null, storage);
   return true;
 }
-export async function workspaceTargetAvailable(draft, api) {
+export async function workspaceTargetAvailable(draft, api, scope) {
+  if (!workspaceScopeMatches(draft, scope)) return false;
   if (!draft?.task) return true; // A text-only checkpoint has no DB parent yet.
   try {
     const survey = await api('get_survey', {survey_id: draft.survey?.id});
@@ -35,6 +65,7 @@ export function captureWorkspace(flow) {
   const ref = row => row ? {id: row.analysis_id, createdAt: row.created_at} : null;
   return {
     version: 1, savedAt: new Date().toISOString(), step: flow.step,
+    draftId: flow.draftOwnerId || flow.draftId || null, scope: flow.drafts?.scope || null,
     survey: flow.survey && {id: flow.survey.survey_id, createdAt: flow.survey.created_at},
     task: flow.task && {id: flow.task.task_id, createdAt: flow.task.created_at, revision: flow.task.input_revision},
     result: ref(flow.result), baseline: ref(flow.baseline),
@@ -48,8 +79,9 @@ export function captureWorkspace(flow) {
       values: [...(flow.intake?.values || [])], pairValues: [...(flow.intake?.pairValues || [])]}
   };
 }
-export async function loadWorkspace(draft, api) {
+export async function loadWorkspace(draft, api, scope) {
   if (draft?.version !== 1 || !WORKSPACE_STEPS.includes(draft.step)) throw Error('임시 저장 형식을 확인할 수 없어요.');
+  if (!workspaceScopeMatches(draft, scope)) throw Error('다른 저장 파일에서 임시 저장한 내용이에요. 원래 저장 파일에서 이어 주세요.');
   if (!draft.task) {
     if (draft.step !== 'start' || draft.survey || draft.result || draft.baseline || Object.keys(draft.photos || {}).length)
       throw Error('임시 저장 대상이 올바르지 않아요.');
