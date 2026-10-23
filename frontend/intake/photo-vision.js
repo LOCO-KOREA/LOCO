@@ -35,7 +35,7 @@ export function renderPhotoVision(vision,contract={}, {photoIds}={}) {
     const detail=uncertain?(reason||copy.unclear):(evidence&&evidence!==description?evidence:'');
     return `<li data-photo-vision-field="${esc(field.key)}"><strong>${esc(field.label)}</strong><span>${esc(description)}</span>${uncertain?`<small>${esc(status(item.status))}</small>`:''}${detail&&detail!==description?`<small>${esc(detail)}</small>`:''}</li>`;
   };
-  return `<section class="intake-photo-vision" data-photo-vision><h3>${copy.title}</h3><p class="quick-note">${copy.note}</p>${[...photos.values()].map(photo=>{
+  return `<section class="intake-photo-vision" data-photo-vision><h3>${copy.title}</h3><p class="quick-note">${copy.note}</p>${text(vision.application_reason)?`<p class="quick-note" data-photo-vision-application>${esc(text(vision.application_reason))}</p>`:''}${[...photos.values()].map(photo=>{
     const main=fields.filter(field=>copy.primary.includes(field.key)).map(field=>observation(photo,field)).join('');
     const other=fields.filter(field=>!copy.primary.includes(field.key)).map(field=>observation(photo,field)).join('');
     const summary=text(photo.summary),messages=(Array.isArray(photo.diagnostics)?photo.diagnostics:[]).map(item=>text(item?.message)).filter(Boolean);
