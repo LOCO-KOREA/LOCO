@@ -1,0 +1,174 @@
+{
+  "provenance": "Recorded Luna/xhigh failure; replay is not a new external call",
+  "statement": "집중적으로 키보드·마우스를 조작하는 작업을 하루 2시간 하고, 손·팔을 높이 드는 작업을 하루 3시간 합니다. 두 작업시간은 겹치지 않습니다. 하루 전체 실제 작업시간은 5시간입니다. 연간 220일 작업하며 일회성 작업은 아닙니다.",
+  "responses": {
+    "EXTRACT_AND_PLAN": {
+      "answers": [
+        {
+          "target": "work_type.keyboard",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "집중적으로 키보드·마우스를 조작하는 작업"
+        },
+        {
+          "target": "work_type.arm_over",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "손·팔을 높이 드는 작업"
+        },
+        {
+          "target": "card.keyboard.C1_KEYBOARD_FOCUSED",
+          "condition": "default",
+          "number": 120,
+          "text": null,
+          "quote": "키보드·마우스를 조작하는 작업을 하루 2시간"
+        },
+        {
+          "target": "card.arm_over.C3_UNION",
+          "condition": "default",
+          "number": 180,
+          "text": null,
+          "quote": "손·팔을 높이 드는 작업을 하루 3시간"
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 300,
+          "text": null,
+          "quote": "하루 전체 실제 작업시간은 5시간입니다.",
+          "calculation": {
+            "operation": "SUM_STATED_DURATIONS",
+            "terms": [
+              {
+                "quote": "집중적으로 키보드·마우스를 조작하는 작업을 하루 2시간 하고",
+                "minutes": 120
+              },
+              {
+                "quote": "손·팔을 높이 드는 작업을 하루 3시간 합니다.",
+                "minutes": 180
+              }
+            ]
+          }
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 220,
+          "text": null,
+          "quote": "연간 220일 작업하며"
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성 작업은 아닙니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "text": "무거운 물건을 들어 올리거나 옮기는 작업도 하나요?",
+          "reason": "해당 작업이 있는지 확인해야 작업 종류와 필요한 조건을 이어서 확인할 수 있어요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T06:45:25.303058+00:00",
+        "elapsed_ms": 23875,
+        "response_id": "resp_073c20e2f89081e6006adb026e918887d1af190ad6444bf9ab"
+      }
+    },
+    "FOLLOWUP": {
+      "answers": [
+        {
+          "target": "work_type.keyboard",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "집중적으로 키보드·마우스를 조작하는 작업"
+        },
+        {
+          "target": "work_type.arm_over",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "손·팔을 높이 드는 작업"
+        },
+        {
+          "target": "card.keyboard.C1_KEYBOARD_FOCUSED",
+          "condition": "default",
+          "number": 120,
+          "text": null,
+          "quote": "집중적으로 키보드·마우스를 조작하는 작업을 하루 2시간 하고"
+        },
+        {
+          "target": "card.arm_over.C3_UNION",
+          "condition": "default",
+          "number": 180,
+          "text": null,
+          "quote": "손·팔을 높이 드는 작업을 하루 3시간"
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 300,
+          "text": null,
+          "quote": "하루 전체 실제 작업시간은 5시간입니다.",
+          "calculation": {
+            "operation": "SUM_STATED_DURATIONS",
+            "terms": [
+              {
+                "quote": "집중적으로 키보드·마우스를 조작하는 작업을 하루 2시간 하고",
+                "minutes": 120
+              },
+              {
+                "quote": "손·팔을 높이 드는 작업을 하루 3시간",
+                "minutes": 180
+              }
+            ]
+          }
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 220,
+          "text": null,
+          "quote": "연간 220일 작업"
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성 작업은 아닙니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "other_work",
+          "condition": "default",
+          "text": "말씀하신 두 작업 외에 반복 동작, 허리·목·무릎을 굽히는 일, 집기·쥐기·들기·때리기 작업도 있나요?",
+          "reason": "해당되는 작업이 있으면 추가 조건을 확인해야 해요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T06:45:49.970562+00:00",
+        "elapsed_ms": 48547,
+        "response_id": "resp_0538310c2baf15a8006adb0286251087d1ac6563dceec5d0e9"
+      }
+    }
+  }
+}

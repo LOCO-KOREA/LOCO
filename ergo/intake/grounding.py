@@ -53,6 +53,9 @@ NEGATED_OVERLAP=re.compile(r'(?:겹치지|중복되지|동시에\s*(?:작업|일
 # A labelled numeric total is not another operand. A heading such as
 # "총 작업은 팔 들기 2시간 ..." does not label that work period as the total.
 TOTAL_PREFIX=re.compile(r'(?:총|전체|합계|합쳐|합하면)(?:\s|하루|작업|시간|실제|은|는|이|가|:|=|으로|해서)*$')
+DIRECT_TOTAL_POLICY=dict(prefer_copied_single_total=True,
+    uncertain_or_denied_tail=r'아니|아닌|아닙|않|이상|이하|초과|미만|정도|쯤|가량|추정|예상|가정|일\s*수|인\s*지')
+DIRECT_TOTAL_UNCERTAINTY=re.compile(DIRECT_TOTAL_POLICY['uncertain_or_denied_tail'])
 
 
 def _compact(text):
@@ -258,6 +261,14 @@ def number_proof(field,value,quote,*,bare=False,context='',source=None,calculati
     allowed=DURATION_SUM in field.get('derivations',[])
     if calculation is not None:
         if not allowed:return None
+        # A copied single total is already evidence for the value. Model-supplied
+        # arithmetic is redundant here and must not veto or replace that total.
+        # Preserve the unmodified proposal in receipts; store only verified proof.
+        total=_operand_duration(quote)
+        if (DIRECT_TOTAL_POLICY['prefer_copied_single_total'] and total is not None
+                and TOTAL_PREFIX.search(quote[:total['start']])):
+            if DIRECT_TOTAL_UNCERTAINTY.search(quote[total['end']:]) or unknown_evidence(quote):return None
+            return dict(quote=quote) if math.isclose(value,total['minutes'],abs_tol=1e-6) else None
         proof=stated_duration_sum(quote,context,calculation)
         return proof if proof is not None and math.isclose(value,proof['value'],abs_tol=1e-6) else None
     if allowed:
