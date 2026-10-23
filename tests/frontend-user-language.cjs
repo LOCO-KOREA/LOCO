@@ -15,7 +15,7 @@ const assert=require('node:assert/strict');
  const fields=[{target:'a',identity:'a@default',label:'기존 시간',kind:'number',destination:{type:'criterion'}},{target:'b',identity:'b@default',label:'추가 시간',kind:'number',destination:{type:'criterion'}}];
  const intake=new AdaptiveIntake({api(){},notify(){},changed(){}});
  intake.state={contract:{policy:{text_limit:2400}},form_fields:fields,facts:[{identity:'a@default',state:'KNOWN',source:'AI',value:20}]};intake.formStage=1;intake.dialogOpen=true;
- const html=intake.dialog(false),pending=html.split('data-intake-unanswered>')[1].split('</div><details')[0];
+ const html=intake.dialog(false),pending=html.split('data-intake-unanswered>')[1].split('data-intake-confirmed')[0];
  assert.doesNotMatch(pending,/data-intake-form="a@default"/);assert.match(html,/data-intake-confirmed/);assert.match(html,/value="20"/);
  // Text typed in the form must be submitted when moving to results, even without a separate send click.
  intake.text='20kg 상자예요';let submitted,finished=0;

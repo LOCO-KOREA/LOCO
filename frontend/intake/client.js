@@ -69,13 +69,23 @@ export class AdaptiveIntake {
   formFields(stage=this.formStage) {
     return (this.state?.form_fields||[]).filter(f => (f.destination.type==='work_type') === (stage===0));
   }
+  formHandled(field) {
+    const saved=this.state?.facts.find(f=>f.identity===field.identity);
+    return saved?.state==='KNOWN'||saved?.state==='UNKNOWN'&&saved.source==='USER';
+  }
+  optionalPhoto(field) {
+    return (this.state?.contract.policy.optional_photo_destinations||['manual','view']).includes(field.destination.type);
+  }
+  pendingFormFields(stage=this.formStage,{includePhoto=false}={}) {
+    return this.formFields(stage).filter(field=>!this.formHandled(field)&&(includePhoto||!this.optionalPhoto(field)));
+  }
   formValue(field) {
     if(this.formValues.has(field.identity))return this.formValues.get(field.identity);
     const saved=this.state.facts.find(f=>f.identity===field.identity);
     return saved?.state==='KNOWN'?saved.value:undefined;
   }
-  formAnswers() {
-    return this.formFields().filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity)}));
+  formAnswers(stage=this.formStage) {
+    return this.formFields(stage).filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity)}));
   }
   reviewCount() {
     const userFacts=(this.state?.facts||[]).filter(f=>f.source==='USER'&&['KNOWN','UNKNOWN'].includes(f.state)).length;

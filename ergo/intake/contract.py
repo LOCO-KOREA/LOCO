@@ -15,6 +15,7 @@ SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
 PHOTO_DESTINATIONS = ('context','view','manual','load','load_kg','load_link')
+POLICY.update(optional_photo_destinations=list(PHOTO_DESTINATIONS), form_prompt_limit=3)
 LIFT_FIELDS = {8: ('load_mass_kg','lift_count_day'),
                9: ('load_mass_kg','below_knee_count_day','above_shoulder_count_day','extended_arm_count_day','union_count_day'),
                10: ('load_mass_kg','lift_rate_min','minutes')}

@@ -24,6 +24,12 @@ def assess(task, facts, views):
     return _assess(task, facts, views, fields())
 
 
+def work_feature_needed(field, judgments):
+    scope=field['destination'].get('criteria')
+    return any(row['computed_status'] in ('NEEDS_INPUT','NEEDS_REVIEW') and
+               (not scope or row['criterion_no'] in scope) for row in judgments)
+
+
 def _assess(task, facts, views, catalogue, only_identity=None):
     judgments=calculate_v2(task['conditions'],task['legal'])['judgments']
     reba=calculate_reba(task, None) if views else None
@@ -39,6 +45,7 @@ def _assess(task, facts, views, catalogue, only_identity=None):
         t=field['target']; d=field['destination']; kind=d['type']
         if only_identity is not None and not (only_identity.startswith(t + '@') or t == 'other_work'): continue
         if kind=='task': continue  # A report title can be edited later; it is not a calculation gap.
+        if kind in ('work_type','other_work') and not work_feature_needed(field,judgments): continue
         if kind in ('context','view','manual','load','load_kg','load_link') and not views: continue
         if kind=='view' and d['view'] not in views: continue
         if kind=='manual' and known('context')!='YES': continue
@@ -248,12 +255,14 @@ def choose(candidates, proposed=()):
 def form_fields(task, saved, views, candidates):
     """Finite form metadata, including relevant saved values for correction."""
     catalogue = fields()
+    judgments=calculate_v2(task['conditions'],task['legal'])['judgments']
     by_target = {f['target']: f for f in catalogue}
     result = {c['identity']: c for c in candidates if c['target'] != 'other_work'}
     for field in catalogue:
         if field['destination']['type'] == 'work_type':
             identity = key(field['target'])
-            result[identity] = dict(field, identity=identity, condition=POLICY['default_condition'])
+            if identity in saved or work_feature_needed(field,judgments):
+                result[identity] = dict(field, identity=identity, condition=POLICY['default_condition'])
     for identity, item in saved.items():
         field = by_target.get(item['target'])
         if not field or field['destination']['type'] in ('task', 'other_work'): continue

@@ -402,7 +402,8 @@ export class QuickFlow {
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
-      this.intake.dialogOpen=Boolean(state.questions.length || state.reason);
+      if(Array.isArray(state.form_fields)&&!this.intake.pendingFormFields(0).length)this.intake.formStage=1;
+      this.intake.dialogOpen=Boolean(state.reason||(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length));
     });
   }
 
@@ -798,10 +799,11 @@ export class QuickFlow {
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions(); this.intake.dialogOpen=true; } this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
     else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
     else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.render(); }
     else if (d.quick === 'intake-form-next') this.saveIntakeForm();
+    else if (d.quick === 'intake-no-other-work') this.saveIntakeForm({remainingWorkAbsent:true});
     else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
@@ -867,20 +869,29 @@ export class QuickFlow {
     this.render();
   }
 
-  async saveIntakeForm() {
+  async saveIntakeForm({remainingWorkAbsent=false}={}) {
     const invalid=this.host?.querySelector('[data-intake-form]:invalid');
     if(invalid) { invalid.reportValidity(); return; }
     let saved=false, last=this.intake.formStage===1;
+    const absent=remainingWorkAbsent?this.intake.pendingFormFields(0).filter(field=>!this.intake.formValues.has(field.identity)):[];
     await this.run('입력한 내용을 저장하고 있어요…',async()=>{
       await this.intake.flush();
       const answers=this.intake.formAnswers();
       const text=this.intake.text.trim();
       if(text)await this.ensureAiOn();
-      const state=answers.length||text?await this.intake.turn(text,answers):this.intake.state;
+      let state=answers.length||text?await this.intake.turn(text,answers):this.intake.state;
       if(!state||state.reason)return;
+      const remaining=absent.filter(field=>!this.intake.formHandled(field));
+      if(remaining.length) {
+        state=await this.intake.turn('',remaining.map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'})),false);
+        if(!state||state.reason)return;
+      }
       this.task=state.task;this.preview=state.preview;
       for(const answer of answers)this.intake.formValues.delete(answer.target+'@'+answer.condition);
-      if(!last)this.intake.formStage=1;
+      if(!last) {
+        this.intake.formStage=1;
+        last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
+      }
       saved=true;
     });
     if(saved&&last)await this.finish();
@@ -897,7 +908,10 @@ export class QuickFlow {
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
       if(directNumber&&!state.reason&&this.intake.text===submittedText) { this.intake.text=''; this.intake.writingFor=null; }
-      ready=!Array.isArray(state.form_fields)&&!state.questions.length&&!state.reason&&!this.intake.text.trim();
+      if(Array.isArray(state.form_fields)) {
+        if(!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;
+        ready=!state.reason&&!this.intake.text.trim()&&![0,1].some(stage=>this.intake.pendingFormFields(stage).length||this.intake.formAnswers(stage).length);
+      } else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
       if(ready)this.intake.dialogOpen=false;
     });
     if(ready)await this.finish();
@@ -1049,7 +1063,7 @@ export class QuickFlow {
 
         this.preview = state.preview; this.task = state.task; this.stale = false;
         this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formStage=draft.formStage||0; this.intake.formValues=new Map(draft.formValues||[]);
-        this.intake.dialogOpen=Boolean(state.questions.length);
+        this.intake.dialogOpen=Boolean(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length);
         this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
       }
       if(draft.step==='start')return;

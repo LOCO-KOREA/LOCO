@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict');
+(async()=>{
+ const {AdaptiveIntake}=await import('../frontend/intake/client.js');
+ const {QuickFlow}=await import('../frontend/quick-flow.js');
+ const work=n=>({target:'work_type.'+n,identity:'work_type.'+n+'@default',condition:'default',label:n,kind:'choice',choices:[{value:'YES',label:'예'},{value:'NO',label:'아니오'}],destination:{type:'work_type'}});
+ const fields=['known','unknown','selected',...Array.from({length:7},(_,i)=>'remaining'+i)].map(work);
+ const optional={target:'manual.LEFT.wrist_base',identity:'manual.LEFT.wrist_base@default',condition:'default',label:'손목',kind:'choice',choices:[],destination:{type:'manual'}};
+ function setup(){
+  const intake=new AdaptiveIntake({api(){throw Error('unexpected API');},notify(){},changed(){}});
+  intake.state={task:{task_id:1},contract:{policy:{text_limit:2400,optional_photo_destinations:['manual','view','load']}},form_fields:[...fields,optional],facts:[{...fields[0],state:'KNOWN',source:'AI',value:'YES'},{...fields[1],state:'UNKNOWN',source:'USER',value:null}],questions:[optional]};
+  intake.dialogOpen=true;intake.formValues.set(fields[2].identity,'YES');
+  let finished=0;const calls=[];
+  intake.turn=async(text,answers,plan=true)=>{calls.push({text,answers,plan});for(const answer of answers){intake.state.facts=intake.state.facts.filter(f=>f.identity!==answer.target+'@'+answer.condition);intake.state.facts.push({...answer,identity:answer.target+'@'+answer.condition,state:answer.value==null?'UNKNOWN':'KNOWN',source:'USER'});}intake.text='';return intake.state;};
+  const flow=Object.assign(Object.create(QuickFlow.prototype),{intake,async run(_,fn){await fn();},async finish(){finished++;},ensureAiOn(){throw Error('direct answers must not enable AI');}});
+  return {intake,flow,calls,finished:()=>finished};
+ }
+ const a=setup(),before=structuredClone(a.intake.state.facts);
+ const html=a.intake.dialog(false);assert.ok(html.indexOf('data-intake-natural-answer')<html.indexOf('data-intake-form='),'natural answer comes before individual controls');assert.match(html,/data-quick="intake-no-other-work"/);
+ await a.flow.saveIntakeForm({remainingWorkAbsent:true});
+ assert.equal(a.finished(),1,'one confirmation skips the empty condition stage despite optional photo fields');
+ assert.equal(a.calls.length,2,'selected direct edits are saved before the remaining displayed work list');
+ assert.deepEqual(a.intake.state.facts.find(f=>f.identity===fields[1].identity),before[1],'explicit USER unknown is never changed to NO');
+ assert.equal(a.intake.state.facts.find(f=>f.identity===fields[2].identity).value,'YES');
+ assert.equal(a.calls[1].answers.length,7);assert.equal(a.calls[1].plan,false);assert.ok(a.calls.every(c=>c.text===''));
+ assert.ok(a.calls[1].answers.every(answer=>answer.value==='NO'&&answer.target.startsWith('work_type.remaining')));
+ assert.equal(a.intake.state.facts.some(f=>f.target===optional.target),false,'optional photos are not filled with guessed values');
+ const b=setup();b.intake.formValues.clear();b.intake.text='추가 작업은 첫 번째만 해요';b.flow.ensureAiOn=async()=>{};
+ const turn=b.intake.turn;
+ b.intake.turn=async(text,answers,plan)=>{const result=await turn(text,answers,plan);if(text)b.intake.state.facts.push({...fields[3],value:'YES',state:'KNOWN',source:'AI'});return result;};
+ await b.flow.saveIntakeForm({remainingWorkAbsent:true});assert.equal(b.intake.state.facts.find(f=>f.identity===fields[3].identity).value,'YES','unsent text is extracted before the bulk absence confirmation');
+ const c=setup();const draft=[...c.intake.formValues];c.intake.turn=async()=>{throw Error('offline');};
+ await assert.rejects(c.flow.saveIntakeForm({remainingWorkAbsent:true}),/offline/);assert.deepEqual([...c.intake.formValues],draft);assert.equal(c.finished(),0);
+ console.log('PASS one answer for remaining work, explicit unknown/selected/unsent input ownership, no guessed photo values, empty-stage skip and failure retention');
+})().catch(error=>{console.error(error);process.exitCode=1;});
