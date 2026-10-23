@@ -5,7 +5,7 @@ import json
 import math
 import re
 from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS
-from .grounding import number_grounded, number_proof
+from .grounding import evidence_quote, number_grounded, number_proof
 from .photo_load import photo_load
 from ergo.engine.task_defaults import now
 
@@ -62,10 +62,14 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
         field = catalogue[item['target']]
         if not field['ai_writable']:
             record(item,index,'REJECTED','EXPLICIT_FIELD_SELECTION_REQUIRED'); continue
-        quote = item.get('quote')
-        current_quote=isinstance(quote,str) and re.sub(r'\s+','',quote) in re.sub(r'\s+','',text)
-        prior_quote=isinstance(quote,str) and any(re.sub(r'\s+','',quote) in re.sub(r'\s+','',prior) for prior in prior_texts)
-        if not isinstance(quote,str) or not quote.strip() or not (current_quote or prior_quote):
+        quote=evidence_quote(item.get('quote'),text)
+        current_quote=quote is not None
+        source_text=text
+        if not current_quote:
+            for prior in prior_texts:
+                quote=evidence_quote(item.get('quote'),prior)
+                if quote is not None:source_text=prior;break
+        if quote is None:
             record(item,index,'REJECTED','QUOTE_NOT_IN_TEXT'); continue
         condition = item.get('condition') or POLICY['default_condition']
         if not isinstance(condition,str) or len(condition)>80:
@@ -76,7 +80,7 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
         identity = key(field['target'],condition)
         previous = result.get(identity)
         raw_value = item.get('number') if field['kind']=='number' else item.get('text')
-        if item.get('text')=='UNKNOWN' and re.search(r'모르|모름|알\s*수\s*없|미확인',quote):
+        if item.get('text')=='UNKNOWN' and re.search(r'모르|모름|알\s*수\s*없|미확인',item['quote']):
             if protect_photo_context and field['destination']['type'] in PHOTO_DESTINATIONS:
                 record(item,index,'UNCHANGED' if previous and previous['value'] is None else 'REJECTED',
                     None if previous and previous['value'] is None else 'PHOTO_CONTEXT_CONFIRMATION_REQUIRED',condition);continue
@@ -95,8 +99,7 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
             record(item,index,'REJECTED','EMPTY_VALUE',condition); continue
         proof=None
         if field['kind']=='number':
-            source_text=text if current_quote else next(prior for prior in prior_texts if re.sub(r'\s+','',quote) in re.sub(r'\s+','',prior))
-            proof=number_proof(field,value,quote,bare=bool(focused) and current_quote,context=source_text+' '+text,
+            proof=number_proof(field,value,item['quote'],bare=bool(focused) and current_quote,context=source_text+' '+text,
                                source=source_text,calculation=item.get('calculation'))
             if proof is None:
                 record(item,index,'REJECTED','UNIT_OR_NUMBER_NOT_GROUNDED',condition); continue

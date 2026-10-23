@@ -1,9 +1,9 @@
 """Source context and append-only turn receipts inside the existing task JSON."""
 import copy
-import re
 from uuid import uuid4
 from ergo.engine.task_defaults import now
 from .contract import POLICY, fields
+from .grounding import evidence_quote
 
 ANSWER_KEYS=('target','condition','number','text','quote','calculation')
 CONNECTION_KEYS=('status','model','reasoning_effort','requested_reasoning_effort','reason','observed_at','elapsed_ms','response_id')
@@ -14,10 +14,8 @@ def message_id(message,index):
 
 
 def source_ids(session,quote):
-    if not isinstance(quote,str) or not quote.strip():return []
-    needle=re.sub(r'\s+','',quote)
     return [message_id(message,index) for index,message in enumerate(session['messages'])
-            if needle in re.sub(r'\s+','',message.get('text',''))]
+            if evidence_quote(quote,message.get('text','')) is not None]
 
 
 def diagnostics(session):

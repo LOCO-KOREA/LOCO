@@ -1,4 +1,4 @@
-"""Verify AI numeric evidence; never infer task facts or calculate burden rules."""
+"""Verify copied source evidence and numeric units; never infer task facts."""
 import math
 import re
 
@@ -18,7 +18,16 @@ for prefix,base in NATIVE_TENS.items():
     for word,value in NUMBER_WORDS.items():
         if value<10:TIME_WORDS[prefix+word]=base+value
 TIME_NUMBER=r'(?:\d+(?:\.\d+)?|'+ '|'.join(sorted(TIME_WORDS,key=len,reverse=True))+r'|[영공일이삼사오육칠팔구십백천]+)'
-DURATION=re.compile(r'(?<![\d.])('+TIME_NUMBER+r')\s*(시간|분|초)(?:\s*(반))?')
+# A half-hour token may have Korean duration qualifiers, particles and endings.
+# Require the end of that whole token, so 반복 and 반도체 are not half-hours.
+HALF_QUALIFIERS=('정도','가량','동안','이상','이하','이내')
+HALF_PARTICLES=('은','을','이','도','만','과','하고','으로','까지','부터','이나','쯤','씩')
+HALF_ENDINGS=('이에요','예요','입니다','이었어요','이고','이지만','인데','이니까','이라서','이라고','이면','이요','요')
+HALF_DURATION=(r'반(?:'+ '|'.join(HALF_QUALIFIERS)+r')?(?:'+ '|'.join(HALF_PARTICLES)+r')?(?:'+
+               '|'.join(HALF_ENDINGS)+r')?(?![가-힣\w])')
+DURATION=re.compile(r'(?<![\d.])('+TIME_NUMBER+r')\s*(시간|분|초)(?:\s*('+HALF_DURATION+r'))?')
+EVIDENCE_POLICY=dict(min_joined_sentences=2, sentence_end=r'(?<!\d)\.|\.(?!\d)|[!?。]')
+SENTENCE_END=re.compile(EVIDENCE_POLICY['sentence_end'])
 # These expressions do not establish disjoint daily working periods.
 AMBIGUOUS_SUM=re.compile(r'동시|겹|중복|그중|중에서|중에|포함|휴게|휴식|점심|쉬는|제외|빼고|뺀|또는|혹은|둘\s*중|두\s*작업\s*중|[~～∼]|에서.{0,8}까지|주당|매주|일주일|매월|월당|시간당|분당|매시간|매분|분에|시간에|하루.{0,5}(?:일부|중)|더\s*있|일부\s*작업|그\s*외|나머지\s*작업')
 # Negation changes the meaning of overlap. Remove only its local negative phrase,
@@ -31,6 +40,38 @@ TOTAL_PREFIX=re.compile(r'(?:총|전체|합계|합쳐|합하면)(?:\s|하루|작
 
 def _compact(text):
     return re.sub(r'\s+','',text)
+
+
+def _sentences(text):
+    """Retain actual source offsets and punctuation, including the final sentence."""
+    start=0
+    for match in SENTENCE_END.finditer(text):
+        end=match.end()
+        while start<end and text[start].isspace():start+=1
+        if start<end:yield start,end,_compact(text[start:end])
+        start=end
+    while start<len(text) and text[start].isspace():start+=1
+    end=len(text.rstrip())
+    if start<end:yield start,end,_compact(text[start:end])
+
+
+def evidence_quote(quote,source):
+    """Resolve copied sentences to one real source span, without rewriting claims.
+
+    Exact contiguous excerpts retain their existing spelling. A joined excerpt
+    must copy whole source sentences, in order and from distinct occurrences in
+    one message. Its stored evidence includes all intervening source context.
+    """
+    if not isinstance(quote,str) or not quote.strip() or not isinstance(source,str):return None
+    if _compact(quote) in _compact(source):return quote
+    pieces=list(_sentences(quote))
+    if len(pieces)<EVIDENCE_POLICY['min_joined_sentences']:return None
+    sentences=list(_sentences(source));cursor=0;matched=[]
+    for _,_,piece in pieces:
+        index=next((index for index in range(cursor,len(sentences)) if sentences[index][2]==piece),None)
+        if index is None:return None
+        matched.append(sentences[index]);cursor=index+1
+    return source[matched[0][0]:matched[-1][1]]
 
 
 def _number(word):
@@ -69,10 +110,19 @@ def _durations(text,*,strict=True):
     return terms
 
 
+def _compact_durations(text,*,strict=True):
+    """Keep lexical word boundaries when comparing whitespace-free offsets."""
+    groups=_durations(text,strict=strict)
+    if groups is None:return None
+    offsets=[0]
+    for char in text:offsets.append(offsets[-1]+(not char.isspace()))
+    return [dict(group,start=offsets[group['start']],end=offsets[group['end']]) for group in groups]
+
+
 def _whole_quantity_quote(quote,source):
     """An excerpt may not split '1시간 30분' into an independent 30-minute claim."""
     needle=_compact(quote);haystack=_compact(source)
-    groups=_durations(haystack,strict=False)
+    groups=_compact_durations(source,strict=False)
     if not needle or groups is None:return False
     start=haystack.find(needle)
     while start>=0:
@@ -160,7 +210,7 @@ def stated_duration_sum(quote,context,calculation=None):
             if start<0 or not _whole_quantity_quote(raw,quote):return None
             end=start+len(_compact(raw))
             # Validate this occurrence, not another identical duration elsewhere.
-            source_groups=_durations(source)
+            source_groups=_compact_durations(quote)
             related=[group for group in source_groups if group['start']<end and group['end']>start]
             if not related or not all(start<=group['start'] and group['end']<=end for group in related):return None
             if TOTAL_PREFIX.search(source[:related[0]['start']]):return None
@@ -174,7 +224,10 @@ def stated_duration_sum(quote,context,calculation=None):
 def number_proof(field,value,quote,*,bare=False,context='',source=None,calculation=None):
     if not isinstance(quote,str) or type(value) not in (int,float) or not math.isfinite(value):return None
     is_duration=field['unit'].startswith('분')
-    if is_duration and not _whole_quantity_quote(quote,source if source is not None else context or quote):return None
+    original=source if source is not None else context or quote
+    copied=evidence_quote(quote,original)
+    excerpts=[quote] if _compact(quote) in _compact(original) else [quote[start:end] for start,end,_ in _sentences(quote)]
+    if is_duration and (copied is None or not all(_whole_quantity_quote(excerpt,original) for excerpt in excerpts)):return None
     allowed=DURATION_SUM in field.get('derivations',[])
     if calculation is not None:
         if not allowed:return None

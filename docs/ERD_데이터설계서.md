@@ -153,3 +153,7 @@ AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바�
 
 
 2026-10-23 최신 main 통합: 중복 질문·용어 표시 수정은 기존 여섯 테이블/JSON 계약을 사용하며 물리 스키마 변경이 없다. 사진 하중 별칭은 계산 시 공통 해석하고 조회로 fact/revision을 만들지 않는다. 과거 분석·출력 snapshot과 사용자 원문은 보존한다. [점검 기록](verification/2026-10-23-main-no-repeat.md) 참조.
+
+## 실제 원문 인용과 반 시간 경계 정정 (2026-10-23)
+
+물리 스키마는 바꾸지 않는다. 기존 intake facts.quote에는 검증된 실제 연속 원문을, requests.answers.quote와 decisions.quote에는 원본 모델 인용을 보존한다. source_message_ids도 동일한 문장 검증으로 원래 메시지와 연결한다. 과거 행·snapshot을 재작성하지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
