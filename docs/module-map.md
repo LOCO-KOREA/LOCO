@@ -41,3 +41,5 @@
 - ergo/service/pdf_exports.py: 선택 검증·요청 순서의 snapshot 준비·PDF 미리보기/원자적 파일 교체·기존 출력 이력.
 - frontend/pdf-export.js: 대상 고정·중복 요청 억제·저장 취소·실제 PDF 표시를 위한 내부 구현. 사용자 화면에서는 연결하지 않는다.
 - templates/assets: 원본 해시, 빈 양식, PDF용 한글 글꼴과 라이선스.
+
+`ergo/intake/planner.py`는 현재 필요한 확인 범위의 처리/전체/남은 항목과 진행률 메타데이터를 계산하고, `ergo/service/intake.py`가 `progress` DTO로 반환한다. `frontend/intake/dialog.js`는 이 값을 진행 막대와 남은 항목으로 표시하고 `intake.css`가 제목·본문 스크롤·하단 버튼의 배치를 분리한다. 계산 완전성 및 DB 저장 계약은 유지한다.
