@@ -11,8 +11,9 @@ from ergo.pose_contract import WRIST_JOINTS, WRIST_POLICY, WRIST_REASONS
 
 def _angle(u, v):
     denominator=math.hypot(*u)*math.hypot(*v)
-    if denominator<=0: raise ValueError('zero projection')
-    return math.degrees(math.acos(max(-1.0,min(1.0,sum(a*b for a,b in zip(u,v))/denominator))))
+    numerator=sum(a*b for a,b in zip(u,v))
+    if denominator<=0 or not math.isfinite(denominator) or not math.isfinite(numerator): raise ValueError('unstable projection')
+    return math.degrees(math.acos(max(-1.0,min(1.0,numerator/denominator))))
 
 
 def _minus(a,b): return (a[0]-b[0],a[1]-b[1])
@@ -59,14 +60,20 @@ def angles(points,width,height,confidence_min=0.5,*,camera_side=None,orientation
             reject('WRIST_FINGERS_DISAGREE');continue
         if not policy['thumb_length_min_ratio']<=lengths['thumb']/hand<=policy['thumb_length_max_ratio']:
             reject('WRIST_PLANE_UNCLEAR');continue
-        value=round(_bend(xy),10) # Avoid floating-point noise crossing an exact 15-degree category.
-        if value>policy['max_angle_deg']: reject('WRIST_PLANE_UNCLEAR');continue
-        # One-point pixel perturbations are a sensitivity test, not a confidence interval.
-        delta=max(policy['sensitivity_pixel_min'],min(width,height)*policy['sensitivity_image_ratio'])
-        samples=[value]
-        for joint in ('elbow','wrist','index','pinky'):
-            for shift in ((delta,0),(-delta,0),(0,delta),(0,-delta)):
-                changed=dict(xy);changed[joint]=(xy[joint][0]+shift[0],xy[joint][1]+shift[1]);samples.append(_bend(changed))
+        try:
+            value=round(_bend(xy),10) # Avoid floating-point noise crossing an exact 15-degree category.
+            if not math.isfinite(value): raise ValueError('nonfinite wrist angle')
+            if value>policy['max_angle_deg']: reject('WRIST_PLANE_UNCLEAR');continue
+            # One-point pixel perturbations are a sensitivity test, not a confidence interval.
+            delta=max(policy['sensitivity_pixel_min'],min(width,height)*policy['sensitivity_image_ratio'])
+            samples=[value]
+            for joint in ('elbow','wrist','index','pinky'):
+                for shift in ((delta,0),(-delta,0),(0,delta),(0,-delta)):
+                    changed=dict(xy);changed[joint]=(xy[joint][0]+shift[0],xy[joint][1]+shift[1]);sample=_bend(changed)
+                    if not math.isfinite(sample): raise ValueError('nonfinite perturbed angle')
+                    samples.append(sample)
+        except (ValueError,OverflowError,ZeroDivisionError):
+            reject('WRIST_UNSTABLE');continue
         lower,upper=min(samples),max(samples);proof.update(sensitivity_min_deg=lower,sensitivity_max_deg=upper,pixel_perturbation=delta)
         if upper-lower>policy['max_sensitivity_deg']: reject('WRIST_UNSTABLE');continue
         row['value_deg']=value
