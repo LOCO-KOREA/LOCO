@@ -172,11 +172,11 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-later summary { cursor: pointer; color: var(--color-primary); font-weight: 600; margin-bottom: 10px; }
 
 /* Excel screen: check list, sheet preview, save. */
-.quick-excel-page > .panel { margin-bottom: 16px; }
-.quick-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+#quick-workspace .quick-excel-page > .panel { margin-bottom: 24px; }
+.quick-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 20px; }
 .quick-tabs button { border: 1px solid var(--color-line); border-radius: 8px 8px 0 0; padding: 8px 14px; background: var(--color-surface-soft); cursor: pointer; font: inherit; }
 .quick-tabs button.selected { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
-.quick-sheet-wrap { overflow-x: auto; margin: 6px 0 14px; border: 1px solid var(--color-line); border-radius: 8px; }
+.quick-sheet-wrap { overflow-x: auto; margin: 10px 0 24px; border: 1px solid var(--color-line); border-radius: 8px; }
 .quick-sheet { border-collapse: collapse; width: 100%; font-size: 13px; }
 .quick-sheet th { background: #1f3a5f; color: #fff; text-align: left; padding: 8px 10px; white-space: nowrap; }
 .quick-sheet td { padding: 7px 10px; border-top: 1px solid var(--color-line); vertical-align: top; max-width: 380px; overflow-wrap: anywhere; }
@@ -190,7 +190,7 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-sheet.form td.review { background: #fff2cc !important; }
 .quick-sheet td.label { background: #e6ebf2 !important; color: #1f3a5f; font-weight: 600; vertical-align: middle; }
 .quick-sheet.wide th { white-space: normal; min-width: 72px; }
-.quick-sheet-heading { margin: 16px 0 4px; font-size: 14px; color: var(--color-primary); }
+.quick-sheet-heading { margin: 40px 0 16px; font-size: 14px; color: var(--color-primary); }
 
 
 /* Keep the initial work-description editor stable as its content grows. */
@@ -213,3 +213,6 @@ body.quick-mode #page-top { display: none; }
 .quick-toolbar button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
 body.quick-mode main { padding-bottom: 184px; }
 body.quick-mode .page-title { gap: 16px; align-items: center; flex-wrap: wrap; }
+
+.quick-sheet-notes { border-top: 1px solid var(--color-line); margin-top: 24px; padding-top: 16px; }
+.quick-sheet-notes > p:first-child { margin-top: 0; }

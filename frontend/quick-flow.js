@@ -1334,7 +1334,7 @@ export class QuickFlow {
       return `${t.heading ? `<h4 class="quick-sheet-heading">${esc(t.heading)}</h4>` : ''}<div class="quick-sheet-wrap"><table class="quick-sheet${kind}">${head}<tbody>${body}</tbody></table></div>`;
     };
     return `<div class="quick-tabs" role="tablist">${p.sheets.map((x, i) => `<button type="button" role="tab" aria-selected="${i === index}" class="${i === index ? 'selected' : ''}" data-quick="excel-tab" data-tab="${i}">${esc(x.name)}</button>`).join('')}</div>
-      ${sheet.lead ? `<p class="quick-note">${esc(sheet.lead)}</p>` : ''}${sheet.tables.map(table).join('')}${(sheet.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
-      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요. 대표 사진 이미지는 파일에만 들어가요.</p>`;
+      ${sheet.lead ? `<p class="quick-note">${esc(sheet.lead)}</p>` : ''}${sheet.tables.map(table).join('')}<div class="quick-sheet-notes">${(sheet.notes || []).map(n => `<p class="quick-note">${esc(n)}</p>`).join('')}
+      <p class="quick-note">저장하는 파일에는 위 시트가 같은 내용으로 들어가요. 대표 사진 이미지는 파일에만 들어가요.</p></div>`;
   }
 }
