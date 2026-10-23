@@ -3,6 +3,7 @@ from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS
 from .photo_load import photo_load
 from ergo.engine.burden_rules import calculate_v2
 from ergo.engine.reba_scoring import calculate_reba
+from ergo.pose_contract import WRIST_REASONS
 
 
 def paths(field, condition):
@@ -68,9 +69,11 @@ def _assess(task, facts, views, catalogue, only_identity=None):
             if t=='other_work': question+=' '+ ' · '.join(f['label'] for f in unknown_work)
             if t=='load_link': question=f"사진 속 물건도 설명한 {next(iter(masses))}kg 물건인가요?"
             reason='결과 계산에 필요한 정보가 아직 없어요.'
+            measurement_reason=bool(item and item['source'] in ('POSE','MOVENET') and item.get('measurement_diagnostic') in WRIST_REASONS)
+            if measurement_reason: reason=WRIST_REASONS[item['measurement_diagnostic']]
             if item and item['state']=='CONFLICT': reason='앞서 기록한 값과 새 설명이 달라 확인이 필요해요.'
             candidates.append(dict(field,target=t,condition=condition,text=question,reason=reason,
-                identity=key(t,condition),priority=0 if item and item['state']=='CONFLICT' else field['priority']))
+                identity=key(t,condition),priority=0 if item and item['state']=='CONFLICT' else field['priority'],photo_measurement_reason=measurement_reason))
     if any(c['target']=='other_work' for c in candidates) and not has('other_work'):
         candidates=[c for c in candidates if c['destination']['type']!='work_type']
     candidates.sort(key=lambda c:(c['priority'],c['target'],c['condition']))
@@ -234,7 +237,7 @@ def choose(candidates, proposed=()):
         # A question may change wording, never the field, choices, units or ownership.
         text=p.get('text'); reason=p.get('reason')
         chosen.append(dict(original,text=text[:300] if isinstance(text,str) and text.strip() else original['text'],
-                           reason=reason[:300] if isinstance(reason,str) and reason.strip() else original['reason']))
+                           reason=reason[:300] if not original.get('photo_measurement_reason') and isinstance(reason,str) and reason.strip() else original['reason']))
         seen.add(identity)
     for candidate in candidates:
         if len(chosen)>=POLICY['question_limit']: break
@@ -257,5 +260,5 @@ def form_fields(task, saved, views, candidates):
         probe = dict(saved); probe.pop(identity)
         relevant = _assess(_without_value(task, field, item['condition'], views), probe, views, catalogue, only_identity=identity)['candidates']
         if any(c['identity'] == identity for c in relevant):
-            result[identity] = dict(field, identity=identity, condition=item['condition'])
+            result.setdefault(identity,dict(field, identity=identity, condition=item['condition']))
     return list(result.values())

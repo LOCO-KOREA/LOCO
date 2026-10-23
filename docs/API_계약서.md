@@ -176,9 +176,9 @@ type ManualValue = {
 
 사진은 0..N건이며 분석대상으로 선택한 slot만 pose/tags/reba에 사용한다. 등록만으로 자동 배정·자동 분석하지 않는다. slot_no는 안정적 ID이며 다른 행 삭제 시 재번호를 붙이지 않는다. 일반 작업과 상자 들기에 동일 계약을 쓴다. 같은 photo_id를 여러 분석 행에 중복 배정하면 진단하고 중복 표본을 완성 결과로 계산하지 않는다.
 
-하중은 관찰한 UNLOADED이면 0, MEASURED이면 측정 kg, UNKNOWN이면 null이다. 상태와 측정값의 충돌은 진단한다. 사건명이나 사진 순서로 전체 물체 중량을 적용하지 않는다. 하중을 기준 8~10호의 하루 값에 자동 전사하지 않는다. 목·손목·비틀림·지지·쥐기·충격·활동은 현장 확인값이다.
+하중은 관찰한 UNLOADED이면 0, MEASURED이면 측정 kg, UNKNOWN이면 null이다. 상태와 측정값의 충돌은 진단한다. 사건명이나 사진 순서로 전체 물체 중량을 적용하지 않는다. 하중을 기준 8~10호의 하루 값에 자동 전사하지 않는다. 목·손목 편위/비틀림·지지·쥐기·충격·활동은 현장 확인값이다. 손목 굽힘·폄은 아래 2D 관측 조건을 만족한 사진 후보와 직접 확인값을 구별한다.
 
-자동 후보는 몸통/무릎/좌우 위팔·아래팔 6개이며 적용할 때만 AUTO_ACCEPTED 수동값으로 저장한다. null 후보는 기존값을 덮어쓰지 않는다. 관찰 복사는 사용자가 고른 필드와 사진에만 적용한다. 근거·시각·대상 photo_id를 기록한다. ManualField별 허용 scope·범주·숫자 범위는 기능정의서 §5.1을 따른다.
+자동 후보는 몸통/무릎/좌우 위팔·아래팔 6개에 공급자가 손 관절을 제공하면 좌우 wrist_base를 추가한다. 일반 편집은 적용할 때 AUTO_ACCEPTED로 저장하며 간편 확인에서는 사진 상황을 확인한 뒤 고품질 후보만 저장하고 질문에서 제외한다. null/경계 후보는 기존값을 덮어쓰지 않는다. 관찰 복사는 사용자가 고른 필드와 사진에만 적용한다. 근거·시각·대상 photo_id를 기록한다. ManualField별 허용 scope·범주·숫자 범위는 기능정의서 §5.1을 따른다.
 
 ## 5. 분석 DTO와 상태
 
@@ -190,9 +190,9 @@ type PostureProfile = {version:'POSTURE_TECH_V1',neck_forward_deg:Number,trunk_f
 type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V2',burden_rule:'MOEL_2020_12_GENERAL_V2'};
 type TaskSnapshot = TaskInput & {task_id:ID,input_revision:Count,photos:PhotoInfo[],settings:AnalysisSettings};
 type SlotStatus = 'PENDING'|'VALID'|'INVALID'|'ERROR'|'CANCELED'|'NOT_PROCESSED';
-type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX';
+type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX'|'WRIST_FLEX_2D';
 type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number,confidence_kind?:string,visibility?:Number,presence?:Number,z_normalized?:Number};
-type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null};
+type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null,diagnostic_code?:string,measurement?:{policy_version:string,coordinate_space:'ORIGINAL_IMAGE_2D',auto_eligible:boolean,hand_plane_method:string,used_world_coordinates:false,policy:Record<string,string|Number>,[quality:string]:unknown}};
 type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[],engine?:PoseModel & {actual_model_sha256:string,contract_version:string},world_points?:{point_no:Count,name:string,x_m:Number,y_m:Number,z_m:Number,confidence:Number}[],world_angles?:{side:Side,angle_code:string,label:string,value_deg:Number|null,coordinate_space:string,used_for_reba:false}[],connections?:[string,string][]};
 type PoseResult = {status:'RUNNING'|'DONE'|'PARTIAL_REVIEW'|'FAILED'|'CANCELED',valid_count:Count,total_slot_count:Count,terminal_error:string|null,slots:SlotPoseResult[]};
 type TagCode = 'NECK_FORWARD_PROXY'|'TRUNK_FLEX'|'TRUNK_EXT'|'UPPER_ARM_RAISE'|'HAND_ABOVE_HEAD'|'ELBOW_ABOVE_SHOULDER'|'ELBOW_BEHIND_TRUNK'|'NECK_TWIST'|'TRUNK_TWIST'|'SQUAT'|'KNEEL';
@@ -200,7 +200,7 @@ type SlotTag = {slot_no:Count,tag:TagCode,value:Truth,source:'ANGLE'|'MANUAL'|'U
 type TagSummary = {tag:TagCode,yes_count:Count,observed_count:Count,valid_pose_count:Count,manual_observed_count:Count,total_slot_count:Count,sample_ratio:Number|null};
 type TagResult = {slots:SlotTag[],summary:TagSummary[]};
 type ReviewReason = 'COMBINATION_RULE'|'POSTURE_INTERPRETATION'|'BOUNDARY_REVIEW'|'INPUT_CONFLICT';
-type RebaCandidate = {slot_no:Count,photo_id:ID|null,scope:'COMMON'|'LEFT'|'RIGHT',field:'trunk_base'|'upper_arm_base'|'lower_arm_base'|'knee_band',proposed_value:Count|KneeBand|null,angles:Angle[],min_confidence:Number|null,review_reasons:ReviewReason[],diagnostics:Diagnostic[]};
+type RebaCandidate = {slot_no:Count,photo_id:ID|null,scope:'COMMON'|'LEFT'|'RIGHT',field:'trunk_base'|'upper_arm_base'|'lower_arm_base'|'knee_band'|'wrist_base',proposed_value:Count|KneeBand|null,angles:Angle[],min_confidence:Number|null,review_reasons:ReviewReason[],diagnostics:Diagnostic[]};
 type Risk = 'NEGLIGIBLE'|'LOW'|'MEDIUM'|'HIGH'|'VERY_HIGH';
 type RebaSideScore = {
   side:Side,trunk:Count|null,neck:Count|null,legs:Count|null,table_a:Count|null,load_score:Count|null,score_a:Count|null,

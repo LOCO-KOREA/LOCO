@@ -23,7 +23,7 @@ NO_BURDEN = {
 }
 FIELD_LABELS = {
     'trunk_base': '몸통 굽힘', 'knee_band': '무릎 굽힘', 'upper_arm_base': '위팔 들림',
-    'lower_arm_base': '아래팔 굽힘',
+    'lower_arm_base': '아래팔 굽힘', 'wrist_base': '손목 굽힘·폄',
 }
 YES_NO = [{'value': 'YES', 'label': '예'}, {'value': 'NO', 'label': '아니오'}, {'value': 'UNKNOWN', 'label': '모름'}]
 
@@ -124,7 +124,7 @@ def arm_overhead_signal(points, confidence_min=0.5):
 TRUNK_SIDE_DEG, NECK_SIDE_DEG, ARM_ABDUCTION_DEG = 10, 15, 30
 LOW_CONFIDENCE_FACTOR = 0.4
 SEVERITY = {'trunk_base': [1, 2, 3, 4], 'knee_band': ['UNDER_30', 'FROM_30_TO_60', 'OVER_60'],
-            'upper_arm_base': [1, 2, 3, 4], 'lower_arm_base': [1, 2]}
+            'upper_arm_base': [1, 2, 3, 4], 'lower_arm_base': [1, 2], 'wrist_base': [1,2]}
 VIEW_KO = {'LEFT': '왼쪽 사진', 'RIGHT': '오른쪽 사진', 'FRONT': '정면·후면 사진'}
 
 
@@ -140,7 +140,7 @@ def _confirmed_slot(camera_side, forward):
 
 def _measured(scope, field, value, angle_rows, boundary, view, low_confidence=False):
     return {'scope': scope, 'field': field, 'value': value, 'label': FIELD_LABELS.get(field, field), 'view': view, 'low_confidence': low_confidence,
-            'angles': [{'side': a['side'], 'angle_code': a['angle_code'], 'value_deg': round(a['value_deg'], 1)} for a in angle_rows],
+            'angles': [dict(side=a['side'],angle_code=a['angle_code'],value_deg=round(a['value_deg'],1),**({'measurement':a['measurement']} if a.get('measurement') else {})) for a in angle_rows],
             'boundary_review': boundary}
 
 
@@ -156,7 +156,7 @@ def side_measure(points, width, height, settings, camera_side, forward, slot_vie
     floor = confidence * LOW_CONFIDENCE_FACTOR
     # MoveNet's own estimate is used even when its confidence is modest: it is shown as a pre-selected suggestion
     # tagged 'low confidence' for the person to confirm, instead of leaving the question blank.
-    rows = joint_angles(points, forward, width, height, floor)
+    rows = joint_angles(points, forward, width, height, floor,camera_side=camera_side,orientation='OBLIQUE' if oblique else 'SIDE')
     pose_slot = {'slot_no': 1, 'photo_id': 0, 'status': 'VALID', 'points': points, 'angles': rows}
     measured = []
     for item in candidates(_confirmed_slot(camera_side, forward), pose_slot, camera_side, floor):
@@ -485,12 +485,12 @@ def questions(views, measured, signals, front=()):
         _choice('neck_base', '자세', '목은 어떤가요?', {'type': 'manual', 'scope': 'COMMON', 'field': 'neck_base'},
                 [{'value': 1, 'label': '똑바로·조금 숙임(20° 이내)'}, {'value': 2, 'label': '20° 넘게 숙임'}, {'value': '2_EXTENSION', 'label': '뒤로 젖힘'}],
                 '사진의 목 각도는 참고값이라 직접 골라 주세요.'),
-        _choice('wrist_base', '자세', '손목은 얼마나 꺾이나요?', {'type': 'manual', 'scope': 'BOTH', 'field': 'wrist_base'},
+        _choice('wrist_base', '자세', '손목을 앞뒤로 얼마나 굽히거나 젖히나요?', {'type': 'manual', 'scope': 'BOTH', 'field': 'wrist_base'},
                 [{'value': 1, 'label': '15° 이내'}, {'value': 2, 'label': '15° 넘게'}]),
         _checklist('posture_flags', '자세', '해당하는 자세를 모두 골라 주세요.', [
             _flag('neck_turn', '목을 비틀거나 옆으로 기울임', ('COMMON', 'neck_twisted', 'YES', 'NO'), ('COMMON', 'neck_side_bent', None, 'NO')),
             _flag('trunk_turn', '몸통을 비틀거나 옆으로 기울임', ('COMMON', 'trunk_twisted', 'YES', 'NO'), ('COMMON', 'trunk_side_bent', None, 'NO')),
-            _flag('wrist_twist', '손목을 비틀거나 옆으로 꺾음', ('BOTH', 'wrist_deviated_or_twisted', 'YES', 'NO')),
+            _flag('wrist_twist', '손목을 비틀거나 옆으로 꺾음(앞뒤 굽힘과 별도)', ('BOTH', 'wrist_deviated_or_twisted', 'YES', 'NO')),
             _flag('arm_abducted', '팔을 옆으로 벌리거나 돌림', ('BOTH', 'arm_abducted_or_rotated', 'YES', 'NO')),
             _flag('shoulder_raised', '어깨를 으쓱 들어 올림', ('BOTH', 'shoulder_raised', 'YES', 'NO')),
             _flag('arm_supported', '팔을 받치거나 기대어 작업함', ('BOTH', 'arm_supported_or_gravity_assisted', 'YES', 'NO')),

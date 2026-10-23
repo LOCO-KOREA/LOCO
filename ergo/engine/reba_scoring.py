@@ -1,5 +1,6 @@
 """REBA_TABLE_2000_V2 candidates and scores; pure DTO functions."""
 from .task_defaults import COMMON, ARM, diagnostic
+from ergo.pose_contract import WRIST_POLICY
 import math
 
 TABLE_A = [[1,2,3,4,1,2,3,4,3,3,5,6],[2,3,4,5,3,4,5,6,4,5,6,7],[2,4,5,6,4,5,6,7,5,6,7,8],[3,5,6,7,5,6,7,8,6,7,8,9],[4,6,7,8,6,7,8,9,7,8,9,9]]
@@ -17,18 +18,26 @@ def candidates(slot, pose, camera_side, confidence_min=0.5):
         observation.get('full_frame')=='YES' and observation.get('normal_work')=='YES')
     specs = [('COMMON','trunk_base',[camera_side],'TRUNK_TILT_VERT'),('COMMON','knee_band',['LEFT','RIGHT'],'KNEE_FLEX')]
     specs += [(side,field,[side],code) for side in ['LEFT','RIGHT'] for field,code in [('upper_arm_base','UPPER_ARM_FLEX_TRUNK'),('lower_arm_base','ELBOW_FLEX')]]
+    if any(a['angle_code']==WRIST_POLICY['angle_code'] for a in angles):
+        specs += [(side,'wrist_base',[side],WRIST_POLICY['angle_code']) for side in ['LEFT','RIGHT']]
     result=[]
     for scope,field,sides,code in specs:
         refs=[a for a in angles if a['side'] in sides and a['angle_code']==code]
         usable=context_ok and len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=confidence_min for a in refs)
+        if field=='wrist_base':
+            usable=usable and all(a.get('measurement',{}).get('coordinate_space')=='ORIGINAL_IMAGE_2D' and
+                a.get('measurement',{}).get('used_world_coordinates') is False and
+                (a.get('measurement',{}).get('auto_eligible') or a.get('diagnostic_code')=='WRIST_BOUNDARY') for a in refs)
         value=None; reasons=[]
         if usable:
             angle=max(a['value_deg'] for a in refs)
             if field=='trunk_base': value=1 if angle==0 else 2 if -20<=angle<=20 else 3 if angle<=60 else 4; bounds=[-20,0,20,60]
             elif field=='upper_arm_base': value=1 if -20<=angle<=20 else 2 if angle< -20 or angle<=45 else 3 if angle<=90 else 4; bounds=[-20,20,45,90]
             elif field=='lower_arm_base': value=1 if 60<=angle<=100 else 2; bounds=[60,100]
+            elif field=='wrist_base': value=1 if angle<=WRIST_POLICY['category_boundary_deg'] else 2; bounds=[WRIST_POLICY['category_boundary_deg']]
             else: value='UNDER_30' if angle<30 else 'FROM_30_TO_60' if angle<=60 else 'OVER_60'; bounds=[30,60]
-            if any(abs(a['value_deg']-b)<=5 for a in refs for b in bounds): reasons=['BOUNDARY_REVIEW']
+            margin=WRIST_POLICY['boundary_margin_deg'] if field=='wrist_base' else 5
+            if any(abs(a['value_deg']-b)<=margin for a in refs for b in bounds) or field=='wrist_base' and any(a.get('diagnostic_code')=='WRIST_BOUNDARY' for a in refs): reasons=['BOUNDARY_REVIEW']
         if not context_ok: note=diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·전방·단일 작업자·전신·통상 작업 확인이 필요합니다','capture.observation')
         elif not usable: note=diagnostic('MISSING_ANGLE','후보에 필요한 관절·각도가 없습니다')
         else: note=None

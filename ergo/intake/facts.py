@@ -170,6 +170,15 @@ def add_photo_facts(existing, preview, views):
             f=fact(catalogue[target],measured['value'],source,' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
             f['angles']=measured['angles']
             if measured.get('low_confidence') or measured.get('boundary_review'): f['state']='ESTIMATED'
+            if measured['field']=='wrist_base' and measured.get('boundary_review'): f['measurement_diagnostic']='WRIST_BOUNDARY'
+            result[key(target)]=f
+    for issue in preview.get('measurement_issues',[]):
+        if issue['view']!=primary: continue
+        target=f"manual.{issue['scope']}.{issue['field']}"
+        prior=result.get(key(target))
+        if target in catalogue and (prior is None or prior['source'] in PHOTO_SOURCES and prior['state']=='UNKNOWN'):
+            f=fact(catalogue[target],None,source,issue['reason'])
+            f.update(measurement_diagnostic=issue['code'],angles=[issue['angle']])
             result[key(target)]=f
     if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source'] in PHOTO_SOURCES):
         result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES',source,'사진에서 앉은 자세 감지')

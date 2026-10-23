@@ -34,8 +34,9 @@ def artifact(settings):
 
 def fingerprint(settings):
     selected=contract.normalize(settings)
-    try:path,_,digest=artifact(selected);return dict(settings=selected,path=str(path),sha256=digest)
-    except (OSError,ValueError) as error:return dict(settings=selected,artifact_error=str(error))
+    wrist_policy=dict(contract.WRIST_POLICY)
+    try:path,_,digest=artifact(selected);return dict(settings=selected,path=str(path),sha256=digest,wrist_policy=wrist_policy)
+    except (OSError,ValueError) as error:return dict(settings=selected,artifact_error=str(error),wrist_policy=wrist_policy)
 
 
 def world_angles(points,confidence_min):
@@ -83,7 +84,9 @@ def process(slot,snapshot):
         if not result['points']:
             result['diagnostics']=[diagnostic('NO_PERSON','사진에서 자세를 검출하지 못했습니다')];return result
         width,height=image.size;confidence=selected['confidence_min']
-        result['angles']=angles(result['points'],slot.get('forward_direction'),width,height,confidence)
+        result['angles']=angles(result['points'],slot.get('forward_direction'),width,height,confidence,
+            camera_side=slot.get('camera_side'),orientation='SIDE' if slot.get('side_view_verified')=='YES' else None,
+            wrist_policy=(snapshot.get('pose_artifact') or {}).get('wrist_policy'))
         result['world_angles']=world_angles(result['world_points'],confidence)
         side=slot.get('camera_side');direction=slot.get('forward_direction');observation=slot.get('observation') or {}
         prefix=f"capture.slots.{slot['slot_no']}."

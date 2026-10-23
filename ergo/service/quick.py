@@ -5,6 +5,7 @@ from ergo.pose import engine as pose_engine
 from ergo.engine import quick_assess
 from ergo.engine import quick_intake
 from ergo.gpt import client as gpt_client
+from ergo.engine.wrist_angles import angles as wrist_angles
 
 VIEWS = ('LEFT', 'FRONT', 'RIGHT')
 
@@ -15,6 +16,7 @@ def handle_quick_preview(ctx, method, p):
     confidence = settings['pose_model'].get('confidence_min', 0.5)
     views, rows_by_view, side_groups, front, diagnostics = {}, {}, [], [], []
     seated = overhead = False
+    measurement_issues=[]
     for view in VIEWS:
         if view not in p['views']:
             continue
@@ -26,6 +28,7 @@ def handle_quick_preview(ctx, method, p):
         with ctx.analysis_lock:
             pose = pose_engine.process(slot, {'photos': [photo], 'settings': settings})
         guess = quick_assess.guess_view(pose['points'], confidence) if pose['points'] else None
+        rows=[]
         notes = [d for d in pose['diagnostics'] if d['code'] != 'INVALID_CAMERA']
         label = quick_assess.VIEW_KO[view]
         if not pose['points']:
@@ -50,10 +53,16 @@ def handle_quick_preview(ctx, method, p):
             seated = seated or quick_assess.seated_signal(pose['points'], near, confidence)
             rows_by_view.setdefault(near, []).extend(rows)
             side_groups.append(measured)
+        if pose['points'] and not rows:
+            rows=wrist_angles(pose['points'],photo['width_px'],photo['height_px'],confidence,
+                camera_side=(guess or {}).get('camera_side'),orientation=(guess or {}).get('orientation'))
+        for row in rows:
+            if row['angle_code']=='WRIST_FLEX_2D' and row.get('diagnostic_code') and (not guess or guess.get('orientation')=='FRONT' or row['side']==guess.get('camera_side')):
+                measurement_issues.append(dict(scope=row['side'],field='wrist_base',view=view,angle=row,reason=row['diagnostic'],code=row['diagnostic_code']))
         overhead = overhead or bool(pose['points']) and quick_assess.arm_overhead_signal(pose['points'], confidence)
         diagnostics += notes
         views[view] = dict(photo_id=photo['photo_id'], width_px=photo.get('width_px'), height_px=photo.get('height_px'),
-                           points=pose['points'], guess=guess, diagnostics=notes,engine=pose.get('engine'),
+                           points=pose['points'], angles=rows, guess=guess, diagnostics=notes,engine=pose.get('engine'),
                            world_points=pose.get('world_points',[]),world_angles=pose.get('world_angles',[]),connections=pose.get('connections',[]),quality=pose.get('quality'))
     measured = quick_assess.merge_measured(*side_groups)
     signals = quick_assess.posture_signals(rows_by_view, settings['posture_profile'])
@@ -62,7 +71,7 @@ def handle_quick_preview(ctx, method, p):
     if seated:
         signals.update(seated=True, knee_bent=False)
     score = quick_assess.provisional(measured, front, settings, seated) if measured or any(f['suggested'] for f in front) else None
-    return dict(views=views, measured=measured, front=front, score=score, signals=signals, diagnostics=diagnostics,
+    return dict(views=views, measured=measured, front=front, score=score, signals=signals, diagnostics=diagnostics,measurement_issues=measurement_issues,
                 questions=quick_assess.questions({v: views[v]['guess'] for v in views}, measured, signals, front))
 
 

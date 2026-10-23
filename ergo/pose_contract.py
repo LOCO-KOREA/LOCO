@@ -34,6 +34,25 @@ METADATA_KEYS=tuple(k for k in MODELS[DEFAULT_MODEL] if k not in KEYS and k!='ur
 PHOTO_SOURCES=('POSE','MOVENET')
 WORLD_ANGLES=(dict(code='ELBOW_FLEX_3D',label='팔꿈치 굽힘',joints=('shoulder','elbow','wrist')),
               dict(code='KNEE_FLEX_3D',label='무릎 굽힘',joints=('hip','knee','ankle')))
+# Image-plane observability heuristics, not a clinical accuracy estimate. The
+# scoring category/margin remain the existing REBA wrist contract (15 / 5 deg).
+WRIST_JOINTS=dict(mediapipe=('elbow','wrist','index','pinky','thumb'),movenet=())
+WRIST_POLICY=dict(version='WRIST_IMAGE_2D_V1',angle_code='WRIST_FLEX_2D',coordinate_space='ORIGINAL_IMAGE_2D',
+    category_boundary_deg=15.0,boundary_margin_deg=5.0,confidence_min=0.85,frame_margin_px=2.0,
+    forearm_min_px=24.0,hand_min_px=12.0,hand_forearm_min_ratio=0.12,hand_forearm_max_ratio=0.9,
+    finger_length_min_ratio=0.55,finger_axis_max_difference_deg=12.0,hand_width_max_ratio=0.18,
+    thumb_length_min_ratio=0.25,thumb_length_max_ratio=1.25,max_angle_deg=90.0,
+    sensitivity_pixel_min=1.5,sensitivity_image_ratio=0.002,max_sensitivity_deg=8.0)
+WRIST_REASONS=dict(
+    WRIST_MISSING_POINTS='사진에서 손목과 손끝 위치를 충분히 찾지 못했어요.',
+    WRIST_POINTS_LOW_CONFIDENCE='손이나 손끝이 가려져 손목 굽힘을 정확히 구분하기 어려워요.',
+    WRIST_HAND_OUT_OF_FRAME='손목이나 손끝이 사진 밖 또는 가장자리에 있어 굽힘을 확인하기 어려워요.',
+    WRIST_PROJECTION_SHORT='사진에서 손이나 팔이 너무 짧게 보여 손목 굽힘을 구분하기 어려워요.',
+    WRIST_PLANE_UNCLEAR='손바닥 방향 때문에 굽힘과 옆으로 꺾임을 사진에서 구분하기 어려워요.',
+    WRIST_FINGERS_DISAGREE='손가락 방향이 서로 달라 손목 굽힘을 안정적으로 구분하기 어려워요.',
+    WRIST_UNSTABLE='손끝 위치의 작은 차이로 손목 각도가 크게 달라져 직접 확인이 필요해요.',
+    WRIST_BOUNDARY='사진에서 잰 손목 굽힘이 15도 경계에 가까워 직접 확인이 필요해요.',
+    WRIST_DIRECTION_UNCONFIRMED='손목의 옆모습이 분명하지 않아 굽힘과 옆으로 꺾임을 구분하기 어려워요.')
 
 
 def for_model(identity):
@@ -84,4 +103,5 @@ def public_contract():
     fields=copy.deepcopy(list(FIELDS));fields[0]['choices']=[dict(value=k,label=v['name']) for k,v in MODELS.items()]
     return dict(version=VERSION,models={k:for_model(k) for k in MODELS},fields=fields,defaults=defaults(),
                 landmarks={p:list(topology(p)[0]) for p in ('mediapipe','movenet')},
-                connections={p:list(topology(p)[1]) for p in ('mediapipe','movenet')},world_angles=copy.deepcopy(WORLD_ANGLES))
+                connections={p:list(topology(p)[1]) for p in ('mediapipe','movenet')},world_angles=copy.deepcopy(WORLD_ANGLES),
+                wrist_image_measurement=dict(policy=copy.deepcopy(WRIST_POLICY),joints=copy.deepcopy(WRIST_JOINTS),reasons=copy.deepcopy(WRIST_REASONS)))
