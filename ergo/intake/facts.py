@@ -5,7 +5,7 @@ import json
 import math
 import re
 from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS
-from .grounding import evidence_quote, number_grounded, number_proof
+from .grounding import evidence_quote, number_grounded, number_proof, unknown_evidence
 from .photo_load import photo_load
 from ergo.engine.task_defaults import now
 
@@ -80,7 +80,7 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
         identity = key(field['target'],condition)
         previous = result.get(identity)
         raw_value = item.get('number') if field['kind']=='number' else item.get('text')
-        if item.get('text')=='UNKNOWN' and re.search(r'모르|모름|알\s*수\s*없|미확인',item['quote']):
+        if item.get('text')=='UNKNOWN' and unknown_evidence(item['quote']):
             if protect_photo_context and field['destination']['type'] in PHOTO_DESTINATIONS:
                 record(item,index,'UNCHANGED' if previous and previous['value'] is None else 'REJECTED',
                     None if previous and previous['value'] is None else 'PHOTO_CONTEXT_CONFIRMATION_REQUIRED',condition);continue

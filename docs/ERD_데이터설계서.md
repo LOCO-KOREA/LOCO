@@ -157,3 +157,7 @@ AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바�
 ## 실제 원문 인용과 반 시간 경계 정정 (2026-10-23)
 
 물리 스키마는 바꾸지 않는다. 기존 intake facts.quote에는 검증된 실제 연속 원문을, requests.answers.quote와 decisions.quote에는 원본 모델 인용을 보존한다. source_message_ids도 동일한 문장 검증으로 원래 메시지와 연결한다. 과거 행·snapshot을 재작성하지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
+
+## 명시적 모름 표현 보존 정정 (2026-10-23)
+
+자연어의 명시적 모름은 grounding.UNKNOWN_POLICY/unknown_evidence에서 공통 검증한다. "모릅니다"·"몰라요"·"알 수 없어요"·"미확인/확인 불가" 등은 UNKNOWN으로 보존하며 부정문이나 무관한 표현은 모름 근거로 사용하지 않는다. 숫자 0·무하중·NO를 대신 넣지 않는다. 원본 제안/출처, USER 우선권, 지연 재조정, 기존 snapshot은 보존한다. 자세한 표현과 반례는 [모름 표현 검증](verification/2026-10-23-unknown-evidence.md)을 따른다.

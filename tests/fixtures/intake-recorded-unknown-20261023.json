@@ -1,0 +1,128 @@
+{
+  "evidence": "live-field-cases-20261023/07-two-load-conditions/01-first-ai.json",
+  "statement": "포장 제품을 종류별로 나누어 운반하는 작업이에요. 하루에 가벼운 상자 5kg을 99번, 무거운 상자 30kg을 1번 들어요. 두 조건을 구분해 기록해 주세요. 하루 전체 작업은 8시간, 연 200일이며 일회성이 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 사진 물건과 두 중량의 연결은 모릅니다.",
+  "responses": {
+    "EXTRACT_AND_PLAN": {
+      "answers": [
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "하루에 가벼운 상자 5kg을 99번, 무거운 상자 30kg을 1번 들어요."
+        },
+        {
+          "target": "card.lift.load_mass_kg",
+          "condition": "가벼운 상자 5kg",
+          "number": 5,
+          "text": null,
+          "quote": "가벼운 상자 5kg을 99번"
+        },
+        {
+          "target": "card.lift.lift_count_day",
+          "condition": "가벼운 상자 5kg",
+          "number": 99,
+          "text": null,
+          "quote": "가벼운 상자 5kg을 99번"
+        },
+        {
+          "target": "card.lift.load_mass_kg",
+          "condition": "무거운 상자 30kg",
+          "number": 30,
+          "text": null,
+          "quote": "무거운 상자 30kg을 1번"
+        },
+        {
+          "target": "card.lift.lift_count_day",
+          "condition": "무거운 상자 30kg",
+          "number": 1,
+          "text": null,
+          "quote": "무거운 상자 30kg을 1번"
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 480,
+          "text": null,
+          "quote": "하루 전체 작업은 8시간",
+          "calculation": null
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성이 아니에요."
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 200,
+          "text": null,
+          "quote": "연 200일"
+        },
+        {
+          "target": "context",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습입니다."
+        },
+        {
+          "target": "load_link",
+          "condition": "default",
+          "number": null,
+          "text": "UNKNOWN",
+          "quote": "사진 물건과 두 중량의 연결은 모릅니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "work_type.repeat",
+          "condition": "default",
+          "text": "상자 들기를 같은 방식으로 계속 반복하나요?",
+          "reason": "반복 동작 여부를 확인해야 작업 특징을 구분할 수 있어요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T05:42:37.315202+00:00",
+        "elapsed_ms": 27109,
+        "response_id": "resp_0e6517953dd47b5d006adaf3b303d887d1bd8396894af0d597"
+      }
+    },
+    "FOLLOWUP": {
+      "answers": [
+        {
+          "target": "load_link",
+          "condition": "default",
+          "number": null,
+          "text": "UNKNOWN",
+          "quote": "사진 물건과 두 중량의 연결은 모릅니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "other_work",
+          "condition": "default",
+          "text": "아직 확인하지 못한 작업 중 키보드·마우스를 오래 쓰거나, 같은 동작을 반복하거나, 손을 높이 들거나, 허리·목을 굽히거나 비트는 작업이 있나요? 쪼그려 앉기, 손가락 끝으로 집기, 한 손으로 들거나 세게 쥐기, 손·무릎으로 때리는 작업도 해당돼요.",
+          "reason": "해당되는 작업 종류를 알아야 작업별 조건을 빠짐없이 기록할 수 있어요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T05:42:55.817142+00:00",
+        "elapsed_ms": 45609,
+        "response_id": "resp_0ffc46894f405fdc006adaf3ce0f7087d1bd73be4be54244ea"
+      }
+    }
+  }
+}

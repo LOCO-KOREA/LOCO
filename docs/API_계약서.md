@@ -504,3 +504,7 @@ FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJE
 ## 실제 원문 인용과 반 시간 경계 정정 (2026-10-23)
 
 요청/응답 키는 유지한다. 공통 evidence_quote는 공백 정규화 연속 인용 또는 동일 원문에서 순서/위치가 검증된 완전한 문장 인용만 인정한다. fact.quote는 실제 연속 원문, history.requests/decisions.quote는 원본 AI 인용이며 source_message_ids는 같은 규칙으로 결정한다. 숫자 검증은 원본 인용의 값·단위를 유지하고 USER 우선권·지연 응답 재조정 규칙은 바꾸지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
+
+## 명시적 모름 표현 보존 정정 (2026-10-23)
+
+자연어의 명시적 모름은 grounding.UNKNOWN_POLICY/unknown_evidence에서 공통 검증한다. "모릅니다"·"몰라요"·"알 수 없어요"·"미확인/확인 불가" 등은 UNKNOWN으로 보존하며 부정문이나 무관한 표현은 모름 근거로 사용하지 않는다. 숫자 0·무하중·NO를 대신 넣지 않는다. 원본 제안/출처, USER 우선권, 지연 재조정, 기존 snapshot은 보존한다. 자세한 표현과 반례는 [모름 표현 검증](verification/2026-10-23-unknown-evidence.md)을 따른다.

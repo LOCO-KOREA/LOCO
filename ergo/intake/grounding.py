@@ -28,6 +28,23 @@ HALF_DURATION=(r'반(?:'+ '|'.join(HALF_QUALIFIERS)+r')?(?:'+ '|'.join(HALF_PART
 DURATION=re.compile(r'(?<![\d.])('+TIME_NUMBER+r')\s*(시간|분|초)(?:\s*('+HALF_DURATION+r'))?')
 EVIDENCE_POLICY=dict(min_joined_sentences=2, sentence_end=r'(?<!\d)\.|\.(?!\d)|[!?。]')
 SENTENCE_END=re.compile(EVIDENCE_POLICY['sentence_end'])
+UNKNOWN_POLICY=dict(
+    expressions=(r'모르겠(?:습니다|어요|어|다|음|는데요?|네요)?',r'모릅니다',r'모르는데요?',r'모르고\s*있',
+                 r'모르(?:네요|네|더라|니까|므로|고요?)',r'모르(?:긴|기는)\s*(?:해|합)',
+                 r'모르는\s*(?:상태|상황|중|듯|것|거|게|건)',
+                 r'모름(?:입니다|이에요|이요|으로|이라고|이라|인|(?=$|[\s,.!?。]))',r'모른다',r'몰라(?:요|서요?|(?=$|[\s,.!?。]))',
+                 r'알\s*수(?:가|는|도)?\s*없',r'알지\s*못',r'미확인',r'미측정',
+                 r'(?:확인|파악|측정)(?:이|은|는|을|를)?\s*(?:불가능|불가|못|할\s*수(?:가|는|도)?\s*없)',
+                 r'확인(?:이|은|는)?\s*(?:되지\s*않|안\s*(?:됐|되|했|함))',
+                 r'기억(?:이|은)?\s*(?:안\s*나|나지\s*않|못|없)'),
+    denial_prefix=r'(?<!\w)(?:안|아니)\s*$',
+    denial_tail=(r'^\s*(?:(?:라고|라는)\s*(?:말|뜻|답변|의미)(?:은|는|이|가)?\s*|'
+                 r'(?:(?:하)?(?:지|진|지는|는|은|인|이|가|도|던|된))?\s*'
+                 r'(?:(?:것|거|게|건|상태|상황|항목|값|사항)(?:은|는|이|가|도)?\s*)?)'
+                 r'(?:않|아니|아님|아닌|아닙|아닐|없)'))
+UNKNOWN_EXPRESSION=re.compile('|'.join('(?:'+pattern+')' for pattern in UNKNOWN_POLICY['expressions']))
+UNKNOWN_DENIAL_PREFIX=re.compile(UNKNOWN_POLICY['denial_prefix'])
+UNKNOWN_DENIAL_TAIL=re.compile(UNKNOWN_POLICY['denial_tail'])
 # These expressions do not establish disjoint daily working periods.
 AMBIGUOUS_SUM=re.compile(r'동시|겹|중복|그중|중에서|중에|포함|휴게|휴식|점심|쉬는|제외|빼고|뺀|또는|혹은|둘\s*중|두\s*작업\s*중|[~～∼]|에서.{0,8}까지|주당|매주|일주일|매월|월당|시간당|분당|매시간|매분|분에|시간에|하루.{0,5}(?:일부|중)|더\s*있|일부\s*작업|그\s*외|나머지\s*작업')
 # Negation changes the meaning of overlap. Remove only its local negative phrase,
@@ -72,6 +89,16 @@ def evidence_quote(quote,source):
         if index is None:return None
         matched.append(sentences[index]);cursor=index+1
     return source[matched[0][0]:matched[-1][1]]
+
+
+def unknown_evidence(quote):
+    """Recognize an explicit unknown, without turning its local denial into one."""
+    if not isinstance(quote,str):return False
+    for match in UNKNOWN_EXPRESSION.finditer(quote):
+        if UNKNOWN_DENIAL_PREFIX.search(quote[:match.start()]):continue
+        if UNKNOWN_DENIAL_TAIL.match(quote[match.end():]):continue
+        return True
+    return False
 
 
 def _number(word):
