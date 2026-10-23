@@ -1,0 +1,76 @@
+{
+  "food": {
+    "title": "안전보건공단 서비스업 유해요인조사 가이드북 PART 17 보건의료 급식종사자",
+    "url": "https://oshri.kosha.or.kr/kosha/data/musculoskeletalPreventionData.do?articleNo=296690&attachNo=167320&mode=download",
+    "verified": "공식 PDF 35쪽 다운로드, 7쪽 표 렌더 확인",
+    "work_types": [
+      "식재료 운반",
+      "전처리",
+      "조리",
+      "세척",
+      "배식"
+    ],
+    "scope": "작업 유형과 조사 항목만 참고. 예시 O/X를 다른 사업장의 판정으로 사용하지 않음"
+  },
+  "goods": {
+    "title": "안전보건공단 안전보건 실무정보 제품 운반작업 사례",
+    "url": "https://www.kosha.or.kr/ebook/fcatalog/access/ecatalogt.jsp?Dir=626&callmode=normal&catimage=&eclang=ko&start=48&um=s",
+    "verified": "공식 자료 검색 본문 확인",
+    "work_types": [
+      "대차 적재",
+      "제품 운반",
+      "상하차"
+    ],
+    "scope": "운반·어깨 들림·허리 굽힘 조합만 참고. 모든 테스트 수치는 합성"
+  },
+  "counter": {
+    "title": "안전보건공단 민원인 안내 업무 재해 사례",
+    "url": "https://www.kosha.or.kr/ebook/fcatalog/access/ecatalogt.jsp?Dir=618&callmode=normal&catimage=&eclang=ko&start=2&um=s",
+    "verified": "공식 자료 검색 본문 확인",
+    "work_types": [
+      "고객 응대",
+      "앉아서 하는 업무",
+      "창고 상자 운반"
+    ],
+    "scope": "업무 혼합을 참고. 키보드 시간과 선반 정리 등은 테스트 변형"
+  },
+  "packing": {
+    "title": "안전보건공단 도금업 포장 및 출고",
+    "url": "https://www.kosha.or.kr/ebook/fcatalog/access/ecatalogt.jsp?Dir=442&callmode=normal&eclang=ko&start=32&um=s",
+    "verified": "공식 자료 검색 본문 확인",
+    "work_types": [
+      "반복 포장",
+      "제품 운반"
+    ],
+    "scope": "반복·운반 작업 유형만 참고. 입력 문장/정확한 수치는 합성"
+  },
+  "materials": {
+    "title": "안전보건공단 사출성형 원료 운반 및 투입",
+    "url": "https://www.kosha.or.kr/ebook/fcatalog/access/ecatalogt.jsp?Dir=553&callmode=normal&catimage=&eclang=ko&start=14&um=s",
+    "verified": "공식 자료 검색 본문 확인",
+    "work_types": [
+      "원료 운반",
+      "호퍼 투입"
+    ],
+    "scope": "운반·투입 작업 유형만 참고. 모델 사진은 공개 시험 사진"
+  },
+  "assembly": {
+    "title": "산업안전보건연구원 자동차조립 작업 관련 근골격계 사례",
+    "url": "https://oshri.kosha.or.kr/kosha/data/occupationalDisease.do?articleNo=348136&mode=view",
+    "verified": "공식 자료 검색 본문 확인, 직접 페이지 접근 제한",
+    "work_types": [
+      "자동차 조립라인"
+    ],
+    "scope": "조립 업무 유형만 참고. 집기·한 손 들기·충격 조합은 합성 변형"
+  },
+  "cleaning": {
+    "title": "안전보건공단 음식업 설거지·조리실 바닥 청소",
+    "url": "https://www.kosha.or.kr/ebook/fcatalog/access/ecatalogt.jsp?Dir=549&callmode=normal&catimage=&eclang=ko&start=16&um=s",
+    "verified": "공식 자료 검색 본문 확인",
+    "work_types": [
+      "설거지",
+      "바닥·덕트 청소"
+    ],
+    "scope": "청소 작업 유형만 참고. 쪼그림/무릎별 시간 및 중복은 가상 테스트 입력"
+  }
+}

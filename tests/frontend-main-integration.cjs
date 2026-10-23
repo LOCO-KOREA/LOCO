@@ -17,5 +17,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),{pathToFile
  // A new pre-photo analysis must keep both manual checkpoints and independent unsent input.
  Object.assign(flow,{step:'start',task:null,survey:null,photos:{},intakeText:'사진 선택 전에 적은 새 설명',intake:{text:'아직 보내지 않은 문장',reset(){}},answers:{},draftId:'pre-photo',render(){}});
  flow.startNew();assert.equal(deleted,0);assert.equal(drafts.get('quick','pre-photo').intakeText,'사진 선택 전에 적은 새 설명');assert.equal(drafts.get('quick','pre-photo').reply,'아직 보내지 않은 문장');assert.deepEqual(readWorkspaceDraft(),checkpoint);assert.ok(drafts.get('quick','two'));
+ writeWorkspaceDraft(null);drafts.put('quick','bare',{id:'bare',intakeText:'사진 전 설명',photos:{},savedAt:'2026-10-23'});
+ assert.match(flow.viewHome(),/data-draft="bare"/,'missing parent IDs are not evidence that two drafts are the same');
  console.log('PASS main manual checkpoint ownership, no duplicate automatic card, protected discard and independent pre-photo drafts');
 })().catch(error=>{console.error(error);process.exitCode=1;});

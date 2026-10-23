@@ -1,6 +1,7 @@
 """Independent catalogue-wide assertions, plus the actual reported 20kg journey."""
 import copy
 import unittest
+from itertools import product
 from ergo.engine.task_defaults import task_input
 from ergo.intake import contract, facts, planner
 from ergo.intake.photo_load import photo_load
@@ -9,6 +10,33 @@ from test_adaptive_intake import answer, model
 
 
 class QuestionCatalogue(unittest.TestCase):
+    def test_weight_connection_override_and_photo_combinations(self):
+        # 4 weight sets x 3 connection states x 4 explicit answers x 3 photo sets.
+        for weights,link,override,views in product([[],[0],[20],[5,30]],['YES','NO',None],
+                ['unset','unloaded','measured','unknown'],[{},dict(LEFT=1),dict(LEFT=1,RIGHT=2)]):
+            answers=[answer('work_type.lift','YES'),answer('context','YES')]
+            answers += [answer('card.lift.load_mass_kg',v,f'물건 {i}') for i,v in enumerate(weights)]
+            if link is not None:answers.append(answer('load_link',link))
+            if override=='unloaded':answers.append(answer('load','UNLOADED'))
+            if override=='measured':answers += [answer('load','MEASURED'),answer('load_kg',30)]
+            if override=='unknown':answers.append(answer('load',None))
+            saved=facts.apply_answers({},answers);before=copy.deepcopy(saved)
+            if override=='unloaded':expected=('UNLOADED',None)
+            elif override=='measured':expected=('MEASURED',30)
+            elif override=='unset' and link=='YES' and len(weights)==1:expected=('MEASURED',weights[0])
+            else:expected=('UNKNOWN',None)
+            with self.subTest(weights=weights,link=link,override=override,views=views):
+                self.assertEqual(photo_load(saved),expected)
+                task=facts.project(task_input({}),saved,views,dict(views={}))
+                candidates=planner.assess(task,saved,views)['candidates']
+                targets={q['target'] for q in candidates}
+                if expected[0]!='UNKNOWN':self.assertNotIn('load',targets)
+                if expected[1] is not None:self.assertNotIn('load_kg',targets)
+                if not views:self.assertFalse({'load','load_kg','load_link'} & targets)
+                if expected in [('UNLOADED',None),('MEASURED',0)]:
+                    self.assertFalse(any(q['target'].endswith('.coupling') for q in candidates))
+                self.assertEqual(saved,before)
+
     def test_each_field_in_an_otherwise_incomplete_task_is_not_reasked(self):
         catalogue = contract.fields(); views = dict(LEFT=1, RIGHT=2, FRONT=3)
         seed = facts.apply_answers({}, [answer(f['target'],'YES') for f in catalogue if f['destination']['type']=='work_type'] + [answer('context','YES'),answer('load','MEASURED')])
