@@ -321,6 +321,65 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  await groupClient.open(1,{});groupClient.selectGroupValue(groupMembers[1].identity,'false');let releaseGroup;groupLate=new Promise(resolve=>{releaseGroup=resolve;});
  const pendingGroup=groupClient.turn('',groupClient.selectedAnswers());await new Promise(resolve=>setImmediate(resolve));groupClient.reset();releaseGroup(structuredClone(groupState));await pendingGroup;
  assert.equal(groupClient.state,null);assert.equal(groupClient.pairValues.size,0,'a delayed group reply must not restore a reset task');
+ // Restoring saved work resets its data while the surrounding request keeps ownership.
+ // Use the actual run/reset/restoration methods so a lost timer cannot hide the final screen.
+ const storageDescriptor=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+ let restorationDraft=null;
+ Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{
+  getItem:key=>key==='loco.quick.draft.v1'?restorationDraft:null,
+  setItem:(key,value)=>{if(key==='loco.quick.draft.v1')restorationDraft=value;},
+  removeItem:key=>{if(key==='loco.quick.draft.v1')restorationDraft=null;},
+ }});
+ try {
+  for(const target of ['result','provisional','questions']) {
+   const survey={survey_id:31,created_at:'survey-lifetime',title:'saved survey'};
+   const savedTask={task_id:32,created_at:'task-lifetime',latest_analysis_id:33,capture:{slots:[]},conditions:{test_metadata:{}}};
+   const restoredState={task:savedTask,preview:{questions:[]},questions:target==='questions'?[question]:[],ai:{status:'CONNECTED'}};
+   let releaseRestore,openStarted=false,intakeResets=0,duplicateActions=0;
+   const delayedRestore=new Promise(resolve=>{releaseRestore=resolve;});
+   const restoredFlow=Object.create(QuickFlow.prototype),restorationRenders=[],restoreErrors=[];
+   Object.assign(restoredFlow,{busy:false,step:'home',settings:{gpt_enabled:true},host:{querySelectorAll:()=>[]},
+    intake:{reset(){intakeResets++;this.state=null;this.dialogOpen=false;this.text='';},hasSession:()=>true,
+     async open(){openStarted=true;this.state=await delayedRestore;return this.state;}},
+    render(){restorationRenders.push({step:this.step,busy:this.busy});},onError:error=>restoreErrors.push(error),
+    api:async method=>{
+     if(method==='get_survey')return survey;
+     if(method==='list_tasks')return [savedTask];
+     if(method==='get_task_result')return {analysis:{analysis_id:33}};
+     if(method==='get_task')return {task:savedTask,photos:[]};
+     if(method==='get_settings')return {gpt_enabled:true};
+     throw Error('Unexpected restoration API '+method);
+    },
+   });
+   restorationDraft=JSON.stringify({surveyId:31,createdAt:survey.created_at,taskId:32,photos:{},adaptive:true,
+    step:target==='questions'?'questions':'start',reply:'보존할 작성 중 답변',intakeText:'저장된 작업 설명'});
+   const restoring=target==='result'?restoredFlow.openExisting(31):restoredFlow.resumeDraft();
+   try {
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(openStarted,true,'restoration must reach the delayed intake request');
+    assert.equal(intakeResets,1,'restoration must reset stale intake data');
+    assert.equal(typeof restoredFlow.busy,'string','reset inside restoration must retain its busy label');
+    assert.ok(restoredFlow.busyTimer,'reset inside restoration must retain the owning activity timer');
+    assert.equal(typeof restoredFlow.busyStartedAt,'number','elapsed activity must continue while intake is loading');
+    await restoredFlow.run('duplicate request',async()=>{duplicateActions++;});
+    assert.equal(duplicateActions,0,'restoring work must keep concurrent user operations locked');
+   } finally {
+    releaseRestore(restoredState);
+    await restoring;
+   }
+   assert.deepEqual(restoreErrors,[]);
+   assert.equal(restoredFlow.step,target);
+   assert.equal(restoredFlow.busy,false);
+   assert.equal(restoredFlow.busyTimer,null,'completed restoration must release its timer');
+   assert.equal(restoredFlow.busyStartedAt,null,'completed restoration must release its elapsed origin');
+   assert.deepEqual(restorationRenders.at(-1),{step:target,busy:false},'the restored screen must actually be rendered after its busy state clears');
+   assert.equal(restorationRenders.length,2,'restoration should render its loading and completed screens');
+   if(target!=='result')assert.equal(restoredFlow.intake.text,'보존할 작성 중 답변');
+  }
+ } finally {
+  if(storageDescriptor)Object.defineProperty(globalThis,'localStorage',storageDescriptor);
+  else delete globalThis.localStorage;
+ }
  // A single visible question and saved fact count are not the calculation scope.
  const priorState=intake.state, priorQuestions=intake.questions;
  intake.state={...structuredClone(initial),facts:[
@@ -412,5 +471,5 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  resolve(structuredClone(state)); await request;
  assert.equal(intake.state,null,'a response from a closed workflow must not resurrect it');
  assert.equal(intake.dialog(false),'','a late response must not resurrect the progress UI either');
- console.log('PASS dynamic methods/metadata/unit/limits, choice-first writing, partial grouped answers and independent paired selections/draft ownership, zero/unknown saves, service progress boundaries, plain user status without provider metadata, reply retry without bypassing failed autosaves and stale response ownership');
+ console.log('PASS dynamic methods/metadata/unit/limits, choice-first writing, partial grouped answers and independent paired selections/draft ownership, zero/unknown saves, saved-work restoration activity ownership/final render, service progress boundaries, plain user status without provider metadata, reply retry without bypassing failed autosaves and stale response ownership');
 })().catch(error=>{console.error(error);process.exitCode=1;});

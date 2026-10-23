@@ -295,6 +295,8 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | set_legal_inputs | task_id,legal:LegalInputs | Task |
 | set_analysis_scope | task_id,scope:AnalysisScope | Task |
 | import_photos | task_id,file_paths:string[] | ImportReport |
+| preview_photo_file | file_path:string | CropSourcePreview |
+| import_cropped_photo | task_id,file_path,source_sha256,crop,task_created_at? | PhotoInfo |
 | get_photo_preview | photo:PhotoInfo | PhotoPreview |
 | update_photo | photo_id,file_path,consent:Truth | PhotoInfo |
 | delete_photo | photo_id | Ack |
@@ -441,3 +443,17 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 - 개발용 시스템 글꼴 경로와 Downloads 경로에 의존하지 않는다. 원본 출처 해시·빈 양식·배포 가능한 한글 글꼴을 자산으로 포함한다. 원본 3쪽의 예시는 실제 문자 객체에서 제거하고 작성방법 페이지는 보존한다.
 
 - 지연 PDF 저장은 출력 준비 때의 DB 경로를 유지하며, 이력 추가 트랜잭션에서 조사 생성시각도 함께 비교한다. 대상 조사가 삭제·교체됐다면 다른 조사에 이력을 붙이지 않고 파일 경로와 오류를 알린다. 이 구분은 서버가 부여한 created_at이 조사 수명별로 다르다는 기존 저장정보를 이용한다.
+
+
+## 등록 전 사진 크롭 (2026-10-22)
+
+간편 화면의 사진 선택/드롭은 원본 등록 전에 사각형 선택 대화상자를 연다. 기존 import_photos와 고급 사진 등록은 유지한다.
+
+- CropSourcePreview = {data_url:string,width_px:Count,height_px:Count,source_sha256:string}. preview_photo_file은 EXIF 보정 RGB 사진을 PNG data URL로 반환하며 DB 행이나 파일을 생성하지 않는다.
+- import_cropped_photo의 crop={x,y,width,height}는 EXIF 보정 원본의 정수 픽셀 좌표다. x/y는 0 이상, width/height는 1 이상이며 영역 전체가 사진 안이어야 한다. 원본 바이트 SHA-256이 미리보기 때와 다르면 거부한다. task_created_at을 지정하면 현재 작업 수명과 비교한다.
+- 확인 시 현재 DB 파일의 상위 폴더/media/photos 아래 고유 PNG를 저장하고 기존 PHOTO 행의 file_path에 등록한다. 원본은 덮어쓰지 않는다. 원본 경로/해시/크기와 선택 좌표는 기존 notes의 PHOTO_CROP 진단 message에 JSON으로 보존한다. 사진 크기와 분석 좌표는 크롭 이미지 기준이다.
+- 메모리 DB는 크롭 파일을 보관할 위치가 없으므로 거부한다. 새 테이블·열·물리 migration은 없다. 원본 EXIF 이외 메타데이터를 새 PNG에 복사하지 않는다.
+- DB 경로와 작업 생성시각을 고정해 처리하며 저장 전에 대상 수명을 재확인한다. 등록 실패 시 이번에 만든 파일만 정리한다. 기존 사진·분석 snapshot·출력 이력은 바꾸지 않는다. 수명 비교는 기존 created_at을 사용한다.
+- 취소하면 등록·교체·작업 생성 요청을 하지 않는다. 교체는 새 사진의 등록/미리보기 성공 후에만 화면에 반영한다. 지연 응답은 초기화/다른 화면의 사진이나 진행 상태를 덮지 않는다.
+- 크롭 파일은 참조 삭제 때 자동 삭제하지 않는다. 과거 snapshot이 계속 참조할 수 있기 때문이다. 백업·다른 PC 이동 시 DB와 media/photos를 함께 보관하며 기존 절대 사진 경로의 재연결 원칙을 따른다.
+- MoveNet·REBA와 보고서 사진은 모두 등록된 크롭 파일을 사용한다. 크롭은 사진 입력 영역 선택이며 점수·법령 판정을 직접 변경하지 않는다. 잘못된 좌표/파일/변경된 원본은 기존 FILE_ERROR, DB 오류는 DB_ERROR, 사라진 작업은 NOT_FOUND 경계를 따른다.
