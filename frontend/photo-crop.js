@@ -31,24 +31,21 @@ export function selectPhotoCrop(preview,{signal}={}){
    [data-photo-crop] h2{margin:0 0 10px}[data-photo-crop] p{font-size:14px}
    [data-photo-crop] .crop-stage{display:flex;justify-content:center;background:#eef0f5;margin:12px 0;overflow:hidden}
    [data-photo-crop] canvas{display:block;max-width:100%;max-height:52vh;width:auto;height:auto;touch-action:none;cursor:crosshair}
-   [data-photo-crop] .crop-tools,[data-photo-crop] .crop-fields,[data-photo-crop] .crop-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-   [data-photo-crop] .crop-fields label{display:flex;gap:5px;align-items:center;font-size:13px}
-   [data-photo-crop] input{width:80px;padding:7px;border:1px solid #ccd3e0;border-radius:6px}
+   [data-photo-crop] .crop-tools,[data-photo-crop] .crop-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
    [data-photo-crop] button{padding:9px 14px;border:1px solid #ccd3e0;border-radius:8px;background:#fff;color:#24324a;cursor:pointer}
    [data-photo-crop] button[aria-pressed=true],[data-photo-crop] button[data-confirm]{background:#6259de;color:white}
    [data-photo-crop] button:disabled{opacity:.5;cursor:default}[data-photo-crop] .crop-actions{justify-content:flex-end;margin-top:14px}
   </style><h2>사진 영역 선택</h2>
   <p>드래그해서 사용할 영역을 선택하세요. 분석할 작업자의 머리와 발이 포함되도록 선택해 주세요.</p>
   <div class="crop-tools"><button type="button" data-mode="draw" aria-pressed="true">영역 그리기</button><button type="button" data-mode="adjust" aria-pressed="false">이동·크기 조절</button><button type="button" data-full>전체 선택</button></div>
-  <div class="crop-stage"><canvas aria-label="크롭할 사진. 아래 숫자로도 영역을 조절할 수 있습니다."></canvas></div>
-  <div class="crop-fields">${[['x','왼쪽'],['y','위쪽'],['width','너비'],['height','높이']].map(([key,label])=>`<label>${label}<input type="number" step="1" min="${key==='x'||key==='y'?0:1}" data-crop-field="${key}" aria-label="선택 영역 ${label}">px</label>`).join('')}</div>
+  <div class="crop-stage"><canvas aria-label="크롭할 사진. 마우스로 영역을 그리거나 이동·크기를 조절하세요."></canvas></div>
   <p data-crop-status role="status"></p><div class="crop-actions"><button type="button" data-cancel>취소</button><button type="button" data-confirm disabled>선택 영역 등록</button></div>`;
   const canvas=dialog.querySelector('canvas'),context=canvas.getContext('2d'),image=new Image();
   const w=preview.width_px,h=preview.height_px;
   // A bounded display canvas avoids allocating a second full-resolution bitmap.
   const scale=Math.min(1,1600/Math.max(w,h));canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
   let rect={x:0,y:0,width:w,height:h},mode='draw',drag=null,loaded=false,settled=false;
-  const fields=[...dialog.querySelectorAll('[data-crop-field]')],status=dialog.querySelector('[data-crop-status]'),confirm=dialog.querySelector('[data-confirm]');
+  const status=dialog.querySelector('[data-crop-status]'),confirm=dialog.querySelector('[data-confirm]');
   function finish(value,error){
    if(settled)return;settled=true;signal?.removeEventListener('abort',cancel);window.removeEventListener('pagehide',cancel);
    if(dialog.open)dialog.close();dialog.remove();
@@ -56,10 +53,9 @@ export function selectPhotoCrop(preview,{signal}={}){
    if(error)reject(error);else resolve(value);
   }
   function cancel(){finish(null);}
-  function draw(updateFields=true){
+  function draw(){
    const valid=validRect(rect,w,h);confirm.disabled=!loaded||!valid;
-   status.textContent=valid?`선택 영역 ${rect.width} × ${rect.height}px · 원본 ${w} × ${h}px`:'사진 안에서 너비와 높이가 1px 이상인 영역을 선택해 주세요.';
-   if(updateFields)for(const field of fields)field.value=rect[field.dataset.cropField];
+   status.textContent=!loaded?'사진을 불러오고 있어요…':valid?'선택한 영역만 사진으로 등록돼요.':'사진 안에서 사용할 영역을 드래그해 주세요.';
    if(!loaded)return;
    const sx=canvas.width/w,sy=canvas.height/h;
    context.clearRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
@@ -94,7 +90,6 @@ export function selectPhotoCrop(preview,{signal}={}){
   canvas.addEventListener('pointermove',updateDrag);
   canvas.addEventListener('pointerup',event=>{updateDrag(event);if(drag?.pointer===event.pointerId){drag=null;canvas.releasePointerCapture(event.pointerId);}});
   canvas.addEventListener('pointercancel',()=>{drag=null;});
-  for(const field of fields)field.addEventListener('input',()=>{rect={...rect,[field.dataset.cropField]:field.value.trim()===''?NaN:Number(field.value)};draw(false);});
   for(const button of dialog.querySelectorAll('[data-mode]'))button.addEventListener('click',()=>{
    mode=button.dataset.mode;for(const b of dialog.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b===button));
    canvas.style.cursor=mode==='draw'?'crosshair':'move';
