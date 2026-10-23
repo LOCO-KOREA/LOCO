@@ -1,3 +1,4 @@
+import {userText} from '../user-language.js';
 /* Display labels and input options. Domain calculations stay in Python. */
 const exposureNames={
   C1_KEYBOARD_FOCUSED:'집중 키보드·마우스 사용',C2_NECK:'목 반복 동작',C2_SHOULDER:'어깨 반복 동작',C2_ELBOW:'팔꿈치 반복 동작',C2_WRIST:'손목 반복 동작',C2_HAND:'손 반복 동작',C3_UNION:'3호 자세의 중복을 제외한 시간',
@@ -23,7 +24,7 @@ const reasonNames={COMBINATION_RULE:'여러 조건을 합산하는 해석 확인
 
 function inputLabel(path){
   const parts=String(path).split('.');
-  if(parts[0]==='analysis_scope')return ({pose:'MoveNet 사용',tags:'자세 기술태그 사용',reba:'REBA 사용',judgment:'11개 기준 사용'}[parts[1]]||'분석 범위');
+  if(parts[0]==='analysis_scope')return ({pose:'사진 자세 분석 사용',tags:'자세 기술태그 사용',reba:'REBA 사용',judgment:'11개 기준 사용'}[parts[1]]||'분석 범위');
   const exposure=parts.find(p=>exposureNames[p]);
   if(exposure)return exposureNames[exposure]+' 시간';
   const field=parts.at(-1);
@@ -41,7 +42,7 @@ function inputLabel(path){
 
 function reasonText(reason){return reasonNames[reason]||'추가 확인 필요';}
 
-function valueText(value){return value===null||value===undefined?'미입력':({YES:'예',NO:'아니오',UNKNOWN:'미확인'}[value]??String(value));}
+function valueText(value){return value===null||value===undefined?'미입력':({YES:'예',NO:'아니오',UNKNOWN:'미확인'}[value]??userText(String(value)));}
 
 function basisText(basis){
   const units={MIN_DAY:'분/일',KG:'kg',KG_EQUIV:'kg 상당',COUNT_DAY:'회/일',COUNT_MIN:'회/분',COUNT_HOUR:'회/시간',MONTH:'개월',COUNT_YEAR:'일/년',BOOLEAN:''};

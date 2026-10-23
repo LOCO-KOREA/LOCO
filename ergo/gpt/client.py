@@ -3,8 +3,9 @@ import json
 from ergo import ai_config as config
 from .intake import request as adaptive_intake
 from .payload import explanation_schema, validate_content
+from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V5'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V6'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -14,7 +15,9 @@ SYSTEM_PROMPT=(
     '모든 수치는 입력 요약 안의 값만 사용하고, 근거 없는 수치는 쓰지 마세요. '
     'basis_refs에는 요약의 근거 코드(item_code, 예: C01-B01)만 그대로 쓰고 값이나 설명을 덧붙이지 마세요. '
     '해당 여부를 확정하거나 "판정되었다"고 단정하지 말고 "계산 초안으로는 해당"처럼 초안·후보 표현을 쓰세요. '
-    'criteria에는 1호부터 11호까지 11개 항목을 빠짐없이 순서대로 쓰세요. 입력이 없거나 해당 여부와 무관한 호도 한 문장으로 상태만 설명하세요. 한국어로 간결하게 답하세요.'
+    'criteria에는 1호부터 11호까지 11개 항목을 빠짐없이 순서대로 쓰세요. 입력이 없거나 해당 여부와 무관한 호도 한 문장으로 상태만 설명하세요. 한국어로 간결하게 답하세요. '
+    '사용자에게 보이는 본문에는 상태 코드나 개발 용어를 쓰지 마세요. 아래 용어는 뜻에 맞는 한국어로 풀어 쓰세요. '
+    + json.dumps(TERMS,ensure_ascii=False)
 )
 
 INTAKE_PROMPT_VERSION='LOCO_INTAKE_V2'

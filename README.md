@@ -53,3 +53,7 @@ Electron 검증에는 공식 모델과 `.local/fixtures/tensorflow-movenet-examp
 ## 적응형 추가 확인
 
 사진·작업 설명에서 얻은 정보를 자동 저장하고 필요한 항목만 추가 질문하는 흐름은 [적응형 입력 계약](docs/adaptive-intake.md)을 따른다. 새 운영 승인/배포 차단 절차는 추가하지 않는다.
+
+## 자세 엔진
+
+현재 기본값은 MediaPipe Pose Landmarker Heavy다. Full과 과거 MoveNet은 설정에서 선택한다. `python -m pip install -r requirements-desktop.txt`, `python scripts/download_pose_models.py`로 환경/두 모델을 준비한다. `ergo/pose_contract.py`의 단일 registry와 `ergo/pose/providers`의 adapter를 사용하며 [자세 엔진 계약](docs/pose-engine.md)을 따른다. `python scripts/compare_pose_models.py`는 공개 주석 4사진/인물 12개 ROI에서 Heavy/Full을 비교한다. 화면 밖 실스택은 `LOCO_LIVE_AI=1`, `LOCO_LIVE_MODEL=gpt-6-luna`, `LOCO_LIVE_REASONING_EFFORT=xhigh`, `LOCO_LIVE_POSE_MODEL=mediapipe-heavy`로 `npm --prefix frontend run test:adaptive:full-live`를 실행한다.

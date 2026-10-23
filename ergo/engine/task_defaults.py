@@ -1,8 +1,9 @@
 """Task DTO defaults. New work uses the general 2.0 contract; historical reads live in ergo.legacy.v13."""
 from datetime import datetime, timezone
 from ergo import ai_config
+from ergo import pose_contract
 
-PREPROCESS_VERSION = 'EXIF_OPENCV_LETTERBOX_V2'
+PREPROCESS_VERSION = pose_contract.MODELS[pose_contract.DEFAULT_MODEL]['preprocess_version']
 AUXILIARY_CONDITION_KEYS = ('intake_session',)
 
 EXPOSURE_V2 = ['C1_KEYBOARD_FOCUSED', 'C2_NECK', 'C2_SHOULDER', 'C2_ELBOW', 'C2_WRIST', 'C2_HAND', 'C3_UNION', 'C4_NECK_FLEX', 'C4_TRUNK_FLEX', 'C4_NECK_TWIST', 'C4_TRUNK_TWIST', 'C4_UNION', 'C5_SQUAT', 'C5_KNEEL', 'C5_UNION']
@@ -46,7 +47,7 @@ def task_input(draft):
         manual=draft.get('manual', []), analysis_scope=draft.get('analysis_scope', dict(judgment=True, pose=False, tags=False, reba=False)), legacy_input=None)
 
 def default_settings():
-    return dict(analysis=dict(pose_model=dict(name='MoveNet Lightning singlepose TFLite float16', version='4', preprocess_version=PREPROCESS_VERSION, input_size=192, point_count=17, confidence_min=0.5), posture_profile=dict(version='POSTURE_TECH_V1', neck_forward_deg=20, trunk_flex_deg=20, trunk_extension_deg=-20, upper_arm_raise_deg=45), reba_rule='REBA_TABLE_2000_V2', burden_rule='MOEL_2020_12_GENERAL_V2'), **ai_config.defaults(), ui=dict(loco_visible=True,loco_mode='normal'))
+    return dict(analysis=dict(pose_model=pose_contract.defaults(), posture_profile=dict(version='POSTURE_TECH_V1', neck_forward_deg=20, trunk_flex_deg=20, trunk_extension_deg=-20, upper_arm_raise_deg=45), reba_rule='REBA_TABLE_2000_V2', burden_rule='MOEL_2020_12_GENERAL_V2'), **ai_config.defaults(), ui=dict(loco_visible=True,loco_mode='normal'))
 
 def exclusions(c):
     m, d = c.get('planned_duration_months'), c.get('annual_work_days')

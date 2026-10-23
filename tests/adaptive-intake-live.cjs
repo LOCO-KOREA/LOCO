@@ -3,7 +3,7 @@ const {_electron}=require('../frontend/node_modules/playwright');
 const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),directory=process.env.LOCO_VERIFY_DIR||path.join(root,'.local',`adaptive-live-${Date.now()}`);
 const text='20kg 상자를 하루 30번 옮기는 작업입니다. 하루 전체 작업시간은 8시간이고 연 220일 하며 일회성 작업은 아닙니다. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 사진에서도 이 20kg 상자를 들고 있고 양손으로 잡기 좋은 손잡이가 있습니다.';
-let app,page; const receipt={kind:'external OpenAI account + real Electron/Python/SQLite/MoveNet; synthetic work statement and public photo',checks:[],errors:[]};
+let app,page; const receipt={kind:'external OpenAI account + real Electron/Python/SQLite/pose engine; synthetic work statement and public photo',checks:[],errors:[]};
 async function api(method,params={}){const r=await page.evaluate(async p=>window.loco.call(p.method,p.params),{method,params});assert.equal(r.ok,true,JSON.stringify(r.error));return r.value;}
 // Choice questions start with quick replies; these scenarios explicitly use free-text fallback.
 async function fillIntakeReply(text) {
@@ -42,11 +42,11 @@ async function main(){
   assert.equal(await page.locator('[data-intake-question^="task_name@"]').count(),0,'work title must not interrupt an already-described task');
  receipt.checks.push('actual OpenAI extracts and saves the stated values through the UI without reasking them');
  receipt.model=process.env.LOCO_LIVE_MODEL;receipt.task_id=task.task_id;receipt.ai_fact_count=facts.filter(f=>f.source==='AI').length;
- receipt.photo_point_count=17; // verified below from the actual saved preview endpoint
+ receipt.photo_point_count=null; // verified below from the actual saved preview endpoint
  const session=await api('intake_session',{task_id:task.task_id});
  assert.equal(session.ai.status,'CONNECTED');assert.equal(session.ai.model,settings.gpt_model);assert.ok(session.ai.response_id?.startsWith('resp_'),'actual success is recorded by the service, independently of hidden connection labels');
  assert.ok(!(await page.locator('[data-intake-dialog]').innerText()).includes(settings.gpt_model),'model details must stay out of the user dialog');
- receipt.photo_point_count=session.preview.views.RIGHT.points.length;assert.equal(receipt.photo_point_count,17);
+ receipt.photo_point_count=session.preview.views.RIGHT.points.length;assert.equal(receipt.photo_point_count,(await api('get_settings')).analysis.pose_model.point_count);
  receipt.reason=session.reason;receipt.questions=session.questions.map(q=>({target:q.target,text:q.text}));
   await fillIntakeReply('이 20kg 상자를 1분에 1번씩 하루 30분 들어 올려요. 지금 말한 20kg 조건이 이 작업의 모든 조건입니다.');
   await page.locator('[data-quick="adaptive-next"]').click();

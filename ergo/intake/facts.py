@@ -1,41 +1,22 @@
 """Grounded values and projection onto the existing task DTO. No database access."""
 import copy
+from ergo.pose_contract import PHOTO_SOURCES
 import json
 import math
 import re
-from .contract import fields, key, POLICY, PHOTO_VIEWS, LIFT_FIELDS
+from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS
+from .grounding import number_grounded, number_proof
+from .photo_load import photo_load
 from ergo.engine.task_defaults import now
 
-NUMBER_WORDS = {'한':1,'하나':1,'두':2,'둘':2,'세':3,'셋':3,'네':4,'넷':4,'다섯':5,'여섯':6,'일곱':7,'여덟':8,'아홉':9,'열':10,'스무':20}
-NUMBER = r'(\d+(?:\.\d+)?|스무|여덟|일곱|여섯|다섯|아홉|하나|둘|셋|넷|한|두|세|네|열)'
+TITLE_SENTENCE_END=re.compile(r'(?<!\d)\.|\.(?!\d)|[!?。\n]')
 
+def initial_title(text):
+    return TITLE_SENTENCE_END.split(text,1)[0][:POLICY['auto_title_length']].strip()
 
 def evidence(fact):
-    source = 'OTHER' if fact['source'] in ('AI','MOVENET') else 'INTERVIEW'
+    source = 'OTHER' if fact['source'] in ('AI',*PHOTO_SOURCES) else 'INTERVIEW'
     return dict(source=source, text=f"{fact['source']}: {fact.get('quote','')}", observed_at=fact.get('updated_at') or now())
-
-
-def number_grounded(value, quote, unit, *, bare=False):
-    def number(s): return NUMBER_WORDS[s] if s in NUMBER_WORDS else float(s)
-    text = re.sub(r'\s+', '', quote).lower()
-    minute_rate=bool(re.search(r'분당|매분|(?<![\d.])(?:1|한)?분에|/분',text))
-    hour_rate=bool(re.search(r'시간당|매시간|(?<![\d.])(?:1|한)?시간에|/시간',text))
-    day_rate=bool(re.search(r'하루|일일|일당|/일',text))
-    if unit=='회/분' and not minute_rate and not bare: return False
-    if unit=='회/시간' and not hour_rate and not bare: return False
-    if unit=='회/일' and (minute_rate or hour_rate): return False
-    if unit=='일' and re.search(r'주당|매주|주\d|월당|매월',text): return False
-    units = {'kg': [('kg',1),('킬로그램',1),('킬로',1),('g',.001)],
-             'kg 상당': [('kg',1),('킬로',1)], '분': [('시간',60),('분',1),('초',1/60)],
-             '일': [('일',1)], '회/일': [('번',1),('회',1)], '회/시간': [('번',1),('회',1)],
-             '회/분': [('번',1),('회',1)],'개월':[('개월',1),('달',1)]}
-    choices = units.get(unit, units['분'] if unit.startswith('분') else [])
-    for suffix, scale in choices:
-        for match in re.finditer(NUMBER + re.escape(suffix), text):
-            observed = number(match.group(1))*scale
-            if suffix=='시간' and text[match.end():].startswith('반'): observed += 30
-            if math.isclose(value, observed, abs_tol=1e-6): return True
-    return bool(bare and re.fullmatch(r'\d+(?:\.\d+)?',text) and math.isclose(value,float(text)))
 
 
 def normalize(field, raw, *, unknown=False):
@@ -63,48 +44,83 @@ def fact(field, value, source, quote='', condition=None, *, previous=None):
                 quote=quote,updated_at=now(), conflict=None)
 
 
-def merge_model(existing, raw, text, *, focus=(), prior_texts=()):
+def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None, reconcile=False, preserve_conflicts=False, protect_photo_context=False):
     result, dropped = copy.deepcopy(existing), []
     catalogue = {f['target']: f for f in fields()}
-    for item in raw if isinstance(raw,list) else []:
+    def record(item,index,outcome,reason=None,condition=None):
+        if outcomes is not None:
+            outcomes.append(dict(proposal_index=index,target=item.get('target') if isinstance(item,dict) else None,
+                condition=condition or (item.get('condition') if isinstance(item,dict) else None) or POLICY['default_condition'],
+                quote=item.get('quote') if isinstance(item,dict) else None,outcome=outcome,reason=reason,
+                proposed_value=(item.get('number') if item.get('number') is not None else item.get('text')) if isinstance(item,dict) else None))
+        if outcome=='REJECTED':dropped.append(dict(target=item.get('target') if isinstance(item,dict) else None,
+            condition=condition or (item.get('condition') if isinstance(item,dict) else None) or POLICY['default_condition'],
+            reason=reason,proposal_index=index))
+    for index,item in enumerate(raw if isinstance(raw,list) else []):
         if not isinstance(item,dict) or item.get('target') not in catalogue:
-            dropped.append(dict(reason='UNKNOWN_TARGET')); continue
+            record(item,index,'REJECTED','UNKNOWN_TARGET'); continue
         field = catalogue[item['target']]
         if not field['ai_writable']:
-            dropped.append(dict(target=field['target'],reason='EXPLICIT_FIELD_SELECTION_REQUIRED')); continue
+            record(item,index,'REJECTED','EXPLICIT_FIELD_SELECTION_REQUIRED'); continue
         quote = item.get('quote')
         current_quote=isinstance(quote,str) and re.sub(r'\s+','',quote) in re.sub(r'\s+','',text)
         prior_quote=isinstance(quote,str) and any(re.sub(r'\s+','',quote) in re.sub(r'\s+','',prior) for prior in prior_texts)
         if not isinstance(quote,str) or not quote.strip() or not (current_quote or prior_quote):
-            dropped.append(dict(target=field['target'],reason='QUOTE_NOT_IN_TEXT')); continue
+            record(item,index,'REJECTED','QUOTE_NOT_IN_TEXT'); continue
         condition = item.get('condition') or POLICY['default_condition']
-        if not isinstance(condition,str) or len(condition)>80: continue
+        if not isinstance(condition,str) or len(condition)>80:
+            record(item,index,'REJECTED','BAD_CONDITION'); continue
         if not field['conditioned']: condition=POLICY['default_condition']
         focused = [f for f in focus if f['target']==field['target']]
         if condition==POLICY['default_condition'] and len(focused)==1: condition=focused[0]['condition']
         identity = key(field['target'],condition)
+        previous = result.get(identity)
         raw_value = item.get('number') if field['kind']=='number' else item.get('text')
         if item.get('text')=='UNKNOWN' and re.search(r'모르|모름|알\s*수\s*없|미확인',quote):
-            if result.get(identity,{}).get('source')!='USER':
-                result[identity]=fact(field,None,'USER',quote,condition); result[identity]['origin']='AI'
+            if protect_photo_context and field['destination']['type'] in PHOTO_DESTINATIONS:
+                record(item,index,'UNCHANGED' if previous and previous['value'] is None else 'REJECTED',
+                    None if previous and previous['value'] is None else 'PHOTO_CONTEXT_CONFIRMATION_REQUIRED',condition);continue
+            if previous and (not current_quote or reconcile) and previous.get('quote')!=quote:
+                record(item,index,'REJECTED','STALE_QUOTE',condition);continue
+            if previous and previous['source']=='USER':
+                record(item,index,'UNCHANGED' if previous['value'] is None else 'REJECTED',
+                       None if previous['value'] is None else 'USER_VALUE_KEPT',condition);continue
+            result[identity]=fact(field,None,'USER',quote,condition); result[identity]['origin']='AI'
+            record(item,index,'ACCEPTED',condition=condition)
             continue
         try: value = normalize(field,raw_value)
         except ValueError:
-            dropped.append(dict(target=field['target'],reason='BAD_VALUE')); continue
-        if value is None: continue
-        if field['kind']=='number' and not number_grounded(value,quote,field['unit'],bare=bool(focused) and current_quote):
-            dropped.append(dict(target=field['target'],reason='UNIT_OR_NUMBER_NOT_GROUNDED')); continue
-        previous = result.get(identity)
+            record(item,index,'REJECTED','BAD_VALUE',condition); continue
+        if value is None:
+            record(item,index,'REJECTED','EMPTY_VALUE',condition); continue
+        proof=None
+        if field['kind']=='number':
+            source_text=text if current_quote else next(prior for prior in prior_texts if re.sub(r'\s+','',quote) in re.sub(r'\s+','',prior))
+            proof=number_proof(field,value,quote,bare=bool(focused) and current_quote,context=source_text+' '+text,
+                               source=source_text,calculation=item.get('calculation'))
+            if proof is None:
+                record(item,index,'REJECTED','UNIT_OR_NUMBER_NOT_GROUNDED',condition); continue
         if previous and previous['value']!=value and not current_quote:
-            dropped.append(dict(target=field['target'],reason='STALE_QUOTE')); continue
+            record(item,index,'REJECTED','STALE_QUOTE',condition); continue
         if previous and previous['source']=='USER':
-            if previous['value']!=value: dropped.append(dict(target=field['target'],reason='USER_VALUE_KEPT'))
+            record(item,index,'REJECTED' if previous['value']!=value else 'UNCHANGED',
+                   'USER_VALUE_KEPT' if previous['value']!=value else None,condition)
             continue
+        if protect_photo_context and field['destination']['type'] in PHOTO_DESTINATIONS:
+            record(item,index,'UNCHANGED' if previous and previous['value']==value else 'REJECTED',
+                None if previous and previous['value']==value else 'PHOTO_CONTEXT_CONFIRMATION_REQUIRED',condition);continue
+        if previous and previous['state']=='CONFLICT' and (not current_quote or preserve_conflicts or reconcile):
+            record(item,index,'REJECTED','CONFLICT',condition);continue
+        if reconcile and previous and previous['value']==value:
+            record(item,index,'UNCHANGED',condition=condition);continue
         if previous and previous['state']=='KNOWN' and previous['value']!=value:
-            if field['destination']['type']!='task':
+            if field['destination']['type']!='task' or reconcile:
                 result[identity] = dict(previous,state='CONFLICT',conflict=dict(value=value,quote=quote))
+                record(item,index,'REJECTED','CONFLICT',condition)
                 continue
         result[identity] = fact(field,value,'AI',quote,condition)
+        if proof and proof.get('operation'):result[identity]['calculation']=proof
+        record(item,index,'ACCEPTED',condition=condition)
         if field['gate']:
             gate = catalogue['work_type.'+field['gate']]
             gate_key = key(gate['target'])
@@ -125,8 +141,8 @@ def apply_answers(existing, answers, candidates=()):
         identity=key(field['target'],condition)
         prior=result.get(identity)
         result[identity] = fact(field,value,'USER',item.get('quote') or '직접 입력',condition)
-        if prior and prior['source']=='MOVENET' and prior['value']==value:
-            result[identity].update(origin='MOVENET',quote='사진 추정 확인: '+prior['quote'],angles=prior.get('angles',[]))
+        if prior and prior['source'] in PHOTO_SOURCES and prior['value']==value:
+            result[identity].update(origin=prior['source'],quote='사진 추정 확인: '+prior['quote'],angles=prior.get('angles',[]))
         if field['target']=='other_work' and value in ('NO',None):
             for other in catalogue.values():
                 identity=key(other['target'])
@@ -138,21 +154,22 @@ def apply_answers(existing, answers, candidates=()):
 def add_photo_facts(existing, preview, views):
     result=copy.deepcopy(existing); catalogue={f['target']:f for f in fields()}
     primary=next((v for v in PHOTO_VIEWS if v in views),None)
+    source='POSE' if (preview.get('views',{}).get(primary,{}).get('engine') or {}).get('provider')=='mediapipe' else 'MOVENET'
     for view,data in preview.get('views',{}).items():
         direction=(data.get('guess') or {}).get('forward_direction')
         target='view_'+view
-        if direction and target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source']=='MOVENET'):
-            result[key(target)]=fact(catalogue[target],direction,'MOVENET','사진에서 바라보는 방향 추정')
+        if direction and target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
+            result[key(target)]=fact(catalogue[target],direction,source,'사진에서 바라보는 방향 추정')
     for measured in preview.get('measured',[]):
         if measured['view']!=primary: continue
         target=f"manual.{measured['scope']}.{measured['field']}"
-        if target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source']=='MOVENET'):
-            f=fact(catalogue[target],measured['value'],'MOVENET',' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
+        if target in catalogue and (key(target) not in result or result[key(target)]['state']=='UNKNOWN' and result[key(target)]['source'] in PHOTO_SOURCES):
+            f=fact(catalogue[target],measured['value'],source,' / '.join(str(a['value_deg'])+'°' for a in measured['angles']))
             f['angles']=measured['angles']
             if measured.get('low_confidence') or measured.get('boundary_review'): f['state']='ESTIMATED'
             result[key(target)]=f
-    if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source']=='MOVENET'):
-        result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES','MOVENET','사진에서 앉은 자세 감지')
+    if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source'] in PHOTO_SOURCES):
+        result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES',source,'사진에서 앉은 자세 감지')
     return result
 
 
@@ -162,10 +179,7 @@ def project(task, facts, views, preview):
     known=lambda target: (facts.get(key(target)) or {}).get('value')
     primary=next((v for v in PHOTO_VIEWS if v in views),None)
     context=known('context'); usable=context=='YES'
-    load_state=known('load') or 'UNKNOWN'; load_kg=known('load_kg')
-    masses={f['value'] for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['state']=='KNOWN'}
-    if known('load_link')=='YES' and len(masses)==1: load_kg=next(iter(masses)); load_state='MEASURED'
-    if load_kg is not None and load_state=='UNKNOWN': load_state='MEASURED'
+    load_state, load_kg = photo_load(facts)
     slots=[]
     for i,view in enumerate(v for v in PHOTO_VIEWS if v in views):
         guess=(preview.get('views',{}).get(view) or {}).get('guess') or {}
@@ -195,9 +209,9 @@ def project(task, facts, views, preview):
             for n in destination['criteria']: value['legal']['criteria'][n-1]['rows_complete']=val or 'UNKNOWN'
         elif kind=='manual' and primary_id is not None:
             identity=(1,destination['scope'],destination['field'])
-            if val is None or item['state']=='ESTIMATED' or item['source']=='MOVENET' and not usable:
+            if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not usable:
                 manual.pop(identity,None); continue
-            source='AUTO_ACCEPTED' if item['source']=='MOVENET' else 'INTERVIEW'
+            source='AUTO_ACCEPTED' if item['source'] in PHOTO_SOURCES else 'INTERVIEW'
             ev=evidence(item)
             if source=='AUTO_ACCEPTED': ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True))
             manual[identity]=dict(slot_no=1,photo_id=primary_id,scope=destination['scope'],field=destination['field'],value=val,source=source,evidence=ev)
@@ -221,8 +235,11 @@ def project(task, facts, views, preview):
         # The user must state completeness; the presence of one extracted row is not proof.
         criterion['rows_complete']=known('complete.'+next(f['gate'] for f in catalogue.values() if f['destination'].get('type')=='complete' and n in f['destination']['criteria'])) or criterion.get('rows_complete','UNKNOWN')
     if primary_id is not None and (load_state=='UNLOADED' or load_state=='MEASURED' and load_kg==0):
+        load_fact=facts.get(key('load')) if load_state=='UNLOADED' else facts.get(key('load_kg'))
+        if known('load_link')=='YES' and load_state=='MEASURED' and load_kg==0 and load_fact is None:
+            load_fact=next(f for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['value']==0 and f['state']=='KNOWN')
         for side in ('LEFT','RIGHT'):
-            manual[(1,side,'coupling')]=dict(slot_no=1,photo_id=primary_id,scope=side,field='coupling',value='NOT_APPLICABLE',source='INTERVIEW',evidence=dict(source='INTERVIEW',text='물건 없음',observed_at=now()))
+            manual[(1,side,'coupling')]=dict(slot_no=1,photo_id=primary_id,scope=side,field='coupling',value='NOT_APPLICABLE',source='INTERVIEW',evidence=dict(source='INTERVIEW',text='물건 없음',observed_at=(load_fact or {}).get('updated_at')))
     value['manual']=list(manual.values())
     value['analysis_scope']=dict(judgment=True,pose=bool(slots),tags=bool(slots),reba=bool(slots))
     return value

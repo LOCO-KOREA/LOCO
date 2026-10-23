@@ -122,8 +122,34 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 
 AI 입력 정리·후속 질문·설명 생성은 공통 설정 계약(`ergo/ai_config.py`, API 계약서 §6)을 공유한다. 모델·추론 강도·요청 시간·토큰 한도는 변수이며, 두 설정 화면도 서버 필드 정의로 렌더링한다. APP_SETTINGS의 기존 JSON에 저장하며 테이블·이전 분석 snapshot은 추가/변경하지 않는다.
 
+## MediaPipe 자세 엔진 개정 (2026-10-22)
+
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.
+
 ### PDF 출력 영수증 JSON (2026-10-22 개정안)
 
 기존 EXPORT_LOG 테이블을 그대로 쓴다. receipt_json에 format:'PDF', template_version, template_sha256, page_count, task_ids, analysis_ids, warnings와 기존 상태 필드를 저장한다. snapshot_json에는 선택한 Task/분석과 출력 시점 조사 메타를 저장한다. format이 없는 기존 영수증은 Excel이며 기존 sheets 필드는 보존한다. PDF 영수증은 페이지를 sheets라고 저장하지 않는다. 새 테이블·열·trigger·물리 migration 없이 새 출력 행만 추가한다.
 
 PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at을 확인한 뒤 추가한다. 기존 Excel 호출의 동작/저장 행은 변경하지 않는다. 서버 생성시각의 수명별 구분을 이용하며 물리 migration은 없다.
+
+### 하루 시간 합산 정정 (2026-10-22)
+
+2026-10-23: 같은 선택 JSON fact.calculation에 검증한 피연산자 원문·분 값·합계를 저장한다. 복합 단위 정규화 근거의 operation은 `NORMALIZE_STATED_DURATION`이다. 실제 사용자 원문은 기존 messages에 유지하며 기존 여섯 테이블·컬럼과 과거 분석/출력 snapshot은 재작성하지 않는다. AI 응답 객체와 정규화한 저장 객체의 구분은 [적응형 계약](adaptive-intake.md)을 따른다.
+
+intake fact의 선택 calculation 객체에 연산·단위·피연산 원문과 분 값·합계를 저장한다. 기존 TASK.input_json과 불변 snapshot JSON의 확장이며 여섯 테이블은 유지한다. 자세한 근거 검증과 예외는 [적응형 추가 확인 계약](adaptive-intake.md)의 작업별 시간 합산 절을 따른다.
+
+
+## 입력 저장 감사 7건 정정 (2026-10-23)
+
+기존 TASK.input_json.conditions.intake_session의 messages에 선택 message_id, turns에 회차별 requests/decisions/decision_history를 추가한다. 응답의 history/diagnostics는 같은 JSON에서 계산한다. 새 테이블·열·물리 migration 없이 과거 snapshot을 보존한다. 저장 전 초안은 DB 경로와 레코드 생성시각으로 구분한 Electron localStorage에 따로 보관한다. JSON 상세는 [저장 계약](storage-persistence.md)을 따른다.
+
+
+## 실호출 입력·출력 대조 정정 (2026-10-23)
+
+AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바깥 형태가 다르지만, 공통 catalogue destination으로 연결한다. 기존 facts/messages/turns 및 TaskInput→AnalysisSnapshot→ExportSnapshot의 JSON 값·조건·단위·출처 보존을 검증한다. 여섯 테이블·물리 스키마와 과거 snapshot은 바꾸지 않는다. 상세는 [저장·출력 보존 계약](storage-persistence.md)을 따른다.
+### 실호출 조회·경합 정정
+
+기존 TASK JSON의 intake_session.turns에 선택 rebased_from_revision과 사진 문맥 확인 진단을 보존한다. 파생 별칭과 무하중 손잡이 근거는 읽을 때 재생성하지 않는다. DB·분석·출력의 공통 TaskInput을 실제 JSON과 Excel 셀로 대조한다. 테이블·열·migration 추가는 없다. [저장 계약](storage-persistence.md) 참조.
+
+
+2026-10-23 최신 main 통합: 중복 질문·용어 표시 수정은 기존 여섯 테이블/JSON 계약을 사용하며 물리 스키마 변경이 없다. 사진 하중 별칭은 계산 시 공통 해석하고 조회로 fact/revision을 만들지 않는다. 과거 분석·출력 snapshot과 사용자 원문은 보존한다. [점검 기록](verification/2026-10-23-main-no-repeat.md) 참조.

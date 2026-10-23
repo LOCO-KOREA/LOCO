@@ -1,10 +1,10 @@
-/* External OpenAI and actual Electron/Python/SQLite/MoveNet/Excel; no OS input. */
+/* External OpenAI and actual Electron/Python/SQLite/MediaPipe/Excel; no OS input. */
 const {_electron}=require('../frontend/node_modules/playwright');
 const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),directory=process.env.LOCO_VERIFY_DIR||path.join(root,'.local',`full-live-e2e-${Date.now()}`);
 const text='20kg 상자를 하루 30번 옮기는 합성 작업입니다. 하루 전체 작업시간은 8시간이고 연 220일 하며 일회성 작업은 아닙니다. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 사진에서도 이 20kg 상자를 들고 있고 양손으로 잡기 좋은 손잡이가 있습니다.';
 let app,page,waitMs;
-const receipt={kind:'actual external OpenAI + offscreen Electron/Python/SQLite/MoveNet/Excel; synthetic statement/public photo',checks:[],errors:[],runtime:[]};
+const receipt={kind:'actual external OpenAI + offscreen Electron/Python/SQLite/MediaPipe/Excel; synthetic statement/public photo',checks:[],errors:[],runtime:[]};
 const pass=name=>{receipt.checks.push(name);console.log('PASS '+name);};
 async function api(method,params={}){const r=await page.evaluate(async p=>window.loco.call(p.method,p.params),{method,params});assert.equal(r.ok,true,JSON.stringify(r.error));return r.value;}
 async function poll(read,predicate){const end=Date.now()+waitMs;while(Date.now()<end){const value=await read();if(predicate(value))return value;await new Promise(resolve=>setTimeout(resolve,100));}throw Error('State did not settle within the configured AI request budget');}
@@ -31,7 +31,7 @@ async function main(){
  if(process.env.LOCO_LIVE_AI!=='1'||!process.env.OPENAI_API_KEY||!process.env.LOCO_LIVE_MODEL)throw Error('Set LOCO_LIVE_AI=1, OPENAI_API_KEY and LOCO_LIVE_MODEL for this external test.');
  const defaults=JSON.parse(require('node:child_process').execFileSync(process.env.LOCO_PYTHON||path.join(root,'.venv/Scripts/python.exe'),['-c','import json;from ergo.ai_config import defaults;print(json.dumps(defaults()))'],{cwd:root,encoding:'utf8'}));
  waitMs=(2*defaults.gpt_timeout_seconds+60)*1000;await fs.mkdir(directory,{recursive:true});await launch();
- const settings=await api('get_settings');delete settings.gpt_key_present;settings.gpt_enabled=true;settings.gpt_model=process.env.LOCO_LIVE_MODEL;settings.gpt_reasoning_effort=process.env.LOCO_LIVE_REASONING_EFFORT??defaults.gpt_reasoning_effort;receipt.request_settings=Object.fromEntries(settings.gpt_contract.fields.map(f=>[f.key,settings[f.key]]));await api('update_settings',{settings});
+ const settings=await api('get_settings');delete settings.gpt_key_present;settings.gpt_enabled=true;settings.gpt_model=process.env.LOCO_LIVE_MODEL;settings.gpt_reasoning_effort=process.env.LOCO_LIVE_REASONING_EFFORT??defaults.gpt_reasoning_effort;const poseId=process.env.LOCO_LIVE_POSE_MODEL||settings.analysis.pose_model.model_id;settings.analysis.pose_model={...settings.pose_contract.models[poseId]};receipt.pose_model=settings.analysis.pose_model;receipt.request_settings=Object.fromEntries(settings.gpt_contract.fields.map(f=>[f.key,settings[f.key]]));await api('update_settings',{settings});
  await page.locator('[data-quick="new"]').click();
  // Native file dialogs alone are automated; actual image bytes and the actual output writer are used.
  await app.evaluate(({dialog},photo)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[photo]});},path.join(root,'.local/fixtures/tensorflow-movenet-example.jpeg'));
@@ -46,10 +46,10 @@ async function main(){
  assert.equal(await page.locator('[data-intake-dialog] [data-intake-question]').count(),1);
  for(const target of ['card.lift.load_mass_kg','card.lift.lift_count_day','daily_work_min','context','one_off','task_name'])assert.equal(await page.locator(`[data-intake-question^="${target}@"], [data-intake-pair-pick^="${target}@"], [data-intake-group-value^="${target}@"]`).count(),0,target+' must not be reasked');
  assert.ok(await page.locator('[data-intake-question]').count()<=contract.policy.question_limit);
- let next=await api(contract.methods.session,{task_id:task.task_id});assert.equal(next.preview.views.RIGHT.points.length,17);
+ let next=await api(contract.methods.session,{task_id:task.task_id});assert.equal(next.preview.views.RIGHT.points.length,settings.analysis.pose_model.point_count);assert.equal(next.preview.views.RIGHT.engine.model_id,settings.analysis.pose_model.model_id);assert.equal(next.preview.views.RIGHT.world_points.length,settings.analysis.pose_model.point_count);receipt.pose_engine=next.preview.views.RIGHT.engine;
  assert.equal(next.ai.status,'CONNECTED');assert.equal(next.ai.model,settings.gpt_model);assert.equal(next.ai.reasoning_effort,settings.gpt_reasoning_effort);assert.ok(next.ai.response_id?.startsWith('resp_'));receipt.connection=next.ai;
  const followupText=await page.locator('[data-intake-dialog]').innerText();assert.ok(!followupText.includes(settings.gpt_model),'the actual model is verified through the service DTO, not exposed to the user');
- pass('actual AI and MoveNet save stated values; the UI asks only missing fields');
+ pass('actual AI and pose engine save stated values; the UI asks only missing fields');
  receipt.model=process.env.LOCO_LIVE_MODEL;receipt.task_id=task.task_id;receipt.survey_id=survey.survey_id;receipt.ai_fact_count=facts.filter(f=>f.source==='AI').length;
  receipt.initial_questions=next.questions.map(q=>({target:q.target,text:q.text}));await shot('01-followup');
  await fillIntakeReply('이 20kg 상자를 1분에 1번씩 하루 30분 들어 올려요. 지금 말한 20kg 조건이 이 작업의 모든 조건입니다.');
@@ -59,7 +59,7 @@ async function main(){
  next=await api(contract.methods.session,{task_id:task.task_id});assert.ok(!next.questions.some(q=>q.target==='card.lift.lift_rate_min'||q.target==='card.lift.minutes'));
  pass('second actual AI turn fills rate and duration on the same 20kg condition');
  await page.keyboard.press('Escape');await page.locator('[data-intake-dialog]').waitFor({state:'detached'});
- await page.locator('.intake-summary summary').click();
+ await page.locator('.intake-summary > details:first-child > summary').click();
  const durationIdentity=next.facts.find(f=>f.target==='daily_work_min').identity;
  await page.locator(`[data-intake-edit="${durationIdentity}"]`).click();await page.locator(`[data-intake-value="${durationIdentity}"]`).fill('420');await page.locator('.quick-steps').click();
  await poll(()=>api('get_task',{task_id:task.task_id}),r=>r.task.conditions.daily_work_min===420&&r.task.conditions[meta].facts[durationIdentity].source==='USER');
@@ -91,7 +91,7 @@ async function main(){
  await page.locator('[data-intake-dialog] [data-quick="next"]').click();await page.locator('[data-quick="review"]').waitFor();
  const analysis=(await api('get_task_result',{task_id:task.task_id})).analysis;
  assert.equal(analysis.judgment.judgments.length,11);assert.equal(analysis.snapshot.conditions.daily_work_min,420);assert.ok(analysis.snapshot.legal.criteria[7].rows.some(r=>r.load_mass_kg===20&&r.lift_count_day===30));
- assert.ok(analysis.pose.slots.some(p=>p.points.length===17));assert.ok(analysis.judgment.judgments.some(j=>j.computed_status==='NEEDS_INPUT'));
+ assert.ok(analysis.pose.slots.some(p=>p.points.length===settings.analysis.pose_model.point_count&&p.engine.model_id===settings.analysis.pose_model.model_id));assert.ok(analysis.pose.slots.every(p=>p.world_points.length===settings.analysis.pose_model.point_count&&p.world_angles.every(a=>!a.used_for_reba)));receipt.world_point_count=analysis.pose.slots[0].world_points.length;assert.ok(analysis.judgment.judgments.some(j=>j.computed_status==='NEEDS_INPUT'));
  const snapshot=JSON.stringify(analysis.snapshot),judgment=JSON.stringify(analysis.judgment),reba=JSON.stringify(analysis.reba);
  receipt.analysis_id=analysis.analysis_id;await shot('03-result');pass('incomplete inputs still produce a real 11-criterion result with the corrected snapshot');
  await page.locator('[data-quick="review"]').click();await page.locator('[data-quick="gen-ai"]').click();await idle();
@@ -102,11 +102,14 @@ async function main(){
  assert.equal(JSON.stringify(stored.snapshot),snapshot);assert.equal(JSON.stringify(stored.judgment),judgment);assert.equal(JSON.stringify(stored.reba),reba);
  await page.locator('[data-rev="reviewer"]').fill('합성 E2E 검토자');await page.locator('[data-rev="note"]').fill('숨김 창 실스택 검증');await page.locator('[data-quick="reviewed"]').click();await idle();
  assert.equal((await api('get_survey',{survey_id:survey.survey_id})).review.reviewed,true);await shot('04-review');pass('actual AI explanation applies and review saves without changing the calculation snapshot');
- await page.locator('[data-quick="preview"]').click();await page.locator('.quick-tabs [role="tab"]').first().waitFor();
+ // Main now defaults to the PDF form. Verify that preview, then use the retained advanced Excel UI.
+ await page.locator('[data-quick="preview"]').click();await page.locator('iframe[title="유해요인조사표 PDF 미리보기"]').waitFor();
+ await page.locator('[data-quick="detail"]').click();await page.locator('[data-nav="S08"]').click();
+ await page.locator('[data-nav="S08"][aria-current="page"]').waitFor();await page.locator('[data-action="export"]').waitFor();
  const workbook=path.join(directory,'actual-live-report.xlsx');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},workbook);
- await page.locator('[data-quick="excel"]').click();await page.locator('.quick-ok').filter({hasText:'저장한 파일:'}).waitFor();assert.ok((await fs.stat(workbook)).size>1000);
+ await page.locator('[data-action="export"]').click();await poll(()=>fs.stat(workbook).catch(()=>null),Boolean);assert.ok((await fs.stat(workbook)).size>1000);
  const logs=await api('list_export_logs',{survey_id:survey.survey_id});assert.equal(logs.length,1);receipt.workbook=workbook;
- await shot('05-excel');pass('UI preview and real Excel writer produce a workbook and an export snapshot');
+ await shot('05-excel');pass('main PDF preview and retained advanced Excel UI produce a workbook and an export snapshot');
  await app.close();await launch();await page.locator(`[data-open="${survey.survey_id}"]`).click();await page.locator('[data-quick="review"]').waitFor();
  stored=(await api('get_task_result',{task_id:task.task_id})).analysis;assert.equal(stored.analysis_id,analysis.analysis_id);assert.equal(JSON.stringify(stored.snapshot),snapshot);assert.equal(JSON.stringify(stored.judgment),judgment);assert.ok(stored.ai.some(a=>a.is_active&&a.text_id===generated.text_id));
  assert.equal((await api('get_survey',{survey_id:survey.survey_id})).review.reviewed,true);await page.locator('[data-quick="review"]').click();await page.locator('[data-quick="unreview"]').waitFor();await shot('06-reopened');

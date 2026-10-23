@@ -185,15 +185,15 @@ type ManualValue = {
 ~~~typescript
 type ModuleState = 'NOT_REQUESTED'|'NOT_CALCULATED'|'RUNNING'|'COMPLETE'|'INCOMPLETE'|'FAILED'|'CANCELED';
 type ModuleStates = {pose:ModuleState,tags:ModuleState,reba:ModuleState,judgment:ModuleState};
-type PoseModel = {name:string,version:string,preprocess_version:string,input_size:192,point_count:17,confidence_min:0.5};
+type PoseModel = {model_id:string,provider:string,variant:string,name:string,version:string,preprocess_version:string,input_size:Count,point_count:Count,confidence_kind:string,model_path:string,model_sha256:string,confidence_min:Number,detection_min:Number,presence_min:Number};
 type PostureProfile = {version:'POSTURE_TECH_V1',neck_forward_deg:Number,trunk_flex_deg:Number,trunk_extension_deg:Number,upper_arm_raise_deg:Number};
 type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V2',burden_rule:'MOEL_2020_12_GENERAL_V2'};
 type TaskSnapshot = TaskInput & {task_id:ID,input_revision:Count,photos:PhotoInfo[],settings:AnalysisSettings};
 type SlotStatus = 'PENDING'|'VALID'|'INVALID'|'ERROR'|'CANCELED'|'NOT_PROCESSED';
 type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX';
-type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number};
+type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number,confidence_kind?:string,visibility?:Number,presence?:Number,z_normalized?:Number};
 type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null};
-type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[]};
+type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[],engine?:PoseModel & {actual_model_sha256:string,contract_version:string},world_points?:{point_no:Count,name:string,x_m:Number,y_m:Number,z_m:Number,confidence:Number}[],world_angles?:{side:Side,angle_code:string,label:string,value_deg:Number|null,coordinate_space:string,used_for_reba:false}[],connections?:[string,string][]};
 type PoseResult = {status:'RUNNING'|'DONE'|'PARTIAL_REVIEW'|'FAILED'|'CANCELED',valid_count:Count,total_slot_count:Count,terminal_error:string|null,slots:SlotPoseResult[]};
 type TagCode = 'NECK_FORWARD_PROXY'|'TRUNK_FLEX'|'TRUNK_EXT'|'UPPER_ARM_RAISE'|'HAND_ABOVE_HEAD'|'ELBOW_ABOVE_SHOULDER'|'ELBOW_BEHIND_TRUNK'|'NECK_TWIST'|'TRUNK_TWIST'|'SQUAT'|'KNEEL';
 type SlotTag = {slot_no:Count,tag:TagCode,value:Truth,source:'ANGLE'|'MANUAL'|'UNKNOWN'};
@@ -262,8 +262,9 @@ type AiTextView = {text:AiText,source_current:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
 type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
 type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,gpt_key_present:boolean,ui:UiPreferences};
-type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'>;
+type PoseContract = {version:string,models:Record<string,PoseModel>,fields:object[],defaults:PoseModel,landmarks:Record<string,string[]>,connections:Record<string,[string,string][]>,world_angles:object[]};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,pose_contract:PoseContract,gpt_key_present:boolean,ui:UiPreferences};
+type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'|'pose_contract'>;
 ~~~
 
 서비스가 저장된 결과로 NumericSummary를 만든다. 원본 사진·좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label을 보내지 않는다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
@@ -424,6 +425,10 @@ get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_
 
 AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_settings.gpt_contract={version,fields,defaults}`다. `gpt_contract`와 `gpt_key_present`는 읽기 메타데이터로 DB에 저장하지 않는다. 이전 설정의 누락 필드는 공통 기본값으로 읽고 기존 명시값과 분석 snapshot은 보존한다. 실제 응답 메타데이터는 입력 session.last_ai 및 설명 connection에 저장한다. 설정 변경 후 이전 호출을 새 설정의 연결 성공으로 표시하지 않는다.
 
+## MediaPipe 자세 엔진 개정 (2026-10-22)
+
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.
+
 ## 원본 별지 1 PDF 출력 계약 (2026-10-22 개정안)
 
 사용자 보고서 흐름은 Excel 미리보기·저장을 유지한다. PDF 미리보기·저장은 간편·고급 사용자 화면에 노출하지 않으며, 아래 절은 내부 PDF API에만 적용한다. Excel API와 영수증 계약은 유지한다. 이 절은 PDF에 적용하며, 앞의 Excel 시트 설명은 Excel 출력에만 적용한다. 이 문서는 후보 코드에 대응하는 개정안이며 실제 main 반영·배포 완료 보고가 아니다.
@@ -465,3 +470,33 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 ## 기본 간편 입력: 묶음 서식 (2026-10-23)
 
 새 서비스 응답의 `form_fields`가 있으면 간단 확인 횟수 제한/개별 질문 대신 작업 특징 → 작업 조건 → 결과의 고정 이동을 사용한다. 첫 화면에 작업 특징을 함께 표시하고 저장 후 해당 작업의 관련 조건을 선택·숫자 서식으로 묶어 표시한다. 관련된 KNOWN 값은 미리 표시하며 변경한 값만 기존 intake_turn.answers로 저장한다. 조건별 identity를 유지하고 서로 다른 중량·횟수를 합치지 않는다. 선택 보완인 사진 자세는 접을 수 있다. 미선택은 NO/0으로 자동 채우지 않으며 미확인 상태로 결과를 생성할 수 있다. 화면 단계 표시는 계산 완성률을 뜻하지 않는다. 결과 이동 후 개별 누락 질문을 자동으로 이어가지 않는다. 추가 설명은 선택 영역에서 AI로 정리할 수 있고 서식 선택·숫자 저장에는 AI 요청을 하지 않는다. 기존 응답의 questions/progress/complete는 호환·실제 계산 상태로 유지한다. form_fields가 없는 과거 초안은 기존 질문 화면으로 읽는다.
+
+### 하루 시간 합산 정정 (2026-10-22)
+
+2026-10-23 추가: 허용 derivations가 있는 AI 답변에는 nullable `calculation={operation,terms:[{quote,minutes}]}`을 schema의 필수 키로 생성한다. 합산하지 않는 답변은 null이며 과거 이 키 없는 응답도 읽는다. 서비스는 원문 위치·피연산자별 분 환산·중복·최종 합계를 검사하고 정규화한 fact.calculation만 저장한다. 저장 객체는 `{operation,unit,terms,value}`이며 복합 단위 하나의 정규화는 `NORMALIZE_STATED_DURATION`이다. 다른 노출에 총시간 합산 권한을 추가하지 않는다. 예시·실패 경계는 [적응형 계약](adaptive-intake.md)을 따른다.
+
+intake_contract.fields[].derivations는 허용 수치 연산을 기술한다. daily_work_min만 SUM_STATED_DURATIONS를 허용하며, 합산 fact의 선택 calculation={operation,unit,terms:[{minutes,quote}],value}에 검증된 근거를 반환한다. AI의 답변 schema는 기존 quote/number를 유지한다. 자세한 근거 검증과 예외는 [적응형 추가 확인 계약](adaptive-intake.md)의 작업별 시간 합산 절을 따른다.
+
+
+## 입력 저장 감사 7건 정정 (2026-10-23)
+
+intake_session/intake_turn 응답에 diagnostics와 history를 추가한다. messages의 message_id와 회차의 requests[phase,connection.response_id,answers,context]·decisions[proposal_index,request_index,outcome,reason,source_message_ids]를 기존 JSON에 보관한다. INPUT_CHANGED는 늦은 제안의 폐기 표식이 아니다. 같은 작업이면 최신 값에 재조정한 결과와 보존한 제안/진단을 반환한다. 명시한 글자 예산이 없으면 저장된 자연어 전체를 문맥에 포함한다. 상세 DTO·호환·소유권은 [저장 계약](storage-persistence.md)을 따른다.
+
+
+## 실호출 입력·출력 대조 정정 (2026-10-23)
+
+FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJECTED로 기록한다. 반영 후 질문 후보를 갱신하고 USER 값과 미해결 CONFLICT를 지킨다. 과거 IGNORED/FOLLOWUP_ONLY 회차는 호환 열람하며 재작성하지 않는다. 메서드/매개변수와 물리 DB 스키마는 유지한다. 상세는 [저장·출력 보존 계약](storage-persistence.md)을 따른다.
+
+자연어 단독 turn은 오래된 expected_revision도 최신 상태에 재조정하고 선택 `history[].rebased_from_revision`을 기록한다. 구조화 직접 답변의 저장 경합은 INPUT_CHANGED이며 저장 성공이 아니다. 사진 소유 문맥을 확인할 수 없는 제안은 PHOTO_CONTEXT_CONFIRMATION_REQUIRED로 보관한다. 조회에 따른 파생 별칭/무하중 손잡이의 revision 변화를 제거한다. 기존 요청 매개변수와 여섯 테이블은 유지한다.
+
+
+
+## 최신 main 통합과 재질문 방지 (2026-10-23)
+
+최신 main의 Excel 출력·사진 크롭·공통 이동과 2단계 묶음 확인을 기준으로 MediaPipe 및 저장 보완만 추가한다. 이미 KNOWN인 값과 USER가 모름으로 확인한 항목은 새 질문/질문 묶음에 넣지 않는다. 간편 묶음 서식에서도 기본 추가 입력에서 제외하고 닫힌 ‘이미 확인한 정보 · 수정하기’에서만 수정한다. 조건별 행과 좌우 사진의 identity를 유지하며 한 조건의 답을 다른 조건에 복사하지 않는다. ESTIMATED·CONFLICT 및 새 사진에 연결되지 않은 정보는 확인할 수 있다.
+
+사진과 같은 물건이라고 확인한 유일 중량은 photo_load의 공통 해석으로 계산과 질문에 함께 사용한다. 이 파생값을 새 사실로 저장하거나 조회 revision을 올리지 않는다. 여러 중량, 확인하지 않은 연결, 명시적인 모름·무하중·직접 중량은 구분한다. 자동 저장과 수동 임시 저장이 같은 작업/생성시각을 가리키면 홈의 이어서 하기 카드는 수동 저장 하나로 표시한다. 별도 작업 초안은 보존한다.
+
+사용자에게 보이는 시스템 용어는 frontend/user-language.json을 공통 사전으로 사용한다. 화면의 AI 본문·처리 상태·계산 근거 및 Excel 설명은 같은 뜻의 한국어로 표시한다. 과거 저장된 원문·직접 입력 근거·계산 코드·수치·단위·snapshot은 바꾸지 않는다. 새 AI 설명 지침에도 같은 사전을 제공하며 근거 참조 코드는 유지한다. 묶음 입력에서 미전송한 추가 설명은 다음 단계 저장과 함께 처리하고, 입력 단계와 수정 중 선택값은 초안 복원 대상이다.
+
+검증 범위와 실제 호출 증거는 [최신 main 재질문 점검](verification/2026-10-23-main-no-repeat.md)에 기록한다. 외부 호출 없이 검사한 계약 조합과 실제 모델·앱·DB·Excel 실행은 구분한다.

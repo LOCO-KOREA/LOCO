@@ -24,7 +24,7 @@
 - `intake_session {task_id,views?}` → 세션 복원/생성, 사진 측정 저장, 현재 상태. `views`는 방향→같은 작업 사진 ID이며 빈 객체도 가능하다.
 - `intake_turn {task_id,text?,answers?,expected_revision?,plan?,focus?,task_created_at?}` → 직접 답변을 우선 저장한다. `plan=true`이고 구조화한 `answers`만 있으며 `text`가 비어 있으면 외부 AI 재호출 없이 저장 후 다음 질문을 로컬 계획한다. 자유문장 추출과 `answers`·`text`가 모두 빈 명시적 재시도는 기존 AI 경로를 유지한다. `plan=false`는 직접 편집 자동 저장 경로다. AI 실패 시에도 직접 답변과 기존 값은 유지한다.
 
-직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,progress,complete,judgments,reba,preview,reason,dropped,messages,ai}`다. `ai`는 `{status,model,reasoning_effort,requested_reasoning_effort,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED로 기록하지 않는다. 사용자 팝업에서는 모델·추론 강도·연결 성공 상태를 숨기고 처리 중·실패만 일반 안내로 표시한다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
+직접 답변은 `{target,condition,value,quote?}`, 현재 질문 문맥은 `{target,condition}`이다. 회차 응답은 `{task,contract,facts,questions,remaining_count,progress,complete,judgments,reba,preview,reason,dropped,diagnostics,history,messages,ai}`다. `ai`는 `{status,model,reasoning_effort,requested_reasoning_effort,reason,observed_at?,elapsed_ms?,response_id?}`이며 NOT_REQUESTED/CONNECTED/ERROR 중 하나다. 실제 응답 결과를 `session.last_ai`에 저장하며 설정·키의 존재만으로 CONNECTED로 기록하지 않는다. 사용자 팝업에서는 모델·추론 강도·연결 성공 상태를 숨기고 처리 중·실패만 일반 안내로 표시한다. `complete=false`여도 현재 정보로 결과를 생성할 수 있다.
 
 질문 항목은 선택적으로 `paired_question`을 포함한다. 서비스는 현재 누락 후보에 같은 manual 항목의 반대쪽(LEFT/RIGHT)이나 반대쪽 사진 방향(`view_LEFT`/`view_RIGHT`)이 있을 때만 기존 질문 DTO 형태의 짝 질문을 붙인다. KNOWN이거나 USER가 UNKNOWN으로 답한 쪽은 다시 묻지 않는다. 이는 서비스가 만든 표시 메타데이터이며 AI가 임의로 짝 질문을 만들지 않는다. 최상위 `questions`는 한 항목을 유지한다. 관련 항목 묶음은 선택적으로 `answer_questions:[AdaptiveIntakeQuestion,...]`와 `group_title:string`을 포함한다. 각 member는 고유 target·condition·identity와 선택지를 유지하며 중첩 pair/group은 포함하지 않는다. `answer_questions`가 있으면 그 목록을 사용하고 root의 짝 질문을 중복 표시하지 않는다.
 
@@ -32,7 +32,7 @@
 
 각 fact는 `{target,condition,value,state,source,quote,updated_at,conflict?,angles?,origin?}`다. 상태는 KNOWN(사용 가능), ESTIMATED(사진에서 읽었으나 낮은 신뢰도/경계), UNKNOWN(모름·재확인), CONFLICT(서로 다른 진술)다. 출처는 USER/AI/MOVENET/SAVED다. 대상 항목의 type과 choices에서 모델 응답의 항목별 schema를 생성해 숫자/선택 값이 섞이지 않게 한다. 낮은 신뢰도 추정은 후보로 저장하고 한 번의 사용 선택으로 반영할 수 있다. 실제 관측값으로 몰래 승격하지 않는다.
 
-AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target,condition,text,reason}]`다. 답변 근거는 이번 문장이나 최근 저장된 사용자 진술에 실제로 있어야 하며 숫자와 단위도 일치해야 한다. 과거 진술은 더 최신 값이나 직접 입력을 덮어쓰지 못한다. 질문 문구는 바꿀 수 있지만 target·condition·입력 선택지와 계산값은 모델이 변경하지 않는다. 점수·해당 여부·조사자 결론은 AI 출력 대상이 아니다.
+AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target,condition,text,reason}]`다. 답변 근거는 이번 문장이나 저장된 사용자 진술에 실제로 있어야 하며 숫자와 단위도 일치해야 한다. 과거 진술은 더 최신 값이나 직접 입력을 덮어쓰지 못한다. 질문 문구는 바꿀 수 있지만 target·condition·입력 선택지와 계산값은 모델이 변경하지 않는다. 점수·해당 여부·조사자 결론은 AI 출력 대상이 아니다.
 
 ## 중복 제거와 의미
 
@@ -85,3 +85,35 @@ AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target
 ## 기본 간편 입력: 묶음 서식 (2026-10-23)
 
 새 서비스 응답의 `form_fields`가 있으면 간단 확인 횟수 제한/개별 질문 대신 작업 특징 → 작업 조건 → 결과의 고정 이동을 사용한다. 첫 화면에 작업 특징을 함께 표시하고 저장 후 해당 작업의 관련 조건을 선택·숫자 서식으로 묶어 표시한다. 관련된 KNOWN 값은 미리 표시하며 변경한 값만 기존 intake_turn.answers로 저장한다. 조건별 identity를 유지하고 서로 다른 중량·횟수를 합치지 않는다. 선택 보완인 사진 자세는 접을 수 있다. 미선택은 NO/0으로 자동 채우지 않으며 미확인 상태로 결과를 생성할 수 있다. 화면 단계 표시는 계산 완성률을 뜻하지 않는다. 결과 이동 후 개별 누락 질문을 자동으로 이어가지 않는다. 추가 설명은 선택 영역에서 AI로 정리할 수 있고 서식 선택·숫자 저장에는 AI 요청을 하지 않는다. 기존 응답의 questions/progress/complete는 호환·실제 계산 상태로 유지한다. form_fields가 없는 과거 초안은 기존 질문 화면으로 읽는다.
+
+## 작업별 시간 합산 근거 (2026-10-22)
+
+`fields[].derivations`는 숫자 근거 검증에서 허용하는 연산의 목록이다. 하루 총시간에만 `SUM_STATED_DURATIONS`를 허용한다. AI가 하루 일정으로 나열한 서로 다른 작업별 시간을 선택하고, 검증기는 원문·단위 변환·피연산자·합계를 독립 확인한다. `하고` 같은 특정 연결어는 필수 조건이 아니다. `및`·문장 나열·“총 작업은…”도 같은 근거를 표현할 수 있다. 예를 들어 “손을 높이 드는 걸 한 2시간 하고 키보드 작업 6시간 해”는 각 노출 120/360분을 유지하고 전체를 480분으로 기록한다. 원문에 “8시간”이 따로 없다는 이유로 버리지 않는다.
+
+AI 응답의 하루 총시간은 `calculation:null|{operation,terms:[{quote,minutes},...]}`을 포함한다(2026-10-23). 합산에는 허용 연산과 원문 순서의 서로 다른 작업시간을 넣고, 단일 수치·모름에는 null을 넣는다. 이 응답 schema는 `fields[].derivations`에서 생성하며 다른 필드에는 계산 객체를 허용하지 않는다. 피연산자 수 제한은 `grounding.MAX_DURATION_TERMS`, 단위와 수사 처리는 같은 모듈의 공통 변수다. 모델 ID·추론 강도는 기존 AI 공통 설정을 따른다.
+
+각 term의 인용은 전체 quote와 실제 사용자 원문 안에 있어야 하며 같은 원문 위치를 두 번 사용할 수 없다. `1시간 30분`·`한 시간 삼십분`은 90분인 한 수량이며 1시간/30분을 각각 독립 작업으로 떼지 않는다. `2시간(120분)`을 통째로 인용해도 두 단위가 같음을 확인한 뒤 한 번만 센다. 불일치 환산·잘못된 합계·총합 수치를 다시 피연산자로 사용한 중복은 거부한다. 과거 계산 객체 없는 응답의 단순 시간 나열도 읽되, 괄호 환산·별도 총합이 섞인 복잡한 인용은 구조화한 피연산자가 필요하다.
+
+저장된 fact의 선택 `calculation={operation,unit,terms:[{minutes,quote}],value}`는 검증기가 정규화한 근거다. 복합 단위 하나를 분으로 변환한 근거의 operation은 `NORMALIZE_STATED_DURATION`이다. 이 값은 기존 conditions.daily_work_min으로 투영되어 결과/Excel이 같은 값을 쓴다. 다른 노출 필드도 복합 시간 단위는 읽지만, 여러 작업 노출을 더해 총시간으로 만드는 합산 권한은 없다. 사진/노출 행을 임의로 더하지 않는다. 겹침·포함·동시 작업·휴식·범위·다른 주기·부분 일정은 단순 합산에서 제외한다. 특정 동작의 범위 시간이 별도로 있어도 원문에 직접 명시한 확정 총시간은 그 범위와 구분해 읽는다. USER 직접 값·모름 우선권과 과거 분석 snapshot 불변성은 유지한다. 이 절의 과거 검증은 AUD-04에 해당한다. 다른 7건의 후속 정정 계약은 아래 저장 보완을 따른다.
+
+
+## 저장 보완 (2026-10-23)
+
+[AI 입력·초안·처리 이력 저장 계약](storage-persistence.md)이 새 초안·문맥·진단·늦은 응답 처리의 정본이다. 원문은 경과 시간이나 최근 회수로 폐기하지 않는다. 늦은 응답도 현재 작업에 재조정하여 비충돌 정보는 저장하고 충돌 제안은 보관한다. 저장 대기 중 종료한 값과 목적/이력별 미저장 설명도 복구한다. 물리 여섯 테이블과 과거 snapshot은 유지한다.
+
+
+## 실호출 10회 후 보완
+
+FOLLOWUP의 새 사실도 검증 후 저장하고 이미 채운 항목을 후속 질문에서 제외한다. 동일 회차의 반복 제안은 CONFLICT를 해소하지 않는다. 시간 합산 검증은 명시적인 겹침 부정을 긍정 겹침으로 해석하지 않으며, 같은 문장의 별도 긍정 겹침·휴식·포함·미확인 시간은 계속 단순 합산에서 제외한다. 출력의 값/단위/조건/출처/근거는 [저장·출력 보존 계약](storage-persistence.md)을 따른다.
+
+
+
+## 최신 main 통합과 재질문 방지 (2026-10-23)
+
+최신 main의 Excel 출력·사진 크롭·공통 이동과 2단계 묶음 확인을 기준으로 MediaPipe 및 저장 보완만 추가한다. 이미 KNOWN인 값과 USER가 모름으로 확인한 항목은 새 질문/질문 묶음에 넣지 않는다. 간편 묶음 서식에서도 기본 추가 입력에서 제외하고 닫힌 ‘이미 확인한 정보 · 수정하기’에서만 수정한다. 조건별 행과 좌우 사진의 identity를 유지하며 한 조건의 답을 다른 조건에 복사하지 않는다. ESTIMATED·CONFLICT 및 새 사진에 연결되지 않은 정보는 확인할 수 있다.
+
+사진과 같은 물건이라고 확인한 유일 중량은 photo_load의 공통 해석으로 계산과 질문에 함께 사용한다. 이 파생값을 새 사실로 저장하거나 조회 revision을 올리지 않는다. 여러 중량, 확인하지 않은 연결, 명시적인 모름·무하중·직접 중량은 구분한다. 자동 저장과 수동 임시 저장이 같은 작업/생성시각을 가리키면 홈의 이어서 하기 카드는 수동 저장 하나로 표시한다. 별도 작업 초안은 보존한다.
+
+사용자에게 보이는 시스템 용어는 frontend/user-language.json을 공통 사전으로 사용한다. 화면의 AI 본문·처리 상태·계산 근거 및 Excel 설명은 같은 뜻의 한국어로 표시한다. 과거 저장된 원문·직접 입력 근거·계산 코드·수치·단위·snapshot은 바꾸지 않는다. 새 AI 설명 지침에도 같은 사전을 제공하며 근거 참조 코드는 유지한다. 묶음 입력에서 미전송한 추가 설명은 다음 단계 저장과 함께 처리하고, 입력 단계와 수정 중 선택값은 초안 복원 대상이다.
+
+검증 범위와 실제 호출 증거는 [최신 main 재질문 점검](verification/2026-10-23-main-no-repeat.md)에 기록한다. 외부 호출 없이 검사한 계약 조합과 실제 모델·앱·DB·Excel 실행은 구분한다.

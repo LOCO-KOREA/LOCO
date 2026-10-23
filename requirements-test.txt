@@ -1,0 +1,2 @@
+-r requirements-desktop.txt
+pdfplumber==0.11.10

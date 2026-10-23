@@ -346,6 +346,7 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
      if(method==='get_survey')return survey;
      if(method==='list_tasks')return [savedTask];
      if(method==='get_task_result')return {analysis:{analysis_id:33}};
+     if(method==='get_analysis')return {analysis_id:33};
      if(method==='get_task')return {task:savedTask,photos:[]};
      if(method==='get_settings')return {gpt_enabled:true};
      throw Error('Unexpected restoration API '+method);

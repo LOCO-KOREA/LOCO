@@ -240,7 +240,8 @@ class QuickPreviewService(unittest.TestCase):
     def test_preview_scores_photo_without_saving_anything(self):
         before = self.ctx.dispatch('get_task', {'task_id': self.task['task_id']})['task']
         result = self.ctx.dispatch('quick_preview', {'task_id': self.task['task_id'], 'views': {'RIGHT': self.photo['photo_id']}})
-        self.assertEqual(len(result['views']['RIGHT']['points']), 17)
+        self.assertEqual(len(result['views']['RIGHT']['points']), self.ctx.settings()['analysis']['pose_model']['point_count'])
+        self.assertEqual(result['views']['RIGHT']['engine']['provider'],'mediapipe')
         self.assertIsNotNone(result['score']['total'])
         self.assertTrue(result['measured'])
         self.assertEqual(self.ctx.dispatch('list_analysis_history', {'task_id': self.task['task_id']}), [])

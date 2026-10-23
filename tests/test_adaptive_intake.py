@@ -128,6 +128,57 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertTrue(facts.number_grounded(1,'1분에 1번씩 하루 30분','회/분'))
         self.assertFalse(facts.number_grounded(1,'2분에 1번씩','회/분'))
 
+    def test_ai_can_ground_daily_total_in_two_stated_work_durations(self):
+        text='손을 이미지대로 높이 드는 걸 한 2시간 하고 키보드 작업 6시간 해.'
+        state=self.turn(text=text,raw=dict(answers=[
+            model('card.arm_over.C3_UNION',number=120,quote='한 2시간'),
+            model('card.keyboard.C1_KEYBOARD_FOCUSED',number=360,quote='키보드 작업 6시간'),
+            model('daily_work_min',number=480,quote=text)],questions=[
+                dict(target='daily_work_min',condition='default',text='하루 총시간?',reason='누락')]))
+        self.assertEqual(state['task']['conditions']['daily_work_min'],480)
+        self.assertNotIn('daily_work_min',{q['target'] for q in state['questions']})
+        saved=next(f for f in state['facts'] if f['target']=='daily_work_min')
+        self.assertEqual(saved['source'],'AI')
+        self.assertEqual([t['minutes'] for t in saved['calculation']['terms']],[120,360])
+        self.ctx=create_service(self.db)
+        self.assertEqual(self.get()['task']['conditions']['daily_work_min'],480)
+
+    def test_daily_sum_checks_arithmetic_and_accepts_compound_units(self):
+        from ergo.intake.grounding import number_proof
+        field=next(f for f in contract.fields() if f['target']=='daily_work_min')
+        text='팔 드는 작업 1시간 30분 하고 키보드 작업 여섯시간 해요'
+        proof=number_proof(field,450,text,context=text)
+        self.assertEqual([t['minutes'] for t in proof['terms']],[90,360])
+        self.assertEqual(proof['terms'][0]['quote'],'1시간 30분')
+        self.assertIsNone(number_proof(field,360,text,context=text))
+        self.assertIsNone(number_proof(field,480,text,context=text))
+
+    def test_daily_sum_does_not_add_overlaps_breaks_ranges_or_other_periods(self):
+        from ergo.intake.grounding import number_proof
+        field=next(f for f in contract.fields() if f['target']=='daily_work_min')
+        quote='팔 들기 2시간 하고 키보드 작업 6시간'
+        for qualifier in ('두 작업은 동시에 해요','두 시간은 여섯 시간에 포함돼요','그중 두 시간은 쉬는 시간이야',
+                          '주당 시간이에요','키보드는 매주 하는 시간이에요','하루 일부 작업이고 다른 작업이 더 있어요'):
+            with self.subTest(qualifier=qualifier):
+                self.assertIsNone(number_proof(field,480,quote,context=quote+' '+qualifier))
+        for text in ('팔 들기 2~3시간 하고 키보드 6시간','휴식 2시간 하고 키보드 6시간',
+                     '팔 들기 -2시간 하고 키보드 6시간','팔 들기 2시간(120분) 하고 키보드 6시간'):
+            with self.subTest(text=text):self.assertIsNone(number_proof(field,480,text,context=text))
+        exposure=next(f for f in contract.fields() if f['target']=='card.arm_over.C3_UNION')
+        self.assertIsNone(number_proof(exposure,480,quote,context=quote))
+
+    def test_daily_total_can_be_recovered_from_prior_text_without_overwriting_user(self):
+        text='팔 드는 작업 2시간 하고 키보드 작업 6시간 해요'
+        self.turn(text=text,raw=dict(answers=[],questions=[]))
+        proposal=dict(answers=[model('daily_work_min',number=480,quote=text)],questions=[])
+        state=self.turn(text='',raw=proposal)
+        self.assertEqual(state['task']['conditions']['daily_work_min'],480)
+        self.assertNotIn('daily_work_min',{q['target'] for q in state['questions']})
+        self.turn([answer('daily_work_min',420)],plan=False)
+        state=self.turn(text=text,raw=proposal)
+        saved=next(f for f in state['facts'] if f['target']=='daily_work_min')
+        self.assertEqual((saved['value'],saved['source']),(420,'USER'))
+
     def test_label_answers_and_global_scope_are_normalized_by_the_catalogue(self):
         state=self.turn(text='일회성은 아니오, 하루 전체 8시간',raw=dict(answers=[
             model('one_off',text='아니오',quote='일회성은 아니오',condition='상자'),
@@ -662,7 +713,7 @@ class PhotoIntake(unittest.TestCase):
         imported=self.ctx.dispatch('import_photos',dict(task_id=self.identity,file_paths=[str(self.photo)]))
         identity=imported['added'][0]['photo_id']
         state=self.ctx.dispatch('intake_session',dict(task_id=self.identity,views=dict(RIGHT=identity)))
-        automatic=[f for f in state['facts'] if f['source']=='MOVENET' and f['state'] in ('KNOWN','ESTIMATED')]
+        automatic=[f for f in state['facts'] if f['source'] in ('POSE','MOVENET') and f['state'] in ('KNOWN','ESTIMATED')]
         self.assertTrue(automatic)
         self.assertNotIn('context',{f['target'] for f in automatic}); self.assertNotIn('load_kg',{f['target'] for f in automatic})
         self.assertTrue(any(f['target'].startswith('manual.') for f in automatic))

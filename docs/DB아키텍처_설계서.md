@@ -124,14 +124,40 @@ Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비�
 
 ## 적응형 입력 저장 (2026-10-22)
 
-[적응형 계약](adaptive-intake.md)의 선택 JSON `conditions.intake_session`에 사실·질문 문맥·출처·모름 상태를 저장한다. 물리 migration·테이블·trigger는 추가하지 않는다. 실제 계산 입력은 기존 필드로 투영한다. 네트워크 대기 중 잠금을 잡지 않고, 수정 revision과 일치하는 응답만 부분 반영한다. 보조 메타데이터 키는 공통 변수 `AUXILIARY_CONDITION_KEYS`에서 관리하고 전후 비교의 조건 변화에서는 제외한다. 과거 snapshot은 재작성하지 않는다.
+[적응형 계약](adaptive-intake.md)의 선택 JSON `conditions.intake_session`에 사실·질문 문맥·출처·모름 상태를 저장한다. 물리 migration·테이블·trigger는 추가하지 않는다. 실제 계산 입력은 기존 필드로 투영한다. 네트워크 대기 중 잠금을 잡지 않고, 수정 revision이 일치하면 부분 반영하고, 바뀐 경우 늦은 제안을 최신 입력에 재조정한다. 보조 메타데이터 키는 공통 변수 `AUXILIARY_CONDITION_KEYS`에서 관리하고 전후 비교의 조건 변화에서는 제외한다. 과거 snapshot은 재작성하지 않는다.
 
 동일 JSON의 `last_ai`에 마지막 실제 요청의 상태·모델·사유·시각·지연·응답 ID를 보관한다. 키/인증정보는 저장하지 않는다. 정보 추출을 저장한 뒤 질문 계획을 재요청할 때도 네트워크 대기 동안 DB 잠금을 잡지 않는다.
 
 AI 입력 정리·후속 질문·설명 생성은 공통 설정 계약(`ergo/ai_config.py`, API 계약서 §6)을 공유한다. 모델·추론 강도·요청 시간·토큰 한도는 변수이며, 두 설정 화면도 서버 필드 정의로 렌더링한다. APP_SETTINGS의 기존 JSON에 저장하며 테이블·이전 분석 snapshot은 추가/변경하지 않는다.
+
+## MediaPipe 자세 엔진 개정 (2026-10-22)
+
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.
 
 ### PDF 출력 영수증 JSON (2026-10-22 개정안)
 
 기존 EXPORT_LOG 테이블을 그대로 쓴다. receipt_json에 format:'PDF', template_version, template_sha256, page_count, task_ids, analysis_ids, warnings와 기존 상태 필드를 저장한다. snapshot_json에는 선택한 Task/분석과 출력 시점 조사 메타를 저장한다. format이 없는 기존 영수증은 Excel이며 기존 sheets 필드는 보존한다. PDF 영수증은 페이지를 sheets라고 저장하지 않는다. 새 테이블·열·trigger·물리 migration 없이 새 출력 행만 추가한다.
 
 PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at을 확인한 뒤 추가한다. 기존 Excel 호출의 동작/저장 행은 변경하지 않는다. 서버 생성시각의 수명별 구분을 이용하며 물리 migration은 없다.
+
+### 하루 시간 합산 정정 (2026-10-22)
+
+2026-10-23: 숫자·복합 단위·AI 피연산자 근거 검증은 순수 `ergo/intake/grounding.py`에 둔다. GPT는 원문에 대응하는 작업시간을 선택하고 서비스는 검증된 값만 기존 TASK JSON으로 투영한다. DB에서 수식을 실행하거나 새 저장 테이블/물리 migration을 만들지 않는다. 저장·revision·USER 우선권·분석 snapshot 경계는 유지한다.
+
+하루 시간 합산의 계산 근거는 기존 intake_session.facts의 calculation JSON에 저장한다. conditions.daily_work_min에도 같은 값을 투영하고 이전 분석/출력 행을 재작성하지 않는다. 자세한 근거 검증과 예외는 [적응형 추가 확인 계약](adaptive-intake.md)의 작업별 시간 합산 절을 따른다.
+
+
+## 입력 저장 감사 7건 정정 (2026-10-23)
+
+회차 원문과 AI 제안/결정을 기존 TASK JSON에 보존한다. 늦은 응답은 현재 작업 생성시각을 확인하고 최신 fact에 다시 병합하며, 새 정보는 저장하고 충돌은 근거와 함께 남긴다. 네트워크 동안 잠금을 잡지 않으며 삭제 행을 재생성하지 않는다. 로컬 대기 편집은 base/value/version으로 복구·성공 확인하고 다른 입력을 덮지 않는다. 상세는 [저장 계약](storage-persistence.md)을 따른다.
+
+
+## 실호출 입력·출력 대조 정정 (2026-10-23)
+
+FOLLOWUP도 제안을 검증해 같은 기존 TASK JSON에 반영하며 재계산한 누락만 질문한다. 보고서는 DB에 다시 쓰지 않고 선택 snapshot의 항목별 fact 출처를 읽는다. revision이나 값·조건·사진 소유권이 맞지 않으면 오래된 fact로 현재 입력의 출처를 바꾸지 않는다. 상세는 [저장·출력 보존 계약](storage-persistence.md)을 따른다.
+### 실호출 조회·경합 정정
+
+조회 시 파생 별칭 및 무하중 손잡이 근거 시각은 안정적으로 유지한다. 오래된 자연어 요청은 동일 작업 소유권 아래 최신 상태로 저장하며, 직접 수정 경합은 INPUT_CHANGED로 구분한다. 회차에 rebased_from_revision과 사진 문맥 확인 진단을 기존 JSON으로 보관한다. 물리 스키마와 불변 snapshot은 유지한다. [저장 계약](storage-persistence.md) 참조.
+
+
+2026-10-23 최신 main 통합: 중복 질문·용어 표시 수정은 기존 여섯 테이블/JSON 계약을 사용하며 물리 스키마 변경이 없다. 사진 하중 별칭은 계산 시 공통 해석하고 조회로 fact/revision을 만들지 않는다. 과거 분석·출력 snapshot과 사용자 원문은 보존한다. [점검 기록](verification/2026-10-23-main-no-repeat.md) 참조.

@@ -1,3 +1,5 @@
+import {mountPoseSettings} from '../pose-settings.js';
+import {initializeDrafts,localDrafts,saveExplanationDraft,selectedExplanation} from '../drafts.js';
 /* Controller: responses belong to the selection that started their request. */
 export function createController(ctx){
  const {host,s,pages,statusNames,$,toast,api,options,card,modal}=ctx;
@@ -92,6 +94,7 @@ export function createController(ctx){
   if(!host.active)return;
   host.onNavigate(s.page,pages[s.page]);ctx.syncGuidePreferences();
   $('#content').innerHTML=(s.survey&&s.page!=='S10'?card('작업 선택',`<div class="toolbar"><select id="task-choice" aria-label="분석할 작업">${options([['','작업 선택'],...s.tasks.map(t=>[t.task_id,t.task_name||'이름 없는 작업'])],s.bundle?.task.task_id)}</select><button data-page="S03">작업 입력으로</button></div>`):'')+({S09:ctx.progressPage,S06:ctx.rebaPage,S07:ctx.criteriaPage,S08:ctx.exportPage,S10:ctx.settingsPage}[s.page])();
+  mountPoseSettings(host.element,s.settings,'data-pose-field');
   if(s.page==='S06')ctx.drawPhoto();syncBusy();
  }
  function startPoll(){
@@ -151,7 +154,7 @@ export function createController(ctx){
    if(el.dataset.exportTask){s.exportSelections[el.dataset.exportTask]=Number(el.value)||null;if(await navigate('S08'))await populateExportChoices();}
   }catch(error){if(current(t))toast(error.message);}
  });
- host.element.addEventListener('input',event=>{const el=event.target;if(el.dataset.field==='comparison-note')s.comparisonNote=el.value;if(el.dataset.field||el.dataset.manual||el.id==='explanation-text')s.editEpoch++;});
+  host.element.addEventListener('input',event=>{const el=event.target;if(el.dataset.field==='comparison-note')s.comparisonNote=el.value;if(el.id==='explanation-text'){const drafts=ctx.drafts||localDrafts();saveExplanationDraft(s.analysis,selectedExplanation(s),el.value,drafts);const status=$('[data-explanation-draft-status]');if(status){status.textContent=drafts.error;status.hidden=!drafts.error;}}if(el.dataset.field||el.dataset.manual||el.id==='explanation-text')s.editEpoch++;});
  document.addEventListener('keydown',event=>{if(host.active&&event.key==='Escape'){$('#overlay-root').innerHTML='';s.modalContext=null;}});
  return {
   currentTask(surveyId){return s.survey?.survey_id===surveyId?s.bundle?.task.task_id:undefined;},
@@ -181,6 +184,6 @@ export function createController(ctx){
   suspend(){invalidate();host.active=false;$('#overlay-root').innerHTML='';},
   async guide(action){if(action==='guide')await actions['capture-guide']();else if(action==='manual')$('.manual-grid')?.scrollIntoView({behavior:'smooth'});else if(action==='criterion4')modal('4호 · 조건 합산 해석','<p>개별 조건과 중복을 제외한 하루 노출시간을 함께 확인하세요. 합산 해석이 필요한 경우 추가 검토로 표시합니다.</p>');else if(action==='next')$('#next-inputs')?.scrollIntoView({behavior:'smooth'});},
   async preferences(detail){const t=token(),saved=await api('get_settings');if('visible'in detail)saved.ui.loco_visible=detail.visible;if('mode'in detail)saved.ui.loco_mode=detail.mode;await ctx.persistSettings(saved,t);if(current(t))ctx.syncGuidePreferences();},
-  async initialize(){const epoch=s.viewEpoch,saved=await api('get_settings');if(epoch===s.viewEpoch){s.settings=saved;ctx.syncGuidePreferences();}}
+   async initialize(){await initializeDrafts();const epoch=s.viewEpoch,saved=await api('get_settings');if(epoch===s.viewEpoch){s.settings=saved;ctx.syncGuidePreferences();}}
  };
 }

@@ -1,5 +1,6 @@
 """Find unanswered inputs using the real calculators; let AI select and phrase them."""
 from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS
+from .photo_load import photo_load
 from ergo.engine.burden_rules import calculate_v2
 from ergo.engine.reba_scoring import calculate_reba
 
@@ -27,7 +28,8 @@ def _assess(task, facts, views, catalogue, only_identity=None):
     reba=calculate_reba(task, None) if views else None
     missing=set(p for j in judgments if j['computed_status'] in ('NEEDS_INPUT','NEEDS_REVIEW') for p in j['missing_fields'])
     if reba: missing.update(p for row in reba['slots'] for p in row['missing_fields'])
-    known=lambda t: (facts.get(key(t)) or {}).get('value')
+    load_state, load_kg = photo_load(facts)
+    known=lambda t: load_state if t == 'load' else load_kg if t == 'load_kg' else (facts.get(key(t)) or {}).get('value')
     has=lambda t: key(t) in facts
     unknown_work=[f for f in catalogue if f['destination']['type']=='work_type' and not has(f['target'])]
     masses={f['value'] for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['state']=='KNOWN'}
@@ -41,6 +43,8 @@ def _assess(task, facts, views, catalogue, only_identity=None):
         if kind=='manual' and known('context')!='YES': continue
         if kind=='manual' and d['field']=='coupling' and (known('load')=='UNLOADED' or known('load_kg')==0): continue
         if t=='load_link' and (len(masses)!=1 or has('load') or has('load_kg')): continue
+        if t=='load' and load_state!='UNKNOWN': continue
+        if t=='load_kg' and load_kg is not None: continue
         if t=='load' and len(masses)==1 and not has('load_link'): continue
         if t=='load_kg' and known('load')!='MEASURED': continue
         if t=='other_work' and (not unknown_work or not any(known('work_type.'+f['target'].split('.')[-1])=='YES' for f in catalogue if f['destination']['type']=='work_type')): continue

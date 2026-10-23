@@ -1,0 +1,227 @@
+[
+  {
+    "id": "01-lifting",
+    "statement": "20kg 상자를 하루 30번 옮기는 작업입니다. 하루 전체 실제 작업은 8시간, 연 220일이고 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이며, 사진에서도 같은 20kg 상자를 들고 양손으로 잡기 좋은 손잡이가 있어요.",
+    "followup": "이 20kg 상자는 1분에 1번씩 하루 30분 들어요. 이 20kg 조건이 모든 들기 조건입니다.",
+    "expected": {
+      "daily_work_min": 480,
+      "annual_work_days": 220,
+      "one_off": "NO",
+      "context": "YES",
+      "card.lift.load_mass_kg": [
+        20
+      ],
+      "card.lift.lift_count_day": [
+        30
+      ],
+      "manual.LEFT.coupling": "GOOD",
+      "manual.RIGHT.coupling": "GOOD"
+    },
+    "after_followup": {
+      "card.lift.lift_rate_min": [
+        1
+      ],
+      "card.lift.minutes": [
+        30
+      ]
+    },
+    "rows": [
+      {
+        "criterion": 8,
+        "load_mass_kg": 20,
+        "lift_count_day": 30
+      }
+    ],
+    "edits": {
+      "daily_work_min": 421,
+      "annual_work_days": 221
+    }
+  },
+  {
+    "id": "02-duration-and",
+    "statement": "하루 작업은 손·팔을 높이 드는 작업 2시간 및 키보드·마우스 집중 작업 6시간이 전부예요. 연 218일 일하고 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이에요.",
+    "followup": "두 작업은 겹치지 않는 별도 시간이고, 손·팔 들기는 2시간, 키보드는 6시간으로 하루 작업이 전부예요.",
+    "expected": {
+      "daily_work_min": 480,
+      "annual_work_days": 218,
+      "card.arm_over.C3_UNION": 120,
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 360
+    },
+    "edits": {
+      "daily_work_min": 451,
+      "annual_work_days": 219
+    }
+  },
+  {
+    "id": "03-duration-list",
+    "statement": "하루 일정의 전부입니다. 손·팔을 높이 드는 작업 1시간 30분. 키보드·마우스 집중 작업 4시간 30분. 두 작업 시간은 겹치지 않아요. 연 210일 근무하고 일회성이 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이에요.",
+    "followup": "앞서 적은 두 작업 시간이 하루 전체이고, 각각 90분과 270분입니다.",
+    "expected": {
+      "daily_work_min": 360,
+      "annual_work_days": 210,
+      "card.arm_over.C3_UNION": 90,
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 270
+    },
+    "edits": {
+      "daily_work_min": 351,
+      "annual_work_days": 211
+    }
+  },
+  {
+    "id": "04-duration-annotations",
+    "statement": "하루 총 작업은 손·팔 들기 2시간(120분), 키보드·마우스 집중 작업 6시간(360분)이 전부예요. 각각 별도 시간이며 중복은 없어요. 연 225일이고 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다.",
+    "followup": "괄호 안의 분은 같은 시간을 환산해 적은 값이고 별도 작업이 아닙니다. 하루 전체는 8시간이에요.",
+    "expected": {
+      "daily_work_min": 480,
+      "annual_work_days": 225,
+      "card.arm_over.C3_UNION": 120,
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 360
+    },
+    "edits": {
+      "daily_work_min": 471,
+      "annual_work_days": 226
+    }
+  },
+  {
+    "id": "05-compound-korean",
+    "statement": "하루 전체 실제 작업시간은 한 시간 삼십분이에요. 그중 키보드·마우스를 집중해서 쓰는 시간은 40분이고 나머지는 검수입니다. 연 180일 일하고 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이에요.",
+    "followup": "전체 90분 중 키보드 집중 작업이 40분이라는 뜻이에요. 전체에 키보드 시간을 다시 더하지 않아요.",
+    "expected": {
+      "daily_work_min": 90,
+      "annual_work_days": 180,
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 40
+    },
+    "edits": {
+      "daily_work_min": 91,
+      "annual_work_days": 181
+    }
+  },
+  {
+    "id": "06-decimal-load",
+    "statement": "12.5kg 상자를 하루 40회 들어 옮겨요. 하루 전체 실제 작업은 7.5시간이고 연 230일 일해요. 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이며 사진 속 물건도 같은 12.5kg 상자예요. 양손 손잡이는 잡기 좋아요.",
+    "followup": "12.5kg 상자는 작업 중 1분에 2번씩, 하루 20분 들어요. 이 조건이 모든 들기 조건입니다.",
+    "expected": {
+      "daily_work_min": 450,
+      "annual_work_days": 230,
+      "card.lift.load_mass_kg": [
+        12.5
+      ],
+      "card.lift.lift_count_day": [
+        40
+      ]
+    },
+    "after_followup": {
+      "card.lift.lift_rate_min": [
+        2
+      ],
+      "card.lift.minutes": [
+        20
+      ]
+    },
+    "rows": [
+      {
+        "criterion": 8,
+        "load_mass_kg": 12.5,
+        "lift_count_day": 40
+      }
+    ],
+    "edits": {
+      "daily_work_min": 441,
+      "annual_work_days": 231
+    }
+  },
+  {
+    "id": "07-two-load-conditions",
+    "statement": "하루에 가벼운 상자 5kg을 99번, 무거운 상자 30kg을 1번 들어요. 두 조건을 구분해 기록해 주세요. 하루 전체 작업은 8시간, 연 200일이며 일회성이 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 사진 물건과 두 중량의 연결은 모릅니다.",
+    "followup": "가벼운 5kg 조건과 무거운 30kg 조건이 들기 작업의 모든 조건이에요. 무게별 횟수는 각각 99번과 1번이에요.",
+    "expected": {
+      "daily_work_min": 480,
+      "annual_work_days": 200,
+      "card.lift.load_mass_kg": [
+        5,
+        30
+      ],
+      "card.lift.lift_count_day": [
+        99,
+        1
+      ]
+    },
+    "rows": [
+      {
+        "criterion": 8,
+        "load_mass_kg": 5,
+        "lift_count_day": 99
+      },
+      {
+        "criterion": 8,
+        "load_mass_kg": 30,
+        "lift_count_day": 1
+      }
+    ],
+    "edits": {
+      "daily_work_min": 461,
+      "annual_work_days": 201
+    }
+  },
+  {
+    "id": "08-zero-and-absent",
+    "statement": "하루 전체 작업은 4시간, 연 180일이고 일회성은 아니에요. 검수 작업만 하고 키보드와 마우스 작업은 없어서 하루 0분입니다. 드는 물건은 없어요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다.",
+    "followup": "키보드와 마우스 집중 작업은 정말 0분이고 해당 작업은 없어요. 들고 있는 물건도 없어요.",
+    "expected": {
+      "daily_work_min": 240,
+      "annual_work_days": 180,
+      "work_type.keyboard": "NO",
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 0
+    },
+    "edits": {
+      "daily_work_min": 0,
+      "annual_work_days": 0
+    },
+    "oracle_note": "물건이 없다는 진술만으로 미는 힘도 없다고 단정하지 않는다. 물건 또는 힘을 합친 load=UNLOADED는 이 입력의 강제 기대값에서 제외한다. 최초 10회 manifest는 그대로 보존한다."
+  },
+  {
+    "id": "09-unknown-then-correction",
+    "statement": "하루 전체 실제 작업시간은 모르겠어요. 키보드·마우스를 집중해서 쓰는 시간은 2시간이고 연 221일 일해요. 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이에요.",
+    "followup": "지금도 하루 전체 시간은 모르겠어요. 키보드 시간 2시간을 전체 시간으로 쓰면 안 돼요.",
+    "expected": {
+      "daily_work_min": null,
+      "annual_work_days": 221,
+      "card.keyboard.C1_KEYBOARD_FOCUSED": 120
+    },
+    "edits": {
+      "daily_work_min": 420,
+      "annual_work_days": null
+    }
+  },
+  {
+    "id": "10-pinch-grip-impact",
+    "statement": "하루 전체 6시간 30분, 연 240일 하는 반복 작업이며 일회성은 아니에요. 지지 없이 한 손 손가락으로 1.5kg 부품을 하루 75분 집고, 다른 조건에서 지지 없이 한 손으로 5kg 물건을 하루 65분 들어요. 손바닥으로 충격을 주는 작업은 시간당 12번씩 하루 125분입니다. 각 작업의 조건은 여기 적은 것이 전부예요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다.",
+    "followup": "손가락 집기 중량 1.5kg과 한 손 들기 중량 5kg은 서로 다른 작업 조건이에요. 충격 작업은 실제 손바닥 충격이 맞아요.",
+    "expected": {
+      "daily_work_min": 390,
+      "annual_work_days": 240,
+      "card.pinch.pinch_mass_kg": [
+        1.5
+      ],
+      "card.pinch.minutes": [
+        75
+      ],
+      "card.grip.single_hand_mass_kg": [
+        5
+      ],
+      "card.grip.minutes": [
+        65
+      ],
+      "card.impact.impact_rate_hour": [
+        12
+      ],
+      "card.impact.minutes": [
+        125
+      ]
+    },
+    "edits": {
+      "daily_work_min": 381,
+      "annual_work_days": 241
+    }
+  }
+]

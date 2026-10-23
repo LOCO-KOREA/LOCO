@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 
 from .display import KIND, SOURCE, STATUS, UNIT, VALUE
 from .labels import CRITERIA, EXPOSURES, MANUAL, RESULT_LABELS, criterion_name, input_label, reason_label, unit_for
+from .input_trace import InputTrace
+from ergo.user_language import user_text
 
 KST = timezone(timedelta(hours=9))
 SIDE = {'LEFT': '왼쪽', 'RIGHT': '오른쪽', 'COMMON': '공통', 'BOTH': '양쪽', 'FRONT': '정면·후면'}
@@ -162,6 +164,7 @@ def _reba_text(a):
 
 # ----- 입력한 값
 def _legal_rows(name, source):
+    trace=InputTrace(source)
     legal = source.get('legal') or {}
     criteria = {x.get('criterion_no'): x for x in legal.get('criteria', [])}
     exposures = [e for e in legal.get('exposures', []) if e.get('minutes') is not None]
@@ -174,18 +177,24 @@ def _legal_rows(name, source):
             said_no.append(short)
         elif state != 'YES':
             unknown.append(short)
-        if state != 'YES':
-            continue
         ev = c.get('evidence') or {}
-        rows.append([name, group, f'{short}: 이 작업을 한다', '예', _source(ev), note(ev.get('text'))])
+        origin=trace.lookup('work_type',state,criterion=no)
+        if state=='YES' or origin:
+            rows.append([name, group, f'{short}: 이 작업을 한다', say(state), *(origin or (_source(ev),note(ev.get('text'))))])
         for e in exposures:
             if int(e['condition_code'][1:e['condition_code'].index('_')]) == no:
                 done.add(e['condition_code'])
                 eev = e.get('evidence') or {}
-                rows.append([name, group, f"{short}: {EXPOSURES.get(e['condition_code'], e['condition_code'])} 시간", with_unit(e['minutes'], 'MIN_DAY'), _source(eev), note(eev.get('text'))])
+                origin=trace.lookup('criterion',e['minutes'],field=e['condition_code']) or (_source(eev),note(eev.get('text')))
+                rows.append([name, group, f"{short}: {EXPOSURES.get(e['condition_code'], e['condition_code'])} 시간", with_unit(e['minutes'], 'MIN_DAY'), *origin])
         for key in ('unsupported', 'posture_restricted'):
             if c.get(key) in ('YES', 'NO'):
-                rows.append([name, group, f'{short}: {input_label(key)}', say(c[key]), _source(ev), note(ev.get('text'))])
+                origin=trace.lookup('criterion',c[key],field=key,criterion=no) or (_source(ev),note(ev.get('text')))
+                rows.append([name, group, f'{short}: {input_label(key)}', say(c[key]), *origin])
+        complete=c.get('rows_complete')
+        complete_origin=trace.lookup('complete',complete,criterion=no)
+        if complete in ('YES','NO') or complete_origin:
+            rows.append([name,group,f'{short}: {input_label("rows_complete")}',say(complete),*(complete_origin or (_source(ev),note(ev.get('text'))))])
         listed = c.get('rows') or []
         for index, row in enumerate(listed, 1):
             rev = row.get('evidence') or {}
@@ -193,11 +202,13 @@ def _legal_rows(name, source):
                 if key in ('row_id', 'label', 'evidence') or value in (None, ''):
                     continue
                 suffix = f' (조건 {index})' if len(listed) > 1 else ''
-                rows.append([name, group, f'{short}: {input_label(key)}{suffix}', with_unit(value, unit_for(key)), _source(rev), note(rev.get('text'))])
+                origin=trace.lookup('criterion',value,field=key,criterion=no,condition=row['row_id']) or (_source(rev),note(rev.get('text')))
+                rows.append([name, group, f'{short}: {input_label(key)}{suffix}', with_unit(value, unit_for(key)), *origin])
     for e in exposures:
-        if e['condition_code'] not in done and e['minutes']:
+        if e['condition_code'] not in done and e['minutes'] is not None:
             eev = e.get('evidence') or {}
-            rows.append([name, group, f"{EXPOSURES.get(e['condition_code'], e['condition_code'])} 시간", with_unit(e['minutes'], 'MIN_DAY'), _source(eev), note(eev.get('text'))])
+            origin=trace.lookup('criterion',e['minutes'],field=e['condition_code']) or (_source(eev),note(eev.get('text')))
+            rows.append([name, group, f"{EXPOSURES.get(e['condition_code'], e['condition_code'])} 시간", with_unit(e['minutes'], 'MIN_DAY'), *origin])
     if said_no:
         rows.append([name, group, '해당 없음으로 답한 기준', ', '.join(said_no), '', ''])
     if unknown:
@@ -207,6 +218,8 @@ def _legal_rows(name, source):
 
 def _capture_rows(name, source):
     rows = []
+    trace=InputTrace(source)
+    primary=next((s for s in (source.get('capture') or {}).get('slots',[]) if s.get('analysis_target')),None)
     for slot in (source.get('capture') or {}).get('slots', []):
         if slot.get('photo_id') is None:
             continue
@@ -228,15 +241,24 @@ def _capture_rows(name, source):
                  ('사진 확인', confirmed), ('들고 있는 물건', load), ('REBA 점수 계산에 쓴 사진', say(slot.get('analysis_target')))]
         for title, value in pairs:
             if value not in (None, ''):
-                rows.append([name, '사진 확인', f'{label} · {title}', value, _source(ev), note(ev.get('text'))])
+                origin=None
+                if primary and slot['slot_no']==primary['slot_no'] and slot['photo_id']==primary['photo_id']:
+                    if title=='작업자가 보는 방향':origin=trace.lookup('view',slot.get('forward_direction'),view=slot.get('label'))
+                    elif title=='사진 확인' and len({obs.get(key) for key in ('single_person','full_frame','normal_work')})==1:origin=trace.lookup('context',obs.get('normal_work'))
+                    elif title=='들고 있는 물건':origin=(trace.lookup('load_kg',obs.get('measured_load_kg')) if obs.get('load_state')=='MEASURED' else None) or trace.lookup('load',obs.get('load_state'))
+                rows.append([name, '사진 확인', f'{label} · {title}', value, *(origin or (_source(ev),note(ev.get('text'))))])
     return rows
 
 
 def _manual_rows(name, source):
     """Posture values per photo. Left and right with the same answer become one "양쪽" line; every "아니오" becomes a single line."""
     names, groups, order = _slot_names(source), {}, []
+    trace=InputTrace(source)
+    primary=next((s for s in (source.get('capture') or {}).get('slots',[]) if s.get('analysis_target')),None)
     for m in source.get('manual') or []:
-        key = (m.get('slot_no'), m.get('field'), json.dumps(m.get('value')), m.get('source'), note((m.get('evidence') or {}).get('text')))
+        origin=trace.lookup('manual',m.get('value'),scope=m.get('scope'),field=m.get('field')) if primary and m.get('photo_id')==primary.get('photo_id') and m.get('slot_no')==primary.get('slot_no') else None
+        origin=origin or (SOURCE_PLAIN.get(m.get('source'),m.get('source') or ''),note((m.get('evidence') or {}).get('text')))
+        key = (m.get('slot_no'), m.get('field'), json.dumps(m.get('value')), *origin)
         if key not in groups:
             groups[key] = []
             order.append(key)
@@ -249,12 +271,12 @@ def _manual_rows(name, source):
         label = ('' if scope == '공통' else scope + ' ') + MANUAL.get(field, field)
         photo = names.get(slot_no, f'사진 {slot_no}')
         if value == 'NO':
-            said_no.setdefault((slot_no, src), []).append(label)
+            said_no.setdefault((slot_no, src, memo), []).append(label)
             continue
         rows.append([name, '자세 입력', f'{photo} · {label}', value_label(field, value), SOURCE_PLAIN.get(src, src or ''), memo])
-    for (slot_no, src), labels in said_no.items():
+    for (slot_no, src, memo), labels in said_no.items():
         rows.append([name, '자세 입력', f"{names.get(slot_no, '사진 ' + str(slot_no))} · 아니오로 기록한 항목", ', '.join(labels), SOURCE_PLAIN.get(src, src or ''),
-                     '체크하지 않은 항목은 "아니오"로 기록돼요'])
+                     memo or '아니오로 입력한 관찰 항목이에요'])
     return rows
 
 
@@ -262,11 +284,14 @@ def _inputs(c):
     rows = []
     for t in c['tasks']:
         name, source = t['name'], t['source']
+        trace=InputTrace(source)
         cond = source.get('conditions') or {}
         ev = cond.get('evidence') or {}
         for key, label, unit in CONDITIONS:
-            if cond.get(key) not in (None, ''):
-                rows.append([name, '작업 조건', label, with_unit(cond[key], unit), _source(ev), note(ev.get('text'))])
+            origin=trace.lookup('conditions',cond.get(key),field=key)
+            if cond.get(key) not in (None, '') or origin:
+                shown=with_unit(cond[key],unit) if cond.get(key) is not None else '모름'
+                rows.append([name, '작업 조건', label, shown, *(origin or (_source(ev),note(ev.get('text'))))])
         rows += _legal_rows(name, source) + _capture_rows(name, source) + _manual_rows(name, source)
     if not rows:
         rows.append(['', '', '입력한 값이 아직 없어요', '', '', ''])
@@ -306,6 +331,12 @@ def _posture(c):
         floor = ((a['snapshot'].get('settings') or {}).get('pose_model') or {}).get('confidence_min', 0.5)
         for p in (a.get('pose') or {}).get('slots', []):
             label = names.get(p.get('slot_no'), f"사진 {p.get('slot_no')}")
+            engine=p.get('engine') or {}
+            if engine:
+                angle_rows.append([t['name'],label,'','자세 추론 모델',engine.get('name',''),f"관절 {len(p.get('points',[]))}개 · 모델 버전 {engine.get('version','')}"])
+            for angle in p.get('world_angles',[]):
+                if angle.get('value_deg') is not None:
+                    angle_rows.append([t['name'],label,SIDE.get(angle.get('side'),''),'3D 추정 '+angle['label'],round(angle['value_deg'],1),'단안 사진에서 추정한 참고 각도 · REBA 점수에 사용하지 않음'])
             unread = 0
             for angle in p.get('angles', []):
                 if angle.get('value_deg') is None:
@@ -337,7 +368,7 @@ def _checks(c):
     rows = []
     for t in c['tasks']:
         for n in t['item']['next_inputs']:
-            rows.append([t['name'], KIND.get(n['kind'], n['kind']), n['message'], ''])
+            rows.append([t['name'], KIND.get(n['kind'], n['kind']), user_text(n['message']), ''])
     for message in c['ov'].get('survey_followups', []):
         rows.append(['(조사 전체)', '입력 필요', message, RULE_SOURCE])
     if not rows:
@@ -353,7 +384,7 @@ def _explanations(c):
     for t in c['tasks']:
         for ai in (t['analysis'] or {}).get('ai') or []:
             if ai.get('is_active') and ai.get('applied_text'):
-                rows.append([t['name'], kinds.get(ai.get('applied_kind'), '설명'), ai['applied_text']])
+                rows.append([t['name'], kinds.get(ai.get('applied_kind'), '설명'), user_text(ai['applied_text'])])
     if not rows:
         return None
     return _sheet('쉬운 설명', '계산 결과를 쉬운 말로 풀어 쓴 설명이에요. 설명은 보고서용 문장일 뿐 계산 결과와 판정을 바꾸지 않아요.', [_table(['작업', '설명 종류', '내용'], rows, [24, 26, 110])], [])

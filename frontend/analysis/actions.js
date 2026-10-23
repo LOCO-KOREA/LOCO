@@ -1,4 +1,7 @@
+import {userText} from '../user-language.js';
+import {readPoseSettings} from '../pose-settings.js';
 import {readAiSettings,persistedSettings} from '../ai-settings.js';
+import {localDrafts,clearExplanationDraft} from '../drafts.js';
 /* actions; dependencies are composed by analysis-workspace.js. */
 import {previewPdf,exportPdf,renderPdfPreview} from '../pdf-export.js';
 export function createActions(ctx){
@@ -50,7 +53,7 @@ const actions={
  'show-basis':async button=>{
   const ai=s.analysis?.ai.find(x=>x.text_id===button.dataset.textId),basis=LocoReview.basis(ai,s.analysis,button.dataset.ref);
   if(!basis)return toast('저장된 설명에서 해당 근거를 찾을 수 없습니다.');
-  modal(`${basis.number}호 · 설명 생성 당시 계산 근거`,`${ai.source_current?'':'<p class="note warn">이전 계산 요약에 대한 설명입니다.</p>'}<p>${basis.path?e(inputLabel(basis.path)):e(button.dataset.ref)}</p><table><tbody>${Object.entries(basis.value).map(([key,value])=>`<tr><th>${e({item_code:'참조',value:'입력값',unit:'단위',operator:'비교',threshold:'문턱'}[key]||key)}</th><td>${value===null?'미입력':e(value)}</td></tr>`).join('')}</tbody></table>${basis.path?`<div class="toolbar section-actions"><button data-action="open-next-input" data-task="${s.bundle.task.task_id}" data-module="BURDEN" data-path="${e(basis.path)}">현재 입력 항목으로 이동</button></div>`:''}`);
+  modal(`${basis.number}호 · 설명 생성 당시 계산 근거`,`${ai.source_current?'':'<p class="note warn">이전 계산 요약에 대한 설명입니다.</p>'}<p>${basis.path?e(inputLabel(basis.path)):e(button.dataset.ref)}</p><table><tbody>${Object.entries(basis.value).map(([key,value])=>`<tr><th>${e({item_code:'참조',value:'입력값',unit:'단위',operator:'비교',threshold:'문턱'}[key]||key)}</th><td>${key==='item_code'?`${basis.number}호 계산 근거`:value===null?'미입력':e(userText(value))}</td></tr>`).join('')}</tbody></table>${basis.path?`<div class="toolbar section-actions"><button data-action="open-next-input" data-task="${s.bundle.task.task_id}" data-module="BURDEN" data-path="${e(basis.path)}">현재 입력 항목으로 이동</button></div>`:''}`);
  },
  'view-history':async b=>ctx.selectHistory(Number(b.dataset.id)),
  'capture-guide':async()=>modal('사진·관찰 입력 안내',`<p>사진은 작업 특성에 따라 0장 이상 등록하고, 각 사진을 분석대상으로 쓸지 직접 선택합니다. 순서나 파일명만으로 작업 단계·하중을 추정하지 않습니다.</p><ul class="next-list"><li>대상 사진마다 카메라 좌우, 화면에서 작업자가 향한 방향, 측면 촬영 확인을 기록합니다.</li><li>단일 작업자·전신·통상 작업 여부를 확인하고, 모르는 관찰값은 미확인으로 둡니다.</li><li>관찰 하중은 무하중, 측정값, 미확인을 구분하고 측정 출처를 남깁니다.</li><li>상자 들기도 다른 작업과 같은 일반 작업·가변 사진·조건별 입력을 사용합니다.</li></ul><p>사진의 자세 비율은 하루 노출시간이나 법정 기준 해당 확률이 아닙니다.</p>`),
@@ -134,17 +137,20 @@ const actions={
  'edit-explanation':async()=>{
   const ai=(s.analysis?.ai||[]).find(x=>x.text_id===s.aiTextId);if(!ai)return toast('설명 이력을 먼저 선택하세요.');
   const context=actionToken({analysis:true,ai:true}),id=context.analysisId,textId=ai.text_id,value=$('#explanation-text').value;
+  const source=s.analysis;
   return ctx.write('analysis:'+id+':edit:'+textId,context,async()=>{
    await api('edit_ai_text',{analysis_id:id,text_id:textId,text:value});
+   clearExplanationDraft(source,ai,value,ctx.drafts||localDrafts());
    await refreshVisible(context,id);
   });
  },
  'apply-generated':async()=>applyExplanation(false),'apply-edited':async()=>applyExplanation(true),
  'save-analysis-settings':async()=>{
-  const settings=structuredClone(s.settings);delete settings.gpt_key_present;settings.analysis.pose_model.confidence_min=number('analysis-confidence');
+  const settings=readPoseSettings(s.settings,key=>ctx.host.element.querySelector(`[data-pose-field="${key}"]`)?.value);delete settings.gpt_key_present;
   for(const key of ['neck_forward_deg','trunk_flex_deg','trunk_extension_deg','upper_arm_raise_deg'])settings.analysis.posture_profile[key]=number('profile-'+key);
   const context=actionToken();if(!await persistSettings(settings,context)||!ctx.current(context))return;
   if(await refreshVisible(context,s.selectedAnalysis))toast('분석 보조 설정을 저장했습니다. 영향을 받는 분석은 다시 계산하세요.');
+  else if(ctx.current(context)){render();toast('분석 보조 설정을 저장했습니다.');}
  },
  'save-settings':async()=>{
   const settings=structuredClone(s.settings),context=actionToken();settings.ui={loco_visible:text('loco_visible')==='YES',loco_mode:text('loco_mode')};

@@ -1,7 +1,7 @@
 """Photo-first quick assessment service. Reads only; the task is saved by the usual input APIs."""
 import os
 
-from ergo.engine import movenet
+from ergo.pose import engine as pose_engine
 from ergo.engine import quick_assess
 from ergo.engine import quick_intake
 from ergo.gpt import client as gpt_client
@@ -24,7 +24,7 @@ def handle_quick_preview(ctx, method, p):
         slot = {'slot_no': 1, 'photo_id': photo['photo_id'], 'camera_side': None, 'forward_direction': None,
                 'side_view_verified': 'UNKNOWN', 'observation': {}}
         with ctx.analysis_lock:
-            pose = movenet.process(slot, {'photos': [photo], 'settings': settings})
+            pose = pose_engine.process(slot, {'photos': [photo], 'settings': settings})
         guess = quick_assess.guess_view(pose['points'], confidence) if pose['points'] else None
         notes = [d for d in pose['diagnostics'] if d['code'] != 'INVALID_CAMERA']
         label = quick_assess.VIEW_KO[view]
@@ -53,7 +53,8 @@ def handle_quick_preview(ctx, method, p):
         overhead = overhead or bool(pose['points']) and quick_assess.arm_overhead_signal(pose['points'], confidence)
         diagnostics += notes
         views[view] = dict(photo_id=photo['photo_id'], width_px=photo.get('width_px'), height_px=photo.get('height_px'),
-                           points=pose['points'], guess=guess, diagnostics=notes)
+                           points=pose['points'], guess=guess, diagnostics=notes,engine=pose.get('engine'),
+                           world_points=pose.get('world_points',[]),world_angles=pose.get('world_angles',[]),connections=pose.get('connections',[]),quality=pose.get('quality'))
     measured = quick_assess.merge_measured(*side_groups)
     signals = quick_assess.posture_signals(rows_by_view, settings['posture_profile'])
     if overhead:
