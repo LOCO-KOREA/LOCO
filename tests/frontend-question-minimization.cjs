@@ -18,6 +18,7 @@ const assert=require('node:assert/strict');
  const html=a.intake.dialog(false);assert.ok(html.indexOf('data-intake-natural-answer')<html.indexOf('data-intake-form='),'natural answer comes before individual controls');assert.match(html,/data-quick="intake-no-other-work"/);
  await a.flow.saveIntakeForm({remainingWorkAbsent:true});
  assert.equal(a.finished(),1,'one confirmation skips the empty condition stage despite optional photo fields');
+ assert.equal(a.intake.dialogOpen,false,'the empty next stage is closed before run() renders, including before finish()');
  assert.equal(a.calls.length,2,'selected direct edits are saved before the remaining displayed work list');
  assert.deepEqual(a.intake.state.facts.find(f=>f.identity===fields[1].identity),before[1],'explicit USER unknown is never changed to NO');
  assert.equal(a.intake.state.facts.find(f=>f.identity===fields[2].identity).value,'YES');

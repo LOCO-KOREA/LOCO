@@ -892,6 +892,8 @@ export class QuickFlow {
         this.intake.formStage=1;
         last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
       }
+      // Close before run() renders its completed state; an empty next stage must never flash.
+      if(last)this.intake.dialogOpen=false;
       saved=true;
     });
     if(saved&&last)await this.finish();
