@@ -233,3 +233,13 @@ body.quick-mode .page-title { gap: 16px; align-items: center; flex-wrap: wrap; }
 
 .quick-sheet-notes { border-top: 1px solid var(--color-line); margin-top: 24px; padding-top: 16px; }
 .quick-sheet-notes > p:first-child { margin-top: 0; }
+
+.quick-check-list > li { align-items:flex-start; padding:16px 0; gap:24px; }
+.quick-check-list > li > button { flex-shrink:0; }
+.quick-check-content { min-width:0; flex:1; line-height:1.8; }
+.quick-check-heading { display:block; margin-bottom:12px; }
+.quick-check-groups { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.quick-check-groups section { background:var(--color-surface); border:1px solid var(--color-line); border-radius:10px; padding:14px 16px; }
+.quick-check-groups h4 { font-size:14px; margin:0 0 8px; }
+.quick-check-groups ul { margin:0; padding-left:18px; list-style:disc; }
+.quick-check-list .quick-check-groups li { display:list-item; padding:3px 0; border:0; line-height:1.7; }
