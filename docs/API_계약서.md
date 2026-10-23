@@ -176,31 +176,31 @@ type ManualValue = {
 
 사진은 0..N건이며 분석대상으로 선택한 slot만 pose/tags/reba에 사용한다. 등록만으로 자동 배정·자동 분석하지 않는다. slot_no는 안정적 ID이며 다른 행 삭제 시 재번호를 붙이지 않는다. 일반 작업과 상자 들기에 동일 계약을 쓴다. 같은 photo_id를 여러 분석 행에 중복 배정하면 진단하고 중복 표본을 완성 결과로 계산하지 않는다.
 
-하중은 관찰한 UNLOADED이면 0, MEASURED이면 측정 kg, UNKNOWN이면 null이다. 상태와 측정값의 충돌은 진단한다. 사건명이나 사진 순서로 전체 물체 중량을 적용하지 않는다. 하중을 기준 8~10호의 하루 값에 자동 전사하지 않는다. 목·손목·비틀림·지지·쥐기·충격·활동은 현장 확인값이다.
+하중은 관찰한 UNLOADED이면 0, MEASURED이면 측정 kg, UNKNOWN이면 null이다. 상태와 측정값의 충돌은 진단한다. 사건명이나 사진 순서로 전체 물체 중량을 적용하지 않는다. 하중을 기준 8~10호의 하루 값에 자동 전사하지 않는다. 목·손목 편위/비틀림·지지·쥐기·충격·활동은 현장 확인값이다. 손목 굽힘·폄은 아래 2D 관측 조건을 만족한 사진 후보와 직접 확인값을 구별한다.
 
-자동 후보는 몸통/무릎/좌우 위팔·아래팔 6개이며 적용할 때만 AUTO_ACCEPTED 수동값으로 저장한다. null 후보는 기존값을 덮어쓰지 않는다. 관찰 복사는 사용자가 고른 필드와 사진에만 적용한다. 근거·시각·대상 photo_id를 기록한다. ManualField별 허용 scope·범주·숫자 범위는 기능정의서 §5.1을 따른다.
+자동 후보는 몸통/무릎/좌우 위팔·아래팔 6개에 공급자가 손 관절을 제공하면 좌우 wrist_base를 추가한다. 일반 편집은 적용할 때 AUTO_ACCEPTED로 저장하며 간편 확인에서는 사진 상황을 확인한 뒤 고품질 후보만 저장하고 질문에서 제외한다. null/경계 후보는 기존값을 덮어쓰지 않는다. 관찰 복사는 사용자가 고른 필드와 사진에만 적용한다. 근거·시각·대상 photo_id를 기록한다. ManualField별 허용 scope·범주·숫자 범위는 기능정의서 §5.1을 따른다.
 
 ## 5. 분석 DTO와 상태
 
 ~~~typescript
 type ModuleState = 'NOT_REQUESTED'|'NOT_CALCULATED'|'RUNNING'|'COMPLETE'|'INCOMPLETE'|'FAILED'|'CANCELED';
 type ModuleStates = {pose:ModuleState,tags:ModuleState,reba:ModuleState,judgment:ModuleState};
-type PoseModel = {name:string,version:string,preprocess_version:string,input_size:192,point_count:17,confidence_min:0.5};
+type PoseModel = {model_id:string,provider:string,variant:string,name:string,version:string,preprocess_version:string,input_size:Count,point_count:Count,confidence_kind:string,model_path:string,model_sha256:string,confidence_min:Number,detection_min:Number,presence_min:Number};
 type PostureProfile = {version:'POSTURE_TECH_V1',neck_forward_deg:Number,trunk_flex_deg:Number,trunk_extension_deg:Number,upper_arm_raise_deg:Number};
 type AnalysisSettings = {pose_model:PoseModel,posture_profile:PostureProfile,reba_rule:'REBA_TABLE_2000_V2',burden_rule:'MOEL_2020_12_GENERAL_V2'};
 type TaskSnapshot = TaskInput & {task_id:ID,input_revision:Count,photos:PhotoInfo[],settings:AnalysisSettings};
 type SlotStatus = 'PENDING'|'VALID'|'INVALID'|'ERROR'|'CANCELED'|'NOT_PROCESSED';
-type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX';
-type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number};
-type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null};
-type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[]};
+type AngleCode = 'TRUNK_TILT_VERT'|'NECK_TILT_VERT_PROXY'|'NECK_FLEX_TRUNK_PROXY'|'UPPER_ARM_RAISE_VERT'|'UPPER_ARM_FLEX_TRUNK'|'ELBOW_FLEX'|'KNEE_FLEX'|'WRIST_FLEX_2D';
+type Keypoint = {point_no:Count,name:string,x_px:Number,y_px:Number,confidence:Number,confidence_kind?:string,visibility?:Number,presence?:Number,z_normalized?:Number};
+type Angle = {side:Side,angle_code:AngleCode,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null,diagnostic_code?:string,measurement?:{policy_version:string,coordinate_space:'ORIGINAL_IMAGE_2D',auto_eligible:boolean,hand_plane_method:string,used_world_coordinates:false,policy:Record<string,string|Number>,[quality:string]:unknown}};
+type SlotPoseResult = {slot_no:Count,photo_id:ID|null,status:SlotStatus,diagnostics:Diagnostic[],points:Keypoint[],angles:Angle[],engine?:PoseModel & {actual_model_sha256:string,contract_version:string},world_points?:{point_no:Count,name:string,x_m:Number,y_m:Number,z_m:Number,confidence:Number}[],world_angles?:{side:Side,angle_code:string,label:string,value_deg:Number|null,coordinate_space:string,used_for_reba:false}[],connections?:[string,string][]};
 type PoseResult = {status:'RUNNING'|'DONE'|'PARTIAL_REVIEW'|'FAILED'|'CANCELED',valid_count:Count,total_slot_count:Count,terminal_error:string|null,slots:SlotPoseResult[]};
 type TagCode = 'NECK_FORWARD_PROXY'|'TRUNK_FLEX'|'TRUNK_EXT'|'UPPER_ARM_RAISE'|'HAND_ABOVE_HEAD'|'ELBOW_ABOVE_SHOULDER'|'ELBOW_BEHIND_TRUNK'|'NECK_TWIST'|'TRUNK_TWIST'|'SQUAT'|'KNEEL';
 type SlotTag = {slot_no:Count,tag:TagCode,value:Truth,source:'ANGLE'|'MANUAL'|'UNKNOWN'};
 type TagSummary = {tag:TagCode,yes_count:Count,observed_count:Count,valid_pose_count:Count,manual_observed_count:Count,total_slot_count:Count,sample_ratio:Number|null};
 type TagResult = {slots:SlotTag[],summary:TagSummary[]};
 type ReviewReason = 'COMBINATION_RULE'|'POSTURE_INTERPRETATION'|'BOUNDARY_REVIEW'|'INPUT_CONFLICT';
-type RebaCandidate = {slot_no:Count,photo_id:ID|null,scope:'COMMON'|'LEFT'|'RIGHT',field:'trunk_base'|'upper_arm_base'|'lower_arm_base'|'knee_band',proposed_value:Count|KneeBand|null,angles:Angle[],min_confidence:Number|null,review_reasons:ReviewReason[],diagnostics:Diagnostic[]};
+type RebaCandidate = {slot_no:Count,photo_id:ID|null,scope:'COMMON'|'LEFT'|'RIGHT',field:'trunk_base'|'upper_arm_base'|'lower_arm_base'|'knee_band'|'wrist_base',proposed_value:Count|KneeBand|null,angles:Angle[],min_confidence:Number|null,review_reasons:ReviewReason[],diagnostics:Diagnostic[]};
 type Risk = 'NEGLIGIBLE'|'LOW'|'MEDIUM'|'HIGH'|'VERY_HIGH';
 type RebaSideScore = {
   side:Side,trunk:Count|null,neck:Count|null,legs:Count|null,table_a:Count|null,load_score:Count|null,score_a:Count|null,
@@ -262,8 +262,9 @@ type AiTextView = {text:AiText,source_current:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
 type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
 type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,gpt_key_present:boolean,ui:UiPreferences};
-type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'>;
+type PoseContract = {version:string,models:Record<string,PoseModel>,fields:object[],defaults:PoseModel,landmarks:Record<string,string[]>,connections:Record<string,[string,string][]>,world_angles:object[]};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,pose_contract:PoseContract,gpt_key_present:boolean,ui:UiPreferences};
+type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'|'pose_contract'>;
 ~~~
 
 서비스가 저장된 결과로 NumericSummary를 만든다. 원본 사진·좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label을 보내지 않는다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
@@ -424,6 +425,10 @@ get_task/list_tasks는 메모리상 2.0 편집 DTO로 읽고 get_task는 source_
 
 AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_settings.gpt_contract={version,fields,defaults}`다. `gpt_contract`와 `gpt_key_present`는 읽기 메타데이터로 DB에 저장하지 않는다. 이전 설정의 누락 필드는 공통 기본값으로 읽고 기존 명시값과 분석 snapshot은 보존한다. 실제 응답 메타데이터는 입력 session.last_ai 및 설명 connection에 저장한다. 설정 변경 후 이전 호출을 새 설정의 연결 성공으로 표시하지 않는다.
 
+## MediaPipe 자세 엔진 개정 (2026-10-22)
+
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.
+
 ## 원본 별지 1 PDF 출력 계약 (2026-10-22 개정안)
 
 사용자 보고서 흐름은 Excel 미리보기·저장을 유지한다. PDF 미리보기·저장은 간편·고급 사용자 화면에 노출하지 않으며, 아래 절은 내부 PDF API에만 적용한다. Excel API와 영수증 계약은 유지한다. 이 절은 PDF에 적용하며, 앞의 Excel 시트 설명은 Excel 출력에만 적용한다. 이 문서는 후보 코드에 대응하는 개정안이며 실제 main 반영·배포 완료 보고가 아니다.
@@ -465,3 +470,87 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 ## 기본 간편 입력: 묶음 서식 (2026-10-23)
 
 새 서비스 응답의 `form_fields`가 있으면 간단 확인 횟수 제한/개별 질문 대신 작업 특징 → 작업 조건 → 결과의 고정 이동을 사용한다. 첫 화면에 작업 특징을 함께 표시하고 저장 후 해당 작업의 관련 조건을 선택·숫자 서식으로 묶어 표시한다. 관련된 KNOWN 값은 미리 표시하며 변경한 값만 기존 intake_turn.answers로 저장한다. 조건별 identity를 유지하고 서로 다른 중량·횟수를 합치지 않는다. 선택 보완인 사진 자세는 접을 수 있다. 미선택은 NO/0으로 자동 채우지 않으며 미확인 상태로 결과를 생성할 수 있다. 화면 단계 표시는 계산 완성률을 뜻하지 않는다. 결과 이동 후 개별 누락 질문을 자동으로 이어가지 않는다. 추가 설명은 선택 영역에서 AI로 정리할 수 있고 서식 선택·숫자 저장에는 AI 요청을 하지 않는다. 기존 응답의 questions/progress/complete는 호환·실제 계산 상태로 유지한다. form_fields가 없는 과거 초안은 기존 질문 화면으로 읽는다.
+
+### 하루 시간 합산 정정 (2026-10-22)
+
+2026-10-23 추가: 허용 derivations가 있는 AI 답변에는 nullable `calculation={operation,terms:[{quote,minutes}]}`을 schema의 필수 키로 생성한다. 합산하지 않는 답변은 null이며 과거 이 키 없는 응답도 읽는다. 서비스는 원문 위치·피연산자별 분 환산·중복·최종 합계를 검사하고 정규화한 fact.calculation만 저장한다. 저장 객체는 `{operation,unit,terms,value}`이며 복합 단위 하나의 정규화는 `NORMALIZE_STATED_DURATION`이다. 다른 노출에 총시간 합산 권한을 추가하지 않는다. 예시·실패 경계는 [적응형 계약](adaptive-intake.md)을 따른다.
+
+intake_contract.fields[].derivations는 허용 수치 연산을 기술한다. daily_work_min만 SUM_STATED_DURATIONS를 허용하며, 합산 fact의 선택 calculation={operation,unit,terms:[{minutes,quote}],value}에 검증된 근거를 반환한다. AI의 답변 schema는 기존 quote/number를 유지한다. 자세한 근거 검증과 예외는 [적응형 추가 확인 계약](adaptive-intake.md)의 작업별 시간 합산 절을 따른다.
+
+
+## 입력 저장 감사 7건 정정 (2026-10-23)
+
+intake_session/intake_turn 응답에 diagnostics와 history를 추가한다. messages의 message_id와 회차의 requests[phase,connection.response_id,answers,context]·decisions[proposal_index,request_index,outcome,reason,source_message_ids]를 기존 JSON에 보관한다. INPUT_CHANGED는 늦은 제안의 폐기 표식이 아니다. 같은 작업이면 최신 값에 재조정한 결과와 보존한 제안/진단을 반환한다. 명시한 글자 예산이 없으면 저장된 자연어 전체를 문맥에 포함한다. 상세 DTO·호환·소유권은 [저장 계약](storage-persistence.md)을 따른다.
+
+
+## 실호출 입력·출력 대조 정정 (2026-10-23)
+
+FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJECTED로 기록한다. 반영 후 질문 후보를 갱신하고 USER 값과 미해결 CONFLICT를 지킨다. 과거 IGNORED/FOLLOWUP_ONLY 회차는 호환 열람하며 재작성하지 않는다. 메서드/매개변수와 물리 DB 스키마는 유지한다. 상세는 [저장·출력 보존 계약](storage-persistence.md)을 따른다.
+
+자연어 단독 turn은 오래된 expected_revision도 최신 상태에 재조정하고 선택 `history[].rebased_from_revision`을 기록한다. 구조화 직접 답변의 저장 경합은 INPUT_CHANGED이며 저장 성공이 아니다. 사진 소유 문맥을 확인할 수 없는 제안은 PHOTO_CONTEXT_CONFIRMATION_REQUIRED로 보관한다. 조회에 따른 파생 별칭/무하중 손잡이의 revision 변화를 제거한다. 기존 요청 매개변수와 여섯 테이블은 유지한다.
+
+
+
+## 최신 main 통합과 재질문 방지 (2026-10-23)
+
+최신 main의 Excel 출력·사진 크롭·공통 이동과 2단계 묶음 확인을 기준으로 MediaPipe 및 저장 보완만 추가한다. 이미 KNOWN인 값과 USER가 모름으로 확인한 항목은 새 질문/질문 묶음에 넣지 않는다. 간편 묶음 서식에서도 기본 추가 입력에서 제외하고 닫힌 ‘이미 확인한 정보 · 수정하기’에서만 수정한다. 조건별 행과 좌우 사진의 identity를 유지하며 한 조건의 답을 다른 조건에 복사하지 않는다. ESTIMATED·CONFLICT 및 새 사진에 연결되지 않은 정보는 확인할 수 있다.
+
+사진과 같은 물건이라고 확인한 유일 중량은 photo_load의 공통 해석으로 계산과 질문에 함께 사용한다. 이 파생값을 새 사실로 저장하거나 조회 revision을 올리지 않는다. 여러 중량, 확인하지 않은 연결, 명시적인 모름·무하중·직접 중량은 구분한다. 자동 저장과 수동 임시 저장이 같은 작업/생성시각을 가리키면 홈의 이어서 하기 카드는 수동 저장 하나로 표시한다. 별도 작업 초안은 보존한다.
+
+사용자에게 보이는 시스템 용어는 frontend/user-language.json을 공통 사전으로 사용한다. 화면의 AI 본문·처리 상태·계산 근거 및 Excel 설명은 같은 뜻의 한국어로 표시한다. 과거 저장된 원문·직접 입력 근거·계산 코드·수치·단위·snapshot은 바꾸지 않는다. 새 AI 설명 지침에도 같은 사전을 제공하며 근거 참조 코드는 유지한다. 묶음 입력에서 미전송한 추가 설명은 다음 단계 저장과 함께 처리하고, 입력 단계와 수정 중 선택값은 초안 복원 대상이다.
+
+검증 범위와 실제 호출 증거는 [최신 main 재질문 점검](verification/2026-10-23-main-no-repeat.md)에 기록한다. 외부 호출 없이 검사한 계약 조합과 실제 모델·앱·DB·Excel 실행은 구분한다.
+
+## 실제 원문 인용과 반 시간 경계 정정 (2026-10-23)
+
+요청/응답 키는 유지한다. 공통 evidence_quote는 공백 정규화 연속 인용 또는 동일 원문에서 순서/위치가 검증된 완전한 문장 인용만 인정한다. fact.quote는 실제 연속 원문, history.requests/decisions.quote는 원본 AI 인용이며 source_message_ids는 같은 규칙으로 결정한다. 숫자 검증은 원본 인용의 값·단위를 유지하고 USER 우선권·지연 응답 재조정 규칙은 바꾸지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
+
+## 명시적 모름 표현 보존 정정 (2026-10-23)
+
+자연어의 명시적 모름은 grounding.UNKNOWN_POLICY/unknown_evidence에서 공통 검증한다. "모릅니다"·"몰라요"·"알 수 없어요"·"미확인/확인 불가" 등은 UNKNOWN으로 보존하며 부정문이나 무관한 표현은 모름 근거로 사용하지 않는다. 숫자 0·무하중·NO를 대신 넣지 않는다. 원본 제안/출처, USER 우선권, 지연 재조정, 기존 snapshot은 보존한다. 자세한 표현과 반례는 [모름 표현 검증](verification/2026-10-23-unknown-evidence.md)을 따른다.
+
+
+## 추가 질문 최소화 (2026-10-23)
+
+계산기가 이미 완료한 범위의 작업 특징은 후보와 묶음 서식 모두에서 제외한다. 원래 미확인 값을 NO로 저장하지 않는다. 작업 설명을 먼저 보이는 답변 칸에서 한 번에 정리하고, 개별 수정은 접힌 영역에서 제공한다. 화면에 열거된 남은 작업 특징은 사용자가 명시적으로 한 번 확인하여 NO로 저장할 수 있다. 먼저 작성 중 설명과 직접 선택을 저장하며 새로 알려진 YES, 이전 USER 모름, 이미 확인된 값은 일괄 확인으로 덮지 않는다.
+
+공통 intake POLICY.optional_photo_destinations는 사진 점수를 더 보완할 때의 항목을 정의하고 form_prompt_limit은 한 자연어 안내에 나열할 항목 수를 정의한다. 사진의 미확정 보완 항목만 남으면 기본 팝업을 강제하지 않고, 사용자가 선택해 더 확인할 수 있다. 해당 값은 미확인으로 보존하고 REBA 미완성/현재 정보 출력의 기존 의미를 유지한다. 작업 정보가 충분하거나 사용자가 모른다고 확인한 뒤에는 빈 단계를 건너뛴다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
+
+회귀는 test_question_minimization.py와 frontend-question-minimization.cjs에서 계산 완료 시 9개→0개, 남은 특징 한 번 확인, USER 모름/직접 YES 보호, 미전송 설명 우선 처리와 실패 보존을 검사한다. 실제 질문 수는 저장 필드 수 또는 접힌 사진 보완 수와 구분하여 사용자 답변 동작으로 검증한다.
+
+## 질문 전 원문 교차확인 (2026-10-23)
+
+새 자연어를 저장한 회차는 질문을 보여 주기 전에 FOLLOWUP 원문 교차확인을 한 번 수행한다. 다른 유효 질문이 있어도 앞선 제안·거절사유·현재 사실·원문 당시 사진 범위를 대조하여 빠진 명시 사실을 추가한다. 조회/중복 읽기, 직접 선택 답변만의 저장, plan=false에는 추가 호출하지 않는다. 기존 원문 검증·USER 우선권·지연 재조정·불변 snapshot을 유지하며 만료 조건을 추가하지 않는다. 상세 계약은 [원문 교차확인](verification/2026-10-23-source-coverage.md)을 따른다.
+
+
+## 사진별 관측값 소유권 (2026-10-23)
+
+사진 자세 값은 같은 원본 사진·신체 부위에만 적용한다. `manual.<scope>.<field>@photo:<photo_id>`가 정식 식별자이며 `photo_id`, 사진 방향, 원래 각도·신뢰도·측정 정책·엔진 근거를 함께 보존한다. 대표가 아닌 사진에서 읽은 값도 저장하지만 대표 사진의 빈 자세를 대신 채우지 않는다. 같은 사진에서 이미 확인한 값과 직접 모름으로 남긴 값은 다시 묻지 않는다. 남은 질문·묶음 서식에는 ‘왼쪽에서 찍은 사진 · 오른팔’처럼 사진 방향과 신체 부위를 표시하고 내부 식별자는 노출하지 않는다.
+
+기존 `@default` 자세 값은 당시 대표 사진에만 연결하는 호환 별칭이다. 이미 저장된 사진별 USER 값·모름을 옛 자동 추정 별칭으로 덮지 않는다. 사진 교체·삭제 시 다른 사진의 사용자 값과 원문·시각을 보존하고 제거된 사진 값은 현재 계산에 투영하지 않는다. 동일 원본·모델 설정·근거를 반복 조회하거나 재시작하면 저장 JSON·revision·근거 시각은 변하지 않는다.
+
+정면·후면의 몸통·목 기울임과 팔 벌림 관측은 원래 사진·신체 좌우별로 보존한다. 한쪽 팔의 최대 각도를 양팔에 복사하지 않으며 확실한 양성 측정만 자동 변환한다. 낮은 신뢰도·점수 경계·손 가림·손바닥 방향 불명확은 확인 대상으로 남긴다. 참고용 목 각도와 추정 3D 좌표는 기존 REBA 확정값으로 승격하지 않는다. 하루 시간·하중 추정, 대표 사진 선택, 양팔 REBA 완성·최댓값 계산은 유지한다.
+
+기존 여섯 테이블과 TaskInput 2.0을 유지한다. `TASK.conditions.intake_session`의 선택 `photo_observations`와 fact 소유권·근거 메타데이터로 저장하며 물리 migration은 없다. 분석·출력 snapshot은 불변이고 Excel 입력 근거는 각 행의 실제 사진 식별자로 조회한다. 같은 범주값인 두 사진도 각자의 각도·인용을 유지한다. 세부 계약과 검증 한계는 [사진별 검증](verification/2026-10-23-photo-ownership.md)을 따른다.
+
+### 명시 총시간과 불필요 계산 메타데이터 (2026-10-23)
+
+원문을 그대로 복사한 단일 확정 하루 총시간과 제안 수치의 단위 환산이 직접 일치하면, AI가 함께 붙인 불필요한 합산 메타데이터 때문에 그 값을 거절하지 않는다. `grounding.DIRECT_TOTAL_POLICY`가 이 우선순위와 부정·불확실 경계를 관리한다. 예: “하루 전체 실제 작업시간은 5시간입니다”의 300분은 직접 저장하며, 별도 작업 피연산자가 인용에 없다는 이유로 재질문하지 않는다. 원 AI 제안의 calculation과 결정·원문 연결은 이력에 그대로 보존하고, fact에는 검증하지 않은 합산 근거를 저장하지 않는다. 틀린 총값·단위·잘린 복합 시간·범위·부정·불확실 총시간은 이 우선 규칙으로 허용하지 않는다. 단일 명시 총시간이 없는 합산은 기존 원문 피연산자·단위·순서·중복·산술 검증을 계속 거친다. DB 스키마·기존 snapshot·USER 우선권은 바꾸지 않는다.
+
+### 실제 사진의 AI 관찰 (2026-10-23)
+
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+
+등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
+
+### 사진 등록 세대와 사용자 사진 상황 우선권 (2026-10-23)
+
+`photo_identity.REGISTRATION_KEY`는 새 PHOTO.metadata_json 행에 UUID를 부여하며 update로 교체하지 않는다. 물리 스키마는 유지한다. legacy 행은 경로/소유 ID로 결정되는 토큰을 읽고 조회 중 metadata를 쓰지 않는다. 사진 signature는 [view,photo_id,원본SHA,등록세대]이며 과거 triple을 호환한다. 같은 SQLite ID·파일경로·바이트·view로 재등록해도 이전 이미지 및 텍스트 사진 응답이 새 등록에 적용되지 않는다.
+
+사용자가 context=NO로 사진 상황을 부정하면 raw 관찰과 캐시는 보존하되 VISION 소유 manual/작업특징 입력은 UNKNOWN으로 돌려 실제 투영값도 해제한다. USER·텍스트 AI·SAVED·POSE 소유 값은 건드리지 않는다. context=YES로 직접 정정하면 같은 이미지 관찰을 재사용하며 추가 이미지 API를 호출하지 않는다. 같은 turn의 텍스트 추출 뒤 저장에도 이 우선권을 적용한다.
+
+### 현재 원문이 사진 AI 추정을 정정하는 경우 (2026-10-23)
+
+원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
+
+context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.

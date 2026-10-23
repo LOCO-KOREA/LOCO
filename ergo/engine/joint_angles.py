@@ -1,7 +1,8 @@
 """Signed original-pixel joint angles from functional specification section 3."""
 import math
+from .wrist_angles import angles as wrist_angles
 
-def angles(points, forward, width, height, confidence_min=0.5):
+def angles(points, forward, width, height, confidence_min=0.5, *, camera_side=None, orientation=None, wrist_policy=None):
     sign=1 if forward=='SCREEN_RIGHT' else -1
     p={point['name']:point for point in points}; result=[]
     norm=lambda a:(a+180)%360-180
@@ -26,4 +27,4 @@ def angles(points, forward, width, height, confidence_min=0.5):
                 try: value=compute()
                 except ValueError as error: note=str(error)
             result.append(dict(side=side,angle_code=code,value_deg=value,min_confidence=confidence,diagnostic=note))
-    return result
+    return result+wrist_angles(points,width,height,confidence_min,camera_side=camera_side,orientation=orientation,policy=wrist_policy)

@@ -1,0 +1,210 @@
+{
+  "08-zero-and-absent": {
+    "evidence": "live-field-cases-20261023/08-zero-and-absent/01-first-ai.json",
+    "statement": "완제품 육안 검수 작업이에요. 하루 전체 작업은 4시간, 연 180일이고 일회성은 아니에요. 검수 작업만 하고 키보드와 마우스 작업은 없어서 하루 0분입니다. 드는 물건은 없어요. 사진은 한 사람의 전신이 나온 평소 작업 모습입니다. 손으로 밀거나 당기는 힘도 전혀 없어요.",
+    "response": {
+      "answers": [
+        {
+          "target": "work_type.keyboard",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "키보드와 마우스 작업은 없어서 하루 0분입니다."
+        },
+        {
+          "target": "card.keyboard.C1_KEYBOARD_FOCUSED",
+          "condition": "default",
+          "number": 0,
+          "text": null,
+          "quote": "키보드와 마우스 작업은 없어서 하루 0분입니다."
+        },
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "드는 물건은 없어요."
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 240,
+          "text": null,
+          "quote": "하루 전체 작업은 4시간",
+          "calculation": null
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 180,
+          "text": null,
+          "quote": "연 180일"
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성은 아니에요."
+        },
+        {
+          "target": "task_name",
+          "condition": "default",
+          "number": null,
+          "text": "완제품 육안 검수 작업",
+          "quote": "완제품 육안 검수 작업이에요."
+        },
+        {
+          "target": "context",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습입니다."
+        },
+        {
+          "target": "load",
+          "condition": "default",
+          "number": null,
+          "text": "UNLOADED",
+          "quote": "드는 물건은 없어요. 손으로 밀거나 당기는 힘도 전혀 없어요."
+        }
+      ],
+      "questions": [
+        {
+          "target": "work_type.arm_over",
+          "condition": "default",
+          "text": "검수 중 손이 머리 위로 올라가거나 팔꿈치가 어깨 위에 오르나요?",
+          "reason": "팔을 높이 드는 작업이 있는지 확인해야 해요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T05:44:28.089695+00:00",
+        "elapsed_ms": 20734,
+        "response_id": "resp_061e51acb14c38c6006adaf4289a0887d18cb314ce1117bc2f"
+      }
+    }
+  },
+  "11-preparation-posture": {
+    "evidence": "live-posture-cases-20261023/11-preparation-posture/01-first-ai.json",
+    "statement": "급식실 식재료 전처리 작업이에요. 손목과 손의 같은 동작을 각각 하루 3시간 반복해요. 목을 굽히는 작업은 하루 120분, 허리를 굽히는 작업은 60분이고 그중 30분이 겹쳐요. 그래서 목·허리 굽힘을 합친 하루 총 시간은 150분이에요. 몸을 받칠 지지대 없이 하지만 자세를 바꾸는 것은 자유로워요. 하루 전체 실제 작업은 8시간이고 연 220일, 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이에요.",
+    "response": {
+      "answers": [
+        {
+          "target": "work_type.repeat",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "손목과 손의 같은 동작을 각각 하루 3시간 반복해요."
+        },
+        {
+          "target": "card.repeat.C2_WRIST",
+          "condition": "default",
+          "number": 180,
+          "text": null,
+          "quote": "손목과 손의 같은 동작을 각각 하루 3시간 반복해요."
+        },
+        {
+          "target": "card.repeat.C2_HAND",
+          "condition": "default",
+          "number": 180,
+          "text": null,
+          "quote": "손목과 손의 같은 동작을 각각 하루 3시간 반복해요."
+        },
+        {
+          "target": "work_type.trunk_neck",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "목을 굽히는 작업은 하루 120분, 허리를 굽히는 작업은 60분"
+        },
+        {
+          "target": "card.trunk_neck.unsupported",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "몸을 받칠 지지대 없이"
+        },
+        {
+          "target": "card.trunk_neck.posture_restricted",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "자세를 바꾸는 것은 자유로워요."
+        },
+        {
+          "target": "card.trunk_neck.C4_NECK_FLEX",
+          "condition": "default",
+          "number": 120,
+          "text": null,
+          "quote": "목을 굽히는 작업은 하루 120분"
+        },
+        {
+          "target": "card.trunk_neck.C4_TRUNK_FLEX",
+          "condition": "default",
+          "number": 60,
+          "text": null,
+          "quote": "허리를 굽히는 작업은 60분"
+        },
+        {
+          "target": "card.trunk_neck.C4_UNION",
+          "condition": "default",
+          "number": 150,
+          "text": null,
+          "quote": "그래서 목·허리 굽힘을 합친 하루 총 시간은 150분이에요."
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 480,
+          "text": null,
+          "quote": "하루 전체 실제 작업은 8시간",
+          "calculation": null
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성은 아니에요."
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 220,
+          "text": null,
+          "quote": "연 220일"
+        },
+        {
+          "target": "context",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습이에요."
+        }
+      ],
+      "questions": [
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "text": "무거운 식재료나 용기를 들어 옮기는 작업도 하나요?",
+          "reason": "무거운 물건을 드는 작업이 있는지 확인해야 해당 작업 조건을 기록할 수 있어요."
+        }
+      ],
+      "_connection": {
+        "status": "CONNECTED",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "xhigh",
+        "requested_reasoning_effort": "xhigh",
+        "reason": null,
+        "observed_at": "2026-10-23T05:45:56.805775+00:00",
+        "elapsed_ms": 28906,
+        "response_id": "resp_0a093b5db8e423c3006adaf478ca9c87d1a6c1fb2b7fc3d2af"
+      }
+    }
+  }
+}

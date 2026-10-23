@@ -13,6 +13,8 @@ import {createAnalysisWorkspace} from './analysis-workspace.js';
 const $=selector=>document.querySelector(selector);
 const confirmDeletion=createDeleteConfirmation(document);
 const state={stepDone:[],surveys:[],selected:null,editorId:null,details:new Map(),drafts:new Map(),busy:false,page:'S01'};
+let navigationRevision=0;
+function ownNavigation(){const revision=++navigationRevision;return ()=>revision===navigationRevision;}
 const names=SCREENS.map(screen=>screen.name);
 const paths=['<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="11" y="2" width="5" height="5" rx="1"/><rect x="2" y="11" width="5" height="5" rx="1"/><rect x="11" y="11" width="5" height="5" rx="1"/>','<rect x="3" y="2" width="12" height="14" rx="2"/><path d="M6 6h6M6 9h6M6 12h4"/>','<path d="m2 5 7-3 7 3-7 3zM2 5v8l7 3 7-3V5M9 8v8"/>','<path d="M2 5h3l2-2h4l2 2h3v10H2z"/><circle cx="9" cy="10" r="3"/>','<path d="M6 2H2v4M12 2h4v4M2 12v4h4M12 16h4v-4"/><circle cx="9" cy="9" r="3"/>','<circle cx="9" cy="3" r="2"/><path d="M9 5v6M4 9l5-3 5 3M9 11l-4 6M9 11l4 6"/>','<path d="m9 1 6 3v5c0 4-6 7-6 7S3 13 3 9V4zM6 8l2 2 4-4"/>','<path d="M4 1h7l4 4v12H4zM11 1v4h4M7 8h5M7 11h5M7 14h3"/>','<circle cx="9" cy="9" r="3"/><path d="M9 1v3M9 14v3M1 9h3M14 9h3M3 3l2 2M13 13l2 2M3 15l2-2M13 5l2-2"/>'];
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,8 +28,8 @@ function remember(){state.drafts.set(state.editorId??'new',draft());}
 function fill(data){for(const key of Object.keys(blank())){if(key==='survey_type'){const type=['INITIAL','REGULAR','OCCASIONAL'].includes(data[key])?data[key]:'REGULAR';const radio=$(`#survey-form input[name="survey_type"][value="${type}"]`);if(radio)radio.checked=true;}else $('#survey-form').elements.namedItem(key).value=data[key]??'';}intakeUI.fill(data);$('#form-title').textContent=state.editorId?'조사개요 수정':'조사개요 입력';$('#save-survey').textContent=state.editorId?'조사 저장하고 작업 등록':'조사 만들고 작업 등록';}
 function status(s){return s.review_current?'current':s.reviewed?'history':'none';}
 function rows(){const keyword=$('#search').value.trim().toLowerCase(),filter=$('#review-filter').value,sign=$('#sort').value==='asc'?1:-1;const list=state.surveys.filter(s=>(filter==='all'||status(s)===filter)&&s.title.toLowerCase().includes(keyword)).sort((a,b)=>sign*((a.survey_date||'').localeCompare(b.survey_date||'')||a.survey_id-b.survey_id));$('#survey-rows').innerHTML=list.map(s=>`<tr data-id="${s.survey_id}" class="${s.survey_id===state.selected?'selected':''}"><td class="row-title"><button class="row-button" data-id="${s.survey_id}"><strong>${esc(s.title||'제목 없는 조사')}</strong></button><small>조사 #${s.survey_id}</small></td><td>${esc(s.survey_date||'미입력')}</td><td>${s.task_count}</td><td><span class="badge ${status(s)}">${s.review_current?'검토 완료':s.reviewed?'이전 결과 검토':'미검토'}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty">'+(state.surveys.length?'조건에 맞는 조사가 없습니다.':'저장된 조사가 없습니다.<br>상단의 새 조사 버튼으로 첫 조사를 만들어 주세요.')+'</td></tr>';const chosen=state.surveys.find(s=>s.survey_id===state.selected);$('#selection').textContent=chosen?`선택 조사 · ${chosen.title||'제목 없음'} / 조사 #${chosen.survey_id}`:'선택한 조사가 없습니다.';}
-async function refresh(){state.surveys=await api('list_surveys');rows();if(state.page==='S01')await dashboardUI.open(state.surveys,state.selected);$('#connection').textContent='';$('#connection').setAttribute('aria-label','연결됨');$('#connection').classList.add('connected');updateNextStep();}
-async function selectSurvey(id){if(state.busy)return;remember();const survey=await api('get_survey',{survey_id:id});state.selected=id;state.editorId=id;state.details.set(id,survey);fill(state.drafts.get(id)||survey);rows();clearError();}
+async function refresh(){state.surveys=await api('list_surveys');rows();if(state.page==='S01')await dashboardUI.open(state.surveys,state.selected);$('#connection').textContent='';$('#connection').setAttribute('aria-label','앱 준비 완료');$('#connection').classList.add('connected');updateNextStep();}
+async function selectSurvey(id,isCurrent=()=>true){if(state.busy)return;remember();const survey=await api('get_survey',{survey_id:id});state.details.set(id,survey);if(!isCurrent())return;state.selected=id;state.editorId=id;fill(state.drafts.get(id)||survey);rows();clearError();}
 function page(id){
   state.page=id;
   if(!isAnalysisScreen(id))analysisUI.suspend();
@@ -61,7 +63,7 @@ async function updateNextStep(){
   }catch{/* the hint is optional; real errors surface from the screen's own calls */}
 }
 $('#next-step').addEventListener('click',event=>{const id=event.target.closest('[data-next-step]')?.dataset.nextStep;if(id)perform(()=>id==='S02'&&!state.selected?newSurvey():navigateScreen(id));});
-async function tasks(screen='info',skipPhotoFlush=false,taskId){
+async function tasks(screen='info',skipPhotoFlush=false,taskId,isCurrent=ownNavigation()){
   const selected=taskId??(state.page==='S05'?photoUI.task?.task_id:isAnalysisScreen(state.page)?analysisUI.currentTask(state.selected):undefined);
   if(state.page==='S05'&&!skipPhotoFlush)await photoUI.flush();
   taskUI.remember();
@@ -69,8 +71,10 @@ async function tasks(screen='info',skipPhotoFlush=false,taskId){
     if(!window.loco){taskUI.preview();taskUI.screen=screen;taskUI.render();return;}
     return notify('조사를 먼저 선택해 주세요.');
   }
-  await taskUI.open(state.selected);
-  if(selected&&taskUI.current?.task_id!==selected)await taskUI.load(selected);
+  await taskUI.open(state.selected,{shouldRender:isCurrent});
+  if(!isCurrent())return;
+  if(selected&&taskUI.current?.task_id!==selected)await taskUI.load(selected,true,{shouldRender:isCurrent});
+  if(!isCurrent())return;
   taskUI.screen=screen;taskUI.render();window.scrollTo({top:0});
 }
 async function photos(taskId){
@@ -84,9 +88,9 @@ async function photos(taskId){
   if(!taskUI.current.task_id||taskUI.isDirty())await taskUI.save();
   await photoUI.open(taskUI.current.task_id);page('S05');window.scrollTo({top:0});
 }
-async function openAnalysis(id,taskId,analysisId,skipPhotoFlush=false){
+async function openAnalysis(id,taskId,analysisId,skipPhotoFlush=false,isCurrent=ownNavigation()){
   if(id==='S05')return photos(taskId);
-  if(['S03','S04'].includes(id))return tasks(id==='S04'?'conditions':'info',skipPhotoFlush,taskId);
+  if(['S03','S04'].includes(id))return tasks(id==='S04'?'conditions':'info',skipPhotoFlush,taskId,isCurrent);
   if(state.page==='S05'&&!skipPhotoFlush)await photoUI.flush();
   taskUI.remember();
   if(id!=='S10'&&!state.selected)return notify('조사를 먼저 선택해 주세요.');
@@ -95,11 +99,12 @@ async function openAnalysis(id,taskId,analysisId,skipPhotoFlush=false){
   window.scrollTo({top:0});
 }
 async function navigateScreen(id,taskId,skipPhotoFlush=false){
+  const isCurrent=ownNavigation();
   if(['S01','S02'].includes(id)){
     if(state.page==='S05'&&!skipPhotoFlush)await photoUI.flush();
     taskUI.remember();page(id);window.scrollTo({top:0});return;
   }
-  return openAnalysis(id,taskId,undefined,skipPhotoFlush);
+  return openAnalysis(id,taskId,undefined,skipPhotoFlush,isCurrent);
 }
 async function startPhotoAnalysis(taskId){
   const {task}=await api('get_task',{task_id:taskId});
@@ -119,13 +124,14 @@ $('#edit-survey').addEventListener('click',()=>{if(!state.selected)return notify
 $('#survey-form').addEventListener('input',remember);$('#survey-form').addEventListener('change',remember);
 $('#survey-form').addEventListener('submit',event=>{event.preventDefault();if(state.busy)return;perform(async()=>{state.busy=true;$('#save-survey').disabled=true;try{const value=draft();remember();const saved=await api(state.editorId?'update_survey':'create_survey',state.editorId?{survey_id:state.editorId,draft:value}:{draft:value});state.selected=saved.survey_id;state.editorId=saved.survey_id;state.details.set(saved.survey_id,saved);state.drafts.delete('new');state.drafts.set(saved.survey_id,value);fill(saved);await refresh();surveyEditor.close(true);notify('조사를 SQLite에 저장했습니다.');await tasks();}finally{state.busy=false;$('#save-survey').disabled=false;}});});
 $('#survey-rows').addEventListener('click',event=>{const row=event.target.closest('[data-id]');if(row)perform(async()=>{await selectSurvey(Number(row.dataset.id));if(!state.busy)surveyEditor.open();});});
-function newSurvey(){if(state.busy)return;remember();state.editorId=null;state.selected=null;fill(state.drafts.get('new')||blank());rows();page('S02');clearError();surveyEditor.open();}
+function newSurvey(){if(state.busy)return;ownNavigation();remember();state.editorId=null;state.selected=null;fill(state.drafts.get('new')||blank());rows();page('S02');clearError();surveyEditor.open();}
 $('#new-survey').addEventListener('click',newSurvey);
 $('#open-survey').addEventListener('click',()=>perform(tasks));
 $('#delete-survey').addEventListener('click',()=>{if(!state.selected||state.busy)return notify('삭제할 조사를 선택해 주세요.');perform(async()=>{const id=state.selected;const survey=state.surveys.find(item=>item.survey_id===id);const deleted=await confirmDeletion({title:'조사를 삭제할까요?',message:`조사: ${survey?.title||'제목 없는 조사'} (#${id})\n포함 작업 ${survey?.task_count??'전체'}개와 등록 사진 정보, 분석 이력, 조사자 검토 및 출력 기록이 삭제됩니다.\n원본 사진과 이미 만든 Excel 파일은 삭제하지 않습니다.\n이 작업은 앱에서 되돌릴 수 없습니다.`,remove:()=>api('delete_survey',{survey_id:id})});if(!deleted)return;taskUI.resetSurvey(id);state.drafts.delete(id);state.details.delete(id);state.selected=null;state.editorId=null;fill(blank());page('S01');await refresh();notify('선택 조사를 삭제했습니다. 원본 사진과 Excel은 삭제하지 않습니다.');});});
 for(const selector of ['#search','#review-filter','#sort'])$(selector).addEventListener(selector==='#search'?'input':'change',rows);
 $('#navigation').addEventListener('click',event=>{const id=event.target.closest('[data-nav]')?.dataset.nav;if(id)perform(()=>navigateScreen(id));});
 $('#home').addEventListener('click',()=>perform(async()=>{
+  ownNavigation();
   if(document.body.classList.contains('quick-mode')){
     await quickUI.workspaceHome();
     if(quickUI.step==='home'){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='';}
@@ -149,7 +155,7 @@ document.addEventListener('click',event=>{
   databaseLocation.initialize();
 });
 $('#close-database-settings').addEventListener('click',()=>$('#database-settings').close());
-const quickUI=new QuickFlow({host:$('#quick-workspace'),toolbar:$('#quick-toolbar'),api,notify,onError:showError,onScreenChange:label=>{if(document.body.classList.contains('quick-mode')){$('#breadcrumb-mode').textContent='간편 분석';$('#breadcrumb-page').textContent=label;}},onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
+const quickUI=new QuickFlow({host:$('#quick-workspace'),toolbar:$('#quick-toolbar'),api,notify,onError:showError,onScreenChange:label=>{if(document.body.classList.contains('quick-mode')){$('#breadcrumb-mode').textContent='간편 분석';$('#breadcrumb-page').textContent=label;}},onOpenDetail:({surveyId,taskId})=>perform(async()=>{const isCurrent=ownNavigation();setMode('detail');await refresh();if(surveyId&&isCurrent()){await selectSurvey(surveyId,isCurrent);if(isCurrent())await tasks('conditions',false,taskId,isCurrent);}})});
 function setMode(mode){
   const quick=mode==='quick';
   document.body.classList.toggle('quick-mode',quick);$('#quick-workspace').hidden=!quick;
@@ -157,7 +163,7 @@ function setMode(mode){
   if(quick){$('#title').textContent='사진으로 빠른 분석';$('.page-title p').textContent='';quickUI.open();}
   else{page('S01');if(window.loco)perform(refresh);}
 }
-$('#mode-toggle').addEventListener('click',()=>setMode(document.body.classList.contains('quick-mode')?'detail':'quick'));
+$('#mode-toggle').addEventListener('click',()=>{ownNavigation();setMode(document.body.classList.contains('quick-mode')?'detail':'quick');});
 document.addEventListener('keydown',event=>{if(!(event.ctrlKey||event.metaKey)||event.key.toLowerCase()!=='s')return;event.preventDefault();if(document.body.classList.contains('quick-mode')||!['S03','S04'].includes(state.page))return;perform(async()=>{if(await taskUI.save())notify('작업을 저장했어요.');});});
 fill(blank());page('S01');rows();setMode('quick');
 if(!window.loco&&new URLSearchParams(location.search).get('screen')==='photos'){page('S05');photoUI.preview();}

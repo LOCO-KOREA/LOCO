@@ -8,11 +8,12 @@ from threading import local
 from typing import Any, Callable, Iterator, Mapping
 from .connection import open_db
 from .storage_common import _transaction, _dump, _load, _utc_now, _photo, JsonObject
+from ergo.photo_identity import REGISTRATION_KEY, registered
 
 
 def create_photo(task_id: int, metadata: JsonObject, *, db_path: str | None=None) -> int:
     with _transaction(db_path) as connection:
-        cursor = connection.execute('INSERT INTO PHOTO (task_id, metadata_json) VALUES (?, ?)', (task_id, _dump(metadata)))
+        cursor = connection.execute('INSERT INTO PHOTO (task_id, metadata_json) VALUES (?, ?)', (task_id, _dump(registered(metadata))))
         return int(cursor.lastrowid)
 
 def get_photo(photo_id: int, *, db_path: str | None=None) -> dict[str, Any] | None:
@@ -27,7 +28,12 @@ def list_photos(task_id: int, *, db_path: str | None=None) -> list[dict[str, Any
 
 def update_photo(photo_id: int, metadata: JsonObject, *, db_path: str | None=None) -> None:
     with _transaction(db_path) as connection:
-        connection.execute('UPDATE PHOTO SET metadata_json = ? WHERE photo_id = ?', (_dump(metadata), photo_id))
+        row=connection.execute('SELECT metadata_json FROM PHOTO WHERE photo_id=?',(photo_id,)).fetchone()
+        stored=_load(row['metadata_json']) if row is not None else {}
+        value=dict(metadata)
+        if REGISTRATION_KEY in stored:value[REGISTRATION_KEY]=stored[REGISTRATION_KEY]
+        else:value.pop(REGISTRATION_KEY,None)
+        connection.execute('UPDATE PHOTO SET metadata_json = ? WHERE photo_id = ?', (_dump(value), photo_id))
 
 def delete_photo(photo_id: int, *, db_path: str | None=None) -> None:
     with _transaction(db_path) as connection:

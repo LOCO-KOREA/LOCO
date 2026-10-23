@@ -3,7 +3,7 @@ import os
 from ergo.contracts import validate_request
 from ergo.db import storage
 from ergo.db.connection import default_db_path
-from ergo.engine import movenet as pose
+from ergo.pose import engine as pose
 from ergo.gpt import client as gpt_client
 from ergo.report import workbook as report
 from .runtime import Runtime

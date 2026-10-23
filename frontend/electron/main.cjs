@@ -18,13 +18,13 @@ function startWorker(){
  const model=process.env.LOCO_MOVENET_MODEL||(app.isPackaged?join(process.resourcesPath,'models','movenet_lightning.tflite'):join(__dirname,'..','..','models','movenet_lightning.tflite'));
  const cwd=app.isPackaged?process.resourcesPath:resolve(__dirname,'../..');
  databaseLocation=resolveDatabaseLocation({env:process.env,cwd,home:homedir()});
- worker=spawn(binary,args,{cwd,windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,LOCO_DB_PATH:databaseLocation.path,LOCO_MOVENET_MODEL:model,PYTHONIOENCODING:'utf-8',PYTHONDONTWRITEBYTECODE:'1'}});
- worker.on('error',error=>disconnect(new Error('Python 실행 실패: '+error.message)));
- worker.on('exit',code=>disconnect(new Error(`Python 서비스가 종료되었습니다 (${code}). 실행 경로를 확인하세요.`)));
+ worker=spawn(binary,args,{cwd,windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,LOCO_DB_PATH:databaseLocation.path,LOCO_MODELS_ROOT:app.isPackaged?process.resourcesPath:cwd,LOCO_MOVENET_MODEL:model,PYTHONIOENCODING:'utf-8',PYTHONDONTWRITEBYTECODE:'1'}});
+ worker.on('error',error=>{console.error('LOCO worker start failed',error);disconnect(new Error('저장 기능을 시작하지 못했어요. 앱을 다시 실행해 주세요.'));});
+ worker.on('exit',code=>{console.error('LOCO worker exited',code);disconnect(new Error('저장 연결이 종료됐어요. 앱을 다시 실행해 주세요.'));});
  worker.stdin.on('error',disconnect);worker.stderr.on('data',chunk=>process.stderr.write(chunk));
  createInterface({input:worker.stdout,crlfDelay:Infinity}).on('line',line=>{
   try{const response=JSON.parse(line),request=pending.get(response.request_id);if(!request)return;pending.delete(response.request_id);request.resolve(response.result);}
-  catch{disconnect(new Error('Python 응답을 읽을 수 없습니다.'));}
+  catch{disconnect(new Error('저장한 정보를 불러오지 못했어요. 앱을 다시 실행해 주세요.'));}
  });
 }
 function callWorker(method,params={}){return new Promise((resolve,reject)=>{

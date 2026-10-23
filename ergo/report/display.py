@@ -1,5 +1,6 @@
 """Korean display text for the Excel report. Stored DTO codes never change: this runs only on the cells being written."""
 import re
+from ergo.user_language import user_text
 
 STATUS = {'APPLICABLE': '해당', 'NOT_APPLICABLE': '비해당', 'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요', 'EXCLUDED': '제외'}
 CURRENTNESS = {'CURRENT': '현재 입력 기준', 'STALE': '이전 입력 기준', 'NONE': '분석 없음'}
@@ -43,7 +44,7 @@ def status_text(text):
     """Replace status codes inside a sentence, e.g. 'NOT_APPLICABLE -> NEEDS_INPUT'."""
     if not isinstance(text, str):
         return text
-    return STATUS_TOKEN.sub(lambda m: STATUS[m.group(1)], text).replace('None', '없음')
+    return user_text(text)
 
 
 def basis_text(text):

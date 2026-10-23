@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_SHA = '0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab'
+sys.path.insert(0,str(ROOT))
+from ergo.pose_contract import MODELS,DEFAULT_MODEL
 
 
 def set_executable_icon(executable, icon):
@@ -41,9 +42,10 @@ def set_executable_icon(executable, icon):
 def main():
     if sys.platform != 'win32' or sys.version_info[:2] != (3, 12):
         raise SystemExit('Build with CPython 3.12 x64 on Windows.')
-    model = ROOT / 'models' / 'movenet_lightning.tflite'
-    if not model.is_file() or hashlib.sha256(model.read_bytes()).hexdigest() != MODEL_SHA:
-        raise SystemExit('Run scripts/download_movenet.ps1 to obtain the verified official model.')
+    models=[(definition,ROOT/definition['model_path']) for definition in MODELS.values()]
+    for definition,model in models:
+        if not model.is_file() or hashlib.sha256(model.read_bytes()).hexdigest()!=definition['model_sha256']:
+            raise SystemExit('Download registered pose model: '+definition['model_id']+' (scripts/download_pose_models.py).')
     electron = ROOT / 'frontend' / 'node_modules' / 'electron' / 'dist'
     if not (electron / 'electron.exe').is_file():
         raise SystemExit('Run npm --prefix frontend ci and initialize Electron first.')
@@ -55,8 +57,10 @@ def main():
     work.mkdir(parents=True)
     subprocess.run([
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--name', 'loco-service',
-        '--paths', str(ROOT), '--collect-all', 'ai_edge_litert',
+        '--paths', str(ROOT), '--collect-all', 'ai_edge_litert', '--collect-all', 'mediapipe',
+        '--hidden-import', 'ergo.pose.providers.mediapipe', '--hidden-import', 'ergo.pose.providers.movenet',
         '--add-data', str(ROOT / 'ergo' / 'db' / 'schema_v1.sql') + ';ergo/db',
+        '--add-data', str(ROOT / 'frontend' / 'user-language.json') + ';.',
         '--add-data', str(ROOT / 'ergo' / 'report' / 'templates') + ';ergo/report/templates',
         '--add-data', str(ROOT / 'ergo' / 'report' / 'assets') + ';ergo/report/assets',
         '--distpath', str(work / 'backend'), '--workpath', str(work / 'freeze'),
@@ -75,11 +79,11 @@ def main():
     shutil.copy2(ROOT / 'docs' / 'ui' / 'loco-guide.js', guide)
     shutil.copytree(work / 'backend', resources / 'backend')
     (resources / 'models').mkdir()
-    shutil.copy2(model, resources / 'models' / model.name)
+    for _,model in models:shutil.copy2(model, resources / 'models' / model.name)
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True))
     manifest = dict(version='2.0', build_utc=stamp, source_commit=commit, source_has_local_changes=dirty,
-                    python=sys.version, model_sha256=MODEL_SHA,
+                    python=sys.version, default_pose_model=DEFAULT_MODEL,pose_models={d['model_id']:d['model_sha256'] for d,_ in models},
                     default_db=r'%LOCALAPPDATA%\LOCO\loco_demo.db',
                     external_validation=['real GPT account', 'clean separate Windows PC', 'user legacy DB', 'field study'])
     manifest['source_sha256']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()

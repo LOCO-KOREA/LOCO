@@ -1,3 +1,4 @@
+import {userText} from '../user-language.js';
 /* Display labels and input options. Domain calculations stay in Python. */
 const exposureNames={
   C1_KEYBOARD_FOCUSED:'집중 키보드·마우스 사용',C2_NECK:'목 반복 동작',C2_SHOULDER:'어깨 반복 동작',C2_ELBOW:'팔꿈치 반복 동작',C2_WRIST:'손목 반복 동작',C2_HAND:'손 반복 동작',C3_UNION:'3호 자세의 중복을 제외한 시간',
@@ -6,7 +7,7 @@ const exposureNames={
 
 const inputNames={box_mass_kg:'상자 전체 중량',shelf_height_cm:'선반 상판 높이',daily_work_min:'하루 실제 작업시간',one_off:'1회성 작업 여부',planned_duration_months:'예정 작업기간',annual_work_days:'연간 작업일수',lift_count_day:'하루 들기 횟수',condition_present:'해당 작업조건 존재',unsupported:'신체·물체가 지지되지 않는 조건',posture_restricted:'자세를 자유롭게 바꾸기 어려운 조건',posture_interpretation_pending:'자세 해석 확인',rows_complete:'하루의 모든 해당 조건 행 기록 여부',pinch_mass_kg:'한손 손가락 집기 중량',pinch_force_kg_equiv:'손가락에 가해지는 힘',single_hand_mass_kg:'한손 들기 중량',grip_force_kg_equiv:'한손 쥐기 힘',below_knee_count_day:'무릎 아래에서 들기',above_shoulder_count_day:'어깨 위에서 들기',extended_arm_count_day:'팔을 뻗어 들기',union_count_day:'중복을 제외한 들기 횟수',lift_rate_min:'작업 중 분당 들기 횟수',impact_rate_hour:'작업 중 시간당 충격 횟수',effective_load_kg:'적용 하중',photo_id:'사진 배정'};
 
-const angleNames={TRUNK_TILT_VERT:'몸통 앞굽힘·뒤로 젖힘',NECK_TILT_VERT_PROXY:'목 기울기 참고값',NECK_FLEX_TRUNK_PROXY:'몸통 대비 목 기울기 참고값',UPPER_ARM_RAISE_VERT:'수직 기준 위팔 올림',UPPER_ARM_FLEX_TRUNK:'몸통 기준 위팔 굽힘',ELBOW_FLEX:'팔꿈치 굽힘',KNEE_FLEX:'무릎 굽힘'};
+const angleNames={TRUNK_TILT_VERT:'몸통 앞굽힘·뒤로 젖힘',NECK_TILT_VERT_PROXY:'목 기울기 참고값',NECK_FLEX_TRUNK_PROXY:'몸통 대비 목 기울기 참고값',UPPER_ARM_RAISE_VERT:'수직 기준 위팔 올림',UPPER_ARM_FLEX_TRUNK:'몸통 기준 위팔 굽힘',ELBOW_FLEX:'팔꿈치 굽힘',KNEE_FLEX:'무릎 굽힘',WRIST_FLEX_2D:'손목 굽힘·폄(사진 평면)'};
 
 const tagNames={NECK_FORWARD_PROXY:'목 앞기울임 참고',TRUNK_FLEX:'몸통 앞굽힘',TRUNK_EXT:'몸통 뒤로 젖힘',UPPER_ARM_RAISE:'위팔 올림',HAND_ABOVE_HEAD:'머리 위 손',ELBOW_ABOVE_SHOULDER:'어깨 위 팔꿈치',ELBOW_BEHIND_TRUNK:'몸통 뒤 팔꿈치',NECK_TWIST:'목 비틀림',TRUNK_TWIST:'몸통 비틀림',SQUAT:'쪼그림',KNEEL:'무릎 접촉'};
 
@@ -23,7 +24,7 @@ const reasonNames={COMBINATION_RULE:'여러 조건을 합산하는 해석 확인
 
 function inputLabel(path){
   const parts=String(path).split('.');
-  if(parts[0]==='analysis_scope')return ({pose:'MoveNet 사용',tags:'자세 기술태그 사용',reba:'REBA 사용',judgment:'11개 기준 사용'}[parts[1]]||'분석 범위');
+  if(parts[0]==='analysis_scope')return ({pose:'사진 자세 분석 사용',tags:'자세 기술태그 사용',reba:'REBA 사용',judgment:'11개 기준 사용'}[parts[1]]||'분석 범위');
   const exposure=parts.find(p=>exposureNames[p]);
   if(exposure)return exposureNames[exposure]+' 시간';
   const field=parts.at(-1);
@@ -41,7 +42,7 @@ function inputLabel(path){
 
 function reasonText(reason){return reasonNames[reason]||'추가 확인 필요';}
 
-function valueText(value){return value===null||value===undefined?'미입력':({YES:'예',NO:'아니오',UNKNOWN:'미확인'}[value]??String(value));}
+function valueText(value){return value===null||value===undefined?'미입력':({YES:'예',NO:'아니오',UNKNOWN:'미확인'}[value]??userText(String(value)));}
 
 function basisText(basis){
   const units={MIN_DAY:'분/일',KG:'kg',KG_EQUIV:'kg 상당',COUNT_DAY:'회/일',COUNT_MIN:'회/분',COUNT_HOUR:'회/시간',MONTH:'개월',COUNT_YEAR:'일/년',BOOLEAN:''};

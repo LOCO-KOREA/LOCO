@@ -1,6 +1,7 @@
 import {renderForm} from './form.js';
 import {connectionStatus} from './view.js';
 import {renderActivity} from './activity.js';
+import {renderIntakeHistory} from './history-view.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const display=(q,value)=>q.choices?.find(c=>String(c.value)===String(value))?.label??`${value}${q.unit?' '+q.unit:''}`;
 const count=value=>Number.isSafeInteger(value)&&value>=0;
@@ -36,7 +37,7 @@ export function renderDialog(intake,busy) {
   const pairReady=paired&&[q,paired].every(field=>intake.pairValues?.has(field.identity));
   const groupReady=grouped&&members.some(field=>intake.pairValues?.has(field.identity));
   const writing=!hasChoices||intake.writingFor===q.identity||Boolean(intake.text.trim());
-  const auto=state.facts.filter(f=>f.state==='KNOWN'&&['AI','MOVENET'].includes(f.source)).length;
+  const auto=state.facts.filter(f=>f.state==='KNOWN'&&['AI','POSE','MOVENET'].includes(f.source)).length;
   const condition=q&&q.condition!==state.contract.policy.default_condition ? `<span class="intake-context">${esc(q.condition)}</span>` : '';
   const coverage=!grouped&&q?.ai_writable===false?state.contract.fields.filter(f=>f.destination?.type==='work_type'&&!state.facts.some(saved=>saved.target===f.target)).map(f=>f.label):[];
   const choice=(field,value,label,inPair=false)=>{
@@ -61,7 +62,8 @@ export function renderDialog(intake,busy) {
   }).join('')}</div><div class="intake-dialog-actions"><button type="button" class="primary" data-quick="intake-group-save" ${busy||!groupReady?'disabled':''}>선택한 항목 저장</button></div>`;
   const send=()=>`<button type="button" class="primary" data-quick="adaptive-next" ${busy||!intake.text.trim()&&state.ai?.status!=='ERROR'?'disabled':''}>${busy?'답변을 정리하는 중…':state.ai?.status==='ERROR'?'다시 시도':'답변 보내기'}</button>`;
   return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title" aria-busy="${Boolean(busy)}"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 추가 확인</span><h2 id="intake-dialog-title">${q?'작업 정보를 확인해요':'추가 질문 확인을 마쳤어요'}</h2></div></header>
-    ${busy?renderActivity(typeof busy==='string'?busy:'답변을 정리하고 있어요',intake.busyElapsedSeconds):''}${progressPanel(state)}<div class="intake-dialog-body">${busy?'':connectionStatus(intake,false)}<p class="intake-auto-note">설명·사진에서 ${auto}개 정보를 자동으로 정리했어요. 이미 아는 것은 다시 묻지 않아요.</p>
+    ${busy?renderActivity(typeof busy==='string'?busy:'답변을 정리하고 있어요',intake.busyElapsedSeconds):''}${progressPanel(state)}<div class="intake-dialog-body">${busy?'':connectionStatus(intake,false)}<p class="intake-auto-note">설명·사진에서 ${auto}개 정보를 자동으로 정리했어요. 이미 아는 것은 다시 묻지 않아요.</p>${renderIntakeHistory(state,{details:false})}
+
     ${q?`<article data-intake-question="${esc(q.identity)}">${condition}<h3>${grouped?esc(q.group_title||'관련된 항목을 함께 확인해 주세요'):paired?'왼쪽과 오른쪽을 함께 확인해 주세요':esc(q.text)}</h3>${grouped?'':`<p class="quick-note">${paired?'양쪽의 값을 각각 선택하고 한 번에 저장해 주세요.':esc(q.reason)}</p>`}${coverage.length?`<p class="intake-auto-note">확인할 특징: ${coverage.map(esc).join(' · ')}</p>`:''}${grouped?groupPanel():paired?pairedPanel():details(q)+(hasChoices?replies(q):'')}</article>`:''}
     ${!writing?`<button type="button" class="intake-write-toggle" data-quick="intake-write" aria-expanded="false" aria-controls="intake-writing" ${busy?'disabled':''}>직접 설명하기</button>`:''}
     <div id="intake-writing" class="intake-writing" ${writing?'':'hidden'}>${writing?`<label class="intake-response-label" for="intake-reply">${q?'답변을 편하게 적어 주세요':'작업 설명을 더해도 돼요'}</label><textarea id="intake-reply" data-intake-reply maxlength="${state.contract.policy.text_limit}" rows="3" ${busy?'disabled':''} placeholder="${esc(q?.reply_example || '작업에 대해 편하게 설명해 주세요.')}">${esc(intake.text)}</textarea>

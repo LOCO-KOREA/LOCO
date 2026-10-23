@@ -333,7 +333,7 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  try {
   for(const target of ['result','provisional','questions']) {
    const survey={survey_id:31,created_at:'survey-lifetime',title:'saved survey'};
-   const savedTask={task_id:32,created_at:'task-lifetime',latest_analysis_id:33,capture:{slots:[]},conditions:{test_metadata:{}}};
+   const savedTask={task_id:32,survey_id:31,created_at:'task-lifetime',latest_analysis_id:33,capture:{slots:[]},conditions:{test_metadata:{}}};
    const restoredState={task:savedTask,preview:{questions:[]},questions:target==='questions'?[question]:[],ai:{status:'CONNECTED'}};
    let releaseRestore,openStarted=false,intakeResets=0,duplicateActions=0;
    const delayedRestore=new Promise(resolve=>{releaseRestore=resolve;});
@@ -346,6 +346,7 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
      if(method==='get_survey')return survey;
      if(method==='list_tasks')return [savedTask];
      if(method==='get_task_result')return {analysis:{analysis_id:33}};
+     if(method==='get_analysis')return {analysis_id:33};
      if(method==='get_task')return {task:savedTask,photos:[]};
      if(method==='get_settings')return {gpt_enabled:true};
      throw Error('Unexpected restoration API '+method);

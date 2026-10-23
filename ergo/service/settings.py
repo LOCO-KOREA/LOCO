@@ -5,6 +5,7 @@ import math
 from ergo.legacy.v13 import upgrade_task
 from ergo.engine.task_defaults import default_settings, PREPROCESS_VERSION
 from ergo import ai_config
+from ergo import pose_contract
 
 def settings(ctx):
     value = ctx.store('get_settings')
@@ -19,15 +20,13 @@ def settings(ctx):
     if type(ui.get('loco_visible')) is bool: current['ui']['loco_visible']=ui['loco_visible']
     if ui.get('loco_mode') in ('normal','quiet'): current['ui']['loco_mode']=ui['loco_mode']
     old=value.get('analysis') or {}
-    confidence=(old.get('pose_model') or {}).get('confidence_min')
-    if isinstance(confidence,(int,float)) and not isinstance(confidence,bool) and math.isfinite(confidence) and 0<=confidence<=1:
-        current['analysis']['pose_model']['confidence_min']=confidence
+    if old.get('pose_model') is not None:current['analysis']['pose_model']=pose_contract.normalize(old['pose_model'],reading=True)
     profile=old.get('posture_profile') or {}
     for key in current['analysis']['posture_profile']:
         v=profile.get(key)
         if key!='version' and isinstance(v,(int,float)) and not isinstance(v,bool) and math.isfinite(v):
             current['analysis']['posture_profile'][key]=v
-    return dict(current, gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')),gpt_contract=ai_config.public_contract())
+    return dict(current, gpt_key_present=bool(os.environ.get('OPENAI_API_KEY')),gpt_contract=ai_config.public_contract(),pose_contract=pose_contract.public_contract())
 
 def validate_settings(ctx, value):
     if not isinstance(value, dict) or not isinstance(value.get('analysis'), dict):
@@ -41,14 +40,7 @@ def validate_settings(ctx, value):
             raise ValueError('지원하지 않는 계산 규칙 버전입니다')
     model = config['pose_model']
     profile = config['posture_profile']
-    if not isinstance(model, dict) or set(model) != set(baseline['pose_model']):
-        raise ValueError('MoveNet 설정 계약이 다릅니다')
-    for key in ('name', 'version', 'input_size', 'point_count', 'preprocess_version'):
-        if model[key] != baseline['pose_model'][key]:
-            raise ValueError('포함된 공식 MoveNet 모델/전처리와 다른 설정입니다')
-    confidence = model['confidence_min']
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or (not math.isfinite(confidence)) or (not 0 <= confidence <= 1):
-        raise ValueError('관절 신뢰도 문턱은 0~1이어야 합니다')
+    pose_contract.normalize(model)
     if not isinstance(profile, dict) or set(profile) != set(baseline['posture_profile']) or profile['version'] != baseline['posture_profile']['version']:
         raise ValueError('자세 기술태그 설정 계약이 다릅니다')
     if any((isinstance(v, bool) or not isinstance(v, (int, float)) or (not math.isfinite(v)) for k, v in profile.items() if k != 'version')):
@@ -64,6 +56,7 @@ def handle_get_settings(ctx, method, p):
 def handle_update_settings(ctx, method, p):
     ctx.validate_settings(p['settings'])
     value = copy.deepcopy(p['settings'])
+    value['analysis']['pose_model']=pose_contract.normalize(value['analysis']['pose_model'])
     old = ctx.settings()
     changed = {key for key in old['analysis'] if value['analysis'].get(key) != old['analysis'][key]}
     affected = {}

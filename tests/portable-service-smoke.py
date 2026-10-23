@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import queue
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -20,7 +21,11 @@ from openpyxl import load_workbook
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = Path(os.environ.get('LOCO_VERIFY_PACKAGE') or (REPO / '.local/latest-package.txt').read_text(encoding='utf-8').strip())
 EXE = PACKAGE / 'resources/backend/loco-service/loco-service.exe'
-MODEL = PACKAGE / 'resources/models/movenet_lightning.tflite'
+sys.path.insert(0,str(REPO))
+from ergo.pose_contract import MODELS
+BUILT=json.loads((PACKAGE/'build-manifest.json').read_text(encoding='utf-8'))
+MODEL_ID=BUILT.get('default_pose_model','movenet-lightning')
+MODEL=PACKAGE/'resources'/MODELS[MODEL_ID]['model_path']
 OUTPUT = Path(tempfile.mkdtemp(prefix='loco-n05-'))
 DB = OUTPUT / '한글 공백 자료' / '배포 검증.db'
 CHECKS = []
@@ -42,7 +47,7 @@ class Worker:
             env.pop(key, None)
         windows = env.get('SystemRoot', r'C:\Windows')
         env.update(PATH=windows + r'\System32;' + windows,
-                   LOCO_DB_PATH=str(DB), LOCO_MOVENET_MODEL=str(model),
+                   LOCO_DB_PATH=str(DB), LOCO_MODELS_ROOT=str(PACKAGE/'resources'), LOCO_POSE_MODEL_ID=MODEL_ID, LOCO_POSE_MODEL_PATH=str(model), LOCO_MOVENET_MODEL=str(model),
                    PYTHONIOENCODING='utf-8', PYTHONDONTWRITEBYTECODE='1')
         self.stderr = (OUTPUT / (label + '-stderr.log')).open('w', encoding='utf-8')
         self.proc = subprocess.Popen([str(EXE)], cwd=OUTPUT, env=env,
@@ -107,7 +112,7 @@ def main():
     # A committed-source build (false) is the delivery candidate; a build with local changes (true) is a development check.
     assert isinstance(manifest['source_has_local_changes'], bool)
     print('build source:', manifest['source_commit'][:8], 'local changes:', manifest['source_has_local_changes'], flush=True)
-    assert digest(MODEL) == manifest['model_sha256'] == '0fac2226112d0371903ca86e3853cec24ef603a0b2f96f589b180f0ebdd135ab'
+    assert digest(MODEL)==manifest.get('pose_models',{}).get(MODEL_ID,manifest.get('model_sha256'))==MODELS[MODEL_ID]['model_sha256']
     frontend_count = 0
     for relative, expected in manifest['source_sha256'].items():
         assert digest(REPO / relative) == expected, relative
@@ -141,10 +146,13 @@ def main():
         analysis = worker.finish(handle['analysis_id'])
         pose = analysis['pose']['slots'][0]
         assert pose['status'] != 'ERROR', pose['diagnostics']
-        assert len(pose['points']) == 17, pose
+        if MODEL_ID.startswith('mediapipe-'):
+            assert not pose['points'] and any(d['code']=='NO_PERSON' for d in pose['diagnostics']),pose
+            assert pose['engine']['actual_model_sha256']==digest(MODEL)
+        else:assert len(pose['points'])==MODELS[MODEL_ID]['point_count'],pose
         assert all(math.isfinite(p[key]) for p in pose['points'] for key in ('x_px', 'y_px', 'confidence'))
         assert 'MODEL_ERROR' not in [d['code'] for d in pose['diagnostics']]
-        check('packaged official model executes real CPU inference and returns 17 finite points',
+        check('packaged selected model executes CPU inference; blank input is not fabricated into a pose',
               synthetic_image=True, pose_status=pose['status'], module_states=analysis['module_states'])
         disabled = worker.call('generate_ai_text', analysis_id=analysis['analysis_id'])['text']
         assert disabled['result'] == 'DISABLED'
@@ -180,7 +188,9 @@ def main():
     broken_model.write_bytes(b'not the official model')
     rejected = Worker(model=broken_model, label='incorrect-model')
     try:
-        # A new worker is required so a prior interpreter cannot mask the failure.
+        # Explicit stored settings take precedence over startup environment values.
+        selected=rejected.call('get_settings');selected['analysis']['pose_model']['model_path']=str(broken_model)
+        rejected.call('update_settings',settings=selected)
         handle = rejected.call('start_analysis', task_id=task_id)
         invalid = rejected.finish(handle['analysis_id'])['pose']['slots'][0]
         assert invalid['status'] == 'ERROR' and invalid['points'] == []

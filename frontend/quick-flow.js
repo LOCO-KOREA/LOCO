@@ -1,9 +1,15 @@
+import {userText} from './user-language.js';
 import {selectPhotoCrop} from './photo-crop.js';
 import {photoAngleScene, renderPhotoAngles, renderPhotoSkeleton} from './photo-angle-overlay.js';
-import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord} from './quick-workspace-draft.js';
+import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord, workspaceScopeMatches, workspaceMatchesDraft, workspaceDraftDiffers, draftsShareOwner} from './quick-workspace-draft.js';
+
+import {renderPoseSettings,readPoseSettings,poseForView,mountPoseSettings} from './pose-settings.js';
+import {DRAFT_POLICY,localDrafts,initializeDrafts,newDraftId,readExplanationDraft,saveExplanationDraft,clearExplanationDraft} from './drafts.js';
+
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
+import {renderPhotoVision,photoVisionForTask} from './intake/photo-vision.js';
 import {renderActivity,updateActivity} from './intake/activity.js';
 import {enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
@@ -22,10 +28,6 @@ const VIEW_LABEL = {LEFT: '왼쪽 사진', FRONT: '정면·후면 사진', RIGHT
 const VALUE_KO = {UNDER_30: '30° 미만', FROM_30_TO_60: '30~60°', OVER_60: '60° 초과'};
 const FIELD_KO = {trunk_base: '몸통 굽힘', trunk_twisted: '몸통 비틀림', trunk_side_bent: '몸통 옆 기울임', neck_base: '목 굽힘', neck_twisted: '목 비틀림', neck_side_bent: '목 옆 기울임', legs_support: '다리 지지', seated: '앉은 자세', knee_band: '무릎 굽힘', shock_force: '충격', static_over_1min: '1분 이상 유지', small_repeat_over_4min: '반복', rapid_change_or_unstable: '불안정 자세', upper_arm_base: '위팔', arm_abducted_or_rotated: '팔 벌림', shoulder_raised: '어깨 들림', arm_supported_or_gravity_assisted: '팔 받침', lower_arm_base: '팔꿈치', wrist_base: '손목', wrist_deviated_or_twisted: '손목 비틀림', coupling: '손잡이', effective_load_kg: '무게'};
 const CRIT_NAME = {1: '키보드·마우스 집중 입력', 2: '같은 동작 반복', 3: '손·팔의 부담 자세', 4: '목·허리 굽힘·비틀림', 5: '쪼그림·무릎 굽힘', 6: '한 손 손가락 집기', 7: '한 손 들기·쥐기', 8: '25kg 이상 들기', 9: '10kg 이상 불편한 위치 들기', 10: '반복 들기', 11: '손·무릎 충격'};
-const BONES = [['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'], ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
-  ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'], ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
-  ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'], ['right_hip', 'right_knee'], ['right_knee', 'right_ankle'],
-  ['left_ear', 'left_shoulder'], ['right_ear', 'right_shoulder'], ['nose', 'left_eye'], ['nose', 'right_eye']];
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
 const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
 const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
@@ -33,9 +35,9 @@ const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정�
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
 const GATE_CRITERIA = Object.entries(GATES).reduce((map, [n, gate]) => ({...map, [gate]: [...(map[gate] || []), Number(n)]}), {});
 const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 설정한 제한 시간 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
-const DRAFT_KEY = 'loco.quick.draft.v1';
+const DRAFT_KEY = DRAFT_POLICY.legacyQuick;
 const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
-const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); } catch { /* the draft is a convenience only */ } };
+const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); return true; } catch { return false; } };
 const evidence = (text, source = 'INTERVIEW') => ({source, text, observed_at: new Date().toISOString()});
 const today = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Seoul'});
 
@@ -147,7 +149,8 @@ export class QuickFlow {
     Object.assign(this, {host, api, notify, onError, onOpenDetail, onScreenChange});
     this.toolbar = toolbar;
     toolbar?.addEventListener('click', event => this.click(event));
-    this.intake = new AdaptiveIntake({api, notify, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveError || '입력을 저장했어요.'; this.keepDraft(); } else this.render(); }});
+    this.drafts=localDrafts();
+    this.intake = new AdaptiveIntake({api, notify,drafts:this.drafts, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveStatus(); this.keepDraft(); } else this.render(); }});
     this.reset();
     this.step = 'home';
     host.addEventListener('click', event => this.click(event));
@@ -175,7 +178,7 @@ export class QuickFlow {
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -192,6 +195,10 @@ export class QuickFlow {
   // ================= home
   async saveWorkspace(announce = true) {
     if (this.busy || this.photoOperation || this.step === 'home') return false;
+    if (!this.task && !this.intakeText?.trim() && !this.intake?.text?.trim() && !Object.keys(this.photos || {}).length) {
+      if (announce) this.notify('아직 작성한 내용이 없어요.');
+      return true; // An untouched new screen must not replace a meaningful checkpoint.
+    }
     let saved = false;
     await this.run('작성 중인 내용을 임시 저장하고 있어요…', async () => {
       await this.intake.flush();
@@ -205,7 +212,7 @@ export class QuickFlow {
       writeWorkspaceDraft(captureWorkspace(this));
       // The old draft's discard/new path must never delete this checkpoint's survey.
       const old = readDraft();
-      if (old && old.surveyId === this.survey?.survey_id) writeDraft(null);
+      if (workspaceMatchesDraft(readWorkspaceDraft(), old, this.drafts?.scope)) writeDraft(null);
       saved = true;
       if (announce) this.notify('현재 화면과 작성 중 내용을 이 PC에 임시 저장했어요.');
     });
@@ -233,7 +240,7 @@ export class QuickFlow {
     if (!draft) return;
     await this.run('임시 저장한 화면을 불러오고 있어요…', async () => {
       let loaded;
-      try { loaded = await loadWorkspace(draft, this.api); }
+      try { loaded = await loadWorkspace(draft, this.api, this.drafts?.scope); }
       catch (error) {
         if (!missingWorkspaceRecord(error)) throw error;
         this.workspaceUnavailable = JSON.stringify(draft);
@@ -247,8 +254,13 @@ export class QuickFlow {
       if (draft.adaptive && draft.intake.state?.contract?.version !== contract.version)
         throw Error('입력 화면 형식이 변경됐어요. 최신 기록을 열어 확인해 주세요. 임시 메모는 보관돼요.');
       const settings = this.settings;
+      const matching = this.quickDrafts().filter(value => workspaceMatchesDraft(draft, value, this.drafts?.scope));
+      // Reopening a manual checkpoint must never replace later automatic input.
+      const same = matching.find(value => !workspaceDraftDiffers(draft, value));
+      const draftOwnerId = draft.draftId || matching[0]?.ownerId || matching[0]?.id || newDraftId();
+      const draftId = same?.id || (matching.length ? newDraftId() : draftOwnerId);
       this.reset({preserveActivity: true});
-      Object.assign(this, loaded, draft.ui, {settings, preview, busy: '임시 저장한 화면을 불러오고 있어요…', step: draft.step});
+      Object.assign(this, loaded, draft.ui, {settings, preview, draftId, draftOwnerId, busy: '임시 저장한 화면을 불러오고 있어요…', step: draft.step});
       if (draft.adaptive) {
         this.intake.state = {...draft.intake.state, task: this.task, contract};
         this.intake.questions = draft.intake.questions;
@@ -266,12 +278,20 @@ export class QuickFlow {
 
   async loadHome() {
     await this.run('', async () => {
+      await initializeDrafts();
       this.surveys = await this.api('list_surveys');
       const checkpoint = readWorkspaceDraft();
+      // list_surveys is a summary DTO without created_at. Read only bookmarked
+      // parents before hiding rows or grouping a checkpoint by record lifetime.
+      const ownerIds=new Set([...this.quickDrafts().map(value=>value.surveyId),checkpoint?.survey?.id]);
+      await Promise.all(this.surveys.filter(row=>ownerIds.has(row.survey_id)&&!row.created_at).map(async row=>{
+        try { const parent=await this.api('get_survey',{survey_id:row.survey_id});if(parent.survey_id===row.survey_id)row.created_at=parent.created_at; }
+        catch { /* Missing or unavailable ownership must not hide an unrelated row. */ }
+      }));
       this.workspaceUnavailable = null;
       if (checkpoint?.task) {
         try {
-          if (!await workspaceTargetAvailable(checkpoint, this.api)) this.workspaceUnavailable = JSON.stringify(checkpoint);
+          if (!await workspaceTargetAvailable(checkpoint, this.api, this.drafts?.scope)) this.workspaceUnavailable = JSON.stringify(checkpoint);
         } catch { /* Keep the checkpoint available for retry after a transient service failure. */ }
       }
       this.settings = await this.api('get_settings');
@@ -285,7 +305,8 @@ export class QuickFlow {
       const survey = await this.api('get_survey', {survey_id: surveyId});
       const tasks = await this.api('list_tasks', {survey_id: surveyId});
       const task = tasks[0];
-      if (!task || !task.latest_analysis_id) throw new Error('아직 분석 결과가 없는 조사예요. "새 분석 시작"으로 시작해 주세요.');
+      if (!task) throw new Error('이 조사에 작업이 없어요.');
+      if(!task.latest_analysis_id){const saved=this.quickDrafts().find(d=>d.taskId===task.task_id&&d.createdAt===survey.created_at);await this.restoreDraft(saved||{id:newDraftId(),surveyId,createdAt:survey.created_at,taskId:task.task_id,taskCreatedAt:task.created_at,adaptive:this.intake.hasSession(task),step:'questions'});return;}
       const bundle = await this.api('get_task_result', {task_id: task.task_id});
       const full = await this.api('get_task', {task_id: task.task_id});
       const photos = {};
@@ -298,7 +319,7 @@ export class QuickFlow {
       const settings = this.settings || await this.api('get_settings');
       this.reset({preserveActivity:true});
       Object.assign(this, {survey, task, photos, result: bundle.analysis, reopened: true, stale: false, step: 'result', settings});
-      if (this.intake.hasSession(task)) { const restored = await this.intake.open(task.task_id); this.preview = restored.preview; this.task = restored.task; }
+      if (this.intake.hasSession(task)) { const restored = await this.intake.open(task.task_id); this.preview = restored.preview; this.task = restored.task;this.result=await this.api('get_analysis',{analysis_id:bundle.analysis.analysis_id}); }
     });
   }
 
@@ -309,7 +330,8 @@ export class QuickFlow {
       const checkpoint = readWorkspaceDraft();
       const target = checkpoint?.survey?.id === id ? await this.api('get_survey', {survey_id: id}) : null;
       await this.api('delete_survey', {survey_id: id});
-      if (target) clearWorkspaceDraftForSurvey(target);
+      if (target) clearWorkspaceDraftForSurvey(target, localStorage, this.drafts?.scope);
+      for(const draft of this.quickDrafts().filter(item=>item.surveyId===id&&item.createdAt===target?.created_at))this.drafts.remove('quick',draft.id);
       const old = readDraft();
       if (target && old?.surveyId === id && old.createdAt === target.created_at) writeDraft(null);
       this.surveys = await this.api('list_surveys');
@@ -373,7 +395,7 @@ export class QuickFlow {
   async analyze() {
     if (!Object.keys(this.photos).length && !this.intakeText.trim()) return;
     if (!this.stale && this.preview && this.intake?.state) { this.step = 'provisional'; return this.render(); }
-    await this.run('사진을 분석하고 있어요…', async () => {
+    await this.run(Object.keys(this.photos).length ? '사진에서 자세와 동작을 확인하고 있어요…' : '작업 설명을 정리하고 있어요…', async () => {
       await this.ensureTask();
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
       let state = await this.intake.open(this.task.task_id, views);
@@ -382,7 +404,8 @@ export class QuickFlow {
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
-      this.intake.dialogOpen=Boolean(state.questions.length || state.reason);
+      if(Array.isArray(state.form_fields)&&!this.intake.pendingFormFields(0).length)this.intake.formStage=1;
+      this.intake.dialogOpen=Boolean(state.reason||(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length));
     });
   }
 
@@ -549,7 +572,7 @@ export class QuickFlow {
         if (analysis.status === 'RUNNING') throw Error('분석이 계속되고 있어요. 잠시 뒤 다시 열어 주세요.');
         this.result = analysis; this.survey = await this.api('get_survey', {survey_id: this.survey.survey_id});
         this.settings = this.settings || await this.api('get_settings');
-        this.exported = null; this.step = 'result'; writeDraft(null);
+      this.exported = null; this.step = 'result'; this.clearCurrentDraft();
         if (this.baseline && this.baseline.analysis_id !== analysis.analysis_id) await this.compare();
         return;
       }
@@ -570,7 +593,7 @@ export class QuickFlow {
       this.survey = await this.api('get_survey', {survey_id: this.survey.survey_id});
       this.settings = this.settings || await this.api('get_settings');
       this.result = analysis; this.exported = null; this.comparison = null; this.step = 'result';
-      writeDraft(null);
+      this.clearCurrentDraft();
       if (this.baseline && this.baseline.analysis_id !== analysis.analysis_id) await this.compare();
     });
   }
@@ -745,10 +768,11 @@ export class QuickFlow {
   async applyAi(useEdited) {
     const ai = this.activeAi();
     if (!ai) return;
-    const edited = this.aiDraft ?? ai.edited_text ?? ai.generated_text ?? '';
+    const edited = this.editedExplanation(ai);
     if (useEdited && !edited.trim()) return this.onError(new Error('수정한 설명을 입력한 뒤 적용해 주세요.'));
     await this.run('설명을 적용하고 있어요…', async () => {
       if (useEdited) await this.api('edit_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, text: edited});
+      if(useEdited)clearExplanationDraft(this.result,ai,edited,this.drafts);
       await this.api('apply_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, use_edited: useEdited});
       await this.refreshResult(); this.aiDraft = null; this.aiEditorOpen = false;
       this.notify('설명을 적용했어요. 계산 결과는 바뀌지 않아요.');
@@ -781,20 +805,21 @@ export class QuickFlow {
     else if (d.del) this.deleteSurvey(Number(d.del));
     else if (d.crit) this.critClick(d);
     else if (d.concl) this.conclude(Number(d.concl), d.status);
-    else if (d.quick === 'new') { const old = readDraft(); writeDraft(null); if (old && old.surveyId !== readWorkspaceDraft()?.survey?.id) this.api('delete_survey', {survey_id: old.surveyId}).catch(() => {}); this.reset(); this.render(); }
+    else if (d.quick === 'new') this.startNew();
     else if (d.quick === 'workspace-save') this.saveWorkspace();
     else if (d.quick === 'workspace-back') this.workspaceBack();
     else if (d.quick === 'workspace-top') window.scrollTo({top: 0, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     else if (d.quick === 'workspace-resume') this.resumeWorkspace();
-    else if (d.quick === 'resume') this.resumeDraft();
-    else if (d.quick === 'discard-draft') this.discardDraft();
+    else if (d.quick === 'resume') this.resumeDraft(d.draft);
+    else if (d.quick === 'discard-draft') this.run('선택한 초안을 버리고 있어요…',()=>this.discardDraft(d.draft));
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions(); this.intake.dialogOpen=true; } this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
     else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
     else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.render(); }
     else if (d.quick === 'intake-form-next') this.saveIntakeForm();
+    else if (d.quick === 'intake-no-other-work') this.saveIntakeForm({remainingWorkAbsent:true});
     else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
@@ -860,18 +885,31 @@ export class QuickFlow {
     this.render();
   }
 
-  async saveIntakeForm() {
+  async saveIntakeForm({remainingWorkAbsent=false}={}) {
     const invalid=this.host?.querySelector('[data-intake-form]:invalid');
     if(invalid) { invalid.reportValidity(); return; }
     let saved=false, last=this.intake.formStage===1;
+    const absent=remainingWorkAbsent?this.intake.pendingFormFields(0).filter(field=>!this.intake.formValues.has(field.identity)):[];
     await this.run('입력한 내용을 저장하고 있어요…',async()=>{
       await this.intake.flush();
       const answers=this.intake.formAnswers();
-      const state=answers.length?await this.intake.turn('',answers):this.intake.state;
+      const text=this.intake.text.trim();
+      if(text)await this.ensureAiOn();
+      let state=answers.length||text?await this.intake.turn(text,answers):this.intake.state;
       if(!state||state.reason)return;
+      const remaining=absent.filter(field=>!this.intake.formHandled(field));
+      if(remaining.length) {
+        state=await this.intake.turn('',remaining.map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'})),false);
+        if(!state||state.reason)return;
+      }
       this.task=state.task;this.preview=state.preview;
       for(const answer of answers)this.intake.formValues.delete(answer.target+'@'+answer.condition);
-      if(!last)this.intake.formStage=1;
+      if(!last) {
+        this.intake.formStage=1;
+        last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
+      }
+      // Close before run() renders its completed state; an empty next stage must never flash.
+      if(last)this.intake.dialogOpen=false;
       saved=true;
     });
     if(saved&&last)await this.finish();
@@ -888,7 +926,10 @@ export class QuickFlow {
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
       if(directNumber&&!state.reason&&this.intake.text===submittedText) { this.intake.text=''; this.intake.writingFor=null; }
-      ready=!Array.isArray(state.form_fields)&&!state.questions.length&&!state.reason&&!this.intake.text.trim();
+      if(Array.isArray(state.form_fields)) {
+        if(!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;
+        ready=!state.reason&&!this.intake.text.trim()&&![0,1].some(stage=>this.intake.pendingFormFields(stage).length||this.intake.formAnswers(stage).length);
+      } else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
       if(ready)this.intake.dialogOpen=false;
     });
     if(ready)await this.finish();
@@ -944,15 +985,17 @@ export class QuickFlow {
       card.values[key] = raw === '' ? undefined : Number(raw);
       if (event.type === 'change') this.render();
     } else if (d.rev) this.review[d.rev] = el.value;
-    else if (d.aidraft !== undefined) this.aiDraft = el.value;
+    else if (d.aidraft !== undefined) { this.aiDraft = el.value;saveExplanationDraft(this.result,this.activeAi(),el.value,this.drafts); }
     else if (d.quickIntake !== undefined) {
       // Typing does not re-render the page, so the button has to follow the text itself.
       this.intakeText = el.value;
+      this.keepDraft();
       const button = this.host.querySelector('[data-quick="intake"]');
       if (button) button.disabled = Boolean(this.busy) || !el.value.trim();
       const analyze = this.host.querySelector('[data-quick="analyze"]');
       if (analyze) analyze.disabled = Boolean(this.busy) || !(el.value.trim() || Object.keys(this.photos).length);
     }
+    const status=this.host.querySelector('[data-draft-status]');if(status){status.textContent=this.drafts?.error||'';status.hidden=!this.drafts?.error;}
   }
 
   drop(event) {
@@ -978,73 +1021,107 @@ export class QuickFlow {
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
     this.intake.busyElapsedSeconds=this.busy&&this.busyStartedAt!=null?Math.floor((Date.now()-this.busyStartedAt)/1000):0;
     const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
-    this.host.innerHTML = `${bar}${busy}${body}${this.intake.dialog(this.busy)}`;
+    this.host.innerHTML = `${bar}${busy}${body}<p class="quick-warn" data-draft-status role="alert" ${this.drafts?.error?'':'hidden'}>${esc(this.drafts?.error||'')}</p>${this.intake.dialog(this.busy)}`;
     this.intake.mount(this.host,this.busy);
+    mountPoseSettings(this.host,this.settings);
     this.keepDraft();
   }
 
-  // An unfinished analysis (photos chosen, answers partly given) is kept so it can be continued after closing the app.
+  quickDrafts(){
+    this.drafts||=localDrafts();
+    const all=this.drafts.list('quick'),legacy=readDraft();
+    if(legacy&&(!legacy.scope||legacy.scope===this.drafts.scope)&&!all.some(value=>value.id===(legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`)))all.push({...legacy,id:legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`});
+    return all.sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''));
+  }
+  startNew(){
+    this.keepDraft();this.drafts||=localDrafts();
+    const legacy=readDraft();
+    if(legacy&&(!legacy.scope||legacy.scope===this.drafts.scope)&&this.drafts.put('quick',legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`,{...legacy,id:legacy.id||`legacy:${legacy.surveyId}:${legacy.createdAt}`}))writeDraft(null);
+    this.reset();this.draftId=newDraftId();this.render();
+  }
+  clearCurrentDraft(){
+    this.drafts||=localDrafts();if(this.draftId)this.drafts.remove('quick',this.draftId);
+    const legacy=readDraft();if(legacy&&(legacy.id===this.draftId||legacy.taskId!=null&&legacy.taskId===this.task?.task_id&&legacy.createdAt===this.survey?.created_at))writeDraft(null);
+  }
+  editedExplanation(ai){return readExplanationDraft(this.result,ai,this.drafts)?.text??this.aiDraft??ai.edited_text??userText(ai.generated_text??'');}
+  // Every unfinished record, including pre-task text, has its own durable bookmark.
   keepDraft() {
-    if (readWorkspaceDraft()?.task?.id === this.task?.task_id && this.task) return;
-    if (!['start', 'provisional', 'questions'].includes(this.step) || !this.task || this.result || this.reopened) return;
-    writeDraft({
-      surveyId: this.survey.survey_id, surveyTitle: this.survey.title, createdAt: this.survey.created_at, taskId: this.task.task_id, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
+    if (!['start', 'provisional', 'questions'].includes(this.step) || this.result || this.reopened) return;
+    if(!this.task&&!this.intakeText?.trim()&&!this.intake?.text?.trim()&&!Object.keys(this.photos||{}).length){if(this.draftId)this.clearCurrentDraft();return;}
+    this.drafts||=localDrafts();this.draftId||=newDraftId();this.draftOwnerId||=this.draftId;
+    const draft={id:this.draftId,ownerId:this.draftOwnerId,scope:this.drafts.scope,
+      surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
-      answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake.text, ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)
-    });
+      formStage:this.intake?.formStage||0, formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
+    if(this.drafts.put('quick',this.draftId,draft)&&!writeDraft(draft))this.drafts.error='임시 저장 안내를 갱신하지 못했어요. 저장 공간을 확인해 주세요.';
   }
 
-  async resumeDraft() {
-    const draft = readDraft();
+  async resumeDraft(id) {
+    const draft = this.quickDrafts().find(value=>!id||value.id===id);
     if (!draft) return;
-    await this.run('작성 중이던 분석을 불러오고 있어요…', async () => {
+    await this.run('작성 중이던 분석을 불러오고 있어요…', () => this.restoreDraft(draft));
+  }
+  async restoreDraft(draft){
+      if(!workspaceScopeMatches(draft,this.drafts?.scope))throw Error('다른 저장 파일에서 작성한 내용이에요. 원래 저장 파일에서 이어 주세요.');
+      if(!draft.taskId){const settings=this.settings;this.reset({preserveActivity:true});Object.assign(this,{draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,settings,intakeText:draft.intakeText||'',step:'start'});this.intake.text=draft.reply||'';return;}
       const survey = await this.api('get_survey', {survey_id: draft.surveyId});
-      if (survey.created_at !== draft.createdAt) { writeDraft(null); throw new Error('이 기록은 다른 데이터에서 작성하던 것이라 이어 갈 수 없어요.'); }
+      if (survey.created_at !== draft.createdAt) throw new Error('이 기록은 다른 데이터에서 작성하던 것이라 이어 갈 수 없어요.');
       const full = await this.api('get_task', {task_id: draft.taskId});
+      if(full.task.task_id!==draft.taskId||full.task.survey_id!==survey.survey_id||draft.taskCreatedAt&&full.task.created_at!==draft.taskCreatedAt)throw Error('작성하던 작업이 다른 작업으로 바뀌었어요. 기록을 확인해 주세요.');
       const photos = {};
-      for (const [view, photoId] of Object.entries(draft.photos || {})) {
+      const savedViews=Object.keys(draft.photos||{}).length?draft.photos:full.task.conditions?.[this.intake.contract?.session_key]?.views||Object.fromEntries(full.task.capture.slots.filter(slot=>slot.photo_id!=null).map(slot=>[
+        VIEWS.find(view=>view.id===slot.label||VIEW_LABEL[view.id]===slot.label)?.id||VIEWS.find(view=>view.id===slot.camera_side)?.id||'RIGHT',slot.photo_id]));
+      for (const [view, photoId] of Object.entries(savedViews)) {
         const photo = full.photos.find(item => item.photo_id === photoId);
         if (photo) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};
       }
-      if (!Object.keys(photos).length && !this.intake.hasSession(full.task)) throw new Error('이어 갈 사진을 찾지 못했어요. 새 분석으로 시작해 주세요.');
       const settings = this.settings;
       this.reset({preserveActivity:true});
-      Object.assign(this, {survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.ai?.text ?? '', stale: true, settings, step: 'start'});
+      Object.assign(this, {draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.intakeText??draft.ai?.text??'', stale: true, settings, step: 'start'});
+      this.intake.text=draft.reply||'';
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {
         let state = await this.intake.open(full.task.task_id, views);
-        if(state.ai?.status==='NOT_REQUESTED'&&!Array.isArray(state.form_fields)){await this.ensureAiOn();state=await this.intake.turn('');}
+
         this.preview = state.preview; this.task = state.task; this.stale = false;
-        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || '';
-        this.intake.dialogOpen=Boolean(state.questions.length);
+        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formStage=draft.formStage||0; this.intake.formValues=new Map(draft.formValues||[]);
+        this.intake.dialogOpen=Boolean(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length);
         this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
       }
+      if(draft.step==='start')return;
       this.preview = await this.api('quick_preview', {task_id: full.task.task_id, views});
       this.stale = false;
       this.step = draft.step === 'questions' ? 'questions' : 'provisional';
       this.group = Math.min(draft.group || 0, Math.max(0, this.groups().length - 1));
-    });
   }
 
-  async discardDraft() {
-    const draft = readDraft();
-    writeDraft(null);
-    if (draft && draft.surveyId !== readWorkspaceDraft()?.survey?.id) await this.api('delete_survey', {survey_id: draft.surveyId}).catch(() => {});
-    await this.loadHome();
+  async discardDraft(id) {
+    const draft = this.quickDrafts().find(value=>!id||value.id===id);if(!draft)return;
+    if(draft.surveyId&&draft.createdAt&&!(readWorkspaceDraft()?.survey?.id===draft.surveyId&&readWorkspaceDraft()?.survey?.createdAt===draft.createdAt)){const surveys=await this.api('list_surveys');if(surveys.some(s=>s.survey_id===draft.surveyId)){const survey=await this.api('get_survey',{survey_id:draft.surveyId});if(survey.created_at!==draft.createdAt)throw Error('다른 조사로 바뀐 기록은 삭제하지 않았어요.');await this.api('delete_survey',{survey_id:draft.surveyId});}}
+    const owned=this.quickDrafts().filter(value=>value.id===draft.id||draftsShareOwner(draft,value,this.drafts.scope));
+    for(const value of owned)this.drafts.remove('quick',value.id);
+    if(owned.some(value=>value.id===readDraft()?.id)||!readDraft()?.id&&draftsShareOwner(draft,readDraft(),this.drafts.scope))writeDraft(null);
+    this.step='home';if(this.busy)this.surveys=await this.api('list_surveys');else await this.loadHome();
   }
 
   viewHome() {
     const list = (this.surveys || []).slice().sort((a, b) => (b.survey_date || '').localeCompare(a.survey_date || '') || b.survey_id - a.survey_id);
-    const draft = readDraft();
-    const draftSurvey = draft && list.find(x => x.survey_id === draft.surveyId && x.title === draft.surveyTitle);
-    const shown = list.filter(x => !draftSurvey || x.survey_id !== draft.surveyId);
+    const s = this.settings || {};
+    const checkpoint=readWorkspaceDraft();
+    const checkpointVisible = checkpoint && workspaceScopeMatches(checkpoint,this.drafts?.scope) && this.workspaceUnavailable !== JSON.stringify(checkpoint) && (!checkpoint.survey || list.some(row => row.survey_id === checkpoint.survey.id && row.created_at === checkpoint.survey.createdAt));
+    const allDrafts=this.quickDrafts(), matching=checkpointVisible?allDrafts.filter(draft=>workspaceMatchesDraft(checkpoint,draft,this.drafts?.scope)):[];
+    const drafts=allDrafts.filter(draft=>!matching.includes(draft));
+    const groups=[];
+    for(const draft of drafts){const group=groups.find(group=>draftsShareOwner(group[0],draft,this.drafts?.scope));if(group)group.push(draft);else groups.push([draft]);}
+    const shown = list.filter(x => !drafts.some(draft=>draft.surveyId===x.survey_id&&draft.createdAt===x.created_at));
     const badge = x => x.review_current ? '<span class="badge current">검토 완료</span>' : '<span class="badge none">미검토</span>';
-    const draftCard = draftSurvey ? `<section class="panel quick-draft"><div><strong>작성 중이던 분석이 있어요</strong>
+    const otherVersions=(values,label='자동 보관한 다른 입력도 있어요')=>values.length?`<details class="quick-draft-versions"><summary>${label}</summary>${values.map(draft=>`<button data-quick="resume" data-draft="${esc(draft.id)}">${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 보관한 내용 이어가기</button>`).join('')}</details>`:'';
+    const draftCard = groups.map(([draft,...others])=>`<section class="panel quick-draft"><div><strong>${esc(draft.surveyTitle||'작성 중인 작업 설명')}</strong>
       <span>${Object.keys(draft.photos || {}).length}장의 사진 · ${esc(new Date(draft.savedAt).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}))}에 저장됨</span></div>
-      <div class="quick-list-actions"><button class="primary" data-quick="resume">이어서 하기</button><button data-quick="discard-draft">버리기</button></div></section>` : '';
-    const checkpoint = readWorkspaceDraft();
-    const checkpointVisible = checkpoint && this.workspaceUnavailable !== JSON.stringify(checkpoint) && (!checkpoint.survey || list.some(row => row.survey_id === checkpoint.survey.id));
-    const checkpointCard = checkpointVisible ? `<section class="panel quick-draft"><div><strong>임시 저장한 작업이 있어요</strong><span>${WORKSPACE_STEPS.indexOf(checkpoint.step) + 1}단계 · ${esc(new Date(checkpoint.savedAt).toLocaleString('ko-KR'))} · 이 PC에 보관</span></div><button class="primary" data-quick="workspace-resume">이어서 하기</button></section>` : '';
+      <div class="quick-list-actions"><button class="primary" data-quick="resume" data-draft="${esc(draft.id)}">이어서 하기</button><button data-quick="discard-draft" data-draft="${esc(draft.id)}">버리기</button></div>${otherVersions(others)}</section>`).join('');
+    // The same local prose can reopen newer DB input after the manual revision changed.
+    const versions=otherVersions(matching,'자동 보관한 내용으로 이어가기');
+    const checkpointCard = checkpointVisible ? `<section class="panel quick-draft"><div><strong>임시 저장한 작업이 있어요</strong><span>${WORKSPACE_STEPS.indexOf(checkpoint.step) + 1}단계 · ${esc(new Date(checkpoint.savedAt).toLocaleString('ko-KR'))} · 이 PC에 보관</span></div><button class="primary" data-quick="workspace-resume">이어서 하기</button>${versions}</section>` : '';
     return `${checkpointCard}${draftCard}<section class="panel quick-hero"><h2>사진과 작업 설명으로, 필요한 정보만 확인해요</h2>
       <p>사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 물어볼게요. 결과와 Excel까지 이어져요.</p>
       <button class="primary" data-quick="new" ${this.busy ? 'disabled' : ''}>＋ 새 분석 시작</button></section>
@@ -1094,7 +1171,10 @@ export class QuickFlow {
       const item = this.photos[view.id];
       const w = item.image.width_px || item.photo.width_px || 1, h = item.image.height_px || item.photo.height_px || 1, r = Math.max(w, h) / 120;
       const scene = this.photoScene(view.id);
-      const skeleton = renderPhotoSkeleton(scene, BONES);
+      const pose = scene.origin === 'analysis' ? poseForView({result: this.result, photos: this.photos}, view.id) : poseForView(this, view.id);
+      const model = pose.engine || this.settings?.analysis?.pose_model;
+      const connections = pose.connections || this.settings?.pose_contract?.connections?.[model?.provider] || [];
+      const skeleton = renderPhotoSkeleton(scene, connections, {confidenceMin: model?.confidence_min});
       const sides = [...new Set(scene.angles.map(a => a.side).filter(Boolean))];
       const note = scene.angles.length ? `${scene.origin === 'preview' ? '현재 사진의 1차 측정 후보' : '저장된 분석의 측정 각도'}${sides.length === 1 ? ` · ${sides[0] === 'LEFT' ? '왼쪽' : '오른쪽'} 관절` : ''}` : '이 사진은 표시할 수 있는 각도 근거가 없어요.';
       return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px" role="img" aria-label="${esc(VIEW_LABEL[view.id])} 관절 및 각도">${skeleton.markup}${renderPhotoAngles(scene)}</svg></figure><p class="quick-angle-note">${note}</p>${skeleton.hasLowConfidence ? '<p class="quick-confidence-note"><span class="quick-confidence-dot" aria-hidden="true"></span><span class="quick-confidence-line" aria-hidden="true"></span> 낮은 신뢰도 · 위치 확인 필요</p>' : ''}`;
@@ -1106,6 +1186,7 @@ export class QuickFlow {
     const pv = this.preview, s = pv.score;
     const side = m => m.scope === 'COMMON' ? '' : m.scope === 'LEFT' ? '왼쪽 ' : '오른쪽 ';
     const measured = pv.measured.map(m => `<li><strong>${esc(m.label)}</strong> ${m.angles.map(a => `${a.value_deg}°`).join(' / ')} → ${esc(side(m))}${esc(VALUE_KO[m.value] || m.value + '단계')} <small>${esc(VIEW_LABEL[m.view])}</small>${m.boundary_review ? ' <em>경계값</em>' : ''}</li>`).join('');
+    const spatial=Object.entries(pv.views || {}).flatMap(([view,pose])=>(pose.world_angles || []).filter(a=>a.value_deg!=null).map(a=>`<li>${esc(VIEW_LABEL[view])} · ${a.side==='LEFT'?'왼쪽':'오른쪽'} ${esc(a.label)} ${a.value_deg.toFixed(1)}°</li>`)).join('');
     const front = pv.front.map(f => `<li><strong>${esc(f.label)}</strong> ${f.value_deg}° ${f.suggested ? '→ <em>있음으로 제안</em>' : '→ 거의 없음'}</li>`).join('');
     return `<div class="quick-columns">${this.photoStrip()}
       <section class="panel quick-score">
@@ -1116,7 +1197,7 @@ export class QuickFlow {
         <h3>사진에서 측정한 값</h3>
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
-        ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
+        ${spatial ? `<details class="quick-spatial"><summary>3D 추정 각도 (참고)</summary><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 기존 사진 각도와 확인값을 사용해요.</p><ul>${spatial}</ul></details>` : ''}${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
         ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
         <div class="quick-nav"><button class="quick-back" data-quick="photos">뒤로 가기</button><button class="primary" data-quick="questions">부족한 부분만 확인</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
       </section></div>`;
@@ -1135,9 +1216,9 @@ export class QuickFlow {
 
   intakePanel() {
     const busy = Boolean(this.busy);
-    if (this.intake?.state) return `<section class="quick-intake"><details><summary>작업 설명 더하기·수정하기</summary><p class="quick-note">설명과 관련 입력값을 AI에 보내 부족한 정보만 확인해요. 사진은 보내지 않아요. 이름·건강정보는 적지 마세요.</p><textarea data-quick-intake rows="3" maxlength="${this.intake.state.contract.policy.text_limit}" aria-label="작업 설명">${esc(this.intakeText)}</textarea><button type="button" class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>설명 반영</button></details></section>`;
+    if (this.intake?.state) return `<section class="quick-intake"><details><summary>작업 설명 더하기·수정하기</summary><p class="quick-note">등록한 사진에서는 보이는 자세와 동작을, 작업 설명에서는 시간·무게 등을 AI가 정리해요. 이미 확인한 정보는 다시 묻지 않아요. 이름·건강정보는 적지 마세요.</p><textarea data-quick-intake rows="3" maxlength="${this.intake.state.contract.policy.text_limit}" aria-label="작업 설명">${esc(this.intakeText)}</textarea><button type="button" class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>설명 반영</button></details></section>`;
     return `<section class="quick-intake"><h3>작업을 한 줄로 알려 주세요 <small>(선택 · 말한 것만 AI가 칸에 채워 드려요)</small></h3>
-      <p class="quick-note">예) “20kg 상자를 바닥에서 들어 선반에 하루 30번쯤 옮기고, 오후엔 4시간 키보드를 쳐요”. 적지 않은 값은 지어내지 않고 비워 둬요. 이 문장만 AI에 보내요(사진·이름은 보내지 않아요). 이름 같은 개인정보는 쓰지 마세요. 말로 하려면 Windows에서 Win+H를 누르세요.</p>
+      <p class="quick-note">예) “20kg 상자를 바닥에서 들어 선반에 하루 30번쯤 옮기고, 오후엔 4시간 키보드를 쳐요”. 등록한 사진과 이 설명을 AI가 함께 확인해요. 사진에서 알 수 없는 시간·무게는 설명한 값만 사용해요. 이름 같은 개인정보는 쓰지 마세요. 말로 하려면 Windows에서 Win+H를 누르세요.</p>
       <textarea data-quick-intake rows="3" maxlength="600" placeholder="작업 내용, 무게, 하루에 몇 번·몇 시간을 적어 주세요" aria-label="작업 설명">${esc(this.intakeText)}</textarea>
       <div class="quick-nav"><button class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>AI가 정리하기</button>${this.ai ? '<button data-quick="intake-clear">지우고 다시</button>' : ''}</div>
       ${this.ai ? this.intakeSummary() : ''}</section>`;
@@ -1263,9 +1344,15 @@ export class QuickFlow {
   }
 
   // The result has its own screen: the score and the criteria, nothing to edit.
+  photoVisionPanel() {
+    const contract=this.intake?.state?.contract||this.intake?.contract||{};
+    const snapshot=this.result?.snapshot;
+    return renderPhotoVision(photoVisionForTask(snapshot,contract),contract,{photoIds:(snapshot?.capture?.slots||[]).map(slot=>slot.photo_id).filter(id=>id!=null)});
+  }
+
   viewResult() {
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel quick-score">${this.rebaPanel()}
+      <div>${this.photoVisionPanel()}<section class="panel quick-score">${this.rebaPanel()}
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
@@ -1276,20 +1363,20 @@ export class QuickFlow {
   aiPanel() {
     const s = this.settings || {};
     const ai = this.activeAi();
-    let body = '<p class="quick-note">AI에는 계산된 숫자 요약만 보내요. 이름·사진·메모는 보내지 않아요.</p>';
+    let body = '<p class="quick-note">쉬운 설명을 만들 때는 계산된 숫자 요약만 보내요. 이름·사진·메모는 보내지 않아요.</p>';
     if (!s.gpt_key_present) body = '<p class="quick-warn">AI 키(OPENAI_API_KEY)가 이 PC에 없어요. 없어도 "기본 설명"을 만들 수 있어요.</p>';
     body += `<div class="quick-nav left"><button class="primary" data-quick="gen-ai" ${this.busy ? 'disabled' : ''}>${ai ? '설명 다시 만들기' : (s.gpt_key_present ? 'AI 설명 만들기' : '기본 설명 만들기')}</button></div>`;
     if (ai) {
-      const text = this.aiDraft ?? ai.edited_text ?? ai.generated_text ?? '';
+      const text = this.editedExplanation(ai);
       const shown = (ai.is_active ? ai.applied_text : null) ?? ai.edited_text ?? ai.generated_text ?? '';
       const kind = shown !== ai.generated_text ? '조사자가 수정한 설명' : ai.result === 'GENERATED' ? 'AI가 쓴 설명' : '기본 설명(AI를 쓰지 못했어요)';
-      const reason = ai.result === 'DISABLED' ? AI_REASON.DISABLED : (AI_REASON[ai.fallback_reason] || ai.fallback_reason || '');
+      const reason = ai.result === 'DISABLED' ? AI_REASON.DISABLED : (AI_REASON[ai.fallback_reason] || userText(ai.fallback_reason) || '');
       body += `<p class="quick-note">${esc(kind)}${ai.result !== 'GENERATED' ? ` · 이유: ${esc(reason)}` : ''}${ai.is_active ? ' · <b>적용 중</b>' : ''}</p>
         <div class="quick-explanation-reading">${renderQuickExplanation(ai, shown)}</div>
         <div class="quick-nav left"><button data-quick="apply-ai">생성 원문 적용</button></div>
         <details class="quick-explanation-details quick-explanation-editor" data-ai-editor ${this.aiEditorOpen ? 'open' : ''}><summary>전체 원문 보기 · 직접 수정</summary>
           <p class="quick-note">수정 내용은 ‘수정본 적용’을 누른 뒤 위 읽기 화면에 반영돼요.</p>
-          <textarea class="quick-ai" rows="12" aria-label="쉬운 설명 원문 수정" data-aidraft>${esc(text)}</textarea>
+          ${readExplanationDraft(this.result,ai,this.drafts)?'<p class="quick-note" data-explanation-draft>수정 중인 문장을 이 PC에 임시 저장했어요. 수정문 적용을 누르면 결과에 반영돼요.</p>':''}<textarea class="quick-ai" rows="12" aria-label="쉬운 설명 원문 수정" data-aidraft>${esc(text)}</textarea>
           <div class="quick-nav left"><button data-quick="apply-edited">수정본 적용</button></div>
         </details>
         <p class="quick-note">설명은 보고서에 들어갈 문장일 뿐, 계산 결과와 판정은 바뀌지 않아요.</p>`;

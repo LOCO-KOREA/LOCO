@@ -1,17 +1,21 @@
 """One variable field catalogue for the service, model schema and renderer."""
 from ergo.engine import quick_assess
 from ergo.engine.task_defaults import COMMON, ARM, AUXILIARY_CONDITION_KEYS
+from .grounding import DURATION_SUM, calculation_schema
 
 VERSION = 'ADAPTIVE_INTAKE_V1'
 SESSION_KEY = AUXILIARY_CONDITION_KEYS[0]
 METHODS = dict(contract='intake_contract', session='intake_session', turn='intake_turn')
-POLICY = dict(question_limit=1, text_limit=2400, quick_review_interval=5,
-              default_condition='default', unknown='UNKNOWN', history_context_turns=8, auto_title_length=60)
+POLICY = dict(question_limit=1, text_limit=2400, autosave_delay_ms=500, quick_review_interval=5,
+              default_condition='default', unknown='UNKNOWN', history_context_chars=None, auto_title_length=60, source_coverage_passes=1)
+
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
-SOURCES = ('USER', 'AI', 'MOVENET', 'SAVED')
+SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED', 'VISION')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
+PHOTO_DESTINATIONS = ('context','view','manual','load','load_kg','load_link')
+POLICY.update(optional_photo_destinations=list(PHOTO_DESTINATIONS), form_prompt_limit=3)
 LIFT_FIELDS = {8: ('load_mass_kg','lift_count_day'),
                9: ('load_mass_kg','below_knee_count_day','above_shoulder_count_day','extended_arm_count_day','union_count_day'),
                10: ('load_mass_kg','lift_rate_min','minutes')}
@@ -80,12 +84,18 @@ def fields():
         choices=YES_NO, priority=18, group='사진 속 물건 확인')
     add('other_work', '아직 확인하지 못한 아래 작업 특징이 있나요?', 'choice', dict(type='other_work'),
         choices=[dict(value='NO',label='아래 특징은 모두 없어요'),dict(value='YES',label='해당하는 특징이 있어요')], priority=80, group='나머지 작업 특징')
-    for field in result: field['ai_writable']=field['target']!='other_work'
+    for field in result:
+        field['ai_writable']=field['target']!='other_work'
+        field['photo_scoped']=field['destination']['type']=='manual'
+    for field in result: field['derivations']=[DURATION_SUM] if field['target']=='daily_work_min' else []
     return result
 
 
 def public_contract():
-    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY, states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
+    from .photo_facts import PHOTO_POLICY
+    from ergo.vision.contract import public_contract as vision_contract
+    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY,photo_policy=PHOTO_POLICY,
+        photo_vision=vision_contract(),states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
 
 
 def response_schema(catalogue=None):
@@ -100,6 +110,8 @@ def response_schema(catalogue=None):
         answer=dict(type='object',additionalProperties=False,properties=dict(
             target=dict(type='string',enum=[field['target']]),condition=dict(type='string'),
             number=dict(type=['number','null'] if numeric else 'null'),text=text_schema,quote=dict(type='string')))
+        if field.get('derivations'):
+            answer['properties']['calculation']=calculation_schema(field['derivations'])
         answer['required']=list(answer['properties']); variants.append(answer)
     question = dict(type='object',additionalProperties=False,
         properties=dict(target=dict(type='string',enum=targets),condition=dict(type='string'),text=dict(type='string'),reason=dict(type='string')))

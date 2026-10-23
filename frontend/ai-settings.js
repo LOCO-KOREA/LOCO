@@ -26,6 +26,6 @@ export function enabledAiSettings(settings) {
   return result;
 }
 export function persistedSettings(settings) {
-  const {gpt_contract,gpt_key_present,...value}=structuredClone(settings);
+  const {gpt_contract,gpt_key_present,pose_contract,...value}=structuredClone(settings);
   return value;
 }

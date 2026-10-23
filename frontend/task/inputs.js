@@ -3,16 +3,17 @@ export const inputs={
 key(){return this.current?.task_id??`new:${this.surveyId}`;},
 remember(){if(this.current){this.buffers.set(this.key(),structuredClone(this.current));(this.bufferBases??=new Map()).set(this.key(),structuredClone(this.saved));}},
 resetSurvey(id){for(const [key,value]of this.buffers)if(key===`new:${id}`||value.survey_id===id)this.buffers.delete(key);if(this.surveyId===id){this.current=null;this.saved=null;this.items=[];this.surveyId=null;}},
-async open(surveyId){this.remember();const changed=this.surveyId!==surveyId;this.surveyId=surveyId;this.items=await this.api('list_tasks',{survey_id:surveyId});const selected=changed?null:this.items.find(t=>t.task_id===this.current?.task_id);if(selected||this.items.length)await this.load((selected||this.items[0]).task_id,false);else{this.current=this.buffers.get(`new:${surveyId}`)||this.blank();this.saved=null;}this.screen='info';this.render();},
+async open(surveyId,{shouldRender=()=>true}={}){this.remember();const changed=this.surveyId!==surveyId;this.surveyId=surveyId;const items=await this.api('list_tasks',{survey_id:surveyId});if(!shouldRender())return items;this.items=items;const selected=changed?null:this.items.find(t=>t.task_id===this.current?.task_id);let loaded;if(selected||this.items.length)loaded=await this.load((selected||this.items[0]).task_id,false,{shouldRender});else{this.current=this.buffers.get(`new:${surveyId}`)||this.blank();this.saved=null;}if(!shouldRender())return loaded;this.screen='info';this.render();return this.current;},
 preview(){this.surveyId=null;this.current=this.blank();this.saved=null;this.render();},
-async load(id,remember=true){
+async load(id,remember=true,{shouldRender=()=>true}={}){
   if(remember)this.remember();
   const bundle=await this.api('get_task',{task_id:id}),buffer=this.buffers.get(id),base=this.bufferBases?.get(id);
+  if(!shouldRender())return bundle.task;
   this.saved=bundle.task;this.current=structuredClone(bundle.task);
   if(buffer)for(const key of TaskWorkspace.editableKeys){
    if(!base||JSON.stringify(buffer[key])!==JSON.stringify(base[key]))this.current[key]=structuredClone(buffer[key]);
   }
-  this.render();
+  this.render();return this.current;
  },
 write(path,value){const keys=path.split('.');let target=this.current;for(const key of keys.slice(0,-1))target=target[key];target[keys.at(-1)]=value;},
 input(event){const node=event.target;if(node.dataset.aggregate){if(event.type!=='change')return;const [n]=node.dataset.aggregate.split(':').map(Number);const aggregate=n===9?this.current.legal.criteria[n-1].totals:this.current.legal.criteria[n-1].union;const ids=new Set(aggregate.row_ids);if(node.checked)ids.add(node.value);else ids.delete(node.value);aggregate.row_ids=[...ids];this.remember();this.dirtyStatus();return;}const path=node.dataset.path;if(!path)return;let value=node.type==='checkbox'?node.checked:node.type==='number'?(node.value===''?null:Number(node.value)):node.value;if(path.endsWith('.source'))value=value||null;if(path.endsWith('.observed_at'))value=value?new Date(value).toISOString():null;if(path.endsWith('.text'))value=value||null;this.write(path,value);this.remember();this.dirtyStatus();},

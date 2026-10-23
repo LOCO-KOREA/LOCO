@@ -3,6 +3,7 @@ import copy
 from ergo.engine.task_defaults import diagnostic
 from ergo.gpt import payload as gpt_payload
 from ergo.report import workbook as report
+from ergo.pose import engine as pose_engine
 
 def analysis(ctx, identity):
     result = ctx.require('analysis', identity)
@@ -17,7 +18,9 @@ def analysis(ctx, identity):
     return result
 
 def snapshot(ctx, task):
-    return dict(schema_version=task.get('schema_version', '1.3'), task_id=task['task_id'], input_revision=task['input_revision'], task_name=task['task_name'], task_kind=task.get('task_kind'), input_template=task.get('input_template'), worker_count=task.get('worker_count'), conditions=copy.deepcopy(task['conditions']), legal=copy.deepcopy(task['legal']), capture=copy.deepcopy(task['capture']), manual=copy.deepcopy(task['manual']), analysis_scope=copy.deepcopy(task.get('analysis_scope')), legacy_input=copy.deepcopy(task.get('legacy_input')), photos=ctx.store('list_photos', task['task_id']), settings=ctx.settings()['analysis'])
+    value=dict(schema_version=task.get('schema_version', '1.3'), task_id=task['task_id'], input_revision=task['input_revision'], task_name=task['task_name'], task_kind=task.get('task_kind'), input_template=task.get('input_template'), worker_count=task.get('worker_count'), conditions=copy.deepcopy(task['conditions']), legal=copy.deepcopy(task['legal']), capture=copy.deepcopy(task['capture']), manual=copy.deepcopy(task['manual']), analysis_scope=copy.deepcopy(task.get('analysis_scope')), legacy_input=copy.deepcopy(task.get('legacy_input')), photos=ctx.store('list_photos', task['task_id']), settings=ctx.settings()['analysis'])
+    value['pose_artifact']=pose_engine.fingerprint(value['settings']['pose_model'])
+    return value
 
 def persist_analysis(ctx, a, *, token=None):
     """Calculation worker writes calculation fields, never AI or display edits."""
@@ -79,7 +82,7 @@ def pose_inputs(ctx, snap):
             k: snap['conditions'].get(k)
             for k in ['worker_code', 'method_description', 'work_height_cm']
         },
-        model=snap['settings']['pose_model'],
+        model=snap['settings']['pose_model'],artifact=snap.get('pose_artifact'),
     )
 
 def handle_get_analysis(ctx, method, p):

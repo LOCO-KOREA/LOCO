@@ -13,14 +13,15 @@ const sideLabel = side => side === 'LEFT' ? '왼쪽' : '오른쪽';
 const equalDimensions = (photo, width, height) => (!photo?.width_px || photo.width_px === width) && (!photo?.height_px || photo.height_px === height);
 
 // Confidence changes presentation only; no points are inferred or promoted for scoring.
-export function renderPhotoSkeleton(scene, bones) {
+export function renderPhotoSkeleton(scene, bones, options = {}) {
   const {width, height} = scene;
   if (!finite(width) || !finite(height) || width <= 0 || height <= 0)
     return {markup: '', hasLowConfidence: false};
   const points = Object.fromEntries((scene.points || []).filter(p =>
     finite(p.x_px) && finite(p.y_px) && finite(p.confidence) && p.confidence > 0 && p.confidence <= 1 &&
     p.x_px >= 0 && p.x_px < width && p.y_px >= 0 && p.y_px < height).map(p => [p.name, p]));
-  const low = p => p.confidence < 0.3;
+  const threshold = finite(options.confidenceMin) && options.confidenceMin >= 0 && options.confidenceMin <= 1 ? options.confidenceMin : 0.3;
+  const low = p => p.confidence < threshold;
   const lines = bones.filter(([a, b]) => points[a] && points[b]).map(([a, b]) => {
     const from = points[a], to = points[b];
     return `<line class="${low(from) || low(to) ? 'pose-low-line' : 'pose-line'}" x1="${from.x_px}" y1="${from.y_px}" x2="${to.x_px}" y2="${to.y_px}"/>`;

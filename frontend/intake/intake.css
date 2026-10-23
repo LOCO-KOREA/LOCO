@@ -115,3 +115,13 @@
 
 .intake-form-progress { padding:0 28px 16px; font-size:14px; }
 .intake-form-progress .intake-progress-track { margin:8px 0; }
+
+.intake-photo-vision { margin:16px 0; padding:16px; border:1px solid var(--color-line); border-radius:12px; background:var(--color-surface); }
+.intake-photo-vision > h3 { margin-top:0; }
+.intake-photo-vision article + article { border-top:1px solid var(--color-line); margin-top:16px; padding-top:12px; }
+.intake-photo-vision h4 { margin:8px 0; font-size:15px; }
+.intake-photo-vision h4 small, .intake-photo-vision-status { color:var(--color-secondary); font-size:12px; font-weight:400; }
+.intake-photo-vision ul { display:grid; gap:10px; list-style:none; padding:0; }
+.intake-photo-vision li { display:grid; gap:3px; line-height:1.6; overflow-wrap:anywhere; }
+.intake-photo-vision li small { color:var(--color-secondary); }
+.intake-photo-vision details > summary { cursor:pointer; padding:8px 0; color:var(--color-primary); }
