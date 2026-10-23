@@ -40,6 +40,17 @@ class AdaptiveIntake(unittest.TestCase):
     def candidates(self,state):
         return planner.assess(state['task'],state['task']['conditions'][contract.SESSION_KEY]['facts'],state['task']['conditions'][contract.SESSION_KEY]['views'])['candidates']
 
+    def test_form_has_all_work_features_and_only_active_conditions(self):
+        work=[f for f in self.session['form_fields'] if f['destination']['type']=='work_type']
+        self.assertEqual(len(work),9)
+        lift=next(f for f in work if f['target']=='work_type.lift')
+        saved=self.turn([answer(lift['target'],'YES')])
+        self.assertTrue(any(f.get('gate')=='lift' for f in saved['form_fields']))
+        no=self.turn([answer(lift['target'],'NO')])
+        self.assertFalse(any(f.get('gate')=='lift' for f in no['form_fields']))
+        self.assertIn(lift['identity'],[f['identity'] for f in no['form_fields']])
+        self.assertFalse(no['complete'])
+
     def test_contract_is_shared_strict_unique_and_has_no_judgment_targets(self):
         catalogue=contract.fields(); targets={f['target'] for f in catalogue}
         self.assertEqual(len(catalogue),len(targets)); self.assertNotIn('risk',targets)

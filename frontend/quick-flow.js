@@ -254,7 +254,7 @@ export class QuickFlow {
       }
       Object.assign(this.intake, {text: draft.intake.text, dialogOpen: draft.intake.dialogOpen,
         editing: draft.intake.editing, writingFor: draft.intake.writingFor, focusPair: draft.intake.focusPair,
-        values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
+        formStage: draft.intake.formStage||0, formValues: new Map(draft.intake.formValues||[]), values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
       if (this.baseline && this.result) await this.compare();
       if (draft.step === 'excel') {
         const args = {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons: this.comparison ? [this.comparison.spec] : []};
@@ -776,8 +776,11 @@ export class QuickFlow {
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state)this.intake.dialogOpen=true; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions(); this.intake.dialogOpen=true; } this.render(); }
     else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
+    else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.render(); }
+    else if (d.quick === 'intake-form-next') this.saveIntakeForm();
+    else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
       if (this.intake?.state) this.finish();
@@ -838,7 +841,26 @@ export class QuickFlow {
     this.render();
   }
 
+  async saveIntakeForm() {
+    const invalid=this.host?.querySelector('[data-intake-form]:invalid');
+    if(invalid) { invalid.reportValidity(); return; }
+    let saved=false, last=this.intake.formStage===1;
+    await this.run('입력한 내용을 저장하고 있어요…',async()=>{
+      await this.intake.flush();
+      const answers=this.intake.formAnswers();
+      const state=answers.length?await this.intake.turn('',answers):this.intake.state;
+      if(!state||state.reason)return;
+      this.task=state.task;this.preview=state.preview;
+      for(const answer of answers)this.intake.formValues.delete(answer.target+'@'+answer.condition);
+      if(!last)this.intake.formStage=1;
+      saved=true;
+    });
+    if(saved&&last)await this.finish();
+  }
+
   async respondIntake(text=this.intake.text,answers=[]) {
+    const submittedText=text,directNumber=!answers.length?this.intake.numericAnswer(text):null;
+    if(directNumber) { answers=[directNumber]; text=''; }
     let ready=false;
     const needsAi=Boolean(text.trim())||!answers.length;
     await this.run(needsAi?'답변을 정리하고 있어요…':'답변을 저장하고 있어요…',async()=>{
@@ -846,7 +868,8 @@ export class QuickFlow {
       const state=await this.intake.turn(text,answers);
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
-      ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
+      if(directNumber&&!state.reason&&this.intake.text===submittedText) { this.intake.text=''; this.intake.writingFor=null; }
+      ready=!Array.isArray(state.form_fields)&&!state.questions.length&&!state.reason&&!this.intake.text.trim();
       if(ready)this.intake.dialogOpen=false;
     });
     if(ready)await this.finish();
@@ -861,7 +884,16 @@ export class QuickFlow {
   input(event) {
     const el = event.target;
     const d = el.dataset;
-    if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
+    if (d.intakeForm) {
+      const field=this.intake.formFields().find(f=>f.identity===d.intakeForm);
+      if(!field||this.busy)return;
+      const raw=el.value;
+      if(field.kind==='number'&&raw!==''&&(!Number.isFinite(Number(raw))||Number(raw)<0||field.maximum!=null&&Number(raw)>field.maximum)) { el.setCustomValidity('입력 범위를 확인해 주세요.'); el.reportValidity(); return; }
+      el.setCustomValidity('');
+      this.intake.formValues.set(field.identity,raw===''?null:field.kind==='number'?Number(raw):field.kind==='choice'?field.choices.find(c=>String(c.value)===raw)?.value:raw);
+      this.keepDraft();
+    }
+    else if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
     else if (d.intakeGroupValue) {
       if(!this.busy&&this.intake.selectGroupValue(d.intakeGroupValue,el.value)) {
         const save=this.host.querySelector('[data-intake-dialog] [data-quick="intake-group-save"]');
@@ -958,7 +990,7 @@ export class QuickFlow {
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {
         let state = await this.intake.open(full.task.task_id, views);
-        if(state.ai?.status==='NOT_REQUESTED'){await this.ensureAiOn();state=await this.intake.turn('');}
+        if(state.ai?.status==='NOT_REQUESTED'&&!Array.isArray(state.form_fields)){await this.ensureAiOn();state=await this.intake.turn('');}
         this.preview = state.preview; this.task = state.task; this.stale = false;
         this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || '';
         this.intake.dialogOpen=Boolean(state.questions.length);

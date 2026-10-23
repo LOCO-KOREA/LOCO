@@ -1,3 +1,4 @@
+import {renderForm} from './form.js';
 import {connectionStatus} from './view.js';
 import {renderActivity} from './activity.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -24,7 +25,10 @@ function progressPanel(state) {
 
 export function renderDialog(intake,busy) {
   if(!intake.dialogOpen||!intake.state)return '';
+  if(Array.isArray(intake.state.form_fields))return renderForm(intake,busy);
   const state=intake.state,q=intake.questions[0];
+  if(!busy&&intake.shouldReview?.())return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 간단 확인</span><h2 id="intake-dialog-title">결과를 먼저 확인해 볼까요?</h2></div><button type="button" data-quick="intake-close" aria-label="추가 질문 닫기">×</button></header><div class="intake-dialog-body"><article><h3>추가 질문을 끝까지 답하지 않아도 돼요.</h3><p class="quick-note">지금까지 입력한 내용으로 결과를 먼저 확인하세요. 아직 확인하지 않은 값은 입력 필요·미완성으로 남겨 두고, 필요한 부분만 나중에 보완할 수 있어요.</p></article><details class="intake-review-details"><summary>전체 상세 항목 진행 보기</summary>${progressPanel(state)}</details></div><footer class="intake-dialog-footer"><button type="button" data-quick="intake-continue">상세 항목 더 확인</button><button type="button" class="primary" data-quick="next">결과 먼저 보기 →</button></footer></dialog>`;
+
   const hasAnswerGroup=Array.isArray(q?.answer_questions)&&q.answer_questions.length>0;
   const members=hasAnswerGroup?(intake.answerFields?.(q)||q.answer_questions):[];
   const grouped=hasAnswerGroup&&members.length>0&&members.every(choicesFor);
