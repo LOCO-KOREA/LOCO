@@ -19,3 +19,7 @@ Google의 [Pose Landmarker 개요](https://developers.google.com/edge/mediapipe/
 ## 검증 구분
 
 `tests/test_wrist_measurement.py`는 합성 픽셀 좌표의 범주 경계·가림·프레임·손바닥 정면·짧고 불안정한 투영·직접 값 우선·3D 미사용·MoveNet 호환·정확한 재질문 이유를 검사한다. 공급자 경계에만 합성 landmark를 주입하는 서비스→실제 SQLite→분석/Excel 시험은 연결 검증이며 실제 MediaPipe 정확도 시험과 구별한다. 실제 모델 표본에서는 원본 좌표·confidence·선택 조건과 거부 이유를 별도 증거에 보관한다. 성공한 모델 표본이 없으면 자동 측정 정확성 검증을 완료로 표시하지 않는다.
+
+`tests/wrist_measurement_e2e.py --directory <새 증거 폴더>`는 실제 서비스 API/SQLite/분석/Excel에 공급자 infer만 합성 좌표로 대체한 성공 및 저품질 사례를 실행한다. 성공 사례의 `입력한 값!C15:F15`는 왼쪽 손목 꺾임 / 15° 넘게 / 사진에서 자동 채택 / 사진에서 잰 각도 30.0°다. 기존 source/수동값·사진 ID·분석/출력 snapshot을 대조하고 직접 수정 후 이전 분석 불변도 확인한다. 실제 모델 사례는 infer를 대체하지 않고 공개 TensorFlow 사진에서 사선 관측 거부와 구체 한국어 이유를 확인한다. 합성 저품질·실제 사진 모두 intake_session 세 번 조회 전후 input_revision 및 input_json 바이트가 완전히 같아야 한다. 동일 UNKNOWN 원인·측정·정책·모델·사진 소유권이면 기존 fact 시각을 유지하고, 바뀐 관측에만 새 근거를 만든다.
+
+추가 음성 회귀는 12000px 사진의 픽셀 민감도 변화가 팔꿈치와 손목을 일치시키는 경우다. 손목만 WRIST_UNSTABLE로 거부하며 다른 관절·각도를 MODEL_ERROR로 지우지 않는다. 비유한 민감도 결과도 같은 원칙을 따른다.

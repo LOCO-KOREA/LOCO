@@ -177,8 +177,12 @@ def add_photo_facts(existing, preview, views):
         target=f"manual.{issue['scope']}.{issue['field']}"
         prior=result.get(key(target))
         if target in catalogue and (prior is None or prior['source'] in PHOTO_SOURCES and prior['state']=='UNKNOWN'):
+            details=dict(measurement_diagnostic=issue['code'],angles=[issue['angle']],
+                photo_measurement=dict(view=issue['view'],photo_id=views.get(issue['view']),engine=preview.get('views',{}).get(issue['view'],{}).get('engine')))
+            if prior and prior.get('value') is None and prior.get('source')==source and prior.get('quote')==issue['reason'] and all(prior.get(name)==value for name,value in details.items()):
+                continue # Reopening unchanged uncertainty is a read, not a fresh observation.
             f=fact(catalogue[target],None,source,issue['reason'])
-            f.update(measurement_diagnostic=issue['code'],angles=[issue['angle']])
+            f.update(details)
             result[key(target)]=f
     if preview.get('signals',{}).get('seated') and (key('manual.COMMON.seated') not in result or result[key('manual.COMMON.seated')]['state']=='UNKNOWN' and result[key('manual.COMMON.seated')]['source'] in PHOTO_SOURCES):
         result[key('manual.COMMON.seated')]=fact(catalogue['manual.COMMON.seated'],'YES',source,'사진에서 앉은 자세 감지')

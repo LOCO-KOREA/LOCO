@@ -136,5 +136,16 @@ class WristProjection(unittest.TestCase):
             self.assertEqual(form['reason'],WRIST_REASONS[code])
             self.assertFalse(any(item['field']=='wrist_base' for item in projected['manual']))
 
+    def test_unchanged_unknown_photo_evidence_is_idempotent_but_owner_and_policy_changes_are_new(self):
+        preview,_=self.preview();preview['measured']=[]
+        issue=dict(scope='LEFT',field='wrist_base',view='LEFT',code='WRIST_PLANE_UNCLEAR',reason=WRIST_REASONS['WRIST_PLANE_UNCLEAR'],angle=dict(side='LEFT',angle_code='WRIST_FLEX_2D',value_deg=None,measurement=dict(policy_version='WRIST_IMAGE_2D_V1')))
+        preview['measurement_issues']=[issue]
+        saved=facts.add_photo_facts({},preview,dict(LEFT=7))
+        for _ in range(3):self.assertEqual(facts.add_photo_facts(saved,preview,dict(LEFT=7)),saved)
+        for changed,views in [(copy.deepcopy(preview),dict(LEFT=8)),(copy.deepcopy(preview),dict(LEFT=7))]:
+            if views['LEFT']==7:changed['measurement_issues'][0]['angle']['measurement']['policy_version']='new-policy'
+            fresh=facts.add_photo_facts(saved,changed,views)
+            self.assertNotEqual(fresh[contract.key('manual.LEFT.wrist_base')],saved[contract.key('manual.LEFT.wrist_base')])
+
 
 if __name__=='__main__': unittest.main()
