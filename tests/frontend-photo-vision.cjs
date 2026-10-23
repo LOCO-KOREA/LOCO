@@ -1,0 +1,46 @@
+const assert=require('node:assert/strict');
+(async()=>{
+ const {renderPhotoVision,photoVisionForTask,PHOTO_VISION_COPY}=await import('../frontend/intake/photo-vision.js');
+ const {renderSummary}=await import('../frontend/intake/view.js');
+ const {QuickFlow}=await import('../frontend/quick-flow.js');
+ const {AdaptiveIntake}=await import('../frontend/intake/client.js');
+ const visible=html=>html.replace(/<[^>]*>/g,'');
+ const catalogue=Object.entries(PHOTO_VISION_COPY.labels).map(([key,label])=>({key,label:key==='trunk'?'계약에서 정한 몸통 이름':label}));
+ const contract={session_key:'configured_session',policy:{default_condition:'default'},fields:[],photo_vision:{catalogue}};
+ const record={photo_id:17,view:'RIGHT',photo_label:'오른쪽에서 찍은 사진',status:'UNCERTAIN',summary:'서서 물건을 옮기는 모습이에요.',signature:'HIDDEN_SIGNATURE',source_sha256:'hidden-source-hash',encoded_sha256:'hidden-encoded-hash',connection:{model:'hidden-model',response_id:'hidden-response'},observations:{}};
+ for(const {key} of catalogue)record.observations[key]={status:'OBSERVED',value:key==='knees'?'무릎을 구부리고 있어요.':'사진에서 확인한 자세예요.',evidence:'해당 부위가 사진에 보여요.',confidence:0.999,reason:''};
+ record.observations.wrist_right={status:'NOT_VISIBLE',value:'',evidence:'',confidence:null,reason:'오른쪽 손이 물건에 가려져 손목 모습을 확인하지 못했어요.'};
+ record.observations.neck={status:'UNCERTAIN',value:'목이 조금 숙여진 것으로 보여요.',evidence:'',confidence:0.3,reason:'촬영 방향 때문에 목의 기울임을 확실히 확인하기 어려워요.'};
+ const vision={version:'TEST',photos:[record],history:[{...record,summary:'이전 결과는 표시하지 않음'}],catalogue};
+ assert.equal(renderPhotoVision(null,contract),'');assert.equal(renderPhotoVision({photos:[]},contract),'');
+ const frozen=JSON.stringify(vision),html=renderPhotoVision(vision,contract),shown=visible(html);
+ assert.match(shown,/AI가 사진에서 확인한 모습/);assert.match(shown,/오른쪽에서 찍은 사진/);assert.match(shown,/AI 사진 관찰/);assert.match(shown,/계약에서 정한 몸통 이름/);assert.match(shown,/손이 물건에 가려져/);assert.match(shown,/촬영 방향 때문에/);assert.match(shown,/확인이 필요/);assert.match(shown,/사진에서 보이지 않아요/);
+ assert.doesNotMatch(shown,/OBSERVED|UNCERTAIN|NOT_VISIBLE|VISION|hidden-|HIDDEN_|이전 결과|99.9|확신도|정확도|%/);
+ const [main,details]=html.split('<details>');for(const key of ['activity','trunk','knees'])assert.match(main,new RegExp('data-photo-vision-field="'+key+'"'));
+ for(const key of ['neck','arm_left','arm_right','wrist_left','wrist_right','holding'])assert.match(details,new RegExp('data-photo-vision-field="'+key+'"'));
+ assert.equal(JSON.stringify(vision),frozen,'rendering never changes raw model observations or confidence');
+ const escaped=renderPhotoVision({photos:[{...record,summary:'<script>bad()</script>',observations:{activity:{status:'OBSERVED',value:'<img src=x onerror=bad()>',evidence:'<b>사진 근거</b>'}}}]},contract);
+ assert.doesNotMatch(escaped,/<script>|<img src=x/);assert.match(escaped,/&lt;script&gt;/);assert.match(escaped,/&lt;img/);
+ const errors=visible(renderPhotoVision({photos:[{photo_id:3,view:'LEFT',status:'ERROR',diagnostics:[{code:'API_ERROR',message:'API_ERROR'}]},{photo_id:4,view:'FRONT',status:'DISABLED',reason:'아직 사진 확인을 완료하지 못했어요.'}]},contract));
+ assert.match(errors,/사진 확인을 완료하지 못했어요/);assert.match(errors,/사진 관찰을 진행하지 못했어요/);assert.doesNotMatch(errors,/API_ERROR|DISABLED|ERROR|FRONT|LEFT/);
+ const second={...record,photo_id:18,photo_label:'왼쪽에서 찍은 사진',summary:'두 번째 사진의 독립 관찰'};
+ assert.equal((renderPhotoVision({photos:[record,record,second]},contract).match(/data-photo-vision-photo=/g)||[]).length,2);
+ assert.doesNotMatch(renderPhotoVision({photos:[record,second]},contract,{photoIds:[17]}),/두 번째 사진/);
+ assert.equal(renderPhotoVision(vision,contract,{photoIds:[]}),'');assert.equal(renderPhotoVision({photos:[{...record,photo_active:false}]},contract),'');
+ const task={conditions:{configured_session:{photo_vision:vision}}};assert.equal(photoVisionForTask(task,contract),vision);assert.equal(photoVisionForTask(task,{}),null,'the session field comes from the contract');
+ const intake=new AdaptiveIntake({api(){},notify(){},changed(){}});intake.state={contract,facts:[],task,messages:[],history:[]};assert.match(renderSummary(intake),/서서 물건을 옮기는/);
+ intake.state.photo_vision={photos:[{...record,summary:'공개 응답의 현재 사진 관찰'}]};assert.match(renderSummary(intake),/공개 응답의 현재 사진 관찰/);assert.doesNotMatch(renderSummary(intake),/서서 물건을 옮기는/);
+ const field={target:'manual.RIGHT.trunk_base',identity:'manual.RIGHT.trunk_base@photo:17',condition:'photo:17',label:'허리 굽힘',kind:'choice',destination:{type:'manual'},choices:[{value:2,label:'조금 굽힘'}]};
+ intake.state.contract.fields=[field];intake.state.facts=[{...field,state:'KNOWN',source:'VISION',value:2}];intake.state.form_fields=[field];intake.formStage=1;
+ assert.equal(intake.pendingFormFields(1,{includePhoto:true}).length,0,'a stored known photo observation is not asked again');assert.doesNotMatch(visible(renderSummary(intake)),/\bVISION\b/);
+ const snapshot={capture:{slots:[{photo_id:17}]},conditions:{configured_session:{photo_vision:{photos:[{...record,summary:'선택한 분석에 저장한 관찰'},second]}}}};
+ const flow=Object.assign(Object.create(QuickFlow.prototype),{intake,result:{snapshot},task});
+ assert.match(flow.photoVisionPanel(),/선택한 분석에 저장한 관찰/);assert.doesNotMatch(flow.photoVisionPanel(),/공개 응답의 현재 사진 관찰|두 번째 사진/);flow.result={};assert.equal(flow.photoVisionPanel(),'','old result without saved vision never borrows newer task observations');
+ const labels=[],calls=[];const ready={task:{task_id:1},preview:{},form_fields:[],questions:[]};
+ for(const withPhoto of [true,false]){
+  const f=Object.assign(Object.create(QuickFlow.prototype),{stale:true,photos:withPhoto?{RIGHT:{photo:{photo_id:17}}}:{},intakeText:'작업 설명',task:{task_id:1},ensureTask:async()=>{},ensureAiOn:async()=>{},async run(label,fn){labels.push(label);await fn();},intake:{state:null,async open(){calls.push('open');return ready;},async turn(){calls.push('turn');return ready;},pendingFormFields(){return [];}}});await f.analyze();assert.equal(f.intake.dialogOpen,false);
+ }
+ assert.match(labels[0],/사진에서 자세와 동작/);assert.match(labels[1],/작업 설명/);assert.deepEqual(calls,['open','turn','open','turn'],'existing analyze automatically uses the service hook without extra gates or frontend AI calls');
+ const copy=QuickFlow.prototype.intakePanel.call({busy:false,intake:null,intakeText:''});assert.match(copy,/등록한 사진과 이 설명을 AI가 함께 확인/);assert.doesNotMatch(copy,/이 문장만 AI에 보내|사진·이름은 보내지/);
+ console.log('PASS photo vision per-photo Korean observations, visible activity/body/knees, uncertainty, escaping, no confidence claims/codes, immutable snapshot and minimum-question analyze path');
+})().catch(error=>{console.error(error);process.exitCode=1;});

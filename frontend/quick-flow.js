@@ -8,6 +8,7 @@ import {DRAFT_POLICY,localDrafts,initializeDrafts,newDraftId,readExplanationDraf
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
 import {AdaptiveIntake} from './intake/client.js';
+import {renderPhotoVision,photoVisionForTask} from './intake/photo-vision.js';
 import {renderActivity,updateActivity} from './intake/activity.js';
 import {enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
@@ -393,7 +394,7 @@ export class QuickFlow {
   async analyze() {
     if (!Object.keys(this.photos).length && !this.intakeText.trim()) return;
     if (!this.stale && this.preview && this.intake?.state) { this.step = 'provisional'; return this.render(); }
-    await this.run('사진을 분석하고 있어요…', async () => {
+    await this.run(Object.keys(this.photos).length ? '사진에서 자세와 동작을 확인하고 있어요…' : '작업 설명을 정리하고 있어요…', async () => {
       await this.ensureTask();
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
       let state = await this.intake.open(this.task.task_id, views);
@@ -1197,9 +1198,9 @@ export class QuickFlow {
 
   intakePanel() {
     const busy = Boolean(this.busy);
-    if (this.intake?.state) return `<section class="quick-intake"><details><summary>작업 설명 더하기·수정하기</summary><p class="quick-note">설명과 관련 입력값을 AI에 보내 부족한 정보만 확인해요. 사진은 보내지 않아요. 이름·건강정보는 적지 마세요.</p><textarea data-quick-intake rows="3" maxlength="${this.intake.state.contract.policy.text_limit}" aria-label="작업 설명">${esc(this.intakeText)}</textarea><button type="button" class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>설명 반영</button></details></section>`;
+    if (this.intake?.state) return `<section class="quick-intake"><details><summary>작업 설명 더하기·수정하기</summary><p class="quick-note">등록한 사진에서는 보이는 자세와 동작을, 작업 설명에서는 시간·무게 등을 AI가 정리해요. 이미 확인한 정보는 다시 묻지 않아요. 이름·건강정보는 적지 마세요.</p><textarea data-quick-intake rows="3" maxlength="${this.intake.state.contract.policy.text_limit}" aria-label="작업 설명">${esc(this.intakeText)}</textarea><button type="button" class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>설명 반영</button></details></section>`;
     return `<section class="quick-intake"><h3>작업을 한 줄로 알려 주세요 <small>(선택 · 말한 것만 AI가 칸에 채워 드려요)</small></h3>
-      <p class="quick-note">예) “20kg 상자를 바닥에서 들어 선반에 하루 30번쯤 옮기고, 오후엔 4시간 키보드를 쳐요”. 적지 않은 값은 지어내지 않고 비워 둬요. 이 문장만 AI에 보내요(사진·이름은 보내지 않아요). 이름 같은 개인정보는 쓰지 마세요. 말로 하려면 Windows에서 Win+H를 누르세요.</p>
+      <p class="quick-note">예) “20kg 상자를 바닥에서 들어 선반에 하루 30번쯤 옮기고, 오후엔 4시간 키보드를 쳐요”. 등록한 사진과 이 설명을 AI가 함께 확인해요. 사진에서 알 수 없는 시간·무게는 설명한 값만 사용해요. 이름 같은 개인정보는 쓰지 마세요. 말로 하려면 Windows에서 Win+H를 누르세요.</p>
       <textarea data-quick-intake rows="3" maxlength="600" placeholder="작업 내용, 무게, 하루에 몇 번·몇 시간을 적어 주세요" aria-label="작업 설명">${esc(this.intakeText)}</textarea>
       <div class="quick-nav"><button class="primary" data-quick="intake" ${busy || !this.intakeText.trim() ? 'disabled' : ''}>AI가 정리하기</button>${this.ai ? '<button data-quick="intake-clear">지우고 다시</button>' : ''}</div>
       ${this.ai ? this.intakeSummary() : ''}</section>`;
@@ -1325,9 +1326,15 @@ export class QuickFlow {
   }
 
   // The result has its own screen: the score and the criteria, nothing to edit.
+  photoVisionPanel() {
+    const contract=this.intake?.state?.contract||this.intake?.contract||{};
+    const snapshot=this.result?.snapshot;
+    return renderPhotoVision(photoVisionForTask(snapshot,contract),contract,{photoIds:(snapshot?.capture?.slots||[]).map(slot=>slot.photo_id).filter(id=>id!=null)});
+  }
+
   viewResult() {
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel quick-score">${this.rebaPanel()}
+      <div>${this.photoVisionPanel()}<section class="panel quick-score">${this.rebaPanel()}
         ${this.resultSummary()}
         <h3>관련 법정 기준 초안</h3>${this.criteriaRows(false)}
         <p class="quick-note">초안은 입력한 값으로 계산한 결과예요. 최종 해당 여부는 조사자가 검토해 정해요.</p>
@@ -1338,7 +1345,7 @@ export class QuickFlow {
   aiPanel() {
     const s = this.settings || {};
     const ai = this.activeAi();
-    let body = '<p class="quick-note">AI에는 계산된 숫자 요약만 보내요. 이름·사진·메모는 보내지 않아요.</p>';
+    let body = '<p class="quick-note">쉬운 설명을 만들 때는 계산된 숫자 요약만 보내요. 이름·사진·메모는 보내지 않아요.</p>';
     if (!s.gpt_key_present) body = '<p class="quick-warn">AI 키(OPENAI_API_KEY)가 이 PC에 없어요. 없어도 "기본 설명"을 만들 수 있어요.</p>';
     body += `<div class="quick-nav left"><button class="primary" data-quick="gen-ai" ${this.busy ? 'disabled' : ''}>${ai ? '설명 다시 만들기' : (s.gpt_key_present ? 'AI 설명 만들기' : '기본 설명 만들기')}</button></div>`;
     if (ai) {
