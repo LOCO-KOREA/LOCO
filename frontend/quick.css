@@ -105,6 +105,7 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-line); }
 .quick-list li div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .quick-list li span { color: var(--color-muted); font-size: 13px; }
+.quick-list .badge { margin-left: 10px; }
 .quick-list-actions { display: flex; gap: 8px; }
 .quick-list-actions .danger { background: #fde8e8; color: #a12828; border-color: #e7b6b6; }
 .quick-settings { margin-top: 16px; }
@@ -140,6 +141,7 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-table th { text-align: left; font-size: 12px; color: var(--color-muted); padding: 6px 8px; }
 .quick-table small { color: var(--color-muted); margin-left: 6px; }
 #quick-workspace .panel { margin-bottom: 16px; }
+#quick-workspace .panel > h3:first-child { margin-top: 0; }
 .quick-draft { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; border: 1px solid var(--color-primary-line); background: var(--color-primary-soft); }
 .quick-draft div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .quick-draft span { color: var(--color-secondary); font-size: 13px; }

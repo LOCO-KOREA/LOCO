@@ -318,3 +318,9 @@ input::placeholder, textarea::placeholder { color: var(--color-muted); opacity: 
 .database-location .database-actions { flex: none; }
 .database-location .database-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
 .database-location .database-actions button:disabled { cursor: default; }
+
+/* Header title and compact connected indicator. */
+header .brand-label { font-size:15px; font-weight:700; white-space:nowrap; }
+#connection.connected::before { padding-right:0; }
+
+body.quick-mode header .breadcrumb { font-size:13px; }

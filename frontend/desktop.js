@@ -26,7 +26,7 @@ function remember(){state.drafts.set(state.editorId??'new',draft());}
 function fill(data){for(const key of Object.keys(blank())){if(key==='survey_type'){const type=['INITIAL','REGULAR','OCCASIONAL'].includes(data[key])?data[key]:'REGULAR';const radio=$(`#survey-form input[name="survey_type"][value="${type}"]`);if(radio)radio.checked=true;}else $('#survey-form').elements.namedItem(key).value=data[key]??'';}intakeUI.fill(data);$('#form-title').textContent=state.editorId?'조사개요 수정':'조사개요 입력';$('#save-survey').textContent=state.editorId?'조사 저장하고 작업 등록':'조사 만들고 작업 등록';}
 function status(s){return s.review_current?'current':s.reviewed?'history':'none';}
 function rows(){const keyword=$('#search').value.trim().toLowerCase(),filter=$('#review-filter').value,sign=$('#sort').value==='asc'?1:-1;const list=state.surveys.filter(s=>(filter==='all'||status(s)===filter)&&s.title.toLowerCase().includes(keyword)).sort((a,b)=>sign*((a.survey_date||'').localeCompare(b.survey_date||'')||a.survey_id-b.survey_id));$('#survey-rows').innerHTML=list.map(s=>`<tr data-id="${s.survey_id}" class="${s.survey_id===state.selected?'selected':''}"><td class="row-title"><button class="row-button" data-id="${s.survey_id}"><strong>${esc(s.title||'제목 없는 조사')}</strong></button><small>조사 #${s.survey_id}</small></td><td>${esc(s.survey_date||'미입력')}</td><td>${s.task_count}</td><td><span class="badge ${status(s)}">${s.review_current?'검토 완료':s.reviewed?'이전 결과 검토':'미검토'}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty">'+(state.surveys.length?'조건에 맞는 조사가 없습니다.':'저장된 조사가 없습니다.<br>상단의 새 조사 버튼으로 첫 조사를 만들어 주세요.')+'</td></tr>';const chosen=state.surveys.find(s=>s.survey_id===state.selected);$('#selection').textContent=chosen?`선택 조사 · ${chosen.title||'제목 없음'} / 조사 #${chosen.survey_id}`:'선택한 조사가 없습니다.';}
-async function refresh(){state.surveys=await api('list_surveys');rows();if(state.page==='S01')await dashboardUI.open(state.surveys,state.selected);$('#connection').textContent='Python 연결됨';$('#connection').classList.add('connected');updateNextStep();}
+async function refresh(){state.surveys=await api('list_surveys');rows();if(state.page==='S01')await dashboardUI.open(state.surveys,state.selected);$('#connection').textContent='';$('#connection').setAttribute('aria-label','연결됨');$('#connection').classList.add('connected');updateNextStep();}
 async function selectSurvey(id){if(state.busy)return;remember();const survey=await api('get_survey',{survey_id:id});state.selected=id;state.editorId=id;state.details.set(id,survey);fill(state.drafts.get(id)||survey);rows();clearError();}
 function page(id){
   state.page=id;
@@ -43,7 +43,7 @@ function page(id){
   }
   const icons=[0,1,2,1,3,5,6,7,4,8];
   $('#navigation').innerHTML=SCREENS.filter(screen=>screen.navigation!==false).map((screen,i)=>`<button data-nav="${screen.id}" class="${id===screen.id?'active':''}" ${id===screen.id?'aria-current="page"':''}><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[icons[i]]}</svg>${screen.name}<em>${String(i+1).padStart(2,'0')}</em></button>`).join('');
-  $('#breadcrumb-page').textContent=screen.name;$('loco-guide').setAttribute('page',id);
+  $('#breadcrumb-mode').textContent='조사 관리';$('#breadcrumb-page').textContent=screen.name;$('loco-guide').setAttribute('page',id);
   markDone($('#navigation'),state.stepDone);updateNextStep();
 }
 let stepRevision=0;
@@ -149,7 +149,7 @@ document.addEventListener('click',event=>{
   databaseLocation.initialize();
 });
 $('#close-database-settings').addEventListener('click',()=>$('#database-settings').close());
-const quickUI=new QuickFlow({host:$('#quick-workspace'),toolbar:$('#quick-toolbar'),api,notify,onError:showError,onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
+const quickUI=new QuickFlow({host:$('#quick-workspace'),toolbar:$('#quick-toolbar'),api,notify,onError:showError,onScreenChange:label=>{if(document.body.classList.contains('quick-mode')){$('#breadcrumb-mode').textContent='간편 분석';$('#breadcrumb-page').textContent=label;}},onOpenDetail:({surveyId,taskId})=>perform(async()=>{setMode('detail');await refresh();if(surveyId){await selectSurvey(surveyId);await tasks('conditions',false,taskId);}})});
 function setMode(mode){
   const quick=mode==='quick';
   document.body.classList.toggle('quick-mode',quick);$('#quick-workspace').hidden=!quick;

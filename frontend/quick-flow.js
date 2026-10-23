@@ -142,8 +142,8 @@ export function settledByIntake(q, answers, items) {
 }
 
 export class QuickFlow {
-  constructor({host, toolbar, api, notify, onError, onOpenDetail}) {
-    Object.assign(this, {host, api, notify, onError, onOpenDetail});
+  constructor({host, toolbar, api, notify, onError, onOpenDetail, onScreenChange}) {
+    Object.assign(this, {host, api, notify, onError, onOpenDetail, onScreenChange});
     this.toolbar = toolbar;
     toolbar?.addEventListener('click', event => this.click(event));
     this.intake = new AdaptiveIntake({api, notify, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveError || '입력을 저장했어요.'; this.keepDraft(); } else this.render(); }});
@@ -763,6 +763,7 @@ export class QuickFlow {
     }
     else if (d.remove) this.removePhoto(d.remove);
     else if (d.open) this.openExisting(Number(d.open));
+    else if (d.quick === 'cancel-delete') { this.confirmDelete=null; this.render(); }
     else if (d.del) this.deleteSurvey(Number(d.del));
     else if (d.crit) this.critClick(d);
     else if (d.concl) this.conclude(Number(d.concl), d.status);
@@ -950,9 +951,13 @@ export class QuickFlow {
 
   // ================= views
   render() {
+    this.onScreenChange?.(this.step === 'home' ? '홈' : STEPS.find(([id])=>id===this.step)?.[1] || '간편 분석');
     if (this.toolbar) {
-      this.toolbar.hidden = this.step === 'home';
-      for (const button of this.toolbar.querySelectorAll('button')) button.disabled = Boolean(this.busy || this.photoOperation);
+      this.toolbar.hidden = false;
+      for (const button of this.toolbar.querySelectorAll('button')) {
+        button.hidden = this.step === 'home' && button.dataset.quick !== 'workspace-top';
+        button.disabled = Boolean(this.busy || this.photoOperation);
+      }
     }
     const index = STEPS.findIndex(([id]) => id === this.step);
     const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol></div>`;
@@ -1032,7 +1037,7 @@ export class QuickFlow {
       <section class="panel"><h3>최근 분석</h3>${shown.length ? `<ul class="quick-list">${shown.map(x => `<li>
         <div><strong>${esc(x.title || '제목 없음')}</strong><span>${esc(x.survey_date || '')} · 작업 ${x.task_count}개 ${badge(x)}</span></div>
         <div class="quick-list-actions"><button data-open="${x.survey_id}">열기</button>
-        <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '정말 삭제' : '삭제'}</button></div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>`;
+        <button class="${this.confirmDelete === x.survey_id ? 'danger' : ''}" data-del="${x.survey_id}">${this.confirmDelete === x.survey_id ? '삭제 확정' : '삭제'}</button>${this.confirmDelete === x.survey_id ? '<button data-quick="cancel-delete">취소</button>' : ''}</div></li>`).join('')}</ul>` : '<p class="quick-note">아직 분석이 없어요. "새 분석 시작"을 눌러 보세요.</p>'}</section>`;
   }
 
   viewStart() {
