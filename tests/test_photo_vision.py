@@ -222,8 +222,10 @@ class PhotoVision(unittest.TestCase):
         with self.assertRaises(ValueError):self.ctx.dispatch('intake_session',dict(task_id=self.identity,views=dict(RIGHT=owner)))
 
     def test_explicit_negative_context_blocks_inputs_and_yes_reuses_same_image_without_api(self):
-        self.enable()
-        def text(payload,*args):return dict(answers=[dict(target='context',condition='default',text='NO',number=None,quote='이 사진은 평소 작업이 아니에요.')],questions=[]),None
+        self.enable();payloads=[]
+        def text(payload,*args):
+            payloads.append(copy.deepcopy(payload))
+            return dict(answers=[dict(target='context',condition='default',text='NO',number=None,quote='이 사진은 평소 작업이 아니에요.')],questions=[]),None
         with patch('ergo.vision.client.observe',return_value=(response(),None)) as vision,patch('ergo.gpt.client.adaptive_intake',side_effect=text):
             state=self.turn('이 사진은 평소 작업이 아니에요.')
             self.assertEqual(vision.call_count,1)
@@ -231,11 +233,14 @@ class PhotoVision(unittest.TestCase):
             self.assertFalse(any(item['source']=='VISION' and item['value'] is not None for item in state['facts']))
             self.assertEqual(state['task']['legal']['criteria'][3]['condition_present'],'UNKNOWN')
             self.assertFalse(any(item['field']=='trunk_twisted' for item in state['task']['manual']))
+            self.assertEqual(photo_vision.known(state['task']['conditions'][intake_contract.SESSION_KEY]),[])
+            self.assertEqual(payloads[-1]['known_visual_observations'],[])
             self.assertEqual(self.get()['task'],state['task'])
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[dict(target='context',value='YES')],plan=False))
             self.assertEqual(vision.call_count,1)
         self.assertTrue(any(item['source']=='VISION' and item['value']=='YES' for item in state['facts']))
         self.assertEqual(state['task']['legal']['criteria'][3]['condition_present'],'YES')
+        self.assertTrue(photo_vision.known(state['task']['conditions'][intake_contract.SESSION_KEY]))
 
 
 if __name__=='__main__':unittest.main()

@@ -93,6 +93,7 @@ def refresh(task,session,settings,preview=None,photos=None):
 def public(session):return copy.deepcopy(session.get('photo_vision') or dict(version=contract.VERSION,photos=[],history=[],catalogue=contract.public_contract()['catalogue']))
 
 def known(session):
+    if session.get('facts',{}).get(intake_contract.key('context'),{}).get('value')=='NO':return []
     return [dict(photo_id=record['photo_id'],view=record['view'],signature=record['signature'],
         observations=copy.deepcopy(record['observations'])) for record in session.get('photo_vision',{}).get('photos',[])
         if record['status'] in ('OBSERVED','UNCERTAIN')]

@@ -1,6 +1,7 @@
 """Grounded values and projection onto the existing task DTO. No database access."""
 import copy
 from ergo.pose_contract import PHOTO_SOURCES
+from ergo.vision.contract import SOURCE as VISION_SOURCE
 import json
 import math
 import re
@@ -126,14 +127,18 @@ def merge_model(existing, raw, text, *, focus=(), prior_texts=(), outcomes=None,
             record(item,index,'REJECTED' if previous['value']!=value else 'UNCHANGED',
                    'USER_VALUE_KEPT' if previous['value']!=value else None,condition)
             continue
-        if protect_photo_context and field['destination']['type'] in PHOTO_DESTINATIONS:
+        if protect_photo_context and (field['destination']['type'] in PHOTO_DESTINATIONS
+                or previous and previous.get('source')==VISION_SOURCE and previous.get('photo_id') is not None):
             record(item,index,'UNCHANGED' if previous and previous['value']==value else 'REJECTED',
                 None if previous and previous['value']==value else 'PHOTO_CONTEXT_CONFIRMATION_REQUIRED',condition);continue
-        if previous and previous['state']=='CONFLICT' and (not current_quote or preserve_conflicts or reconcile):
-            record(item,index,'REJECTED','CONFLICT',condition);continue
-        if reconcile and previous and previous['value']==value:
+        if previous and previous['source']==VISION_SOURCE and not current_quote and previous['value']==value:
             record(item,index,'UNCHANGED',condition=condition);continue
-        if previous and previous['state']=='KNOWN' and previous['value']!=value:
+        current_vision_text=bool(previous and previous['source']==VISION_SOURCE and current_quote)
+        if previous and previous['state']=='CONFLICT' and (not current_quote or preserve_conflicts or reconcile) and not current_vision_text:
+            record(item,index,'REJECTED','CONFLICT',condition);continue
+        if reconcile and previous and previous['value']==value and not current_vision_text:
+            record(item,index,'UNCHANGED',condition=condition);continue
+        if previous and previous['state']=='KNOWN' and previous['value']!=value and not current_vision_text:
             if field['destination']['type']!='task' or reconcile:
                 result[identity] = dict(previous,state='CONFLICT',conflict=dict(value=value,quote=quote))
                 record(item,index,'REJECTED','CONFLICT',condition)

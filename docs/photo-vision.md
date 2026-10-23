@@ -31,3 +31,9 @@ VISION의 계산 입력 근거는 면담이 아닌 OTHER이며, 허용된 관찰
 `photo_identity.REGISTRATION_KEY`는 새 PHOTO.metadata_json 행에 UUID를 부여하며 update로 교체하지 않는다. 물리 스키마는 유지한다. legacy 행은 경로/소유 ID로 결정되는 토큰을 읽고 조회 중 metadata를 쓰지 않는다. 사진 signature는 [view,photo_id,원본SHA,등록세대]이며 과거 triple을 호환한다. 같은 SQLite ID·파일경로·바이트·view로 재등록해도 이전 이미지 및 텍스트 사진 응답이 새 등록에 적용되지 않는다.
 
 사용자가 context=NO로 사진 상황을 부정하면 raw 관찰과 캐시는 보존하되 VISION 소유 manual/작업특징 입력은 UNKNOWN으로 돌려 실제 투영값도 해제한다. USER·텍스트 AI·SAVED·POSE 소유 값은 건드리지 않는다. context=YES로 직접 정정하면 같은 이미지 관찰을 재사용하며 추가 이미지 API를 호출하지 않는다. 같은 turn의 텍스트 추출 뒤 저장에도 이 우선권을 적용한다.
+
+### 현재 원문이 사진 AI 추정을 정정하는 경우 (2026-10-23)
+
+원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
+
+context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.
