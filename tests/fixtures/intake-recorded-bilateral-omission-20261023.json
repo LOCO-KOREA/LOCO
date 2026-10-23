@@ -1,0 +1,508 @@
+{
+  "evidence": "live-field-cases-20261023/06-decimal-load/01-first-ai.json",
+  "status": "RECORDED_ORIGINAL_FAILURE_NOT_A_FIX_PROOF",
+  "case": {
+    "id": "06-decimal-load",
+    "statement": "12.5kg 상자를 하루 40회 들어 옮겨요. 하루 전체 실제 작업은 7.5시간이고 연 230일 일해요. 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이며 사진 속 물건도 같은 12.5kg 상자예요. 양손 손잡이는 잡기 좋아요. 원료를 상자 단위로 운반하고 투입하는 작업이에요. "
+  },
+  "checkpoint": {
+    "session": {
+      "facts": [
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "value": "YES",
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+          "updated_at": "2026-10-23T05:40:41.905888+00:00",
+          "conflict": null,
+          "identity": "work_type.lift@default",
+          "label": "무거운 물건을 들어 올리거나 옮기는 작업",
+          "unit": ""
+        },
+        {
+          "target": "card.lift.load_mass_kg",
+          "condition": "12.5kg 상자",
+          "value": 12.5,
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+          "updated_at": "2026-10-23T05:40:41.907005+00:00",
+          "conflict": null,
+          "identity": "card.lift.load_mass_kg@12.5kg 상자",
+          "label": "가장 무거운 물건의 무게",
+          "unit": "kg"
+        },
+        {
+          "target": "card.lift.lift_count_day",
+          "condition": "12.5kg 상자",
+          "value": 40,
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+          "updated_at": "2026-10-23T05:40:41.907532+00:00",
+          "conflict": null,
+          "identity": "card.lift.lift_count_day@12.5kg 상자",
+          "label": "하루에 들어 올리는 횟수",
+          "unit": "회/일"
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "value": 450,
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "하루 전체 실제 작업은 7.5시간",
+          "updated_at": "2026-10-23T05:40:41.908036+00:00",
+          "conflict": null,
+          "identity": "daily_work_min@default",
+          "label": "하루 실제 작업시간은 몇 분인가요?",
+          "unit": "분"
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "value": 230,
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "연 230일 일해요.",
+          "updated_at": "2026-10-23T05:40:41.908732+00:00",
+          "conflict": null,
+          "identity": "annual_work_days@default",
+          "label": "이 작업을 1년에 며칠 하나요?",
+          "unit": "일"
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "value": "NO",
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "일회성은 아니에요.",
+          "updated_at": "2026-10-23T05:40:41.908732+00:00",
+          "conflict": null,
+          "identity": "one_off@default",
+          "label": "한 번만 하고 끝나는 일회성 작업인가요?",
+          "unit": ""
+        },
+        {
+          "target": "context",
+          "condition": "default",
+          "value": "YES",
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습",
+          "updated_at": "2026-10-23T05:40:41.908732+00:00",
+          "conflict": null,
+          "identity": "context@default",
+          "label": "올린 사진이 모두 한 사람의 전신이 나온 평소 작업 모습인가요?",
+          "unit": ""
+        },
+        {
+          "target": "load_kg",
+          "condition": "default",
+          "value": 12.5,
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "사진 속 물건도 같은 12.5kg 상자예요.",
+          "updated_at": "2026-10-23T05:40:41.909257+00:00",
+          "conflict": null,
+          "identity": "load_kg@default",
+          "label": "무게(또는 힘)는 몇 kg인가요?",
+          "unit": "kg"
+        },
+        {
+          "target": "load_link",
+          "condition": "default",
+          "value": "YES",
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "사진 속 물건도 같은 12.5kg 상자예요.",
+          "updated_at": "2026-10-23T05:40:41.909257+00:00",
+          "conflict": null,
+          "identity": "load_link@default",
+          "label": "사진 속 물건도 설명한 물건과 같은 무게인가요?",
+          "unit": ""
+        },
+        {
+          "target": "manual.LEFT.coupling",
+          "condition": "default",
+          "value": "GOOD",
+          "state": "KNOWN",
+          "source": "AI",
+          "quote": "양손 손잡이는 잡기 좋아요.",
+          "updated_at": "2026-10-23T05:40:41.909257+00:00",
+          "conflict": null,
+          "identity": "manual.LEFT.coupling@default",
+          "label": "왼쪽 손잡이나 잡는 상태는 어떤가요?",
+          "unit": ""
+        }
+      ],
+      "messages": [
+        {
+          "message_id": "f9b8d89fdb3e406bb03b17a07f8fa3f7",
+          "text": "12.5kg 상자를 하루 40회 들어 옮겨요. 하루 전체 실제 작업은 7.5시간이고 연 230일 일해요. 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이며 사진 속 물건도 같은 12.5kg 상자예요. 양손 손잡이는 잡기 좋아요. 원료를 상자 단위로 운반하고 투입하는 작업이에요.",
+          "answers": []
+        }
+      ],
+      "history": [
+        {
+          "turn_id": "41454c4e74f04bb78268ab3808f545a4",
+          "message_id": "f9b8d89fdb3e406bb03b17a07f8fa3f7",
+          "created_at": "2026-10-23T05:39:52.460437+00:00",
+          "decided_at": "2026-10-23T05:40:50.948985+00:00",
+          "input_revision": 2,
+          "status": "COMPLETE",
+          "requests": [
+            {
+              "phase": "EXTRACT_AND_PLAN",
+              "reason": null,
+              "connection": {
+                "status": "CONNECTED",
+                "model": "gpt-6-luna",
+                "reasoning_effort": "xhigh",
+                "requested_reasoning_effort": "xhigh",
+                "reason": null,
+                "observed_at": "2026-10-23T05:40:41.902748+00:00",
+                "elapsed_ms": 49422,
+                "response_id": "resp_05b4638e2195cd0c006adaf3299c2087d186af65a056391c05"
+              },
+              "answers": [
+                {
+                  "target": "work_type.lift",
+                  "condition": "default",
+                  "number": null,
+                  "text": "YES",
+                  "quote": "12.5kg 상자를 하루 40회 들어 옮겨요"
+                },
+                {
+                  "target": "work_type.repeat",
+                  "condition": "default",
+                  "number": null,
+                  "text": "YES",
+                  "quote": "하루 40회 들어 옮겨요"
+                },
+                {
+                  "target": "card.lift.load_mass_kg",
+                  "condition": "12.5kg 상자",
+                  "number": 12.5,
+                  "text": null,
+                  "quote": "12.5kg 상자를 하루 40회 들어 옮겨요"
+                },
+                {
+                  "target": "card.lift.lift_count_day",
+                  "condition": "12.5kg 상자",
+                  "number": 40,
+                  "text": null,
+                  "quote": "12.5kg 상자를 하루 40회 들어 옮겨요"
+                },
+                {
+                  "target": "daily_work_min",
+                  "condition": "default",
+                  "number": 450,
+                  "text": null,
+                  "quote": "하루 전체 실제 작업은 7.5시간",
+                  "calculation": null
+                },
+                {
+                  "target": "annual_work_days",
+                  "condition": "default",
+                  "number": 230,
+                  "text": null,
+                  "quote": "연 230일 일해요."
+                },
+                {
+                  "target": "one_off",
+                  "condition": "default",
+                  "number": null,
+                  "text": "NO",
+                  "quote": "일회성은 아니에요."
+                },
+                {
+                  "target": "context",
+                  "condition": "default",
+                  "number": null,
+                  "text": "YES",
+                  "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습"
+                },
+                {
+                  "target": "load_kg",
+                  "condition": "default",
+                  "number": 12.5,
+                  "text": null,
+                  "quote": "사진 속 물건도 같은 12.5kg 상자예요."
+                },
+                {
+                  "target": "load_link",
+                  "condition": "default",
+                  "number": null,
+                  "text": "YES",
+                  "quote": "사진 속 물건도 같은 12.5kg 상자예요."
+                },
+                {
+                  "target": "manual.LEFT.coupling",
+                  "condition": "default",
+                  "number": null,
+                  "text": "GOOD",
+                  "quote": "양손 손잡이는 잡기 좋아요."
+                },
+                {
+                  "target": "manual.RIGHT.coupling",
+                  "condition": "default",
+                  "number": null,
+                  "text": "UNKNOWN",
+                  "quote": "양손 손잡이는 잡기 좋아요."
+                },
+                {
+                  "target": "task_name",
+                  "condition": "default",
+                  "number": null,
+                  "text": "원료를 상자 단위로 운반하고 투입하는 작업이에요.",
+                  "quote": "원료를 상자 단위로 운반하고 투입하는 작업이에요."
+                }
+              ],
+              "questions": [
+                {
+                  "target": "work_type.arm_over",
+                  "condition": "default",
+                  "text": "작업 중 손이 머리 위로 올라가거나 팔꿈치가 어깨 위까지 올라가나요?",
+                  "reason": "해당 동작이 있으면 별도의 작업 종류로 기록해야 해요."
+                }
+              ],
+              "context": {
+                "texts": [],
+                "message_ids": [],
+                "omitted_message_ids": [],
+                "char_count": 0
+              }
+            },
+            {
+              "phase": "FOLLOWUP",
+              "reason": null,
+              "connection": {
+                "status": "CONNECTED",
+                "model": "gpt-6-luna",
+                "reasoning_effort": "xhigh",
+                "requested_reasoning_effort": "xhigh",
+                "reason": null,
+                "observed_at": "2026-10-23T05:40:50.948985+00:00",
+                "elapsed_ms": 58469,
+                "response_id": "resp_0a5809698f934245006adaf35ab90c87d1bd5a9c4e9b2627ba"
+              },
+              "answers": [],
+              "questions": [
+                {
+                  "target": "card.lift.minutes",
+                  "condition": "12.5kg 상자",
+                  "text": "12.5kg 상자를 하루에 들어 옮기는 시간은 몇 분인가요?",
+                  "reason": "하루 전체 작업시간과 상자를 들어 옮기는 시간은 다를 수 있어, 들어 옮기는 데 걸리는 시간을 확인해야 해요."
+                }
+              ],
+              "context": {
+                "texts": [
+                  "12.5kg 상자를 하루 40회 들어 옮겨요. 하루 전체 실제 작업은 7.5시간이고 연 230일 일해요. 일회성은 아니에요. 사진은 한 사람의 전신이 나온 평소 작업 모습이며 사진 속 물건도 같은 12.5kg 상자예요. 양손 손잡이는 잡기 좋아요. 원료를 상자 단위로 운반하고 투입하는 작업이에요."
+                ],
+                "message_ids": [
+                  "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+                ],
+                "omitted_message_ids": [],
+                "char_count": 166
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "proposal_index": 0,
+              "target": "work_type.lift",
+              "condition": "default",
+              "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "YES",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909257+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 1,
+              "target": "work_type.repeat",
+              "condition": "default",
+              "quote": "하루 40회 들어 옮겨요",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "YES",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 2,
+              "target": "card.lift.load_mass_kg",
+              "condition": "12.5kg 상자",
+              "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": 12.5,
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 3,
+              "target": "card.lift.lift_count_day",
+              "condition": "12.5kg 상자",
+              "quote": "12.5kg 상자를 하루 40회 들어 옮겨요",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": 40,
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 4,
+              "target": "daily_work_min",
+              "condition": "default",
+              "quote": "하루 전체 실제 작업은 7.5시간",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": 450,
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 5,
+              "target": "annual_work_days",
+              "condition": "default",
+              "quote": "연 230일 일해요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": 230,
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 6,
+              "target": "one_off",
+              "condition": "default",
+              "quote": "일회성은 아니에요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "NO",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 7,
+              "target": "context",
+              "condition": "default",
+              "quote": "사진은 한 사람의 전신이 나온 평소 작업 모습",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "YES",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 8,
+              "target": "load_kg",
+              "condition": "default",
+              "quote": "사진 속 물건도 같은 12.5kg 상자예요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": 12.5,
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 9,
+              "target": "load_link",
+              "condition": "default",
+              "quote": "사진 속 물건도 같은 12.5kg 상자예요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "YES",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 10,
+              "target": "manual.LEFT.coupling",
+              "condition": "default",
+              "quote": "양손 손잡이는 잡기 좋아요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "GOOD",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 11,
+              "target": "manual.RIGHT.coupling",
+              "condition": "default",
+              "quote": "양손 손잡이는 잡기 좋아요.",
+              "outcome": "REJECTED",
+              "reason": "EMPTY_VALUE",
+              "proposed_value": "UNKNOWN",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            },
+            {
+              "proposal_index": 12,
+              "target": "task_name",
+              "condition": "default",
+              "quote": "원료를 상자 단위로 운반하고 투입하는 작업이에요.",
+              "outcome": "ACCEPTED",
+              "reason": null,
+              "proposed_value": "원료를 상자 단위로 운반하고 투입하는 작업이에요.",
+              "request_index": 0,
+              "decided_at": "2026-10-23T05:40:41.909775+00:00",
+              "source_message_ids": [
+                "f9b8d89fdb3e406bb03b17a07f8fa3f7"
+              ]
+            }
+          ],
+          "focus": [
+            {
+              "target": "context",
+              "condition": "default"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
