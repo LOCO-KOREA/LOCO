@@ -29,7 +29,7 @@ const assert=require('node:assert/strict');
  assert.equal(renderPhotoVision(vision,contract,{photoIds:[]}),'');assert.equal(renderPhotoVision({photos:[{...record,photo_active:false}]},contract),'');
  const task={conditions:{configured_session:{photo_vision:vision}}};assert.equal(photoVisionForTask(task,contract),vision);assert.equal(photoVisionForTask(task,{}),null,'the session field comes from the contract');
  const intake=new AdaptiveIntake({api(){},notify(){},changed(){}});intake.state={contract,facts:[],task,messages:[],history:[]};assert.match(renderSummary(intake),/서서 물건을 옮기는/);
- intake.state.photo_vision={photos:[{...record,summary:'공개 응답의 현재 사진 관찰'}]};assert.match(renderSummary(intake),/공개 응답의 현재 사진 관찰/);assert.doesNotMatch(renderSummary(intake),/서서 물건을 옮기는/);
+ intake.state.photo_vision={photos:[{...record,summary:'공개 응답의 현재 사진 관찰'}]};assert.match(renderSummary(intake),/^<section class="intake-summary"><details/,'the existing saved-values editor remains the first disclosure');assert.match(renderSummary(intake),/공개 응답의 현재 사진 관찰/);assert.doesNotMatch(renderSummary(intake),/서서 물건을 옮기는/);
  const field={target:'manual.RIGHT.trunk_base',identity:'manual.RIGHT.trunk_base@photo:17',condition:'photo:17',label:'허리 굽힘',kind:'choice',destination:{type:'manual'},choices:[{value:2,label:'조금 굽힘'}]};
  intake.state.contract.fields=[field];intake.state.facts=[{...field,state:'KNOWN',source:'VISION',value:2}];intake.state.form_fields=[field];intake.formStage=1;
  assert.equal(intake.pendingFormFields(1,{includePhoto:true}).length,0,'a stored known photo observation is not asked again');assert.doesNotMatch(visible(renderSummary(intake)),/\bVISION\b/);
