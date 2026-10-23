@@ -2,6 +2,7 @@
 import copy
 from .contract import PHOTO_VIEWS, POLICY, key
 from ergo.pose_contract import PHOTO_SOURCES
+from ergo.vision.contract import SOURCE as VISION_SOURCE
 
 PHOTO_POLICY=dict(version='PHOTO_OBSERVATIONS_V1',condition_prefix='photo:',front_boundary_deg=5)
 VIEW_LABELS={'LEFT':'왼쪽에서 찍은 사진','RIGHT':'오른쪽에서 찍은 사진','FRONT':'정면·후면 사진'}
@@ -93,7 +94,10 @@ def add(existing,preview,views):
             result[key(target)]=dict(fact(catalogue[target],direction,source,'사진에서 바라보는 방향 추정'),photo_id=views.get(view),view=view,photo_label=VIEW_LABELS.get(view))
     for measured in observations(preview,views):
         target=f"manual.{measured['scope']}.{measured['field']}";identity=key(target,condition(measured['photo_id']));old=result.get(identity)
-        if target not in catalogue or old and not (old['state']=='UNKNOWN' and old['source'] in PHOTO_SOURCES):continue
+        # A later reliable measurement can replace a visual fallback; uncertainty cannot erase it.
+        measured_over_vision=bool(old and old['source']==VISION_SOURCE and measured.get('value') is not None
+            and not measured.get('low_confidence') and not measured.get('boundary_review') and not measured.get('measurement_diagnostic'))
+        if target not in catalogue or old and not (old['state']=='UNKNOWN' and old['source'] in PHOTO_SOURCES or measured_over_vision):continue
         if old and old.get('photo_proof')==measured:continue
         data=preview.get('views',{}).get(measured['view'],{});source='POSE' if (data.get('engine') or {}).get('provider')=='mediapipe' else 'MOVENET'
         quote=' / '.join(str(angle['value_deg'])+'°' for angle in measured.get('angles',[]) if angle.get('value_deg') is not None)

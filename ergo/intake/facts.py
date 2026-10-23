@@ -4,10 +4,11 @@ from ergo.pose_contract import PHOTO_SOURCES
 import json
 import math
 import re
-from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS
+from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT_FIELDS, SESSION_KEY
 from .grounding import evidence_quote, number_grounded, number_proof, unknown_evidence
 from .photo_load import photo_load
 from . import photo_facts
+from ergo.vision.contract import SOURCE as VISION_SOURCE
 from ergo.engine.task_defaults import now
 
 TITLE_SENTENCE_END=re.compile(r'(?<!\d)\.|\.(?!\d)|[!?。\n]')
@@ -16,8 +17,21 @@ def initial_title(text):
     return TITLE_SENTENCE_END.split(text,1)[0][:POLICY['auto_title_length']].strip()
 
 def evidence(fact):
-    source = 'OTHER' if fact['source'] in ('AI',*PHOTO_SOURCES) else 'INTERVIEW'
-    return dict(source=source, text=f"{fact['source']}: {fact.get('quote','')}", observed_at=fact.get('updated_at') or now())
+    source = 'OTHER' if fact['source'] in ('AI',VISION_SOURCE,*PHOTO_SOURCES) else 'INTERVIEW'
+    text=f"{fact['source']}: {fact.get('quote','')}"
+    if fact['source']==VISION_SOURCE:
+        text=json.dumps(dict(photo_vision=True,photo_id=fact.get('photo_id'),view=fact.get('view'),
+            vision_signature=fact.get('vision_signature'),vision_observation=fact.get('vision_observation'),
+            vision_proof=fact.get('vision_proof'),quote=fact.get('quote','')),ensure_ascii=False)
+    return dict(source=source, text=text, observed_at=fact.get('updated_at') or now())
+
+
+def _owns_visual_evidence(evidence_value, previous):
+    if (evidence_value or {}).get('source')!='OTHER':return False
+    try: proof=json.loads(evidence_value.get('text') or '')
+    except (ValueError,TypeError):return False
+    return isinstance(proof,dict) and proof.get('photo_vision') is True and bool(previous.get('vision_signature')) and \
+        proof.get('vision_signature')==previous['vision_signature'] and proof.get('photo_id')==previous.get('photo_id')
 
 
 def normalize(field, raw, *, unknown=False):
@@ -184,6 +198,25 @@ def project(task, facts, views, preview):
     primary_id=views.get(primary)
     # Preserve edits from other photos and fields the intake has never owned.
     manual={(m['slot_no'],m['scope'],m['field']):m for m in value['manual'] if any(s['slot_no']==m['slot_no'] and s['photo_id']==m['photo_id'] for s in slots)}
+    # Removing a visual fact must also remove its still-owned projection. Otherwise
+    # an old photo's YES would survive in the calculator after its fact disappeared.
+    previous=(task.get('conditions',{}).get(SESSION_KEY) or {}).get('facts',{})
+    for identity,old in previous.items():
+        if old.get('source')!=VISION_SOURCE or old.get('alias_of') or identity in facts:continue
+        field=catalogue.get(old.get('target'))
+        if not field:continue
+        destination=field['destination']
+        if destination['type']=='work_type':
+            for no in destination['criteria']:
+                row=value['legal']['criteria'][no-1]
+                if _owns_visual_evidence(row.get('evidence'),old):
+                    row['condition_present']='UNKNOWN'
+                    row['evidence']=dict(source='OTHER',text='사진 관찰의 근거가 바뀌어 다시 확인이 필요해요.',observed_at=old.get('updated_at'))
+        elif destination['type']=='manual':
+            for location,row in list(manual.items()):
+                if row['photo_id']==old.get('photo_id') and row['scope']==destination['scope'] and row['field']==destination['field'] \
+                        and row.get('source')=='AUTO_ACCEPTED' and _owns_visual_evidence(row.get('evidence'),old):
+                    manual.pop(location)
     row_values={}
     for item in facts.values():
         if item.get('alias_of'):continue
@@ -205,9 +238,10 @@ def project(task, facts, views, preview):
             identity=(slot['slot_no'],destination['scope'],destination['field'])
             if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not usable:
                 manual.pop(identity,None); continue
-            source='AUTO_ACCEPTED' if item['source'] in PHOTO_SOURCES else 'INTERVIEW'
+            source='AUTO_ACCEPTED' if item['source'] in (*PHOTO_SOURCES,VISION_SOURCE) else 'INTERVIEW'
             ev=evidence(item)
-            if source=='AUTO_ACCEPTED': ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True,photo_id=owner,view=item.get('view'),photo_proof=item.get('photo_proof')))
+            if source=='AUTO_ACCEPTED' and item['source']!=VISION_SOURCE:
+                ev['text']=json.dumps(dict(angles=item.get('angles',[]),quick_preview=True,photo_id=owner,view=item.get('view'),photo_proof=item.get('photo_proof')))
             manual[identity]=dict(slot_no=slot['slot_no'],photo_id=owner,scope=destination['scope'],field=destination['field'],value=val,source=source,evidence=ev)
         elif kind=='criterion':
             mapping=destination['mapping']

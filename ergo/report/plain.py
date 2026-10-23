@@ -100,6 +100,8 @@ def note(text):
         except ValueError:
             return text
         angles = data.get('angles') if isinstance(data, dict) else None
+        if isinstance(data, dict) and data.get('photo_vision'):
+            return 'AI 사진 관찰: ' + str(data.get('quote') or '')
         if angles:
             return '사진에서 잰 각도 ' + ' / '.join(f"{a.get('value_deg')}°" for a in angles if a.get('value_deg') is not None)
         return ''
@@ -480,4 +482,8 @@ def plain_sheets(snapshot, ov):
     c = _context(snapshot, ov)
     sheets = form_sheets(c) + [_posture(c), _inputs(c), _checks(c)]
     sheets += [s for s in (_explanations(c), _comparisons(c)) if s]
+    from .photo_vision import observation_sheet
+    observed = observation_sheet(c)
+    if observed:
+        sheets.append(observed)
     return sheets

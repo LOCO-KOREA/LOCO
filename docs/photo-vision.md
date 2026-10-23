@@ -15,3 +15,14 @@ observations는 activity,trunk,neck,knees,arm_left,arm_right,wrist_left,wrist_ri
 실행 검증: tests/test_photo_vision.py 12개 회귀 통과. 실제 현재 크롭 사진1장을 unpatched MediaPipe와 함께 분석하고, 실제 gpt-6-luna/xhigh의 input_image 송신 SHA와 저장 SHA를 대조했다. .local/vision-first-live-20261023/actual-request-proof.json와receipt.json에 증거가 있다. 이 1회는 이미지 경계를 분리하기 위해 텍스트 추출 응답만 제어했으며 전체 실앱/실텍스트/Excel 통합 검증은 별도 수행한다.
 
 사진 삭제 후 암묵적 복원은 현재 등록 사진만 선택한다. 명시적으로 삭제된 photo_id를 다시 선택하는 요청은 계속 거절한다. 삭제 중 지연 응답은 원래 사진의 history에 남고 사진/값을 복구하지 않는다.
+
+
+## 화면·Excel과 원본 근거
+
+화면에는 동작·허리·무릎 관찰을 먼저 보여 주고 목·양팔·양손목·잡는 모습은 펼쳐 확인한다. 저장된 분석 결과 화면과 출력은 해당 분석의 snapshot에 저장된 photo_vision만 사용한다. 현재 Task의 나중 관찰이나 제거된 사진으로 과거 결과를 바꾸지 않는다.
+
+기존 Excel 시트·형식·입력값 셀은 유지하고, 관찰이 있는 경우에만 마지막에 ‘AI 사진 관찰’ 시트를 추가한다. 작업/사진 방향/관찰 항목/사진에서 본 모습/확인 상태/근거·확인할 부분의 여섯 열이며 사진별 9개 관찰을 같은 행의 value/evidence/reason과 대조한다. 확신도·모델·내부 사진 ID·요청 ID·파일 경로·원본 image bytes는 사용자 출력에 노출하지 않는다. 기존 근거 접두사 USER/POSE/SAVED도 직접 입력/사진 자동 측정/저장된 입력으로 표시하며 원문과 저장 코드는 보존한다.
+
+VISION의 계산 입력 근거는 면담이 아닌 OTHER이며, 허용된 관찰 후보의 manual.source는 AUTO_ACCEPTED다. photo_id·vision_signature·관찰·원제안 근거를 전용 JSON으로 보존한다. 숫자 각도 후보나 MediaPipe angles로 위장하지 않는다. 나중에 신뢰도·경계 검사를 통과한 MediaPipe 측정이 생기면 시각 관찰의 대체값을 측정값으로 바꿀 수 있다. 낮은 신뢰도나 경계 관측은 유효한 시각 관찰을 지우지 않는다.
+
+사진 또는 설정의 변경으로 시각 관찰 사실이 무효화되면 해당 사실이 소유한 계산 DTO 값도 함께 비운다. 동일한 값을 사람이 따로 확인한 근거는 지우지 않는다. 과거 분석·출력은 변경하지 않는다.
