@@ -1,0 +1,973 @@
+{
+  "source": "Generated from ergo.engine.joint_angles.angles and quick_assess.front_measure; display geometry must match these stored values.",
+  "cases": [
+    {
+      "name": "bent-SCREEN_LEFT",
+      "width": 600,
+      "height": 1000,
+      "forward": "SCREEN_LEFT",
+      "points": [
+        {
+          "name": "left_hip",
+          "x_px": 330,
+          "y_px": 530,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_shoulder",
+          "x_px": 250,
+          "y_px": 310,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_elbow",
+          "x_px": 300,
+          "y_px": 430,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_wrist",
+          "x_px": 230,
+          "y_px": 480,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_knee",
+          "x_px": 230,
+          "y_px": 710,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ankle",
+          "x_px": 280,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ear",
+          "x_px": 240,
+          "y_px": 260,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_hip",
+          "x_px": 350,
+          "y_px": 540,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_shoulder",
+          "x_px": 270,
+          "y_px": 320,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_elbow",
+          "x_px": 310,
+          "y_px": 440,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_wrist",
+          "x_px": 235,
+          "y_px": 490,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_knee",
+          "x_px": 250,
+          "y_px": 720,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ankle",
+          "x_px": 300,
+          "y_px": 910,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ear",
+          "x_px": 260,
+          "y_px": 270,
+          "confidence": 1.0
+        },
+        {
+          "name": "nose",
+          "x_px": 215,
+          "y_px": 275,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_eye",
+          "x_px": 225,
+          "y_px": 265,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_eye",
+          "x_px": 232,
+          "y_px": 268,
+          "confidence": 1.0
+        }
+      ],
+      "angles": [
+        {
+          "side": "LEFT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 19.98310652189998,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 11.309932474020213,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": -8.673174047879769,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": -22.619864948040426,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": -2.6367584261404318,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 77.08218715606604,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 43.7981669355479,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 19.98310652189998,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 11.309932474020213,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": -8.673174047879769,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": -18.43494882292201,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 1.548157698977974,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 74.74488129694222,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 43.7981669355479,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        }
+      ]
+    },
+    {
+      "name": "bent-SCREEN_RIGHT",
+      "width": 600,
+      "height": 1000,
+      "forward": "SCREEN_RIGHT",
+      "points": [
+        {
+          "name": "left_hip",
+          "x_px": 330,
+          "y_px": 530,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_shoulder",
+          "x_px": 250,
+          "y_px": 310,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_elbow",
+          "x_px": 300,
+          "y_px": 430,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_wrist",
+          "x_px": 230,
+          "y_px": 480,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_knee",
+          "x_px": 230,
+          "y_px": 710,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ankle",
+          "x_px": 280,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ear",
+          "x_px": 240,
+          "y_px": 260,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_hip",
+          "x_px": 350,
+          "y_px": 540,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_shoulder",
+          "x_px": 270,
+          "y_px": 320,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_elbow",
+          "x_px": 310,
+          "y_px": 440,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_wrist",
+          "x_px": 235,
+          "y_px": 490,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_knee",
+          "x_px": 250,
+          "y_px": 720,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ankle",
+          "x_px": 300,
+          "y_px": 910,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ear",
+          "x_px": 260,
+          "y_px": 270,
+          "confidence": 1.0
+        },
+        {
+          "name": "nose",
+          "x_px": 215,
+          "y_px": 275,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_eye",
+          "x_px": 225,
+          "y_px": 265,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_eye",
+          "x_px": 232,
+          "y_px": 268,
+          "confidence": 1.0
+        }
+      ],
+      "angles": [
+        {
+          "side": "LEFT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": -19.98310652189998,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": -11.309932474020213,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 8.673174047879769,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 22.619864948040426,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 2.6367584261404318,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 77.08218715606604,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 43.7981669355479,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": -19.98310652189998,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": -11.309932474020213,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 8.673174047879769,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 18.43494882292201,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": -1.548157698977974,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 74.74488129694222,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 43.7981669355479,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        }
+      ]
+    },
+    {
+      "name": "zero-SCREEN_LEFT",
+      "width": 600,
+      "height": 1000,
+      "forward": "SCREEN_LEFT",
+      "points": [
+        {
+          "name": "left_hip",
+          "x_px": 300,
+          "y_px": 500,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_shoulder",
+          "x_px": 300,
+          "y_px": 300,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_elbow",
+          "x_px": 300,
+          "y_px": 420,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_wrist",
+          "x_px": 300,
+          "y_px": 550,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_knee",
+          "x_px": 300,
+          "y_px": 700,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ankle",
+          "x_px": 300,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ear",
+          "x_px": 300,
+          "y_px": 250,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_hip",
+          "x_px": 330,
+          "y_px": 500,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_shoulder",
+          "x_px": 330,
+          "y_px": 300,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_elbow",
+          "x_px": 330,
+          "y_px": 420,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_wrist",
+          "x_px": 330,
+          "y_px": 550,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_knee",
+          "x_px": 330,
+          "y_px": 700,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ankle",
+          "x_px": 330,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ear",
+          "x_px": 330,
+          "y_px": 250,
+          "confidence": 1.0
+        },
+        {
+          "name": "nose",
+          "x_px": 330,
+          "y_px": 240,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_eye",
+          "x_px": 300,
+          "y_px": 240,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_eye",
+          "x_px": 330,
+          "y_px": 240,
+          "confidence": 1.0
+        }
+      ],
+      "angles": [
+        {
+          "side": "LEFT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        }
+      ]
+    },
+    {
+      "name": "zero-SCREEN_RIGHT",
+      "width": 600,
+      "height": 1000,
+      "forward": "SCREEN_RIGHT",
+      "points": [
+        {
+          "name": "left_hip",
+          "x_px": 300,
+          "y_px": 500,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_shoulder",
+          "x_px": 300,
+          "y_px": 300,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_elbow",
+          "x_px": 300,
+          "y_px": 420,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_wrist",
+          "x_px": 300,
+          "y_px": 550,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_knee",
+          "x_px": 300,
+          "y_px": 700,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ankle",
+          "x_px": 300,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_ear",
+          "x_px": 300,
+          "y_px": 250,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_hip",
+          "x_px": 330,
+          "y_px": 500,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_shoulder",
+          "x_px": 330,
+          "y_px": 300,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_elbow",
+          "x_px": 330,
+          "y_px": 420,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_wrist",
+          "x_px": 330,
+          "y_px": 550,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_knee",
+          "x_px": 330,
+          "y_px": 700,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ankle",
+          "x_px": 330,
+          "y_px": 900,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_ear",
+          "x_px": 330,
+          "y_px": 250,
+          "confidence": 1.0
+        },
+        {
+          "name": "nose",
+          "x_px": 330,
+          "y_px": 240,
+          "confidence": 1.0
+        },
+        {
+          "name": "left_eye",
+          "x_px": 300,
+          "y_px": 240,
+          "confidence": 1.0
+        },
+        {
+          "name": "right_eye",
+          "x_px": 330,
+          "y_px": 240,
+          "confidence": 1.0
+        }
+      ],
+      "angles": [
+        {
+          "side": "LEFT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "LEFT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "TRUNK_TILT_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_TILT_VERT_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "NECK_FLEX_TRUNK_PROXY",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_RAISE_VERT",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "UPPER_ARM_FLEX_TRUNK",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "ELBOW_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        },
+        {
+          "side": "RIGHT",
+          "angle_code": "KNEE_FLEX",
+          "value_deg": 0.0,
+          "min_confidence": 1.0,
+          "diagnostic": null
+        }
+      ]
+    }
+  ],
+  "front": {
+    "width": 600,
+    "height": 1000,
+    "points": [
+      {
+        "name": "left_hip",
+        "x_px": 330,
+        "y_px": 530,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_shoulder",
+        "x_px": 250,
+        "y_px": 310,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_elbow",
+        "x_px": 300,
+        "y_px": 430,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_wrist",
+        "x_px": 230,
+        "y_px": 480,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_knee",
+        "x_px": 230,
+        "y_px": 710,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_ankle",
+        "x_px": 280,
+        "y_px": 900,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_ear",
+        "x_px": 240,
+        "y_px": 260,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_hip",
+        "x_px": 350,
+        "y_px": 540,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_shoulder",
+        "x_px": 270,
+        "y_px": 320,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_elbow",
+        "x_px": 310,
+        "y_px": 440,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_wrist",
+        "x_px": 235,
+        "y_px": 490,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_knee",
+        "x_px": 250,
+        "y_px": 720,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_ankle",
+        "x_px": 300,
+        "y_px": 910,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_ear",
+        "x_px": 260,
+        "y_px": 270,
+        "confidence": 1.0
+      },
+      {
+        "name": "nose",
+        "x_px": 215,
+        "y_px": 275,
+        "confidence": 1.0
+      },
+      {
+        "name": "left_eye",
+        "x_px": 225,
+        "y_px": 265,
+        "confidence": 1.0
+      },
+      {
+        "name": "right_eye",
+        "x_px": 232,
+        "y_px": 268,
+        "confidence": 1.0
+      }
+    ],
+    "rows": [
+      {
+        "key": "trunk_turn",
+        "label": "몸통 옆 기울임",
+        "value_deg": 20.0,
+        "suggested": true
+      },
+      {
+        "key": "neck_turn",
+        "label": "목 옆 기울임",
+        "value_deg": 28.4,
+        "suggested": true
+      },
+      {
+        "key": "arm_abducted",
+        "label": "팔 옆으로 벌림",
+        "value_deg": 2.6,
+        "suggested": false
+      }
+    ]
+  }
+}
