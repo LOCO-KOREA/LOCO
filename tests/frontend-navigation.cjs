@@ -23,6 +23,17 @@ async function main(){
  await controller.open({page:'S04',surveyId:null});assert.equal(visited.at(-1),'leave:S04');
  await controller.open({page:'S05',surveyId:null});assert.equal(visited.at(-1),'leave:S05');
  const {events}=await import('../frontend/task/events.js');
+ const {inputs}=await import('../frontend/task/inputs.js');
+ // A delayed read still supplies data, but cannot render over the user's newer page.
+ for(const stillOwnsPage of [false,true]){
+  let release,started;const pending=new Promise(resolve=>release=resolve),loading=new Promise(resolve=>started=resolve),renders=[];let current=true;
+  const workspace={...inputs,current:null,saved:null,items:[],surveyId:null,buffers:new Map(),remember(){},api:async method=>{if(method==='list_tasks')return [{task_id:7}];started();return pending;},render(){renders.push(this.screen);}};
+  const opening=workspace.open(2,{shouldRender:()=>current});
+  await loading;current=stillOwnsPage;if(!current)workspace.current={task_id:99,task_name:'사용자가 새로 연 작업'};
+  release({task:{task_id:7,task_name:'늦게 도착해도 보관되는 작업'}});const result=await opening;
+  assert.equal(result.task_name,'늦게 도착해도 보관되는 작업');
+  assert.equal(workspace.current.task_id,stillOwnsPage?7:99);assert.equal(renders.length,stillOwnsPage?2:0);
+ }
  const calls=[];
  const editor={current:{task_id:7},saving:false,run(action){this.pending=action();},async save(){calls.push('save');return true;},async onCalculate(id){calls.push('calculate:'+id);},async onOpenPhotos(){throw Error('Direct input must not require photos');}};
  events.click.call(editor,{target:{closest:()=>({dataset:{do:'calculate'}})}});await editor.pending;
