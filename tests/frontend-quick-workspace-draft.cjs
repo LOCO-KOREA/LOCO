@@ -19,7 +19,7 @@ const {pathToFileURL} = require('node:url');
       result: ['result', 'review', 'excel'].includes(step) ? {...analysis} : null, baseline: null,
       preview: null, answers: {unknown: null, count: 0}, group: 1, review: {reviewer: '검토자', note: '미저장 메모'},
       aiDraft: '적용 전 설명', aiEditorOpen: true, intakeText: '정리 전 작업 설명', ai: null, settings: {}, stale: true,
-      laterOpen: true, excelTab: 2, reopened: false,
+      laterOpen: true, excelTab: 2, selectedPhotoView: 'LEFT', reopened: false,
       render() {}, notify: text => notes.push(text), onError: error => errors.push(error.message),
       intake: {text: '아직 보내지 않은 답변', state: null, values: new Map(), pairValues: new Map([['pair', null]]),
         dialogOpen: false, async flush() {}, reset() {this.state = null; this.text = ''; this.values = new Map(); this.pairValues = new Map();}},
@@ -37,6 +37,41 @@ const {pathToFileURL} = require('node:url');
       }});
     return {flow, calls, errors, notes};
   };
+  // Adaptive intake stores raw direction codes; earlier quick records used Korean labels.
+  // Reopening must not funnel FRONT through the LEFT/RIGHT legacy fallback.
+  const directionNames = {LEFT: '왼쪽 사진', RIGHT: '오른쪽 사진', FRONT: '정면·후면 사진'};
+  for (const labels of [
+    ['LEFT', 'RIGHT', 'FRONT'], ['FRONT', 'RIGHT', 'LEFT'],
+    ['왼쪽 사진', '정면·후면 사진', '오른쪽 사진'], ['LEFT', '정면·후면 사진', 'RIGHT'], ['FRONT']
+  ]) {
+    const reopening = make('home');
+    const reopenedTask = {...task, latest_analysis_id: analysis.analysis_id, capture: {slots: labels.map((label, i) => ({
+      label, photo_id: i + 11, camera_side: 'RIGHT'
+    }))}};
+    const registered = labels.map((_, i) => ({photo_id: i + 11}));
+    reopening.flow.intake.hasSession = () => false;
+    reopening.flow.api = async (method, params) => {
+      reopening.calls.push([method, params]);
+      if (method === 'get_survey') return {...survey};
+      if (method === 'list_tasks') return [reopenedTask];
+      if (method === 'get_task_result') return {analysis: {...analysis}};
+      if (method === 'get_task') return {task: reopenedTask, photos: registered};
+      if (method === 'get_photo_preview') return {data_url: `photo-${params.photo.photo_id}`, width_px: 600, height_px: 1200};
+      throw Error('Unexpected reopen API: ' + method);
+    };
+    await reopening.flow.openExisting(survey.survey_id);
+    assert.deepEqual(reopening.errors, []);
+    assert.equal(Object.keys(reopening.flow.photos).length, labels.length);
+    for (const [i, label] of labels.entries()) {
+      const view = Object.keys(directionNames).find(key => key === label || directionNames[key] === label);
+      assert.equal(reopening.flow.photos[view].photo.photo_id, registered[i].photo_id, 'display direction follows its stored slot, not inferred camera side');
+    }
+    await reopening.flow.workspaceBack();
+    assert.equal(reopening.flow.step, 'start');
+    assert.equal(Object.keys(reopening.flow.photos).length, labels.length, 'returning to photo input preserves every restored photo');
+    assert.ok(reopening.flow.photos.FRONT);
+    assert.ok(reopening.calls.every(([method]) => /^(get_|list_)/.test(method)), 'direction restoration never writes photo/task records');
+  }
   for (const step of WORKSPACE_STEPS) {
     memory.clear();
     const saved = make(step);
@@ -49,11 +84,35 @@ const {pathToFileURL} = require('node:url');
     assert.equal(resumed.flow.aiDraft, '적용 전 설명');
     assert.equal(resumed.flow.intakeText, '정리 전 작업 설명');
     assert.equal(resumed.flow.intake.text, '아직 보내지 않은 답변');
+    assert.equal(resumed.flow.selectedPhotoView, 'LEFT');
     assert.deepEqual(resumed.flow.answers, {unknown: null, count: 0});
     assert.equal(resumed.flow.intake.pairValues.get('pair'), null);
     assert.ok(resumed.calls.every(([m]) => /^(get_|preview_excel)/.test(m)), 'resume performs reads, never AI/recalculation/export');
     if (step === 'excel') assert.equal(resumed.flow.excelTab, 2);
   }
+  const viewer = make('result');
+  viewer.flow.photos = Object.fromEntries(['LEFT', 'FRONT', 'RIGHT'].map((view, i) => [view, {
+    photo: {photo_id: i + 1}, image: {data_url: view, width_px: 600, height_px: 1200}
+  }]));
+  viewer.flow.selectedPhotoView = 'RIGHT';
+  viewer.flow.host = {querySelector: () => ({focus() {}})};
+  let markup = viewer.flow.photoStrip();
+  assert.equal((markup.match(/<figure/g) || []).length, 1, 'only the selected photo is rendered');
+  assert.equal((markup.match(/data-photo-view=/g) || []).length, 3);
+  assert.match(markup, /data-photo-view="RIGHT" aria-pressed="true"/);
+  assert.match(markup, /<img src="RIGHT"/);
+  viewer.flow.click({target: {closest: () => ({dataset: {photoView: 'FRONT'}})}});
+  assert.equal(viewer.flow.selectedPhotoView, 'FRONT');
+  assert.equal(viewer.flow.result.analysis_id, analysis.analysis_id);
+  assert.deepEqual(viewer.calls, [], 'photo display switching does not call scoring, representative selection or saving APIs');
+  assert.equal(captureWorkspace(viewer.flow).ui.selectedPhotoView, 'FRONT');
+  delete viewer.flow.photos.FRONT;
+  markup = viewer.flow.photoStrip();
+  assert.match(markup, /data-photo-view="LEFT" aria-pressed="true"/);
+  assert.match(markup, /data-photo-view="FRONT"[^>]*disabled/);
+  viewer.flow.photos = {};
+  assert.match(viewer.flow.photoStrip(), /등록된 사진이 없어요/);
+  assert.doesNotMatch(viewer.flow.photoStrip(), /<figure/);
   memory.clear();
   const textOnly = make();
   Object.assign(textOnly.flow, {survey: null, task: null, photos: {}});
