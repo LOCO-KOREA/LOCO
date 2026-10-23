@@ -42,9 +42,13 @@ def main(root,output,campaigns):
             summary.append(row)
     result=dict(cases=summary,attempted_seen=len(summary),completed=sum(row['completed'] for row in summary),first_declared=sum(row['first_declared'] for row in summary if not row['first_pending']),first_checks=sum(row['first_checks'] for row in summary),first_defects=sum(len(row['first_defects']) for row in summary),audit_checks=sum(row.get('audit_checks',0) for row in summary),audit_defects=sum(len(row.get('audit_defects',[])) for row in summary),expanded_checks=sum(row.get('expanded_checks',0) for row in summary),expanded_defects=sum(len(row.get('expanded_defects',[])) for row in summary),relation_checks=sum(row.get('relation_checks',0) for row in summary),relation_defects=sum(len(row.get('relation_defects',[])) for row in summary))
     write(output/'independent-summary.json',result);print(json.dumps({key:value for key,value in result.items() if key!='cases'}))
+    physical_failures=[dict(id=row['id'],task=row['physical_final_task_matches'],snapshots=row['physical_immutable_snapshots_match']) for row in summary if row['completed'] and (not row['physical_final_task_matches'] or not all(row['physical_immutable_snapshots_match'].values()))]
+    write(output/'physical-db-audit.json',dict(completed=sum(row['completed'] for row in summary),checks=sum(3 for row in summary if row['completed']),defects=physical_failures))
     for row in summary:
         defects=row['first_defects']+row.get('audit_defects',[])+row.get('expanded_defects',[])+row.get('relation_defects',[])
         if defects:print(json.dumps(dict(id=row['id'],defects=defects),ensure_ascii=False))
+    if physical_failures:print(json.dumps(dict(physical_defects=physical_failures),ensure_ascii=False))
+    if physical_failures or any(result[key] for key in ('first_defects','audit_defects','expanded_defects','relation_defects')):raise SystemExit(1)
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('root',type=Path);parser.add_argument('output',type=Path);parser.add_argument('campaigns',type=Path,nargs='+');args=parser.parse_args();main(args.root.resolve(),args.output.resolve(),[path.resolve() for path in args.campaigns])
