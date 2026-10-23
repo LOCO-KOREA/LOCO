@@ -174,7 +174,7 @@ export class QuickFlow {
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -291,7 +291,7 @@ export class QuickFlow {
       for (const slot of full.task.capture.slots) {
         if (slot.photo_id == null) continue;
         const photo = full.photos.find(p => p.photo_id === slot.photo_id);
-        const view = Object.keys(VIEW_LABEL).find(key => VIEW_LABEL[key] === slot.label) || (photos.LEFT ? 'RIGHT' : 'LEFT');
+        const view = VIEWS.find(item => item.id === slot.label || VIEW_LABEL[item.id] === slot.label)?.id || (photos.LEFT ? 'RIGHT' : 'LEFT');
         if (photo && !photos[view]) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};
       }
       const settings = this.settings || await this.api('get_settings');
@@ -815,6 +815,10 @@ export class QuickFlow {
     else if (d.quick === 'allno') this.allNo();
     else if (d.quick === 'review') this.openReview();
     else if (d.quick === 'preview') this.openExcel();
+    else if (d.photoView && VIEWS.some(view => view.id === d.photoView) && this.photos[d.photoView]) {
+      this.selectedPhotoView = d.photoView; this.render();
+      this.host.querySelector(`[data-photo-view="${d.photoView}"]`)?.focus({preventScroll: true});
+    }
     else if (d.quick === 'excel-tab') { this.excelTab = Number(d.tab); this.render(); }
     else if (d.jump) this.jumpTo(d.jump);
     else if (d.quick === 'result') { this.step = 'result'; this.render(); }
@@ -1046,7 +1050,7 @@ export class QuickFlow {
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
       <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
-      <div class="quick-nav"><button data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
+      <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
   }
 
   pointsFor(view) {
@@ -1058,14 +1062,21 @@ export class QuickFlow {
 
   photoStrip() {
     const views = VIEWS.filter(view => this.photos[view.id]);
-    return `<div class="quick-strip ${views.length > 1 ? 'multi' : ''}">${views.map(view => {
+    const selected = views.find(view => view.id === this.selectedPhotoView) || views[0];
+    const tabs = `<div class="quick-photo-tabs" role="group" aria-label="사진 방향 선택">${VIEWS.map(view => {
+      const available = Boolean(this.photos[view.id]), active = view.id === selected?.id;
+      return `<button type="button" data-photo-view="${view.id}" aria-pressed="${active}" class="${active ? 'selected' : ''}" ${available ? '' : 'disabled title="등록된 사진이 없어요"'}>${esc(VIEW_LABEL[view.id])}</button>`;
+    }).join('')}</div>`;
+    const picture = selected ? (() => {
+      const view = selected;
       const item = this.photos[view.id];
-      const w = item.image.width_px, h = item.image.height_px, r = Math.max(w, h) / 120;
+      const w = item.image.width_px || item.photo.width_px || 1, h = item.image.height_px || item.photo.height_px || 1, r = Math.max(w, h) / 120;
       const p = Object.fromEntries(this.pointsFor(view.id).filter(x => x.confidence >= 0.3).map(x => [x.name, x]));
       const lines = BONES.filter(([a, b]) => p[a] && p[b]).map(([a, b]) => `<line x1="${p[a].x_px}" y1="${p[a].y_px}" x2="${p[b].x_px}" y2="${p[b].y_px}"/>`).join('');
       const dots = Object.values(p).map(x => `<circle cx="${x.x_px}" cy="${x.y_px}" r="${r}"/>`).join('');
-      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px">${lines}${dots}</svg><figcaption>${esc(VIEW_LABEL[view.id])}</figcaption></figure>`;
-    }).join('')}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
+      return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px">${lines}${dots}</svg></figure>`;
+    })() : '<div class="quick-photo-empty">등록된 사진이 없어요.</div>';
+    return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
   }
 
   viewProvisional() {

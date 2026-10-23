@@ -85,10 +85,15 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-slot img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; background: #F5F6FA; border-radius: 10px; }
 .quick-slot-empty { width: 100%; height: auto; aspect-ratio: 1 / 1; display: grid; place-items: center; color: var(--color-muted); background: #F5F6FA; border-radius: 10px; line-height: 1.6; }
 .quick-slot-actions { display: flex; gap: 8px; justify-content: center; }
-.quick-strip { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 12px; }
-.quick-strip.multi .quick-photo img { max-height: 260px; object-fit: contain; }
-.quick-strip .quick-photo { position: relative; top: auto; }
-.quick-photo figcaption { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 6px; }
+.quick-strip { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 12px; min-width: 0; padding: 12px; border: 1px solid var(--color-line); border-radius: 14px; background: var(--color-surface); }
+.quick-photo-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.quick-photo-tabs button { min-width: 0; padding: 10px 4px; border: 1px solid var(--color-primary-line); border-radius: 8px; background: var(--color-surface); color: var(--color-primary); font: inherit; font-size: 12px; }
+.quick-photo-tabs button.selected { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.quick-photo-tabs button:disabled { opacity: 1; background: var(--color-surface); color: var(--color-primary); cursor: not-allowed; }
+.quick-photo-tabs button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.quick-strip .quick-photo { position: relative; top: auto; width: 100%; aspect-ratio: 1 / 1; background: #F5F6FA; }
+.quick-strip .quick-photo img { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; object-fit: contain; }
+.quick-photo-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; background: #F5F6FA; border-radius: 14px; color: var(--color-muted); }
 .quick-change { align-self: flex-start; }
 .quick-measured small { color: var(--color-muted); margin-left: 6px; }
 .quick-hint { color: var(--color-primary); font-size: 12px; margin-left: 4px; }
