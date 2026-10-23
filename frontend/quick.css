@@ -68,6 +68,8 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-flags label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .quick-nav { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
 .quick-nav button { padding: 10px 20px; }
+.intake-followup .intake-back { margin-right: auto; }
+.quick-nav .quick-back { margin-right: auto; }
 .quick-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
 .quick-table td { padding: 8px; border-bottom: 1px solid var(--color-line); }
 .quick-status { padding: 3px 10px; border-radius: 999px; font-size: 13px; background: var(--color-surface-soft); }

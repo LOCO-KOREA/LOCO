@@ -178,6 +178,8 @@ const {pathToFileURL} = require('node:url');
   const locked = make('review'); locked.flow.busy = true;
   await locked.flow.workspaceBack(); assert.equal(locked.flow.step, 'review');
   assert.equal(await locked.flow.saveWorkspace(), false);
+  const savingAnswer = make('questions'); savingAnswer.flow.intake.saving = true;
+  await savingAnswer.flow.workspaceBack(); assert.equal(savingAnswer.flow.step, 'questions');
 
   // New/discard actions must not delete a manually checkpointed survey, even with an old draft present.
   writeWorkspaceDraft(fixture);
