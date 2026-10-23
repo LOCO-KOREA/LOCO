@@ -1,9 +1,15 @@
 """Counterexamples for the independent E2E oracle itself, not application behavior."""
 import unittest
 from openpyxl import Workbook
-from tests.live_output_audit import schema_errors,audit_preview,json_equal
+from tests.live_output_audit import schema_errors,audit_preview,json_equal,submitted_message
 
 class OutputOracle(unittest.TestCase):
+    def test_intake_boundary_trims_outer_whitespace_without_hiding_lost_content(self):
+        messages=[dict(message_id=1,text='12.5kg 상자를 하루 40회 옮겨요.\n총 7.5시간 일해요.')]
+        self.assertIs(submitted_message(messages,' \n12.5kg 상자를 하루 40회 옮겨요.\n총 7.5시간 일해요. \t'),messages[0])
+        self.assertIsNone(submitted_message(messages,'12.5kg 상자를 하루 40회 옮겨요. 총 7.5시간 일해요.'))
+        self.assertIsNone(submitted_message(messages,'12.5kg 상자를 하루 41회 옮겨요.\n총 7.5시간 일해요.'))
+
     def test_json_numeric_spelling_is_equal_but_booleans_and_null_are_not_numbers(self):
         self.assertTrue(json_equal(dict(minutes=[120.0,0.0,12.5]),dict(minutes=[120,0,12.5])))
         self.assertFalse(json_equal(dict(value=False),dict(value=0)))

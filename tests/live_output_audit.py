@@ -1,5 +1,4 @@
 """Read-only physical DB / API / proposal / export / exact XLSX-cell ledger."""
-import copy
 import hashlib
 import json
 from pathlib import Path
@@ -13,6 +12,11 @@ from ergo.user_language import user_text
 
 def read(path):return json.loads(path.read_text(encoding='utf-8'))
 def write(path,value):path.write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
+
+def submitted_message(messages,text):
+    """The intake boundary trims outer whitespace; all interior text must survive."""
+    expected=text.strip()
+    return next((message for message in messages if message['text']==expected),None)
 
 def json_equal(left,right):
     # JSON numbers have one type; JavaScript serializes 120.0 as 120. Booleans are distinct.
@@ -65,11 +69,6 @@ def capture(directory,stage):
 
 def verify(directory):
     receipt=read(directory/'receipt.json');case=read(directory/'case.json');checks=[];defects=[];ledger=[]
-    review_file=directory.parent/'oracle-review.json'
-    if review_file.exists():
-        review=read(review_file)
-        if review.get('case')==case['id'] and review.get('original_expected')=='load=UNLOADED':
-            case=copy.deepcopy(case);case.get('expected',{}).pop('load',None)
     def check(name,expected,actual,**context):
         def compact(value):
             raw=json.dumps(value,ensure_ascii=False,sort_keys=True)
@@ -100,7 +99,7 @@ def verify(directory):
     for action in actions:
         if action['action']!='natural-language-input':continue
         stage=next((api for name,api,_ in stages if name==action['stage']),None)
-        if stage:check('submitted natural reply is stored',True,any(m['text']==action['text'] for m in stage['session']['messages']),stage=action['stage'])
+        if stage:check('submitted natural reply is stored',True,submitted_message(stage['session']['messages'],action['text']) is not None,stage=action['stage'])
     # Further semantic and exact-cell checks are independent of application calculations.
     final_db=stages[-1][2];contract=stages[-1][1]['session']['contract'];catalogue={f['target']:f for f in contract['fields']}
     from ergo.intake.contract import response_schema
@@ -137,7 +136,7 @@ def verify(directory):
             reply=replies.get((event['pid'],packet['request_id']))
             check('actual submitted IPC turn has a response',True,reply is not None,request_id=packet['request_id'])
             if not reply or not reply.get('ok'):continue
-            state=reply['value'];message=next((m for m in state['messages'] if m['text']==params['text']),None)
+            state=reply['value'];message=submitted_message(state['messages'],params['text'])
             check('actual IPC turn response contains submitted text',True,message is not None,request_id=packet['request_id'])
             if message:
                 turn=next((t for t in state['history'] if t.get('message_id')==message['message_id']),None)
