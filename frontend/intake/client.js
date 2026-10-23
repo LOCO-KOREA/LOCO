@@ -5,7 +5,7 @@ export const INTAKE_CONTRACT_METHOD = 'intake_contract';
 
 export class AdaptiveIntake {
   constructor({api, changed, notify}) { Object.assign(this, {api, changed, notify}); this.reset(); }
-  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); }
+  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.reviewThreshold = null; this.formStage = 0; this.formValues = new Map(); this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); }
   async loadContract() { return this.contract ||= await this.api(INTAKE_CONTRACT_METHOD, {}); }
   hasSession(task) { return Boolean(task.conditions?.[this.contract?.session_key]); }
   async open(taskId, views) {
@@ -51,6 +51,39 @@ export class AdaptiveIntake {
     const request = this.serial.then(operation, operation);
     this.serial = request.catch(() => {});
     return request;
+  }
+  formFields(stage=this.formStage) {
+    return (this.state?.form_fields||[]).filter(f => (f.destination.type==='work_type') === (stage===0));
+  }
+  formValue(field) {
+    if(this.formValues.has(field.identity))return this.formValues.get(field.identity);
+    const saved=this.state.facts.find(f=>f.identity===field.identity);
+    return saved?.state==='KNOWN'?saved.value:undefined;
+  }
+  formAnswers() {
+    return this.formFields().filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity)}));
+  }
+  reviewCount() {
+    const userFacts=(this.state?.facts||[]).filter(f=>f.source==='USER'&&['KNOWN','UNKNOWN'].includes(f.state)).length;
+    return Math.max(userFacts,this.state?.messages?.length||0);
+  }
+  reviewInterval() {
+    const value=this.state?.contract.policy.quick_review_interval;
+    return Number.isSafeInteger(value)&&value>0?value:5;
+  }
+  shouldReview() {
+    return Boolean(this.questions.length&&!this.text.trim()&&!this.saveError&&this.reviewCount()>=(this.reviewThreshold??this.reviewInterval()));
+  }
+  continueQuestions() { this.reviewThreshold=this.reviewCount()+this.reviewInterval(); }
+  numericAnswer(text) {
+    const q=this.questions[0];
+    if(!q||q.kind!=='number'||q.answer_questions?.length||q.paired_question)return null;
+    const match=String(text).trim().match(/^(\d+(?:\.\d+)?)\s*([^\d\s]*)$/);
+    if(!match)return null;
+    const value=Number(match[1]),suffix=match[2],unit=q.unit||'';
+    const allowed=unit.startsWith('회')?['번','회']:unit==='kg'?['kg','킬로그램']:unit.startsWith('분')?['분']:unit==='일'?['일']:unit==='개월'?['개월']:[];
+    if(suffix&&!allowed.includes(suffix)||!Number.isFinite(value)||q.maximum!=null&&value>q.maximum)return null;
+    return {target:q.target,condition:q.condition,value};
   }
   answerFields(question = this.questions[0]) {
     const members = Array.isArray(question?.answer_questions) && question.answer_questions.length

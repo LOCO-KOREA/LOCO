@@ -236,3 +236,22 @@ def choose(candidates, proposed=()):
         if len(chosen)>=POLICY['question_limit']: break
         if candidate['identity'] not in seen: chosen.append(candidate); seen.add(candidate['identity'])
     return chosen[:POLICY['question_limit']]
+
+
+def form_fields(task, saved, views, candidates):
+    """Finite form metadata, including relevant saved values for correction."""
+    catalogue = fields()
+    by_target = {f['target']: f for f in catalogue}
+    result = {c['identity']: c for c in candidates if c['target'] != 'other_work'}
+    for field in catalogue:
+        if field['destination']['type'] == 'work_type':
+            identity = key(field['target'])
+            result[identity] = dict(field, identity=identity, condition=POLICY['default_condition'])
+    for identity, item in saved.items():
+        field = by_target.get(item['target'])
+        if not field or field['destination']['type'] in ('task', 'other_work'): continue
+        probe = dict(saved); probe.pop(identity)
+        relevant = _assess(_without_value(task, field, item['condition'], views), probe, views, catalogue, only_identity=identity)['candidates']
+        if any(c['identity'] == identity for c in relevant):
+            result[identity] = dict(field, identity=identity, condition=item['condition'])
+    return list(result.values())

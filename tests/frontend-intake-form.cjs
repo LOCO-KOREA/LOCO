@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+(async()=>{
+ const {AdaptiveIntake}=await import('../frontend/intake/client.js');
+ const {QuickFlow}=await import('../frontend/quick-flow.js');
+ const work={identity:'work_type.lift@default',target:'work_type.lift',condition:'default',label:'들기',kind:'choice',choices:[{value:'YES',label:'예'},{value:'NO',label:'아니오'}],destination:{type:'work_type'}};
+ const number={identity:'card.lift.mass@heavy',target:'card.lift.mass',condition:'heavy',label:'무게',kind:'number',unit:'kg',destination:{type:'criterion'}};
+ const intake=new AdaptiveIntake({notify(){},changed(){},api:async()=>{throw Error('unexpected AI');}});
+ intake.state={task:{task_id:1},contract:{policy:{text_limit:2400}},form_fields:[work,number],facts:[{identity:work.identity,state:'KNOWN',source:'AI',value:'YES'}],questions:[{}],complete:false};intake.dialogOpen=true;
+ assert.match(intake.dialog(false),/value="YES" selected/);assert.doesNotMatch(intake.dialog(false),/data-intake-question=/);
+ assert.equal(intake.formValue(work),'YES');assert.deepEqual(intake.formAnswers(),[],'prefill must not rewrite provenance');
+ intake.formValues.set(work.identity,'NO');
+ const flow=Object.create(QuickFlow.prototype);let finished=0,calls=0,fail=true;
+ Object.assign(flow,{intake,async run(label,fn){await fn();},async finish(){finished++;}});
+ intake.turn=async(text,answers)=>{calls++;assert.equal(text,'');assert.equal(answers.length,1);if(fail)throw Error('offline');return intake.state;};
+ await assert.rejects(flow.saveIntakeForm(),/offline/);assert.equal(intake.formStage,0);assert.equal(intake.formValues.get(work.identity),'NO');
+ fail=false;await flow.saveIntakeForm();assert.equal(intake.formStage,1);assert.equal(finished,0);assert.equal(intake.formValues.size,0);
+ intake.formValues.set(number.identity,0);assert.deepEqual(intake.formAnswers(),[{target:number.target,condition:'heavy',value:0}]);
+ assert.match(intake.dialog(false),/value="0"/);await flow.saveIntakeForm();assert.equal(finished,1,'finish despite remaining questions');assert.equal(intake.state.complete,false);
+ console.log('PASS grouped form prefill ownership, partial/zero/condition identity, failure retention, two steps then incomplete result without AI');
+})().catch(e=>{console.error(e);process.exitCode=1;});

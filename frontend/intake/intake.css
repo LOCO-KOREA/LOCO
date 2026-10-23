@@ -102,3 +102,16 @@
 }
 .intake-estimate { padding: 12px; background: var(--color-surface-soft); border-radius: 10px; font-size: 14px; line-height: 1.7; }
 .intake-estimate button { display: block; margin-top: 10px; }
+
+.intake-review-details { margin: 20px 0; }
+.intake-review-details > summary { cursor: pointer; color: var(--color-secondary); font-size: 14px; }
+.intake-review-details .intake-progress { margin-top: 12px; }
+
+.intake-form-steps { display:flex; gap:16px; padding:16px 28px; color:var(--color-secondary); }
+.intake-form-steps [aria-current] { color:var(--color-primary); font-weight:700; }
+.intake-form-section { margin:20px 0; }
+.intake-form-section summary { cursor:pointer; font-weight:600; padding:10px 0; }
+.intake-group-question input { width:100%; min-width:0; box-sizing:border-box; padding:12px; border:1px solid #dfe4f1; background:#fff; border-radius:10px; font:inherit; }
+
+.intake-form-progress { padding:0 28px 16px; font-size:14px; }
+.intake-form-progress .intake-progress-track { margin:8px 0; }

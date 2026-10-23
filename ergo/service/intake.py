@@ -93,6 +93,7 @@ def _response(task,session,preview,*,reason=None,proposed=(),dropped=()):
     rows=[dict(f,identity=identity,label=catalogue[f['target']]['label'],unit=catalogue[f['target']]['unit'])
           for identity,f in session['facts'].items() if f['target'] in catalogue]
     return dict(task=task,contract=contract.public_contract(),facts=rows,questions=questions,
+        form_fields=planner.form_fields(task,session['facts'],session['views'],assessment['candidates']),
         remaining_count=assessment['missing_count'],complete=assessment['complete'],
         progress=planner.progress(task,session['facts'],session['views'],assessment['candidates']),
         judgments=assessment['judgments'],reba=assessment['reba'],preview=preview,
