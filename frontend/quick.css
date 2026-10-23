@@ -94,6 +94,19 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-strip .quick-photo { position: relative; top: auto; width: 100%; aspect-ratio: 1 / 1; background: #F5F6FA; }
 .quick-strip .quick-photo img { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; object-fit: contain; }
 .quick-photo-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; background: #F5F6FA; border-radius: 14px; color: var(--color-muted); }
+.quick-angle-note { margin: 0; font-size: 12px; line-height: 1.6; color: var(--color-muted); }
+.quick-photo .pose-low-line { stroke-opacity: .5; stroke-dasharray: 5 4; stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.quick-photo .pose-low-point { opacity: .45; }
+.quick-confidence-note { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; line-height: 1.6; color: var(--color-muted); }
+.quick-confidence-dot { width: 9px; height: 9px; border-radius: 50%; background: #5c61db; opacity: .45; flex: none; }
+.quick-confidence-line { width: 28px; border-top: 2px dashed #7cf2c4; opacity: .5; flex: none; }
+.quick-photo .angle-overlay line, .quick-photo .angle-overlay path { fill: none; stroke: #ff1493; stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.quick-photo .angle-overlay .angle-reference { stroke-dasharray: 4 3; }
+.quick-photo .angle-overlay .angle-leader { stroke-width: 1.4px; }
+.quick-photo .angle-overlay rect { fill: #fff; fill-opacity: .96; stroke: #ff1493; stroke-width: 1.25px; vector-effect: non-scaling-stroke; }
+.quick-photo .angle-label { overflow: visible; }
+.quick-photo .angle-label-center { display: grid; place-items: center; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; }
+.quick-photo .angle-label-text { display: block; width: max-content; padding: 0; margin: 0; color: #242d41; font-family: inherit; font-weight: 750; line-height: 1; white-space: nowrap; }
 .quick-change { align-self: flex-start; }
 .quick-measured small { color: var(--color-muted); margin-left: 6px; }
 .quick-hint { color: var(--color-primary); font-size: 12px; margin-left: 4px; }
@@ -140,6 +153,7 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-table th { text-align: left; font-size: 12px; color: var(--color-muted); padding: 6px 8px; }
 .quick-table small { color: var(--color-muted); margin-left: 6px; }
 #quick-workspace .panel { margin-bottom: 16px; }
+#quick-workspace .panel > .quick-nav:only-child { margin-top: 0; }
 .quick-draft { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; border: 1px solid var(--color-primary-line); background: var(--color-primary-soft); }
 .quick-draft div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .quick-draft span { color: var(--color-secondary); font-size: 13px; }
@@ -158,6 +172,8 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-intake h3 { margin: 0 0 6px; font-size: 16px; }
 .quick-intake h3 small { font-weight: 400; color: var(--color-muted); }
 .quick-intake textarea { width: 100%; min-height: 76px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 8px; font: inherit; resize: vertical; background: var(--color-surface); }
+.quick-intake details > .quick-note { margin: 12px 0 14px; }
+.quick-intake details > textarea[data-quick-intake] { display: block; margin: 0 0 14px; }
 .quick-intake .quick-nav { margin-top: 10px; }
 .quick-intake-result { margin: 12px 0; }
 .quick-intake-result h4 { margin: 0 0 4px; font-size: 15px; }
