@@ -133,10 +133,11 @@ def run(directory,real_photo):
         receipt['checks'].append('synthetic occluded hand stays UNKNOWN/pending without manual zero; 3 API queries leave revision and exact input JSON unchanged; direct unknown remains USER')
     ctx,survey,task,photo,state=make_service(directory/'real-model',real_photo,'RIGHT')
     issues=state['preview']['measurement_issues'];assert issues,'actual model must expose why this fixture is not measurable'
-    item=next(row for row in state['facts'] if row['target']=='manual.RIGHT.wrist_base')
+    actual_target='manual.'+issues[0]['scope']+'.wrist_base'
+    item=next(row for row in state['facts'] if row['target']==actual_target)
     assert item['value'] is None and item['state']=='UNKNOWN' and item['source']=='POSE',item
     pending=planner.assess(state['task'],state['task']['conditions'][contract.SESSION_KEY]['facts'],dict(RIGHT=photo['photo_id']))['candidates']
-    question=next(row for row in pending if row['target']=='manual.RIGHT.wrist_base');assert question['reason']!='결과 계산에 필요한 정보가 아직 없어요.'
+    question=next(row for row in pending if row['target']==actual_target);assert question['reason']!='결과 계산에 필요한 정보가 아직 없어요.'
     receipt['real_model']=dict(path=str(real_photo),issues=issues,fact=item,question=question,reopen=assert_read_only_reopen(ctx,task['task_id']),measurable_success=False)
     receipt['checks'].append('unpatched actual MediaPipe fixture abstains with explicit ordinary-language reason; 3 queries preserve DB revision and exact input_json bytes')
     (directory/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2),encoding='utf-8')
