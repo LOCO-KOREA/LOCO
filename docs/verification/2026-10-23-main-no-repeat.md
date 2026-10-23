@@ -1,6 +1,6 @@
 # 최신 main 통합·재질문 점검
 
-기준 origin/main 020d8547b7afccc84de09c633c16423a8e342531. 브랜치 integrate/mediapipe-latest-main-20261023. 이전 작업 복사본은 보존하고 최신 main에 우리 작업 패치만 3-way 적용했다. main의 사진 크롭 모듈/서비스와 Excel 출력 경로는 유지한다. 실제 검증 결과는 실행 완료 후 아래에 기록한다.
+최신 기준 origin/main 1e03b7d. 브랜치 integrate/mediapipe-latest-main-20261023. 이전 작업 복사본은 보존하고 최초 기준 020d8547b7afccc84de09c633c16423a8e342531에 우리 작업 패치만 3-way 적용한 뒤 새 main의 사진 방향 탭·정면 사진 복원 수정을 병합했다. 새 사진 탭에 MediaPipe의 가변 관절 연결·신뢰도 설정과 입력 중 서식 복원을 함께 유지했다. main의 사진 크롭 모듈/서비스와 Excel 출력 경로는 유지한다. 실제 검증 결과는 실행 완료 후 아래에 기록한다.
 
 ## 발견과 수정
 
