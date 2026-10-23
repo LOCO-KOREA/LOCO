@@ -1033,7 +1033,8 @@ export class QuickFlow {
       const full = await this.api('get_task', {task_id: draft.taskId});
       if(full.task.task_id!==draft.taskId||full.task.survey_id!==survey.survey_id||draft.taskCreatedAt&&full.task.created_at!==draft.taskCreatedAt)throw Error('작성하던 작업이 다른 작업으로 바뀌었어요. 기록을 확인해 주세요.');
       const photos = {};
-      const savedViews=Object.keys(draft.photos||{}).length?draft.photos:full.task.conditions?.[this.intake.contract?.session_key]?.views||Object.fromEntries(full.task.capture.slots.filter(slot=>slot.photo_id!=null).map(slot=>[slot.camera_side||'RIGHT',slot.photo_id]));
+      const savedViews=Object.keys(draft.photos||{}).length?draft.photos:full.task.conditions?.[this.intake.contract?.session_key]?.views||Object.fromEntries(full.task.capture.slots.filter(slot=>slot.photo_id!=null).map(slot=>[
+        VIEWS.find(view=>view.id===slot.label||VIEW_LABEL[view.id]===slot.label)?.id||VIEWS.find(view=>view.id===slot.camera_side)?.id||'RIGHT',slot.photo_id]));
       for (const [view, photoId] of Object.entries(savedViews)) {
         const photo = full.photos.find(item => item.photo_id === photoId);
         if (photo) photos[view] = {photo, image: await this.api('get_photo_preview', {photo})};

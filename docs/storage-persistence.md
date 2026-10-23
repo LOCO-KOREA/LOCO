@@ -80,3 +80,5 @@ AUD-01/02/03/05/06/07/08의 회귀 기준은 `tests/test_intake_persistence.py`,
 ## 비연속 원문 인용 보존 (2026-10-23)
 
 같은 메시지의 완전한 문장들을 순서대로 복사한 인용은 공통 evidence_quote로 검증한다. fact.quote는 첫 문장부터 마지막 문장까지의 실제 연속 원문을 보존하고, 원래 모델 인용은 requests.answers.quote/decisions.quote에 그대로 남긴다. source_message_ids도 같은 규칙으로 찾는다. 중간 문장의 수치/모름을 원래 제안의 근거로 확장하지 않으며 USER 우선권·지연 응답 재조정·불변 snapshot은 유지한다. 반 시간 lexer는 “3시간 반복”을 210분으로 바꾸지 않는다. 물리 저장 구조와 메서드 키는 바꾸지 않는다.
+
+과거 자동 초안에 `photos`와 intake session의 `views`가 모두 없으면 capture slot의 방향 코드 또는 한국어 사진 이름을 공통 `VIEWS`/`VIEW_LABEL`로 복원한다. 정면·후면 사진을 `UNKNOWN`/오른쪽으로 바꾸지 않고, 이름에 방향이 없으면 유효한 camera_side를 사용한다.

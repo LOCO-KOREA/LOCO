@@ -70,5 +70,12 @@ const assert=require('node:assert/strict'),path=require('node:path'),{pathToFile
  }});
  await summaryFlow.loadHome();assert.match(summaryFlow.viewHome(),/data-open="1"/,'the actual summary DTO has no created_at, so read the parent before hiding reused IDs');
  assert.ok(identityCalls.some(([method])=>method==='get_survey'));
+ for(const [label,cameraSide,view] of [['FRONT','UNKNOWN','FRONT'],['정면·후면 사진','RIGHT','FRONT'],['LEFT',null,'LEFT'],['오른쪽 사진',null,'RIGHT'],['old label','FRONT','FRONT']]){
+  const legacyFlow=Object.create(QuickFlow.prototype),legacyTask={task_id:11,survey_id:1,created_at:'task-a',capture:{slots:[{photo_id:17,label,camera_side:cameraSide}]}};
+  Object.assign(legacyFlow,{drafts,settings:{},intake:{reset(){},hasSession(){return false;}},api:async method=>{
+   if(method==='get_survey')return {survey_id:1,created_at:'survey-a'};if(method==='get_task')return {task:legacyTask,photos:[{photo_id:17}]};if(method==='get_photo_preview')return {data_url:'photo'};throw Error(method);
+  }});
+  await legacyFlow.restoreDraft({...a,step:'start'});assert.deepEqual(Object.keys(legacyFlow.photos),[view],'legacy capture labels and valid camera sides preserve the registered direction');
+ }
  console.log('PASS main manual checkpoint ownership, pre-photo visibility, clone/reused-ID boundaries, exact manual restore, later unsent versions and one owner card');
 })().catch(error=>{console.error(error);process.exitCode=1;});
