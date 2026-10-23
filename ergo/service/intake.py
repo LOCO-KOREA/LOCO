@@ -15,6 +15,7 @@ from ergo import pose_contract
 from ergo.pose import engine as pose_engine
 from ergo.engine.task_defaults import now
 from .quick import handle_quick_preview
+from . import photo_vision
 
 
 def _prepare(ctx, task_id, requested_views=None):
@@ -22,8 +23,8 @@ def _prepare(ctx, task_id, requested_views=None):
         task=ctx.require('task',task_id)
         session=copy.deepcopy(task['conditions'].get(contract.SESSION_KEY) or {})
         session.setdefault('version',contract.VERSION); session.setdefault('facts',{}); session.setdefault('messages',[])
-        views=requested_views if requested_views is not None else session.get('views',{})
         photos={p['photo_id']:p for p in ctx.store('list_photos',task_id)}
+        views=requested_views if requested_views is not None else {view:identity for view,identity in session.get('views',{}).items() if identity in photos}
         if any(identity not in photos for identity in views.values()): raise ValueError('이 작업에 등록된 사진을 선택하세요.')
         signatures=[]
         for view,identity in sorted(views.items()):
@@ -76,8 +77,9 @@ def _prepare(ctx, task_id, requested_views=None):
     else:
         preview=handle_quick_preview(ctx,'quick_preview',dict(task_id=task_id,views=views)) if views else dict(views={},measured=[],front=[],signals={},score=None,questions=[],diagnostics=[])
         ctx.intake_previews[task_id]=(fingerprint,copy.deepcopy(preview))
-    current_facts=facts.add_photo_facts(current_facts,preview,views)
     session.update(facts=current_facts,views=views,fingerprint=fingerprint,photo_signature=photo_signature,photo_observations=photo_facts.snapshot(preview,views))
+    photo_vision.refresh(task,session,ctx.settings(),preview)
+    session['facts']=facts.add_photo_facts(session['facts'],preview,views)
     selected=ai_config.values(ctx.settings())
     signature={key:selected[key] for key in ai_config.KEYS}
     if session.get('ai_settings')!=signature:
@@ -117,7 +119,7 @@ def _response(task,session,preview,*,reason=None,proposed=(),dropped=()):
         form_fields=planner.form_fields(task,session['facts'],session['views'],assessment['candidates']),
         remaining_count=assessment['missing_count'],complete=assessment['complete'],
         progress=planner.progress(task,session['facts'],session['views'],assessment['candidates']),
-        judgments=assessment['judgments'],reba=assessment['reba'],preview=preview,
+        judgments=assessment['judgments'],reba=assessment['reba'],preview=preview,photo_vision=photo_vision.public(session),
         reason=reason,dropped=list(dropped),diagnostics=receipts.diagnostics(session),
         history=copy.deepcopy(session.get('turns',[])),messages=session['messages'],
         ai=copy.deepcopy(dict(status=contract.AI_STATES[0],model=None,reason=None) if session.get('local_answers_only') else session.get('last_ai') or dict(status=contract.AI_STATES[0],model=None,reason=None)))
@@ -204,16 +206,26 @@ def handle_intake_turn(ctx,method,p):
         if not p.get('answers') and p.get('plan',True):return handle_intake_turn(ctx,method,p)
         return handle_intake_session(ctx,method,dict(task_id=p['task_id'])) | dict(reason='INPUT_CHANGED')
     if not p.get('plan',True) or local_answers_only: return _response(task,session,preview)
-    assessment=planner.assess(task,session['facts'],session['views'])
     reason=None; raw=None
     settings=ctx.settings()
     started=time.monotonic()
-    source_context=receipts.context(session,message['message_id'] if message else None)
     source_scope=source_coverage.photo_scope(session,preview)
+    original_created_at=task['created_at']
+    task,session,preview,photo_stale=photo_vision.observe_turn(ctx,task,session,preview,_prepare,_save)
+    if task['created_at']!=original_created_at:return handle_intake_session(ctx,contract.METHODS['session'],dict(task_id=task['task_id'])) | dict(reason='INPUT_CHANGED')
+    saved_turn=next((item for item in session.get('turns',[]) if item['turn_id']==turn['turn_id']),None)
+    if saved_turn is None:return _response(task,session,preview,reason='INPUT_CHANGED')
+    turn=saved_turn
+    if message:message=next((item for item in session['messages'] if item.get('message_id')==message['message_id']),message)
+    stale_client=stale_client or photo_stale
+    assessment=planner.assess(task,session['facts'],session['views'])
+    source_context=receipts.context(session,message['message_id'] if message else None)
     source_context['source_photo_scope']=copy.deepcopy(source_scope)
     prior_texts=[m['text'] for m in session['messages'] if m is not message and m.get('text')]
     if settings['gpt_enabled'] and settings.get('gpt_model'):
         payload=dict(phase='EXTRACT_AND_PLAN',text=text,known=source_coverage.known_values(session),source_photo_scope=copy.deepcopy(source_scope),
+            known_visual_observations=photo_vision.known(session),
+            visual_observation_policy='이미 사진에서 확인한 자세는 다시 묻지 마세요. 관찰은 사진별로만 적용하고 사용자 인용문으로 쓰지 마세요. 무게·시간·횟수는 사진에서 만들지 마세요.',
             targets=contract.fields(),missing=assessment['candidates'],asked=focus,
             question_limit=contract.POLICY['question_limit'],
             prior_user_text=source_context['texts'])
@@ -260,6 +272,7 @@ def handle_intake_turn(ctx,method,p):
         followup_context=receipts.context(session)
         followup_context['source_photo_scope']=copy.deepcopy(source_scope)
         followup_payload=source_coverage.payload(payload,session,preview,turn,followup_context,source_scope,assessment['candidates'])
+        followup_payload['known_visual_observations']=photo_vision.known(session)
         if not coverage:followup_payload.update(text='',purpose='QUESTION_PLANNING')
         session.pop('local_answers_only',None)
         followup,reason=client.adaptive_intake(followup_payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)

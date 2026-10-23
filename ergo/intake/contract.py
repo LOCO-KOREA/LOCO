@@ -11,7 +11,7 @@ POLICY = dict(question_limit=1, text_limit=2400, autosave_delay_ms=500, quick_re
 
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
-SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED')
+SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED', 'VISION')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
 PHOTO_DESTINATIONS = ('context','view','manual','load','load_kg','load_link')
@@ -93,7 +93,9 @@ def fields():
 
 def public_contract():
     from .photo_facts import PHOTO_POLICY
-    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY,photo_policy=PHOTO_POLICY, states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
+    from ergo.vision.contract import public_contract as vision_contract
+    return dict(version=VERSION, session_key=SESSION_KEY, methods=METHODS, policy=POLICY,photo_policy=PHOTO_POLICY,
+        photo_vision=vision_contract(),states=STATES, sources=SOURCES, ai_states=AI_STATES, fields=fields())
 
 
 def response_schema(catalogue=None):
