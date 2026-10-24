@@ -63,6 +63,10 @@ def survey_draft(value: dict | None = None) -> dict:
             result[key] = merged
         elif key in value:
             result[key] = incoming
+    source = value.get('survey_type_source')
+    result['survey_type_source'] = source if source in ('USER', 'DEFAULT', 'UNKNOWN') else 'UNKNOWN'
+    cause_source = value.get('occasional_cause_source')
+    result['occasional_cause_source'] = cause_source if cause_source in ('USER', 'UNKNOWN') else 'UNKNOWN'
     return result
 
 

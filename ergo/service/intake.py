@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from pathlib import Path
 from ergo.intake import contract, facts, planner
@@ -216,26 +217,49 @@ def handle_intake_turn(ctx,method,p):
     started=time.monotonic()
     source_scope=source_coverage.photo_scope(session,preview)
     original_created_at=task['created_at']
-    task,session,preview,photo_stale=photo_vision.observe_turn(ctx,task,session,preview,_prepare,_save)
+    ai_enabled=settings['gpt_enabled'] and bool(settings.get('gpt_model'))
+
+    def intake_payload(assessment,observations):
+        return dict(phase='EXTRACT_AND_PLAN',text=text,known=source_coverage.known_values(session),source_photo_scope=copy.deepcopy(source_scope),
+            known_visual_observations=observations,
+            visual_observation_policy='이미 사진에서 확인한 자세는 다시 묻지 마세요. 관찰은 사진별로만 적용하고 사용자 인용문으로 쓰지 마세요. 무게·시간·횟수는 사진에서 만들지 마세요.',
+            targets=contract.fields(),missing=assessment['candidates'],asked=focus,
+            question_limit=contract.POLICY['question_limit'],
+            prior_user_text=receipts.context(session,message['message_id'] if message else None)['texts'])
+
+    if ai_enabled and text:
+        payload=intake_payload(planner.assess(task,session['facts'],session['views']),photo_vision.known(session))
+        with ThreadPoolExecutor(max_workers=1,thread_name_prefix='loco-intake-text') as executor:
+            response=executor.submit(client.adaptive_intake,payload,contract.response_schema(),settings['gpt_model'],
+                                    os.environ.get('OPENAI_API_KEY'),settings)
+            # Photo requests are read-only here; reconcile their results after both APIs finish.
+            photo_request=photo_vision.request_turn(ctx,task,session,preview)
+            # Keep both API calls overlapped, but never let a photo-result save race a user's edit.
+            raw,reason=response.result()
+            with ctx.db_lock:
+                current=ctx.require('task',task['task_id'])
+                input_changed_during_requests=current['input_revision']!=task['input_revision']
+            task,session,preview,photo_stale,input_changed_during_reconcile=photo_vision.reconcile_turn(
+                ctx,*photo_request,_prepare,_save,task['input_revision'])
+            input_changed_during_requests=input_changed_during_requests or input_changed_during_reconcile
+    else:
+        input_changed_during_requests=False
+        task,session,preview,photo_stale=photo_vision.observe_turn(ctx,task,session,preview,_prepare,_save)
+
     if task['created_at']!=original_created_at:return handle_intake_session(ctx,contract.METHODS['session'],dict(task_id=task['task_id'])) | dict(reason='INPUT_CHANGED')
     saved_turn=next((item for item in session.get('turns',[]) if item['turn_id']==turn['turn_id']),None)
     if saved_turn is None:return _response(task,session,preview,reason='INPUT_CHANGED')
     turn=saved_turn
     if message:message=next((item for item in session['messages'] if item.get('message_id')==message['message_id']),message)
-    stale_client=stale_client or photo_stale
+    stale_client=stale_client or photo_stale or input_changed_during_requests
     assessment=planner.assess(task,session['facts'],session['views'])
     source_context=receipts.context(session,message['message_id'] if message else None)
     source_context['source_photo_scope']=copy.deepcopy(source_scope)
     prior_texts=[m['text'] for m in session['messages'] if m is not message and m.get('text')]
-    if settings['gpt_enabled'] and settings.get('gpt_model'):
-        payload=dict(phase='EXTRACT_AND_PLAN',text=text,known=source_coverage.known_values(session),source_photo_scope=copy.deepcopy(source_scope),
-            known_visual_observations=photo_vision.known(session),
-            visual_observation_policy='이미 사진에서 확인한 자세는 다시 묻지 마세요. 관찰은 사진별로만 적용하고 사용자 인용문으로 쓰지 마세요. 무게·시간·횟수는 사진에서 만들지 마세요.',
-            targets=contract.fields(),missing=assessment['candidates'],asked=focus,
-            question_limit=contract.POLICY['question_limit'],
-            prior_user_text=source_context['texts'])
+    if ai_enabled and not text:
+        payload=intake_payload(assessment,photo_vision.known(session))
         raw,reason=client.adaptive_intake(payload,contract.response_schema(),settings['gpt_model'],os.environ.get('OPENAI_API_KEY'),settings)
-    else: reason='DISABLED'
+    elif not ai_enabled: reason='DISABLED'
     session['last_ai']=dict(status=contract.AI_STATES[1] if isinstance(raw,dict) and reason is None else contract.AI_STATES[2],
         model=(raw or {}).get('_connection',{}).get('model') or settings.get('gpt_model'),reason=reason,observed_at=now(),elapsed_ms=round((time.monotonic()-started)*1000),
         reasoning_effort=(raw or {}).get('_connection',{}).get('reasoning_effort'),requested_reasoning_effort=settings['gpt_reasoning_effort'],
@@ -244,7 +268,7 @@ def handle_intake_turn(ctx,method,p):
     reconciled=False
     with ctx.db_lock:
         latest=ctx.require('task',task['task_id'])
-        if latest['input_revision']!=task['input_revision'] or latest['created_at']!=task['created_at']:
+        if input_changed_during_requests or latest['input_revision']!=task['input_revision'] or latest['created_at']!=task['created_at']:
             if not text or not settings['gpt_enabled'] or not settings.get('gpt_model'):return _reconcile_late(ctx,task,turn,session)
             resumed,response=_resume_coverage(ctx,task,turn,session)
             if resumed is None:return response

@@ -18,7 +18,7 @@ async function launch(){
  if(process.env.LOCO_LIVE_AI!=='1'||!process.env.OPENAI_API_KEY)throw Error('Actual AI test requires LOCO_LIVE_AI=1 and OPENAI_API_KEY.');
  await fs.mkdir(directory,{recursive:true});await launch();
  const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model=process.env.LOCO_LIVE_MODEL||settings.gpt_model;settings.gpt_reasoning_effort=process.env.LOCO_LIVE_REASONING_EFFORT??settings.gpt_reasoning_effort;
- settings.analysis.pose_model={...settings.pose_contract.models[process.env.LOCO_LIVE_POSE_MODEL||settings.analysis.pose_model.model_id]};budget=(2*settings.gpt_timeout_seconds+60)*1000;
+ settings.analysis.pose_model={...settings.pose_contract.models[process.env.LOCO_LIVE_POSE_MODEL||settings.analysis.pose_model.model_id]};budget=Number(process.env.LOCO_LIVE_WAIT_MS||600000);
  delete settings.gpt_key_present;delete settings.gpt_contract;delete settings.pose_contract;await api('update_settings',{settings});
  await page.locator('[data-quick="new"]').click();await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},path.join(root,'.local/fixtures/tensorflow-movenet-example.jpeg'));
  await page.locator('[data-choose="RIGHT"]').click();await page.locator('.quick-slot.filled').waitFor();await page.locator('[data-quick-intake]').fill(statement);await page.locator('[data-quick="analyze"]').click();await page.locator('[data-intake-dialog][open]').waitFor();

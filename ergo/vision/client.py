@@ -1,15 +1,15 @@
 """Send actual image bytes through Responses using the shared AI configuration."""
 import json
 from ergo import ai_config
+from ergo.gpt.client_pool import get_client
 from . import contract
 
 def observe(image_url,context,model,api_key,settings=None):
     if not api_key:return None,'NO_API_KEY'
     if not model:return None,'MODEL_NOT_CONFIGURED'
     try:
-        from openai import OpenAI
-        transport,options=ai_config.request_options(model,settings)
-        response=OpenAI(api_key=api_key,**transport).responses.create(**options,input=[
+        options=ai_config.request_options(model,settings)
+        response=get_client(api_key).responses.create(**options,input=[
             dict(role='system',content=contract.PROMPT),dict(role='user',content=[
                 dict(type='input_text',text=json.dumps(context,ensure_ascii=False,separators=(',',':'))),
                 dict(type='input_image',image_url=image_url,detail=contract.policy()['detail'])])],

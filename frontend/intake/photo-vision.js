@@ -17,7 +17,7 @@ export function photoVisionForTask(task,contract){
   return contract?.session_key?task?.conditions?.[contract.session_key]?.photo_vision:null;
 }
 
-export function renderPhotoVision(vision,contract={}, {photoIds}={}) {
+export function renderPhotoVision(vision,contract={}, {photoIds,expandDetails=false}={}) {
   if(!Array.isArray(vision?.photos)||!vision.photos.length)return '';
   const copy=PHOTO_VISION_COPY,allowed=photoIds==null?null:new Set(photoIds.map(String));
   const photos=new Map();
@@ -42,6 +42,6 @@ export function renderPhotoVision(vision,contract={}, {photoIds}={}) {
     const reason=text(photo.reason)||messages.join(' ');
     const label=text(photo.photo_label,copy.views[photo.view]||'등록한 사진');
     const empty=!main&&!other;
-    return `<article data-photo-vision-photo="${esc(photo.photo_id)}"><h4>${esc(label)} <small>${copy.source}</small></h4><p class="intake-photo-vision-status">${esc(status(photo.status))}</p>${summary?`<p>${esc(summary)}</p>`:''}${reason?`<p class="quick-note">${esc(reason)}</p>`:''}${main?`<ul>${main}</ul>`:''}${other?`<details><summary>${copy.details}</summary><ul>${other}</ul></details>`:''}${empty?`<p class="quick-note">${esc(photo.status==='ERROR'||photo.status==='DISABLED'?reason||status(photo.status):copy.empty)}</p>`:''}</article>`;
+    return `<article data-photo-vision-photo="${esc(photo.photo_id)}"><h4>${esc(label)} <small>${copy.source}</small></h4><p class="intake-photo-vision-status">${esc(status(photo.status))}</p>${summary?`<p>${esc(summary)}</p>`:''}${reason?`<p class="quick-note">${esc(reason)}</p>`:''}${main?`<ul>${main}</ul>`:''}${other?`<details${expandDetails?' open':''}><summary>${copy.details}</summary><ul>${other}</ul></details>`:''}${empty?`<p class="quick-note">${esc(photo.status==='ERROR'||photo.status==='DISABLED'?reason||status(photo.status):copy.empty)}</p>`:''}</article>`;
   }).join('')}</section>`;
 }

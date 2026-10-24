@@ -108,8 +108,8 @@ class DurableExplicitTotal(unittest.TestCase):
         book=load_workbook(destination,data_only=True)
         try:cells=[cell.value for sheet in book for row in sheet for cell in row if cell.value is not None]
         finally:book.close()
-        self.assertIn('AI: 하루 전체 실제 작업시간은 5시간입니다.',cells)
-        self.assertIn('300 분/일',cells)
+        self.assertTrue(any(cell.endswith('AI: 하루 전체 실제 작업시간은 5시간입니다.') for cell in cells))
+        self.assertTrue(any(isinstance(cell,str) and cell.startswith('300 분/일') for cell in cells))
         self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[dict(target='daily_work_min',value=420)],plan=False))
         with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=RECORDED['statement']))

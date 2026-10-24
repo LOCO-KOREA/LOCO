@@ -13,7 +13,7 @@
 | 설정·출력 | `service/settings.py`, `reports.py` | 실제 엔진 설정·현재성 / 단일 읽기 snapshot·출력 영수증 |
 | 순수 계산 | `engine/burden_rules.py`, `reba_scoring.py`, `movenet.py`, `joint_angles.py`, `pose_tags.py` | 11개 기준·좌우 REBA·공식 모델·관절 각도·표본 태그. DB/화면을 참조하지 않는다. |
 | 저장 | `db/storage.py`, `storage_common.py`, `surveys.py`, `tasks.py`, `photos.py`, `analyses.py`, `settings.py`, `exports.py` | 기존 여섯 테이블의 entity별 CRUD, 짧은 트랜잭션, JSON 행 변환 |
-| 보고서 | `report/workbook.py`, `common.py`, `overview.py`, `comparisons.py`, `plain.py`, `form.py`, `renderer.py`, `labels.py`, `display.py` | 공통 상태/누락·전후 비교·일반인용 시트 정의(plain)·공식 서식 구성 시트(form)·Excel 렌더링(renderer)·한글 표시 |
+| 보고서 | `report/workbook.py`, `common.py`, `overview.py`, `comparisons.py`, `plain.py`, `form.py`, `renderer.py`, `labels.py`, `display.py` | 공통 상태/누락·전후 비교·일반인용 데이터 시트 정의(plain)·기록 입력 요약(form)·Excel 렌더링(renderer)·한글 표시 |
 | 이전 자료 | `legacy/v13.py` | 저장된 1.3 입력을 메모리에서 편집 DTO로 읽는다. 이전 규칙을 실행하지 않는다. |
 
 서비스의 domain 모듈은 조립 진입점을 import하지 않고 `Runtime`을 인자로 받는다. 저장 모듈은 engine/GPT/service를 import하지 않는다. 분석 완료와 AI·조사자 편집은 각자 담당 필드만 저장하며 snapshot을 수정하지 않는다.

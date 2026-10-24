@@ -11,7 +11,7 @@ class UserLanguage(unittest.TestCase):
         self.assertEqual(user_text('UNKNOWN_FIELD YESMAN C01-B01'),'UNKNOWN_FIELD YESMAN C01-B01')
 
     def test_old_explanation_is_localized_for_excel_without_rewriting_history(self):
-        data={'tasks':[{'name':'작업','analysis':{'ai':[{'is_active':True,'applied_text':'NEEDS_INPUT입니다. 20kg','applied_kind':'GENERATED'}]}}]}
+        data={'tasks':[{'name':'작업','task':{'input_revision':1,'latest_analysis_id':7},'analysis':{'analysis_id':7,'input_revision':1,'ai':[{'is_active':True,'applied_text':'NEEDS_INPUT입니다. 20kg','applied_kind':'GENERATED','applied_at':'2026-10-24T00:00:00+00:00','source_current':True}]}}]}
         before=copy.deepcopy(data)
         sheet=_explanations(data)
         self.assertIn('추가 정보 필요입니다. 20kg',str(sheet));self.assertNotIn('NEEDS_INPUT',str(sheet))

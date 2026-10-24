@@ -197,8 +197,9 @@ async function main(){
  await electron.evaluate(({dialog},destination)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:destination});},destination);
  await page.locator('[data-action="export"]').click();await until(()=>fs.stat(destination).catch(()=>null),Boolean,'regular Excel');
  const exported=await until(()=>api('list_export_logs',{survey_id:survey.survey_id}),logs=>logs.some(log=>log.file_path===destination),'regular export receipt');
- assert.deepEqual(exported.find(log=>log.file_path===destination).receipt.sheets,['유해요인조사표','부담작업 해당 여부','체크리스트','자세 분석(REBA)','입력한 값','확인사항','쉬운 설명','개선 전후 비교']);
- check('official-form Excel exported by the UI (form sheets, supporting sheets, the applied explanation and the chosen comparison)',{file:destination});
+ const regularSheets=exported.find(log=>log.file_path===destination).receipt.sheets;assert.ok(regularSheets.includes('조사 결과'));assert.ok(regularSheets.includes('부담작업 해당 여부'));assert.ok(regularSheets.includes('자세 분석(REBA)'));assert.ok(regularSheets.includes('입력한 값'));assert.ok(regularSheets.includes('쉬운 설명'));assert.ok(regularSheets.includes('개선 전후 비교'));assert.ok(!regularSheets.includes('확인사항'));
+ const reviewAtExport=await api('get_survey',{survey_id:survey.survey_id});assert.equal(reviewAtExport.review.reviewed,false);assert.ok(!regularSheets.includes('사람 검토'),'conclusion edits invalidated the earlier review before this export');
+ check('data-only Excel exported by the UI (recorded values, analysis, confirmed explanation and chosen comparison)',{file:destination,sheets:regularSheets});
  await electron.close();await launch();
  const surveys=await api('list_surveys');assert.equal(surveys.length,1);
  const reopenedAfterRestart=(await api('get_task',{task_id:task.task_id})).task;assert.equal(reopenedAfterRestart.manual.length,manualCount);
@@ -221,13 +222,13 @@ async function main(){
  const disease=(await api('list_surveys')).find(s=>s.title==='수시조사 · 합성 증상 응답');
  assert.ok(disease);const diseaseData=await api('get_survey',{survey_id:disease.survey_id});
  assert.equal(diseaseData.symptom_survey.responses[0].name,'');assert.equal(diseaseData.symptom_survey.responses[0].regions.neck.side,'BOTH');
- for(const [cause,filename,expected] of [['DISEASE_CASE','disease-report.xlsx',7],['NEW_TASK_OR_EQUIPMENT','new-equipment-report.xlsx',7],['WORK_ENVIRONMENT_CHANGE','changed-environment-report.xlsx',7],['OTHER','other-report.xlsx',7]]){
+ for(const [cause,filename,expected] of [['DISEASE_CASE','disease-report.xlsx',['조사 결과','증상조사 요약']],['NEW_TASK_OR_EQUIPMENT','new-equipment-report.xlsx',['조사 결과','증상조사 요약']],['WORK_ENVIRONMENT_CHANGE','changed-environment-report.xlsx',['조사 결과','증상조사 요약']],['OTHER','other-report.xlsx',['조사 결과','증상조사 요약']]]){
   if(cause!=='DISEASE_CASE'){await navigate('S02');await page.locator('#edit-survey').click();await page.locator('.survey-editor-nav button').nth(1).click();await page.locator('[data-intake="occasional_cause"]').selectOption(cause);await page.locator('#save-survey').click();await page.locator('#task-workspace:not([hidden])').waitFor();}
   await navigate('S08');const file=path.join(runDir,filename);
   await electron.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},file);
   await page.locator('[data-action="export"]').click();await until(()=>fs.stat(file).catch(()=>null),Boolean,'type-specific export');
   const logged=await until(()=>api('list_export_logs',{survey_id:disease.survey_id}),logs=>logs.some(log=>log.file_path===file),'type-specific export receipt');
-  assert.equal(logged.find(log=>log.file_path===file).receipt.sheets.length,expected);
+  assert.deepEqual(logged.find(log=>log.file_path===file).receipt.sheets,expected);
   check('type-specific Excel through the UI',{cause,file,expected_sheets:expected});
  }
  const reviewAfter=await api('get_survey',{survey_id:survey.survey_id});

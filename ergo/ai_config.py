@@ -10,11 +10,10 @@ FIELDS = (
     dict(key='gpt_reasoning_effort', label='추론 강도', kind='choice', default='xhigh', env='LOCO_AI_REASONING_EFFORT',
          choices=[dict(value=v, label=label) for v,label in (
              ('','전송 안 함'),('none','None'),('low','Low'),('medium','Medium'),('high','High'),('xhigh','Extra high'),('max','Max'))]),
-    dict(key='gpt_timeout_seconds', label='요청 제한 시간 (초)', kind='number', default=180, env='LOCO_AI_TIMEOUT_SECONDS'),
     dict(key='gpt_max_output_tokens', label='최대 출력 토큰 (추론 포함)', kind='integer', default=32768, env='LOCO_AI_MAX_OUTPUT_TOKENS'),
 )
 KEYS = tuple(field['key'] for field in FIELDS)
-REQUEST_POLICY = dict(max_retries=0)
+REQUEST_POLICY = dict(timeout=None, max_retries=0)
 
 
 def validate(settings):
@@ -56,7 +55,7 @@ def request_options(model=None, settings=None):
     options=dict(model=model if model is not None else selected['gpt_model'],
                  max_output_tokens=selected['gpt_max_output_tokens'])
     if selected['gpt_reasoning_effort']: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])
-    return dict(timeout=selected['gpt_timeout_seconds'],**REQUEST_POLICY),options
+    return options
 
 
 def connection(response, model, settings=None):

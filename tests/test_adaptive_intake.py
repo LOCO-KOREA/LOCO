@@ -252,6 +252,26 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP'])
         self.assertEqual(state['questions'][0]['text'],'1년에 며칠 작업하나요?')
 
+    def test_natural_language_extraction_overlaps_requested_photo_observation(self):
+        settings=self.ctx.dispatch('get_settings',{});settings.pop('gpt_key_present',None);settings.update(gpt_enabled=True,gpt_model='fixture');self.ctx.dispatch('update_settings',dict(settings=settings))
+        model_started=threading.Event();photo_started=threading.Event()
+
+        def request(ctx,task,session,preview):
+            photo_started.set()
+            self.assertTrue(model_started.wait(3),'text extraction must start while photo observation is in flight')
+            return task,session,preview,session.get('photo_signature'),[]
+
+        def respond(payload,*args):
+            if payload['phase']=='EXTRACT_AND_PLAN':
+                model_started.set()
+                self.assertTrue(photo_started.wait(3),'photo observation must start while text extraction is in flight')
+            return dict(answers=[],questions=[]),None
+
+        with patch('ergo.service.intake.photo_vision.request_turn',side_effect=request), \
+             patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+            result=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 전체 8시간입니다.'))
+        self.assertEqual(result['history'][0]['requests'][0]['phase'],'EXTRACT_AND_PLAN')
+
     def test_empty_retry_keeps_the_last_saved_statement_in_ai_context(self):
         self.turn(text='하루 전체 8시간',raw=dict(answers=[],questions=[]))
         seen=[]

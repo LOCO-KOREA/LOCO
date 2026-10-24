@@ -4,6 +4,7 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 (async()=>{
  const {savedAnswers}=await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
+ const {QuickFlow}=await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
  const choices=values=>values.map(value=>({value,label:String(value)}));
  const card=(id,criterion,fields,extra={})=>({id,kind:'criterion',criterion,implicit:true,target:{type:'criterion_card',criterion},fields,...extra});
  const questions=[
@@ -51,6 +52,49 @@ const {pathToFileURL}=require('node:url');
  assert.ok(!('crit_impact' in a),'a work type that was not ticked has no card answer');
  const empty=savedAnswers(questions,{...task,capture:{slots:[]},manual:[],conditions:{},legal:{criteria:criteria.map(c=>({...c,condition_present:'UNKNOWN'})),exposures:[]},task_name:'사진 분석 작업'},{workplace_situation:{},participation:{},symptom_survey:{}});
  assert.deepEqual(empty,{},'nothing saved means nothing restored');
+
+ const noCriteria = () => Array.from({length: 11}, (_, i) => ({criterion_no: i + 1, condition_present: 'UNKNOWN', evidence: null, rows: [], rows_complete: 'UNKNOWN'}));
+ const uncheckedInput = {legal: {criteria: noCriteria()}};
+ const uncheckedFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: []}, visible: () => true
+ });
+ uncheckedFlow.applyCriteria(uncheckedInput);
+ assert.equal(uncheckedInput.legal.criteria[0].condition_present, 'UNKNOWN', 'an unchecked criterion was not asked and stays UNKNOWN');
+ assert.equal(uncheckedInput.legal.criteria[0].rows_complete, 'UNKNOWN', 'an unchecked criterion does not become complete');
+ assert.equal(uncheckedInput.legal.criteria[7].condition_present, 'UNKNOWN', 'a checked work type alone does not invent a criterion answer');
+ assert.equal(uncheckedInput.legal.criteria[7].rows_complete, 'UNKNOWN');
+ assert.equal(uncheckedInput.legal.criteria[0].evidence, null, 'no provenance is attached to an unasked criterion');
+ const explicitQuestion = {id: 'crit_lift', kind: 'criterion', criterion: 8, fields: [], mode: 'row'};
+ const explicitInput = {legal: {criteria: noCriteria()}};
+ const explicitFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: [explicitQuestion]}, group: 0,
+  groups: () => [{questions: [explicitQuestion]}], visible: () => true, render() {}
+ });
+ explicitFlow.allNo();
+ explicitFlow.applyCriteria(explicitInput);
+ assert.equal(explicitInput.legal.criteria[7].condition_present, 'NO', 'the explicit all-no action preserves a direct user-confirmed NO');
+ assert.match(explicitInput.legal.criteria[7].evidence.text, /직접 확인해 아니오로 선택/);
+ assert.equal(explicitInput.legal.criteria[7].rows_complete, 'UNKNOWN', 'internal row completeness is not fabricated by an all-no answer');
+ assert.equal(explicitInput.legal.criteria[0].condition_present, 'UNKNOWN', 'the explicit action only applies to the visible criterion');
+ const liftQuestion = {id: 'crit_lift', kind: 'criterion', criteria: [8, 9, 10], fields: [], mode: 'lift'};
+ const liftInput = {legal: {criteria: noCriteria()}};
+ const liftFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: [liftQuestion]}, group: 0,
+  groups: () => [{questions: [liftQuestion]}], visible: () => true, render() {}
+ });
+ liftFlow.allNo();
+ liftFlow.applyCriteria(liftInput);
+ assert.deepEqual([8, 9, 10].map(n => liftInput.legal.criteria[n - 1].condition_present), ['NO', 'NO', 'NO'], 'one explicit all-no answer covers all three related lift criteria');
+ assert.deepEqual([8, 9, 10].map(n => liftInput.legal.criteria[n - 1].rows_complete), ['UNKNOWN', 'UNKNOWN', 'UNKNOWN']);
+ const partialQuestion = {id: 'crit_impact', kind: 'criterion', criterion: 11, fields: [{key: 'impact_rate_hour'}], mode: 'row'};
+ const partialFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {crit_impact: {values: {impact_rate_hour: 4}}}, preview: {questions: [partialQuestion]}, group: 0,
+  groups: () => [{questions: [partialQuestion]}], visible: () => true, render() {}
+ });
+ partialFlow.allNo();
+ assert.equal(partialFlow.answers.crit_impact.present, undefined, 'all-no does not overwrite a criterion the person already answered');
+ assert.equal(partialFlow.answers.crit_impact.values.impact_rate_hour, 4);
+
  console.log('PASS saved answers restore only what was really saved');
  const {applyIntake, dropIntakeItem, settledByIntake, LATER_GROUPS} = await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
  const item = (target, kind, qid, extra = {}) => ({target, kind, question_id: qid, field_key: null, gate: null, value: true, quote: '근거', label: target, ...extra});

@@ -11,10 +11,10 @@ const server=http.createServer(async(req,res)=>{
  receipt.requests.push({method:req.method,path:req.url,mode,strict:request.text.format.strict});
  assert.equal(request.text.format.type,'json_schema');assert.equal(request.text.format.strict,true);
  assert.equal(summary.criteria.length,11);assert.ok(!raw.includes('private worker')&&!raw.includes('private task'));
- const content={summary:'로컬 모의 응답: 저장된 계산 근거를 확인하세요.',criteria:summary.criteria.map(c=>({criterion_no:c.criterion_no,explanation:'입력값과 문턱을 대조하세요.',basis_refs:c.basis.slice(0,1).map(b=>b.item_code)})),check_items:['현장 조건을 확인하세요.'],improvement_options:[{proposal:'작업 조건을 조사자와 검토하세요.',basis_refs:[summary.criteria[0].basis[0].item_code],needs_confirmation:true}]};
+ const content={summary:'로컬 모의 응답: 저장된 계산 근거를 확인하세요.',reba_comparison:summary.provisional_reba?'가정한 1차 REBA와 실제 분석을 비교하세요.':'',posture_explanations:(summary.posture_results||[]).map(item=>({photo_ref:item.photo_ref,explanation:'사진 자세·REBA 입력을 확인하세요.'})),criteria:summary.criteria.map(c=>({criterion_no:c.criterion_no,explanation:'입력값과 문턱을 대조하세요.',basis_refs:c.basis.slice(0,1).map(b=>b.item_code)})),check_items:['현장 조건을 확인하세요.'],improvement_options:[{proposal:'작업 조건을 조사자와 검토하세요.',basis_refs:[summary.criteria[0].basis[0].item_code],needs_confirmation:true}]};
  if(mode==='invalid')content.criteria[0].basis_refs=['C99-B99'];
  if(mode==='delayed')await new Promise(resolve=>setTimeout(resolve,1500));
- if(mode==='timeout')await new Promise(resolve=>setTimeout(resolve,18000));
+ if(mode==='slow')await new Promise(resolve=>setTimeout(resolve,18000));
  if(res.destroyed)return;
  res.writeHead(200,{'content-type':'application/json'});
  res.end(JSON.stringify({id:'resp_local_fixture',object:'response',created_at:1,status:'completed',model:'local-fixture',output:[{id:'msg_local_fixture',type:'message',status:'completed',role:'assistant',content:[{type:'output_text',text:JSON.stringify(content),annotations:[]}]}]}));
@@ -32,7 +32,7 @@ async function main(){
  const survey=await api('create_survey',{draft:{survey_type:'REGULAR',title:'private task',survey_date:'2026-10-16'}});
  const task=await api('create_task',{survey_id:survey.survey_id,draft:{task_name:'private task',conditions:{worker_code:'private worker'}}});
  const original=await api('recalculate_judgments',{task_id:task.task_id});
- const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';settings.gpt_timeout_seconds=15;await api('update_settings',{settings});
+ const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';await api('update_settings',{settings});
  await page.reload();await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
  await page.locator('[data-action="generate-explanation"]').click();
  let generated=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===1);
@@ -50,9 +50,9 @@ async function main(){
  pass('invalid basis references fall back and preserve the active edited text and calculations');
  mode='delayed';await page.locator('[data-action="generate-explanation"]').click();const started=Date.now();await api('get_settings');assert.ok(Date.now()-started<1000);await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===3);
  pass('network-backed generation does not block other service requests');
- mode='timeout';const began=Date.now();await page.locator('[data-action="generate-explanation"]').click();const timed=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===4);
- assert.equal(timed.ai[3].fallback_reason,'TIMEOUT');assert.ok(Date.now()-began<16500);assert.equal(receipt.requests.length,4);assert.deepEqual(timed.judgment,original.judgment);
- pass('SDK timeout returns a diagnostic fallback without automatic retries');
+ mode='slow';const began=Date.now();await page.locator('[data-action="generate-explanation"]').click();const slow=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===4);
+ assert.equal(slow.ai[3].result,'GENERATED');assert.ok(Date.now()-began>=17000);assert.equal(receipt.requests.length,4);assert.deepEqual(slow.judgment,original.judgment);
+ pass('18-second fixture completes without an application deadline and the request is not automatically retried');
  receipt.completed_at=new Date().toISOString();
 }
 main().catch(error=>{receipt.failure=error.stack;console.error(error);process.exitCode=1;}).finally(async()=>{if(electron)await electron.close().catch(()=>{});server.close();await fs.writeFile(path.join(dir,'receipt.json'),JSON.stringify(receipt,null,2));console.log('Evidence: '+dir);});

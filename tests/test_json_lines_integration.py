@@ -127,13 +127,13 @@ class JsonLinesIntegration(unittest.TestCase):
                     "analysis_ids": [], "include_representative": False, "comparisons": [],
                     "destination": str(destination),
                 }})
-                self.assertEqual(receipt["sheets"], ["유해요인조사표", "부담작업 해당 여부", "체크리스트", "자세 분석(REBA)", "입력한 값", "확인사항"])
+                self.assertEqual(receipt["sheets"], ["조사 결과"])
                 history = call("list_analysis_history", {"task_id": task["task_id"]})
                 self.assertEqual([item["analysis_id"] for item in history], [started["analysis_id"]])
                 workbook = load_workbook(destination, read_only=True, data_only=False)
                 try:
                     self.assertEqual(workbook.sheetnames, receipt["sheets"])
-                    self.assertTrue(any("상자 들기" in row for row in workbook["유해요인조사표"].iter_rows(min_row=1, values_only=True)))
+                    self.assertTrue(any("상자 들기" in row for row in workbook["조사 결과"].iter_rows(min_row=1, values_only=True)))
                 finally:
                     workbook.close()
             finally:

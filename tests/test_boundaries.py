@@ -31,7 +31,7 @@ class V2ContractBoundaries(unittest.TestCase):
         schema = explanation_schema()
         self.assertIs(schema['additionalProperties'], False)
         self.assertIs(schema['properties']['criteria']['items']['additionalProperties'], False)
-        self.assertEqual(set(schema['required']), {'summary', 'criteria', 'check_items', 'improvement_options'})
+        self.assertEqual(set(schema['required']), {'summary', 'reba_comparison', 'posture_explanations', 'criteria', 'check_items', 'improvement_options'})
 
 
 if __name__ == '__main__':

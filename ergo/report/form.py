@@ -1,20 +1,18 @@
-"""Sheets that follow the official forms for the 유해요인조사, filled in from the stored snapshot.
+"""Build data-only LOCO workbook sheets from the selected immutable snapshot.
 
-The layout follows 별지 제1호서식 유해요인조사표 and 별지 제2호서식 근골격계질환 증상조사표 of 고용노동부고시 제2020-12호 as KOSHA GUIDE
-E-G-1-2025 prints them (조사 구분, 작업장 상황, 작업조건 1~3단계, 3-1, 결과 요약), plus the checklist and the 해당 여부 판단 tables of its
-appendices. Nothing is recalculated here: every value comes from the stored snapshot, and a cell the app has no value for stays
-empty so the investigator can write it in. The sheets are the same plain descriptions the other sheets use, so the preview and the
-file stay identical. Table keys beyond the plain ones: header (False hides the dark header row), labels / label_rows / label_cells
-(form label cells), merges ([first_row, first_col, last_row, last_col]), bordered, heights, break (new printed page), photo ({task_id, row}).
+The workbook contains recorded survey/task inputs and results that can be computed from them.
+Unasked fields and blank official-form templates are not exported. Preview and Excel share these sheet definitions.
 """
-from .display import CURRENTNESS, EXCLUSION, OPERATOR, REVIEW
-from .labels import CRITERIA, CRITERION_RULE, EXPOSURES, HAZARD_KIND, REBA_ACTION, criterion_name, input_label, reason_label
+from .display import OPERATOR
+from .labels import CRITERIA, EXPOSURES, HAZARD_KIND, REBA_ACTION, criterion_name, input_label
 from .plain import SHEET_NOTES, SOURCE_PLAIN, _reba_text, _sheet, _table, kst, note, say, with_unit
+from .input_trace import InputTrace
 
 FORM_TAB = '1F3A5F'
 TICK, BOX = '☑', '☐'
 WIDE = [22, 40, 22, 40, 16]
 SYMPTOM_WIDTHS = [26, 18, 18, 18, 18, 18, 18]
+DISEASE_CASE_NOTICE = '선택한 질환자 발생·업무상 질병 인정 사유는 안전보건규칙 제657조제2항제1호 조사 대상일 수 있어요(최근 1년 내 조사·개선 예외 확인). 해당 조사라면 제658조와 고용노동부고시 제2020-12호 제4조의 방법 및 별지 제1·2호서식을 활용해야 해요. 이 Excel은 기록 요약이며 법정 서식을 대체하지 않아요.'
 SURVEY_TYPES = [('REGULAR', '정기조사'), ('INITIAL', '최초조사'), ('OCCASIONAL', '수시조사 (산업안전보건기준에 관한 규칙 제657조 제2항에 근거)')]
 OCCASIONAL_CAUSES = [('DISEASE_CASE', '근골격계질환자가 발생했거나 업무상 질병으로 인정받은 경우'),
                      ('NEW_TASK_OR_EQUIPMENT', '근골격계부담작업에 해당하는 새로운 작업·설비를 도입한 경우'),
@@ -24,7 +22,7 @@ SITUATION = [('equipment', '작업설비'), ('workload', '작업량'), ('speed',
 SCALE_A = ['매우 쉬움', '쉬움', '약간 힘듦', '힘듦', '매우 힘듦']
 SCALE_B = ['매우 가끔(년 2~3회)', '가끔(하루 또는 주 2~3일에 1회)', '자주(1일 4시간 미만)', '계속(1일 4시간 이상)', '초과근무 시간(1일 8시간 이상)']
 FINAL = {'APPLICABLE': '부담작업', 'NOT_APPLICABLE': '부담작업 아님', 'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요', 'EXCLUDED': '제외'}
-# The same rules as CRITERION_RULE, short enough for a narrow column of the checklist.
+# The same rules as CRITERION_RULE, short enough for the summary matrix.
 CHECK_RULE = {1: '하루 4시간 이상', 2: '하루 총 2시간 이상', 3: '하루 총 2시간 이상', 4: '하루 총 2시간 이상', 5: '하루 총 2시간 이상',
               6: '하루 총 2시간 이상\n(1kg 이상 집기, 2kg 이상 쥐기)', 7: '하루 총 2시간 이상\n(4.5kg 이상)', 8: '하루 10회 이상\n(25kg 이상)',
               9: '하루 25회 이상\n(10kg 이상)', 10: '하루 총 2시간 이상\n분당 2회 이상\n(4.5kg 이상)', 11: '하루 총 2시간 이상\n시간당 10회 이상'}
@@ -37,10 +35,6 @@ SITES = [('neck', '목'), ('shoulder', '어깨'), ('arm_elbow', '팔/팔꿈치')
 
 def _word(value):
     return SYMPTOM.get(value, say(value)) if isinstance(value, str) else ('' if value is None else value)
-
-
-def _box(on):
-    return TICK if on else BOX
 
 
 def _form(rows, widths, heading=None, labels=(), label_rows=(), label_cells=(), merges=(), heights=None, photo=None):
@@ -71,15 +65,31 @@ def _final(j):
     return j.get('effective_status') or j.get('computed_status')
 
 
-def _burden_text(t):
-    """The 부담작업(호) cell: the numbers that apply, and how many are still open."""
-    judgments = _judgments(t)
-    if judgments is None:
-        return '계산 전'
-    numbers = [j['criterion_no'] for j in judgments if _final(j) == 'APPLICABLE']
-    open_count = sum(1 for j in judgments if _final(j) in ('NEEDS_INPUT', 'NEEDS_REVIEW'))
-    text = ', '.join(str(n) for n in numbers) if numbers else ('확정된 호 없음' if open_count else '해당 없음')
-    return text + (f'\n(미확정 {open_count}개)' if open_count else '')
+def _criterion_recorded(source, number):
+    trace = InputTrace(source)
+    legal = source.get('legal') or {}
+    criterion = next((item for item in legal.get('criteria', []) if item.get('criterion_no') == number), {})
+    state = criterion.get('condition_present')
+    if trace.criterion_presence_recorded(criterion, number):
+        return True
+    if any(item.get('condition_code', '').startswith(f'C{number}_') and item.get('minutes') is not None
+           for item in legal.get('exposures', [])):
+        return True
+    for field in ('unsupported', 'posture_restricted'):
+        value = criterion.get(field)
+        if value in ('YES', 'NO') or trace.lookup('criterion', value, field=field, criterion=number):
+            return True
+    complete = criterion.get('rows_complete')
+    if trace.lookup('complete', complete, criterion=number):
+        return True
+    if any(value not in (None, '') for row in criterion.get('rows') or []
+           for key, value in row.items() if key not in ('row_id', 'label', 'evidence')):
+        return True
+    for fact in trace.facts.values():
+        definition = trace.catalogue.get(fact.get('target'))
+        if definition and number in definition['destination'].get('criteria', []):
+            return True
+    return False
 
 
 def _whole(value):
@@ -92,102 +102,118 @@ def _participation_text(p):
     if status == 'NO':
         return '참여하지 않음'
     if status != 'YES':
-        return '입력 필요'
+        return ''
     parts = [ROLE.get(p.get('role'), ''), say(p.get('method')) if p.get('method') not in (None, 'UNKNOWN') else '',
              kst(p.get('date'), True) or '', f"참여자 {p['participant_code']}" if p.get('participant_code') else '', p.get('notes') or '']
     return '참여함' + (' · ' + ' · '.join(x for x in parts if x) if any(parts) else '')
 
 
-def _cause_cell(survey):
-    on, cause = survey.get('survey_type') == 'OCCASIONAL', survey.get('occasional_cause')
-    lines = [f'{_box(on and cause == code)} {label}' for code, label in OCCASIONAL_CAUSES]
-    extra = ' · '.join(x for x in ('기타' if on and cause == 'OTHER' else '', survey.get('occasional_reason') or '') if x)
-    return '\n'.join(lines + ([f'사유: {extra}'] if extra else []))
-
-
-def _overview(c):
+def _support_overview(c):
     survey = c['survey']
-    names = '\n'.join(t['name'] for t in c['tasks'])
-    rows = [['조사 구분', '\n'.join(f"{_box(survey.get('survey_type') == code)} {label}" for code, label in SURVEY_TYPES), '수시조사 사유', _cause_cell(survey)],
-            ['조사 일시', kst(survey.get('survey_date'), True) or '', '조사자', survey.get('investigator') or ''],
-            ['조사부서명', survey.get('department') or '', '작업공정명', survey.get('process') or ''],
-            ['작업명', names, '', ''],
-            ['이전 조사일', kst(survey.get('previous_survey_date'), True) or '', '근로자 참여', _participation_text(survey.get('participation') or {})]]
-    return _form(rows, WIDE, '가. 조사 개요', labels=[0, 2], merges=[[3, 1, 3, 3]])
+    rows = []
+    survey_type = dict(SURVEY_TYPES).get(survey.get('survey_type'))
+    if survey_type and survey.get('survey_type_source') == 'USER':
+        rows.append(['조사 구분', survey_type])
+    if (survey.get('survey_type') == 'OCCASIONAL' and survey.get('survey_type_source') == 'USER'
+            and survey.get('occasional_cause_source') == 'USER'):
+        cause = dict(OCCASIONAL_CAUSES).get(survey.get('occasional_cause'))
+        if cause:
+            reason = survey.get('occasional_reason')
+            rows.append(['수시조사 사유', cause + (f' · {reason}' if reason else '')])
+    names = '\n'.join(t['name'] for t in c['tasks'] if t['name'])
+    fields = [('조사 제목', survey.get('title')), ('조사 일시', kst(survey.get('survey_date'), True)), ('조사자', survey.get('investigator')),
+              ('조사부서명', survey.get('department')), ('작업공정명', survey.get('process')),
+              ('작업명', names), ('이전 조사일', kst(survey.get('previous_survey_date'), True))]
+    rows.extend([[label, value] for label, value in fields if value not in (None, '')])
+    participation = survey.get('participation') or {}
+    if participation.get('status') in ('YES', 'NO'):
+        rows.append(['근로자 참여', _participation_text(participation)])
+    if not rows:
+        return None
+    return _table(['조사 항목', '기록'], rows, [28, 110], '조사 개요')
 
 
 def _situation(c):
     situation = c['survey'].get('workplace_situation') or {}
-    rows = [['항목', '변경 여부', '주요 변경 내용', '']]
+    labels = dict(SITUATION)
+    rows = []
     for key, label in SITUATION:
         status = situation.get(f'{key}_status', 'UNKNOWN')
-        notes = situation.get(f'{key}_notes') or ''
-        rows.append([label, f"{_box(status == 'NO')} 변경 없음\n{_box(status == 'YES')} 변경 있음", notes if status == 'YES' and notes else ('' if status == 'NO' else '입력 필요'), ''])
-    return _form(rows, WIDE, '나. 작업장 상황 조사', labels=[0], label_rows=[0], merges=[[r, 2, r, 3] for r in range(len(rows))])
+        notes = (situation.get(f'{key}_notes') or '').strip()
+        record = {'YES': '변경 있음', 'NO': '변경 없음'}.get(status, '')
+        if notes:
+            record = ' · '.join(x for x in (record, notes) if x)
+        if record:
+            rows.append([labels[key], record])
+    if not rows:
+        return None
+    return _table(['항목', '기록'], rows, [28, 110], '작업장 상황')
 
 
-# ----- 다. 작업조건 조사
-def _step1(c):
-    if not c['tasks']:
-        return _page(_form([['작업명', '작업이 아직 없어요', '', '']], WIDE, '다. 작업조건 조사 (인간공학적 측면을 고려한 조사) — 1단계: 작업별 주요 작업내용', labels=[0], merges=[[0, 1, 0, 3]]))
+
+def _step1(c, official=False):
     rows = []
-    for t in c['tasks']:
-        method = ((t['source'].get('conditions') or {}).get('method_description') or '').strip()
-        rows.append(['작업명', t['name'], '', ''])
-        rows.append(['작업내용\n(단위작업명)', f"1) {t['name']}" + (f'\n{method}' if method else ''), '', ''])
-    return _page(_form(rows, WIDE, '다. 작업조건 조사 (인간공학적 측면을 고려한 조사) — 1단계: 작업별 주요 작업내용', labels=[0], merges=[[r, 1, r, 3] for r in range(len(rows))]))
+    for task in c['tasks']:
+        if task['name']:
+            rows.append([task['name'], '작업명', task['name']])
+        method = ((task['source'].get('conditions') or {}).get('method_description') or '').strip()
+        if method:
+            rows.append([task['name'], '작업 방법', method])
+    if not rows:
+        return []
+    return [_table(['작업', '기록 항목', '기록'], rows, [36, 38, 100], '작업 정보')]
 
-
-def _step2(c):
-    legend = _grid(_table(['작업강도(A)', '작업빈도(B)'], [[f'{i} · {a}', f'{i} · {b}'] for i, (a, b) in enumerate(zip(SCALE_A, SCALE_B), 1)], WIDE[:2], '2단계: 작업별 작업강도 및 작업빈도 (근로자 면담)'))
+def _step2(c, official=False):
     rows = []
-    for t in c['tasks']:
-        cond = t['source'].get('conditions') or {}
-        a, b = cond.get('work_intensity'), cond.get('work_frequency')
-        rows.append([t['name'], _burden_text(t), a if _whole(a) else '', b if _whole(b) else '', a * b if _whole(a) and _whole(b) else ''])
-    return [legend, _grid(_table(['단위작업명', '부담작업(호)', '작업강도(A)', '작업빈도(B)', '총점수(A×B)'], rows or [['', '', '', '', '']], WIDE))]
+    for task in c['tasks']:
+        conditions = task['source'].get('conditions') or {}
+        intensity, frequency = conditions.get('work_intensity'), conditions.get('work_frequency')
+        if _whole(intensity):
+            rows.append([task['name'], '작업강도', intensity])
+        if _whole(frequency):
+            rows.append([task['name'], '작업빈도', frequency])
+        if _whole(intensity) and _whole(frequency):
+            rows.append([task['name'], '작업강도 × 작업빈도', intensity * frequency])
+    if not rows:
+        return []
+    return [_table(['작업', '기록 항목', '값'], rows, [36, 58, 18], '작업강도와 작업빈도')]
 
 
 def _photo_table(c, t):
-    a = t['analysis']
-    representative = (((a or {}).get('reba') or {}).get('summary') or {}).get('representative_slot_no')
-    slot = next((s for s in (t['source'].get('capture') or {}).get('slots', []) if s.get('slot_no') == representative), None) if representative is not None else None
-    include = bool(c['snapshot'].get('include_representative'))
-    label = (slot or {}).get('label') or f'사진 {representative}'
-    heading = '단위작업별 사진 또는 그림' + (f' — 대표 사진: {label}' if slot else '')
-    if slot is None:
-        return _form([['대표 사진이 없어요', '', '', '']], WIDE, heading, merges=[[0, 0, 0, 3]])
-    if not include:
-        return _form([['대표 사진 이미지는 포함하지 않았어요.', '', '', '']], WIDE, heading, merges=[[0, 0, 0, 3]])
-    return _form([['', '', '', '']], WIDE, heading, merges=[[0, 0, 0, 3]], heights={0: 160}, photo=dict(task_id=t['task']['task_id'], row=0))
+    analysis = t['analysis']
+    representative = (((analysis or {}).get('reba') or {}).get('summary') or {}).get('representative_slot_no')
+    slot = next((item for item in (t['source'].get('capture') or {}).get('slots', [])
+                 if item.get('slot_no') == representative), None) if representative is not None else None
+    if slot is None or not c['snapshot'].get('include_representative'):
+        return None
+    label = slot.get('label') or f'사진 {representative}'
+    return _form([['', '', '', '']], WIDE, f'대표 사진 · {label}',
+                 merges=[[0, 0, 0, 3]], heights={0: 160},
+                 photo=dict(task_id=t['task']['task_id'], row=0))
 
 
 def _elements(j, criterion):
-    """One line per input behind a judgment: (what, the value, the rule it is held to, ○ / X / 입력 필요 / 입력 안 됨 / '').
-
-    A blank is "입력 필요" only when the calculation says it still needs that input; a blank it does not need stays plain "입력 안 됨"."""
+    """Only captured criterion values; unasked and unavailable fields are not workbook rows."""
     rows = (criterion or {}).get('rows') or []
     order = {r.get('row_id'): i for i, r in enumerate(rows, 1)}
-    needed = set(j.get('missing_fields') or [])
     out = []
-    for b in j.get('basis') or []:
-        code = b.get('item_code') or ''
+    for basis in j.get('basis') or []:
+        code = basis.get('item_code') or ''
         parts = code.split('.')
-        if parts[-1] in ('condition_present', 'rows_complete') or (parts[-2:] == ['union', 'value'] and b.get('value') is None):
+        value = basis.get('value')
+        if value in (None, '', 'UNKNOWN'):
+            continue
+        if parts[-1] in ('condition_present', 'rows_complete') or (parts[-2:] == ['union', 'value']):
             continue
         label = EXPOSURES.get(parts[1], input_label(code)) if parts[0] == 'exposures' and len(parts) > 1 else input_label(code)
-        if parts[-2:] == ['union', 'value']:
-            label = '중복을 제외한 합계'
         if parts[0] == 'criteria' and 'totals' in parts:
             label = '하루 합계 · ' + label
         if 'rows' in parts and parts.index('rows') + 2 < len(parts) and len(rows) > 1 and parts[parts.index('rows') + 1] in order:
             label += f" (조건 {order[parts[parts.index('rows') + 1]]})"
-        value, threshold, operator = b.get('value'), b.get('threshold'), b.get('operator')
-        shown = '' if value is None else with_unit(value, b.get('unit'))
-        rule = f"{with_unit(threshold, b.get('unit'))} {OPERATOR.get(operator, '')}".strip() if threshold is not None else ''
-        if value is None:
-            mark = '입력 필요' if code in needed else '입력 안 됨'
-        elif threshold is None or isinstance(value, (bool, str)):
+        threshold, operator = basis.get('threshold'), basis.get('operator')
+        shown = with_unit(value, basis.get('unit'))
+        rule = f"{with_unit(threshold, basis.get('unit'))} {OPERATOR.get(operator, '')}".strip() if threshold is not None else ''
+        if threshold is None or isinstance(value, (bool, str)):
             mark = ''
         else:
             met = {'GE': value >= threshold, 'GT': value > threshold, 'LE': value <= threshold, 'LT': value < threshold, 'EQ': value == threshold}.get(operator)
@@ -198,34 +224,32 @@ def _elements(j, criterion):
 
 def _cause(j, criterion):
     elements = _elements(j, criterion)
-    lines = [f'{label}: {value}' for label, value, _, _ in elements if value]
-    missing = [label for label, value, _, mark in elements if mark == '입력 필요']
-    if missing:
-        lines.append('입력 필요: ' + ', '.join(missing))
-    return '\n'.join(lines) or '이 작업을 한다고 답함'
+    return '\n'.join(f'{label}: {value}' for label, value, _, _ in elements if value)
 
 
 def _hazard_rows(t):
     judgments = _judgments(t)
     if judgments is None:
-        return [['계산 전', '분석을 마치면 채워져요', '']]
-    legal = {x.get('criterion_no'): x for x in (t['source'].get('legal') or {}).get('criteria', [])}
+        return []
+    legal = {item.get('criterion_no'): item for item in (t['source'].get('legal') or {}).get('criteria', [])}
     rows = []
-    for j in judgments:
-        no, final = j['criterion_no'], _final(j)
-        said_yes = any(str(b.get('item_code', '')).endswith('condition_present') and b.get('value') == 'YES' for b in j.get('basis') or [])
-        if final == 'APPLICABLE' or (final in ('NEEDS_INPUT', 'NEEDS_REVIEW') and said_yes):
-            inv = j.get('investigator') or {}
-            remark = {'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요'}.get(final) or ('조사자 결론' if inv.get('status') and inv['status'] != j.get('computed_status') else '')
-            rows.append([f'{HAZARD_KIND[no]}({no}호)', _cause(j, legal.get(no)), remark])
-    cond = t['source'].get('conditions') or {}
+    for judgment in judgments:
+        number, final = judgment['criterion_no'], _final(judgment)
+        said_yes = any(str(basis.get('item_code', '')).endswith('condition_present')
+                       and basis.get('value') == 'YES' for basis in judgment.get('basis') or [])
+        if final not in ('APPLICABLE', 'NEEDS_REVIEW') or not said_yes:
+            continue
+        cause = _cause(judgment, legal.get(number))
+        if cause:
+            rows.append([f'{HAZARD_KIND[number]}({number}호)', cause])
+    conditions = t['source'].get('conditions') or {}
     for label, key in (('관찰한 유해요인', 'hazard_factors'), ('유해요인의 원인', 'hazard_causes')):
-        if cond.get(key):
-            rows.append([label, cond[key], ''])
-    return rows or [['해당하는 유해요인이 없어요', '', '']]
+        value = (conditions.get(key) or '').strip()
+        if value:
+            rows.append([label, value])
+    return rows
 
-
-def _reba_tables(t):
+def _reba_tables(t, official=False):
     a = t['analysis']
     reba = (a or {}).get('reba')
     if not reba:
@@ -236,36 +260,41 @@ def _reba_tables(t):
     result = _reba_text(a)
     if summary.get('total_slot_count'):
         result += f"\n사진 {summary['total_slot_count']}장 중 {summary.get('complete_count', 0)}장을 계산했어요"
-    return [_page(_form([['작업명', t['name'], '단위작업명', t['name']]], WIDE, f"3-1. 인간공학적 작업·분석 평가 결과표 — {t['name']}", labels=[0, 2])),
-            _grid(_table(['작업·분석평가도구', '평가결과', '판정'], [['REBA(전신 자세 평가)', result, REBA_ACTION.get(slot.get('risk'), '') if top is not None else '']], WIDE[:3]))]
+    detail = _grid(_table(['작업·분석평가도구', '평가결과', '판정'],
+                          [['REBA(전신 자세 평가)', result, REBA_ACTION.get(slot.get('risk'), '') if top is not None else '']],
+                          WIDE[:3], None if official else f"3-1. REBA 자세 평가 — {t['name']}"))
+    if official:
+        return [_page(_form([['작업명', t['name'], '단위작업명', t['name']]], WIDE,
+                            f"3-1. 인간공학적 작업·분석 평가 결과표 — {t['name']}", labels=[0, 2])), detail]
+    return [detail]
 
 
-def _step3(c):
+
+def _step3(c, official=False):
     tables = []
-    for t in c['tasks']:
-        cond = t['source'].get('conditions') or {}
-        tables.append(_page(_form([['작업명', t['name'], '근로자명', cond.get('worker_code') or '']], WIDE, f"3단계: 유해요인평가 — {t['name']}", labels=[0, 2])))
-        tables.append(_photo_table(c, t))
-        tables.append(_form([['단위작업명', t['name'], '부담작업(호)', _burden_text(t)]], WIDE, '작업별 관찰된 유해요인에 대한 원인분석', labels=[0, 2]))
-        tables.append(_grid(_table(['유해요인', '발생 원인 또는 노출특징', '비고'], _hazard_rows(t), WIDE[:3])))
-        tables += _reba_tables(t)
+    for task in c['tasks']:
+        conditions = task['source'].get('conditions') or {}
+        if conditions.get('worker_code'):
+            tables.append(_table(['작업', '작업자 코드'], [[task['name'], conditions['worker_code']]],
+                                 [36, 44], f'작업자 정보 · {task["name"]}'))
+        photo = _photo_table(c, task)
+        if photo:
+            tables.append(photo)
+        hazards = _hazard_rows(task)
+        if hazards:
+            tables.append(_table(['유해요인', '기록된 원인·노출'], hazards, [36, 102],
+                                 f'유해요인 기록 · {task["name"]}'))
+        tables.extend(_reba_tables(task))
     return tables
 
-
-# ----- 라. 유해요인 조사 결과
-def _count_text(value):
-    return '계산 전' if value is None else f'{value}개'
-
-
 def _symptom_summary(survey):
-    sym = survey.get('symptom_survey') or {}
-    method = sym.get('method')
-    if method in (None, 'UNKNOWN') and not sym.get('summary') and not sym.get('responses'):
-        return '입력 필요'
-    parts = [f'방법: {say(method)}' if method not in (None, 'UNKNOWN') else '', f"조사일 {kst(sym.get('date'), True)}" if sym.get('date') else '',
-             f"응답자 {sym['respondent_count']}명" if sym.get('respondent_count') is not None else '', sym.get('summary') or '']
-    return ' · '.join(x for x in parts if x)
-
+    symptom = survey.get('symptom_survey') or {}
+    method = symptom.get('method')
+    parts = [f'방법: {say(method)}' if method not in (None, 'UNKNOWN') else '',
+             f"조사일 {kst(symptom.get('date'), True)}" if symptom.get('date') else '',
+             f"응답자 {symptom['respondent_count']}명" if symptom.get('respondent_count') is not None else '',
+             symptom.get('summary') or '']
+    return ' · '.join(part for part in parts if part)
 
 def _next_input_text(item):
     """Keep the original first action, grouping structured gaps for scanning."""
@@ -291,121 +320,58 @@ def _next_input_text(item):
     return '\n'.join(lines)
 
 
-def _result(c):
-    rows = []
-    for t in c['tasks']:
-        item, counts = t['item'], t['item'].get('counts') or {}
-        first = _next_input_text(item)
-        todo = f"입력이 더 필요한 기준 {_count_text(counts.get('needs_input_count'))}\n검토가 필요한 기준 {_count_text(counts.get('needs_review_count'))}" + (f'\n\n{first}' if first else '')
-        rows.append([t['name'], _burden_text(t), _reba_text(t['analysis']), todo,
-                     f"{CURRENTNESS.get(item.get('currentness'), item.get('currentness'))} · {REVIEW.get(item.get('review_status'), item.get('review_status'))}"])
-    summary = _page(_grid(_table(['작업', '부담작업(호)', '자세 점수(REBA)', '더 입력·검토할 것', '결과 기준 · 검토 상태'], rows or [['', '', '', '', '']], WIDE, '라. 유해요인 조사 결과 (결과 요약)')))
-    comment = _form([['증상조사\n(근골격계 징후·증상)', _symptom_summary(c['survey']), '', '', ''], ['조사자 종합 의견\n(직접 쓰는 칸)', '', '', '', '']], WIDE,
-                    labels=[0], merges=[[0, 1, 0, 4], [1, 1, 1, 4]], heights={1: 110})
-    return [summary, comment]
 
+def _result(c, official=False):
+    rows = []
+    for task in c['tasks']:
+        reba = ((task['analysis'] or {}).get('reba') or {})
+        summary = reba.get('summary') or {}
+        if summary.get('total_slot_count') or summary.get('full_max') is not None or summary.get('available_max') is not None:
+            rows.append([task['name'], 'REBA 자세 점수', _reba_text(task['analysis'])])
+            if summary.get('total_slot_count'):
+                rows.append([task['name'], '계산한 사진', f"{summary.get('complete_count', 0)}장 / {summary['total_slot_count']}장"])
+    symptom = _symptom_summary(c['survey'])
+    if symptom:
+        rows.append(['조사 전체', '증상조사 기록', symptom])
+    if not rows:
+        return []
+    return [_table(['작업', '결과 항목', '기록'], rows, [36, 40, 62], '분석 결과')]
 
 def main_sheet(c):
-    lead = '고용노동부 고시 별지 제1호서식(유해요인조사표)의 칸 구성에 맞춰 입력한 값으로 채웠어요. 앱에 입력란이 없는 칸은 비워 두었으니 직접 써 넣으세요.'
-    tables = [_overview(c), _situation(c), _step1(c)] + _step2(c) + _step3(c) + _result(c)
-    notes = ['한국산업안전보건공단 KOSHA GUIDE E-G-1-2025(2025.3)가 싣고 있는 서식 구성을 따랐어요. 이 시트는 참고 자료이며 공식 서식 파일을 대신하지 않아요. 제출용이면 공식 서식에 옮겨 쓰세요.',
-             '"판정"은 REBA 점수에 대한 표준 해석이에요. 법정 판정이 아니에요.'] + SHEET_NOTES
-    sheet = _sheet('유해요인조사표', lead, tables, notes)
+    tables = [_support_overview(c), _situation(c)]
+    tables += _step1(c) + _step2(c) + _step3(c) + _result(c)
+    tables = [table for table in tables if table]
+    notes = ['이 파일에는 기록된 입력과 실제 분석 결과만 담아요. 공식 조사 서식의 완성 여부를 증명하지 않아요.']
+    survey = c['survey']
+    if (survey.get('survey_type') == 'OCCASIONAL' and survey.get('survey_type_source') == 'USER'
+            and survey.get('occasional_cause_source') == 'USER' and survey.get('occasional_cause') == 'DISEASE_CASE'):
+        notes.append(DISEASE_CASE_NOTICE)
+    notes += ['"판정"은 REBA 점수에 대한 표준 해석이에요. 법정 판정이 아니에요.'] + SHEET_NOTES
+    sheet = _sheet('조사 결과', '조사에 기록한 내용과 계산된 분석 결과예요.', tables, notes)
     return dict(sheet, tab_color=FORM_TAB)
-
-
-# ----- 부담작업 해당 여부
-def _extra_rows(j):
-    """Rows added under a judgment only when there is something to say: the investigator's conclusion, what is missing, what to check."""
-    rows = []
-    inv = j.get('investigator') or {}
-    if inv.get('status'):
-        ev = inv.get('evidence') or {}
-        memo = ' / '.join(x for x in (inv.get('reason'), note(ev.get('text')), SOURCE_PLAIN.get(ev.get('source')), f"검토자 {inv['reviewer']}" if inv.get('reviewer') else '', kst(inv.get('reviewed_at'))) if x)
-        rows.append(['조사자 결론', f"{FINAL.get(inv['status'], inv['status'])} (계산 초안은 {FINAL.get(j.get('computed_status'), '')})" + (f'\n{memo}' if memo else ''), '', ''])
-    if j.get('missing_fields'):
-        rows.append(['더 필요한 입력', '\n'.join(input_label(x) for x in j['missing_fields']), '', ''])
-    checks = [reason_label(x) for x in j.get('review_reasons', [])]
-    if j.get('exclusion'):
-        checks.insert(0, '제외 사유: ' + EXCLUSION.get(j['exclusion'], str(j['exclusion'])))
-    if checks:
-        rows.append(['확인할 점', '\n'.join(checks), '', ''])
-    return rows
-
-
-def _block(prefix, no, j, criterion):
-    final = _final(j)
-    heading = f"{prefix}{criterion_name(no)} → 최종 판단: {FINAL.get(final, '계산 전')}"
-    basis = j.get('basis') or []
-    answer = next((b.get('value') for b in basis if str(b.get('item_code', '')).endswith('condition_present')), None)
-    rows = [[f'기준: {CRITERION_RULE[no]}', '', '', '']]
-    if answer == 'NO':
-        rows.append(['이 작업을 하지 않는다고 답함', '', '', ''])
-    else:
-        if answer != 'YES':
-            rows.append(['이 작업을 하는지 아직 답하지 않음', '', '', '입력 필요'])
-        rows += [[label, value, rule, mark] for label, value, rule, mark in _elements(j, criterion)]
-    extra = _extra_rows(j)
-    body = len(rows)
-    rows += extra
-    table = _table(['부담작업 요소', '입력한 값', '기준', '요소별 해당 여부'], rows, [40, 28, 28, 24], heading, bordered=True)
-    table['merges'] = [[0, 0, 0, 3]] + [[body + i, 1, body + i, 3] for i in range(len(extra))]
-    table['label_rows'] = [0]
-    table['label_cells'] = [[body + i, 0] for i in range(len(extra))]
-    return table
 
 
 def burden_sheet(c):
-    tables, many = [], len(c['tasks']) > 1
-    for t in c['tasks']:
-        judgments = _judgments(t)
-        prefix = f"[{t['name']}] " if many else ''
+    rows = []
+    for task in c['tasks']:
+        judgments = _judgments(task)
         if judgments is None:
-            tables.append(_table(['안내'], [[f'{prefix}판정 결과가 아직 없어요. 분석을 마치면 채워져요.']], [40]))
             continue
-        legal = {x.get('criterion_no'): x for x in (t['source'].get('legal') or {}).get('criteria', [])}
-        for no in range(1, 12):
-            tables.append(_block(prefix, no, next((x for x in judgments if x.get('criterion_no') == no), {}), legal.get(no)))
-    if not c['tasks']:
-        tables.append(_table(['안내'], [['작업이 아직 없어요.']], [40]))
-    lead = '11가지 근골격계부담작업 기준마다 입력한 값을 기준과 견준 결과예요. ○는 기준을 채운 것, X는 기준에 못 미친 것이에요.'
-    sheet = _sheet('부담작업 해당 여부', lead, tables, [SHEET_NOTES[1]])
+        for judgment in judgments:
+            number = judgment.get('criterion_no')
+            if number not in CRITERIA or not _criterion_recorded(task['source'], number):
+                continue
+            status = _final(judgment)
+            if status not in ('APPLICABLE', 'NOT_APPLICABLE', 'EXCLUDED', 'NEEDS_REVIEW'):
+                continue
+            rows.append([task['name'], f'{criterion_name(number)}({number}호)', FINAL[status]])
+    if not rows:
+        return None
+    sheet = _sheet('부담작업 해당 여부', '입력된 기준에 대해 계산된 결과만 표시해요.',
+                   [_table(['작업', '기준', '계산 결과'], rows, [36, 54, 30])],
+                   [SHEET_NOTES[1]])
     return dict(sheet, tab_color=FORM_TAB)
 
-
-# ----- 체크리스트
-def _mark(j):
-    return {'APPLICABLE': '○', 'NOT_APPLICABLE': 'X', 'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요', 'EXCLUDED': '제외'}.get(_final(j) if j else None, '')
-
-
-def checklist_sheet(c):
-    survey = c['survey']
-    pair = lambda l1, v1, l2, v2: [l1, v1, '', '', '', '', l2, '', v2, '', '', '', '']
-    info_rows = [pair('사업장명', '', '조사 일시', kst(survey.get('survey_date'), True) or ''), pair('공정명', survey.get('process') or '', '조사자', survey.get('investigator') or ''),
-                 pair('공정 내용', '', '작업명', ' / '.join(t['name'] for t in c['tasks']))]
-    merges = [m for r in range(3) for m in ([r, 1, r, 5], [r, 6, r, 7], [r, 8, r, 12])]
-    widths = [22] + [14] * 11 + [18]
-    info = _form(info_rows, widths, merges=merges, label_cells=[[r, col] for r in range(3) for col in (0, 6)])
-    rows = [['기준(하루 노출)'] + [CHECK_RULE[no] for no in range(1, 12)] + ['']]
-    for t in c['tasks']:
-        judgments = _judgments(t)
-        by = {j['criterion_no']: j for j in judgments or []}
-        numbers = [no for no, j in by.items() if _final(j) == 'APPLICABLE']
-        open_count = sum(1 for j in by.values() if _final(j) in ('NEEDS_INPUT', 'NEEDS_REVIEW'))
-        if judgments is None:
-            verdict = '계산 전'
-        elif numbers:
-            verdict = '부담작업' + (f'\n(미확정 {open_count}개)' if open_count else '')
-        else:
-            verdict = '미확정' if open_count else '부담작업 아님'
-        rows.append([t['name']] + [_mark(by.get(no)) for no in range(1, 12)] + [verdict])
-    matrix = _table(['작업\n(단위작업)'] + [f'{CRITERIA[no]}\n({no}호)' for no in range(1, 12)] + ['부담작업 여부'], rows, widths, bordered=True, label_rows=[0], labels=[0])
-    lead = '작업마다 11가지 기준에 해당하는지 한눈에 보는 표예요. ○ 해당, X 해당하지 않음. 입력이나 검토가 더 필요하면 그렇게 적혀 있어요.'
-    sheet = _sheet('체크리스트', lead, [info, matrix], [SHEET_NOTES[1]])
-    return dict(sheet, tab_color=FORM_TAB)
-
-
-# ----- 증상조사표
 def _years_months(months):
     return '' if months is None else f'{months}개월'
 
@@ -425,31 +391,54 @@ def _pair_rows(response):
     return [[a, b, '', c, d, '', ''] for a, b, c, d in pairs]
 
 
+
 def symptom_sheet(c):
-    survey = c['survey']
-    responses = (survey.get('symptom_survey') or {}).get('responses') or []
-    if not responses:
-        return None
-    tables = []
+    symptom = c['survey'].get('symptom_survey') or {}
+    responses = symptom.get('responses') or []
+    rows = []
     for index, response in enumerate(responses, 1):
-        rows = _pair_rows(response)
-        merges = [m for r in range(len(rows)) for m in ([r, 1, r, 2], [r, 4, r, 6])]
-        tables.append(_form(rows, SYMPTOM_WIDTHS, f"응답 {index} · {response.get('response_code') or ''}", merges=merges,
-                            label_cells=[[r, col] for r in range(len(rows)) for col in (0, 3)]))
+        response_rows = []
+        for pair in _pair_rows(response):
+            for label, value in ((pair[0], pair[1]), (pair[3], pair[4])):
+                if value not in (None, '', '모름'):
+                    response_rows.append([f"응답 {index} · {response.get('response_code') or index}", label, value])
         regions = response.get('regions') or {}
-        pain = [['통증의 구체적 부위'] + [_word((regions.get(site) or {}).get('side')) for site, _ in SITES],
-                ['통증 기간'] + [_word((regions.get(site) or {}).get('duration')) for site, _ in SITES],
-                ['아픈 정도'] + [_word((regions.get(site) or {}).get('severity')) for site, _ in SITES],
-                ['지난 1주일 동안 증상'] + [_word((regions.get(site) or {}).get('last_week')) for site, _ in SITES]]
-        tables.append(_grid(_table(['지난 1년 동안 통증 부위'] + [label for _, label in SITES], pain, SYMPTOM_WIDTHS, labels=[0])))
-    lead = '근골격계질환 증상조사표(별지 제2호서식)의 칸 구성에 맞춰 익명 응답을 옮겼어요.'
-    notes = ['이 앱에는 "지난 1년 동안 얼마나 자주"와 "통증으로 인한 조치" 문항을 입력하는 곳이 없어 표에 넣지 않았어요.',
-             '응답 코드를 쓰기를 권해요. 개인을 알아볼 수 있는 정보나 건강 정보가 들어 있으면 파일을 아무나 열지 못하게 하세요.',
-             '증상을 과대·과소 평가하지 마세요. 증상조사 결과는 질환을 인정하거나 부정하는 근거로 쓸 수 없어요.']
-    sheet = _sheet('증상조사표', lead, tables, notes)
+        for site, site_label in SITES:
+            region = regions.get(site) or {}
+            for key, label in (('side', '통증 부위'), ('duration', '통증 기간'),
+                               ('severity', '아픈 정도'), ('last_week', '지난 1주일 증상')):
+                value = region.get(key)
+                if value not in (None, '', 'UNKNOWN'):
+                    response_rows.append([f"응답 {index} · {response.get('response_code') or index}",
+                                          f'{site_label} · {label}', _word(value)])
+        if response_rows:
+            rows.extend(response_rows)
+    response_has_data = bool(rows)
+    if symptom.get('method') not in (None, 'UNKNOWN'):
+        rows.append(['조사 전체', '증상조사 방법', say(symptom['method'])])
+    if symptom.get('date'):
+        rows.append(['조사 전체', '증상조사 일시', kst(symptom['date'], True)])
+    if symptom.get('summary'):
+        rows.append(['조사 전체', '증상조사 요약', symptom['summary']])
+    count = symptom.get('respondent_count')
+    if count is not None and (not responses or response_has_data):
+        rows.append(['조사 전체', '응답자 수', f'{count}명'])
+    if not rows:
+        return None
+    sheet = _sheet('증상조사 요약', '기록된 증상조사 응답만 모았어요.',
+                   [_table(['응답', '항목', '기록'], rows, [32, 48, 60])],
+                   ['이 요약은 진단이나 질환 인정 여부를 결정하지 않아요.',
+                    '개인 정보나 건강 정보가 포함되어 있으면 파일 접근을 제한하세요.'])
     return dict(sheet, tab_color=FORM_TAB)
 
 
 def form_sheets(c):
-    """The sheets that follow the official forms, in the order they go in the workbook."""
-    return [main_sheet(c), burden_sheet(c), checklist_sheet(c)] + [s for s in (symptom_sheet(c),) if s]
+    """Build only data-backed survey and analysis result sheets; never generate blank official-form templates."""
+    sheets = [main_sheet(c)]
+    burden = burden_sheet(c)
+    if burden:
+        sheets.append(burden)
+    symptom = symptom_sheet(c)
+    if symptom:
+        sheets.append(symptom)
+    return sheets

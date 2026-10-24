@@ -26,6 +26,7 @@ def map_snapshot(snapshot):
         analysis = analyses.get(task['task_id'])
         source = analysis['snapshot'] if analysis else task
         name = source.get('task_name') or task.get('task_name') or ''
+        if name == '사진 분석 작업': name = ''  # QuickFlow's machine placeholder is never a recorded task name.
         cond = source.get('conditions') or {}
         a,b = cond.get('work_intensity'),cond.get('work_frequency')
         for value in (a,b):

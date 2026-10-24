@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
  assert.equal(intake.pendingFormFields(1,{includePhoto:true}).length,0,'a stored known photo observation is not asked again');assert.doesNotMatch(visible(renderSummary(intake)),/\bVISION\b/);
  const snapshot={capture:{slots:[{photo_id:17}]},conditions:{configured_session:{photo_vision:{photos:[{...record,summary:'선택한 분석에 저장한 관찰'},second]}}}};
  const flow=Object.assign(Object.create(QuickFlow.prototype),{intake,result:{snapshot},task});
- assert.match(flow.photoVisionPanel(),/선택한 분석에 저장한 관찰/);assert.doesNotMatch(flow.photoVisionPanel(),/공개 응답의 현재 사진 관찰|두 번째 사진/);flow.result={};assert.equal(flow.photoVisionPanel(),'','old result without saved vision never borrows newer task observations');
+ assert.match(flow.photoVisionPanel(),/선택한 분석에 저장한 관찰/);assert.match(flow.photoVisionPanel(true),/<details open>/,'review stage opens all AI photo observation details');assert.doesNotMatch(flow.photoVisionPanel(),/공개 응답의 현재 사진 관찰|두 번째 사진/);flow.result={};assert.equal(flow.photoVisionPanel(),'','old result without saved vision never borrows newer task observations');
  const labels=[],calls=[];const ready={task:{task_id:1},preview:{},form_fields:[],questions:[]};
  for(const withPhoto of [true,false]){
   const f=Object.assign(Object.create(QuickFlow.prototype),{stale:true,photos:withPhoto?{RIGHT:{photo:{photo_id:17}}}:{},intakeText:'작업 설명',task:{task_id:1},ensureTask:async()=>{},ensureAiOn:async()=>{},async run(label,fn){labels.push(label);await fn();},intake:{state:null,async open(){calls.push('open');return ready;},async turn(){calls.push('turn');return ready;},pendingFormFields(){return [];}}});await f.analyze();assert.equal(f.intake.dialogOpen,false);

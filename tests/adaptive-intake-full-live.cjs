@@ -30,7 +30,7 @@ async function fillIntakeReply(text) {
 async function main(){
  if(process.env.LOCO_LIVE_AI!=='1'||!process.env.OPENAI_API_KEY||!process.env.LOCO_LIVE_MODEL)throw Error('Set LOCO_LIVE_AI=1, OPENAI_API_KEY and LOCO_LIVE_MODEL for this external test.');
  const defaults=JSON.parse(require('node:child_process').execFileSync(process.env.LOCO_PYTHON||path.join(root,'.venv/Scripts/python.exe'),['-c','import json;from ergo.ai_config import defaults;print(json.dumps(defaults()))'],{cwd:root,encoding:'utf8'}));
- waitMs=(2*defaults.gpt_timeout_seconds+60)*1000;await fs.mkdir(directory,{recursive:true});await launch();
+ waitMs=Number(process.env.LOCO_LIVE_WAIT_MS||600000);await fs.mkdir(directory,{recursive:true});await launch();
  const settings=await api('get_settings');delete settings.gpt_key_present;settings.gpt_enabled=true;settings.gpt_model=process.env.LOCO_LIVE_MODEL;settings.gpt_reasoning_effort=process.env.LOCO_LIVE_REASONING_EFFORT??defaults.gpt_reasoning_effort;const poseId=process.env.LOCO_LIVE_POSE_MODEL||settings.analysis.pose_model.model_id;settings.analysis.pose_model={...settings.pose_contract.models[poseId]};receipt.pose_model=settings.analysis.pose_model;receipt.request_settings=Object.fromEntries(settings.gpt_contract.fields.map(f=>[f.key,settings[f.key]]));await api('update_settings',{settings});
  await page.locator('[data-quick="new"]').click();
  // Native file dialogs alone are automated; actual image bytes and the actual output writer are used.

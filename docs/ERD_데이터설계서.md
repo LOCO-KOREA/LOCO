@@ -73,7 +73,7 @@ TaskSnapshot 전체를 깊은 복사한다. TaskInput 2.0과 task_id, input_revi
 | tags | 사진별 기술태그와 yes/observed 수·표본 비율 |
 | reba | 후보·관찰 하중·좌우 구성점수·누락·사진 총점·집계·대표 선택 |
 | judgment | 11개 계산 초안·비교값·누락·해석·출처·별도 조사자 결론 |
-| ai | 생성별 text_id·목적·is_active·생성/편집/적용본·content·입력 NumericSummary·모델/프롬프트 버전·시각·대체 이유 |
+| ai | 생성별 text_id·목적·is_active·생성/편집/적용본·content·입력 NumericSummary(익명 사진별 각도/REBA·선택적 1차/최종 비교, 좌표·사진 ID 제외)·현재성 재계산용 비식별 사진범위 서명·모델/프롬프트 버전·시각·대체 이유 |
 | module_states/notes | 요청별 상태와 계산/파일/설명 진단 |
 
 결과가 없으면 null 또는 계약상 빈 배열로 표현하고 미요청/미계산 상태를 함께 저장한다. empty 배열 자체를 계산 완료로 해석하지 않는다. API 키·원본 사진·좌표의 GPT 전송용 복사본은 저장하지 않는다. GPT에 보낸 NumericSummary에는 자유입력 근거·이름·내부 ID·사용자 행 label도 없다. ai 배열은 생성마다 추가하며 편집/적용은 text_id로 지정한다. 같은 목적에서 적용된 활성 레코드만 is_active=true다. 이전 적용문과 그 입력 요약을 함께 보존한다.
@@ -90,7 +90,7 @@ snapshot_json은 ExportSnapshot 2.0 전체다. survey, 모든 현존 tasks, 작�
 
 비교 대상은 같은 조사의 서로 다른 분석이며 일반 출력의 “한 작업 한 분석” 선택과 별도로 복사한다. 같은 작업의 과거/현재 비교에서도 두 snapshot이 빠지지 않는다. 출력 파일을 나중에 삭제해도 로그의 수치 근거는 남으며 파일 존재를 보증하지 않는다.
 
-receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 공식 서식 구성 시트와 보조 시트를 만들고 증상조사표는 익명 응답이 있을 때만 추가한다.
+receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 기록된 입력·계산 결과·사람이 확정한 설명이 있는 데이터 시트를 만들고, 증상조사 응답이나 요약이 있을 때만 관련 시트를 추가한다. 빈 공식 서식은 만들지 않는다.
 
 ## 4. 불변성·현재성·트랜잭션
 
@@ -120,7 +120,7 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 
 `intake_session.last_ai`는 실제 마지막 요청의 상태·모델·응답 ID·진단을 담는 선택 객체다. 이전 자료에는 없을 수 있으며 설정 존재와 응답 성공을 구분한다. 인증정보는 포함하지 않는다.
 
-AI 입력 정리·후속 질문·설명 생성은 공통 설정 계약(`ergo/ai_config.py`, API 계약서 §6)을 공유한다. 모델·추론 강도·요청 시간·토큰 한도는 변수이며, 두 설정 화면도 서버 필드 정의로 렌더링한다. APP_SETTINGS의 기존 JSON에 저장하며 테이블·이전 분석 snapshot은 추가/변경하지 않는다.
+AI 입력 정리·후속 질문·설명·사진 관찰은 공통 설정 계약(ergo/ai_config.py, API 계약서 §6)과 같은 프로세스의 OpenAI client/HTTP 연결 풀을 공유한다. 모델·추론 강도·토큰 한도는 변수이며, 설정 화면은 서버 필드 정의로 렌더링한다. 앱은 AI 요청 제한시간과 자동 재시도를 사용하지 않는다. 구버전 timeout 값은 무시하며, APP_SETTINGS의 기존 JSON·테이블·이전 분석 snapshot 형식은 변경하지 않는다.
 
 ## MediaPipe 자세 엔진 개정 (2026-10-22)
 

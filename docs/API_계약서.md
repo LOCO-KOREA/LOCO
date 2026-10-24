@@ -20,7 +20,7 @@ Electron renderer → preload → main → Python Application Service → 기능
 | reba | 관찰 하중·수동 범주·점수표 계산 |
 | burden | 직접입력으로 11개 기준 초안·비교근거·누락·모순 |
 | explanation | 허용 수치 요약으로 실제 GPT API/로컬 대체 설명 |
-| report | 같은 snapshot의 한글 시트(공식 유해요인조사 서식 구성 시트와 보조 시트)·상태·다음 입력·전후 비교 |
+| report | 같은 snapshot의 기록 데이터 전용 한글 시트·상태·다음 입력·전후 비교; 법정 서식 완성 증명은 아님 |
 | storage | 여섯 테이블의 JSON 매핑·트랜잭션·부분 결과 저장 |
 
 신규 TaskInput/TaskSnapshot/ExportSnapshot.schema_version과 report_version은 '2.0'이다. 물리 테이블은 유지한다. 문서 1.5/저장 1.3/미병합 업무 양식 1.4는 이전 계약이며 기존 행을 일괄 변환하지 않는다.
@@ -81,7 +81,7 @@ type SymptomSurvey = {method:'QUESTIONNAIRE'|'INTERVIEW'|'OTHER'|'NOT_DONE'|'UNK
 type SurveyDraft = {survey_type:SurveyType,survey_date:Date,investigator:string,department:string,process:string,title:string,occasional_reason:string|null,occasional_cause:OccasionalCause|null,previous_survey_date:Date|null,workplace_situation:WorkplaceSituation,participation:WorkerParticipation,symptom_survey:SymptomSurvey};
 type ReviewRecord = {reviewed:boolean,reviewed_analysis_ids:ID[],reviewed_metadata_revision:Count|null,reviewer:string|null,reviewed_at:Timestamp|null,note:string|null};
 type ReviewMark = ReviewRecord & {history?: (ReviewRecord & {archived_at:Timestamp,reason:string})[]};
-type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp};
+type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp,survey_type_source:'USER'|'DEFAULT'|'UNKNOWN',occasional_cause_source:'USER'|'UNKNOWN'};
 type SurveySummary = {survey_id:ID,title:string,survey_date:Date,task_count:Count,reviewed:boolean,review_current:boolean};
 type InputTemplate = 'GENERAL'|'OFFICE'|'REPETITION'|'POSTURE'|'HAND_FORCE'|'LIFTING'|'IMPACT';
 type TaskConditions = {
@@ -242,39 +242,42 @@ type NumericCriterion = {
   exclusion:'SHORT_TERM'|'INTERMITTENT'|'BOTH'|null,missing_fields:string[],review_reasons:ReviewReason[],
   basis:Omit<BasisItem,'source'>[]
 };
+type ProvisionalRebaInput = {total:Count,risk:string,photo_ids:ID[]};
 type NumericSummary = {
   schema_version:'2.0',purpose:AiPurpose,rule_version:string,module_states:ModuleStates,requested_scope:AnalysisScope,
   pose_quality:{target_count:Count,valid_count:Count|null},
   reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null},
+  provisional_reba?:{assumption:string,analysis_currentness:'CURRENT'|'STALE',initial_total:Count,initial_risk:string,initial_photo_count:Count,final_photo_count:Count,same_photo_scope:boolean,final_complete:boolean,final_total:Count|null,final_risk:string|null,comparable:boolean,comparison_status:'COMPARABLE'|'STALE_ANALYSIS'|'FINAL_INCOMPLETE'|'DIFFERENT_PHOTO_SCOPE'|'MULTI_PHOTO_COMPOSITION',score_delta:Count|null},
+  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
   tag_counts:TagSummary[],criteria:NumericCriterion[],public_rule_text:string[]
 };
 type ExplanationContent = {
-  summary:string,criteria:{criterion_no:Count,explanation:string,basis_refs:string[]}[],
+  summary:string,reba_comparison:string,posture_explanations:{photo_ref:string,explanation:string}[],criteria:{criterion_no:Count,explanation:string,basis_refs:string[]}[],
   check_items:string[],improvement_options:{proposal:string,basis_refs:string[],needs_confirmation:boolean}[]
 };
 type AiText = {
   text_id:string,is_active:boolean,purpose:AiPurpose,result:'GENERATED'|'FALLBACK'|'DISABLED',
   generated_text:string|null,edited_text:string|null,applied_text:string|null,
   applied_kind:'MODEL'|'INVESTIGATOR'|'FALLBACK'|null,content:ExplanationContent|null,
-  input_summary:NumericSummary,model:string,reasoning_effort?:string,connection?:AiConnection|null,prompt_version:string,created_at:Timestamp,edited_at:Timestamp|null,applied_at:Timestamp|null,fallback_reason:string|null
+  input_summary:NumericSummary,provisional_reba_input?:{total:Count,risk:string,photo_count:Count,photo_scope_sha256:string},model:string,reasoning_effort?:string,connection?:AiConnection|null,prompt_version:string,created_at:Timestamp,edited_at:Timestamp|null,applied_at:Timestamp|null,fallback_reason:string|null
 };
 type AiTextView = {text:AiText,source_current:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
 type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
 type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
 type PoseContract = {version:string,models:Record<string,PoseModel>,fields:object[],defaults:PoseModel,landmarks:Record<string,string[]>,connections:Record<string,[string,string][]>,world_angles:object[]};
-type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_timeout_seconds:number,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,pose_contract:PoseContract,gpt_key_present:boolean,ui:UiPreferences};
+type Settings = {analysis:AnalysisSettings,gpt_enabled:boolean,gpt_model:string,gpt_reasoning_effort:string,gpt_max_output_tokens:Count,gpt_contract:AiSettingsContract,pose_contract:PoseContract,gpt_key_present:boolean,ui:UiPreferences};
 type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'|'pose_contract'>;
 ~~~
 
-서비스가 저장된 결과로 NumericSummary를 만든다. 원본 사진·좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label을 보내지 않는다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
+서비스가 저장된 결과로 NumericSummary를 만든다. 간편 흐름이 보낸 1차 REBA 점수는 분석 snapshot에 포함된 사진인지 검증한 뒤, 미확인 자세 항목 부담 없음 가정·최종 REBA 완성도·사진 범위와 함께 선택적으로 요약한다. 사진 ID는 입력 검증에만 쓰고 모델 요약에는 보내지 않는다. 같은 단일 사진 범위에서 최종 전체 점수가 완성되고 분석이 현재 작업 입력과 일치하는 경우에만 차이를 계산한다. 분석이 오래되었으면 analysis_currentness='STALE', comparison_status='STALE_ANALYSIS', comparable=false, score_delta=null을 반환하고 저장된 과거 결과임을 설명한다. 다중 사진을 합친 1차 점수, 범위 불일치 또는 최종 미완성에서도 차이를 만들지 않는다. 익명 사진 참조와 사진별 각도·REBA 구성 결과를 포함해 자세 결과도 설명할 수 있게 한다. 원본 사진·관절 좌표·이름·경로·자유입력 근거·내부 ID·사용자 행 label은 보내지 않는다. 사진 AI의 자연어 관찰은 별도 5단계 화면에서만 검토한다. item_code는 서비스가 만든 비식별 항목 코드이며 basis_refs는 이 코드를 참조한다. rule_version은 고시/REBA/기술프로필 버전을 함께 나타내는 고정 문자열이다. 기술태그를 법적 확정 각도로 표현하지 않는다.
 
-Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모든 응답 필드를 required, additionalProperties=false로 정의한다. 설명 응답에 판정·점수 변경 필드를 두지 않는다. criteria는 1~11호를 각각 한 번 포함한다. 잘못된/중복/누락 호 번호·basis_refs·스키마는 대체 설명으로 처리한다. Responses API의 text.format에 type=json_schema, strict=true와 스키마를 지정한다. 구조 적합이 내용 정확성을 보장하지 않으므로 생성문은 조사자가 편집·적용한다.
+Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모든 응답 필드를 required, additionalProperties=false로 정의한다. 1차 점수 입력이 있으면 응답에 reba_comparison 설명을 반드시 포함하며, 입력이 없으면 빈 문자열을 반환한다. 설명 응답에 판정·점수 변경 필드를 두지 않는다. criteria는 1~11호를 각각 한 번 포함한다. 잘못된/중복/누락 호 번호·basis_refs·스키마는 대체 설명으로 처리한다. Responses API의 text.format에 type=json_schema, strict=true와 스키마를 지정한다. 구조 적합이 내용 정확성을 보장하지 않으므로 생성문은 조사자가 편집·적용한다.
 [OpenAI 공식 문서](https://developers.openai.com/api/docs/guides/structured-outputs)
 
-입력 정리·후속 질문·설명은 `ergo/ai_config.py`의 공통 AI 설정을 쓴다. 모델·추론 강도·요청 시간·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / xhigh / 180초 / 32768토큰(추론 포함)이며, 저장된 설정이 환경 기본값보다 우선한다. SDK 자동 재시도는 끈다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
+입력 정리·후속 질문·설명·사진 관찰은 ergo/ai_config.py의 공통 AI 설정과 프로세스 공유 OpenAI client/HTTP 연결 풀을 쓴다. 모델·추론 강도·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / xhigh / 32768토큰(추론 포함)이며, 저장된 설정이 환경 기본값보다 우선한다. 앱은 AI 요청 제한시간을 두지 않고 SDK 자동 재시도도 끈다. 구버전 gpt_timeout_seconds 저장값과 LOCO_AI_TIMEOUT_SECONDS 환경값은 호환을 위해 오류 없이 무시하며 새 Settings/gpt_contract 응답에는 포함하지 않는다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
 
-ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교해 source_current를 반환한다. 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
+provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_ids 원문은 보존하지 않고 GPT에 보내지 않는다. ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교하고, 해당 분석이 최신 작업 입력·최신 계산 결과인지 확인해 source_current를 반환한다. 입력 또는 계산이 바뀐 과거 분석에는 source_current=false를 반환하고 REBA 차이를 계산하지 않으며, 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
 ## 7. 서비스 호출
 
@@ -310,7 +313,7 @@ ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레�
 | get_task_result | task_id | TaskResult |
 | select_representative | analysis_id,slot_no | Analysis |
 | set_investigator_conclusion | analysis_id,conclusion:InvestigatorConclusion | Analysis |
-| generate_ai_text | analysis_id,purpose?:AiPurpose (기본 TASK_EXPLANATION) | AiTextView |
+| generate_ai_text | analysis_id,purpose?:AiPurpose (기본 TASK_EXPLANATION),provisional_reba?:ProvisionalRebaInput | AiTextView |
 | edit_ai_text | analysis_id,text_id,text | AiTextView |
 | apply_ai_text | analysis_id,text_id,use_edited:boolean | AiTextView |
 | preview_excel | survey_id,analysis_ids:ID[],comparisons:ComparisonSpec[] | ReportOverview |
@@ -376,25 +379,24 @@ type ExportLogItem = {export_id:ID,survey_id:ID,file_path:string,receipt:ExportR
 
 REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때만 full_max의 후−전을 reba_max_delta로 제공한다. 그 밖에는 null과 이유다. rule_compatible은 고시/REBA 규칙이 모두 같을 때 true다. REBA 차이에는 REBA 규칙 호환성과 sampling_compatible을 사용하고, 고시 버전 차이는 호별 비교 제한으로 별도 표시한다. sampling_compatible은 같은 프로토콜·동일한 양의 대상 수·양쪽 전 대상 REBA 완성이다. 조건 차이·사진 대표성 한계를 표시하며 질환/산재 감소의 증명으로 표현하지 않는다.
 
-출력 시트는 같은 snapshot으로 `plain_sheets`가 만드는 시트 정의 목록이며 Excel 파일과 `preview_excel_sheets` 미리보기가 같은 정의를 쓴다. 공식 서식 구성 시트가 앞에 오고 보조 시트가 뒤에 온다. 서식 구성의 근거는 고용노동부고시 제2020-12호 별지 제1·2호서식과 한국산업안전보건공단 KOSHA GUIDE E-G-1-2025다. 출력 영수증의 sheets에는 실제 생성된 시트를 순서대로 저장한다. 이 시트는 입력 자료 기반 참고 자료이며 누락·원본 서식 대조·서명/날인·조사자 검토를 대신하지 않는다. 셀은 일반인이 읽는 말로 쓰고 저장 코드·내부 경로는 쓰지 않는다(저장 값은 출력 snapshot에 그대로 있다). 앱에 입력란이 없는 서식 칸(근로자명, 증상조사표의 빈도·조치 문항 등)은 비워 둔다.
+출력 시트는 같은 snapshot으로 `plain_sheets`가 만드는 시트 정의 목록이며 Excel 파일과 `preview_excel_sheets` 미리보기가 같은 정의를 쓴다. 모든 조사 유형은 `조사 결과`에 실제 기록한 조사 개요·작업 입력과 계산 가능한 결과만 출력한다. 조사 유형은 사용자가 실제 선택한 경우에만 표시한다. 기본값·UNKNOWN provenance의 기존 조사 유형은 표시하지 않는다. 부담작업·증상조사·자세·입력값 시트는 실제 기록값이나 분석 결과가 있을 때만 생성하며, 빈 공식 양식·기본 UNKNOWN·미질문 기준·미입력 안내는 출력하지 않는다. 확인사항 시트는 만들지 않고 앱 조사화면의 다음 입력 안내는 유지한다. 사람이 확정한 설명과 선택한 비교 결과는 해당 데이터가 있을 때만 추가한다. 모든 시트는 참고 자료이며 공식 서식의 완성·서명/날인·조사자 검토를 대신한다. 사용자가 질환자 발생·업무상 질병 인정 사유의 수시조사를 선택하면 안전보건규칙 제657조제2항제1호의 최근 1년 내 조사·개선 예외를 포함한 확인 안내와, 해당 시 제658조·고시 제2020-12호 제4조의 방법 및 별지 제1·2호서식 활용 안내를 조사 결과 시트와 미리보기에 함께 표시한다. 출력 영수증의 sheets에는 실제 생성된 시트를 순서대로 저장한다.
 
 | 시트 | 조건 | 내용 |
 |---|---|---|
-| 유해요인조사표 | 항상 | 별지 제1호서식 구성. 가 조사 개요(조사 구분·수시조사 사유 ☑/☐, 조사 일시·조사자·조사부서명·작업공정명·작업명, 이전 조사일, 근로자 참여), 나 작업장 상황(설비·작업량·작업속도·업무형태의 변경 여부와 주요 변경 내용), 다 작업조건(1단계 작업명·작업내용, 2단계 작업강도 A·작업빈도 B 척도와 작업별 부담작업(호)·A×B, 3단계 근로자명·대표 사진·유해요인별 발생 원인, 3-1 REBA 결과와 표준 판정 문구는 점수가 있을 때), 라 결과 요약(작업별 부담작업·자세 점수·더 입력할 것·결과 기준·검토 상태, 증상조사 요약, 조사자 종합 의견 빈 칸) |
-| 부담작업 해당 여부 | 항상 | 11개 호마다 법정 기준 문구, 입력한 값과 기준을 견준 표(○/X), 최종 판단, 조사자 결론·더 필요한 입력·확인할 점 |
-| 체크리스트 | 항상 | 작업 × 11개 호 매트릭스(○ 해당, X 해당하지 않음, 입력 필요, 검토 필요)와 호별 기준 한 줄 |
-| 증상조사표 | 익명 응답이 있을 때 | 별지 제2호서식 구성. 응답마다 기본 정보 표와 6개 부위 × (구체적 부위·통증 기간·아픈 정도·지난 1주일) 표 |
-| 자세 분석(REBA) | 항상 | 사진별 REBA 구성점수, 읽은 각도, 자세 표시 |
-| 입력한 값 | 항상 | 계산에 쓴 값과 입력 방법·메모 |
-| 확인사항 | 항상 | 더 입력하거나 확인할 사항 |
-| 쉬운 설명 | 적용한 설명이 있을 때 | 적용한 AI·조사자 설명 |
+| 조사 결과 | 항상 | 조사 구분·조사 개요·작업명·실제 입력한 작업장 상황과 계산 가능한 결과만 포함. 빈 항목과 선택하지 않은 선택지는 생략한다. 질환자 발생 수시조사도 별지 양식 형태를 만들지 않는다. |
+| 부담작업 해당 여부 | 기록된 기준의 결과가 있을 때 | 답변·입력 이력이 있는 기준 중 계산 결과가 정해진 행만 표시한다. 11개 전체 빈 행렬, 미질문 기준, 미입력 안내는 포함하지 않는다. |
+| 증상조사 요약 | 기록된 증상조사 값이 있을 때 | 실제 입력한 응답과 요약만 표시한다. 기본 UNKNOWN은 미응답이므로 제외하며, 응답이 없거나 비어 있으면 시트를 만들지 않는다. |
+| 자세 분석(REBA) | 자세/REBA/기술태그 데이터가 있을 때 | 사진별 REBA 구성점수, 읽은 각도, 자세 표시 |
+| 입력한 값 | 실제 계산 입력·사진 확인·자세 입력 근거가 있을 때 | 입력한 값과 AI가 정리한 입력 사실만 표시한다. 기본 UNKNOWN과 입력되지 않은 기본값은 숨긴다. |
+| 확인사항 | 사용하지 않음 | Excel에는 다음 입력·미입력·미질문 안내 시트를 만들지 않는다. 앱 조사화면의 보완 입력 안내는 유지한다. |
+| 쉬운 설명 | 사람이 확정한 설명이 있을 때 | 활성 적용본의 확정 문장·종류·확정 시각. 미확정 생성/편집 초안은 제외 |
 | 개선 전후 비교 | 비교를 골랐을 때 | 기준별 변화와 바뀐 입력 |
 
-시트 정의 `{name,title,lead,tables,notes,tab_color?}`의 표는 `{heading,columns,rows,widths}`와 선택 키 `header`(False면 헤더 행 없음), `labels`·`label_rows`·`label_cells`(양식의 칸 이름 칸), `merges`([첫 행,첫 열,끝 행,끝 열]), `bordered`, `heights`, `break`(앞에서 쪽 나눔), `photo`({task_id,row}, 대표 사진을 넣을 칸)를 가질 수 있다. 대표 사진 이미지는 `유해요인조사표` 3단계 사진 칸에만 들어가며 파일에만 있다. 비교 블록은 정렬 표 밖에 두고 조건 차이/비교 제한은 확인사항에도 표시한다.
+시트 정의 표는 name, title, lead, tables, notes, tab_color를 사용하며 각 표는 heading, columns, rows, widths와 선택 키 header, labels, label_rows, label_cells, merges, bordered, heights, break, photo를 가질 수 있다. 대표 사진 이미지는 조사자가 포함을 선택하고 실제 대표 사진이 있을 때만 기본 결과 시트의 사진 칸에 들어가며 파일에만 있다. 비교 블록은 정렬 표 밖에 두고 실제 입력 변화와 비교 제한은 비교 시트에 표시한다.
 
 needs_input_count/needs_review_count는 computed_status별 기준 수(작업당 0~11)다. judgment 미계산이면 null이며 조사 집계에 null이 있으면 합계도 null이다. incomplete_reba_count는 요청하고 계산한 REBA의 N−complete_count다. 미계산/미요청은 null로 두고 상태로 구분한다. 요청 대상 0건은 0과 NO_ANALYSIS_TARGET을 함께 표시한다. REBA 조사 합계는 전체 미요청이면 null, 요청 작업 중 미계산이 있으면 null, 나머지는 요청·계산한 작업의 수를 더한다.
 
-has_incomplete는 요청 모듈의 NOT_CALCULATED/RUNNING/INCOMPLETE/FAILED/CANCELED에서 산출하고 NOT_REQUESTED는 제외한다. 분석 없음은 true다. GPT 실패/이전 설명은 확인사항이며 계산 완전성을 바꾸지 않는다. has_stale는 선택 분석의 STALE 여부다.
+has_incomplete는 요청 모듈의 NOT_CALCULATED/RUNNING/INCOMPLETE/FAILED/CANCELED에서 산출하고 NOT_REQUESTED는 제외한다. 분석 없음은 true다. GPT 실패·이전 설명은 앱 상태에 남기며 Excel에는 표시하지 않는다. 사람이 확정한 설명만 쉬운 설명 시트에 출력한다. has_stale는 선택 분석의 STALE 여부다.
 
 reviewed는 선택 ID가 검토 목록에 있고 reviewed=true일 때다. review_current는 여기에 metadata_revision 일치와 CURRENT까지 만족할 때다. 조사 전체 reviewed/review_current는 작업이 1건 이상이고 모두 true일 때, incomplete/stale는 하나라도 true일 때다. 작업 0건이면 네 값 모두 false다.
 

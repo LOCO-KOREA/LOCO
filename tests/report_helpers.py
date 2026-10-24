@@ -39,12 +39,10 @@ def lifting_input(task_name='상자 들기'):
     draft = task_input({'task_name': task_name, 'input_template': 'LIFTING'})
     draft['conditions'].update(one_off='NO', daily_work_min=480, annual_work_days=220)
     note = {'source': 'INTERVIEW', 'text': '빠른 분석 질문: 무거운 물건을 드는 작업', 'observed_at': '2026-10-23T01:00:00Z'}
-    for criterion in draft['legal']['criteria']:
-        criterion['condition_present'] = 'NO'
-        if criterion['criterion_no'] >= 6:
-            criterion['rows_complete'] = 'YES'
     keyboard = draft['legal']['criteria'][0]
     keyboard.update(condition_present='YES', evidence=dict(note))
+    neck = draft['legal']['criteria'][1]
+    neck.update(condition_present='NO', evidence={**note, 'text': '목 반복 동작이 없는 것으로 면담 확인'})
     next(e for e in draft['legal']['exposures'] if e['condition_code'] == 'C1_KEYBOARD_FOCUSED').update(minutes=240, evidence=dict(note))
     lift = draft['legal']['criteria'][7]
     lift.update(condition_present='YES', evidence=dict(note), rows=[{'row_id': 'quick-1', 'label': '빠른 분석 입력', 'evidence': dict(note), 'load_mass_kg': 20, 'lift_count_day': 30}], rows_complete='YES')

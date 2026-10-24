@@ -12,7 +12,7 @@ from ergo.service import application
 
 
 class V2Acceptance(unittest.TestCase):
-    def test_box_task_can_run_without_photos_and_export_eleven_drafts(self):
+    def test_box_task_can_run_without_photos_without_exporting_unanswered_defaults(self):
         with tempfile.TemporaryDirectory() as root, patch.object(application, 'DB', str(Path(root) / 'loco.db')):
             survey = application.dispatch('create_survey', {'draft': {
                 'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자',
@@ -32,15 +32,19 @@ class V2Acceptance(unittest.TestCase):
             destination = str(Path(root) / 'loco_report.xlsx')
             result = application.dispatch('export_excel', {'survey_id': survey['survey_id'], 'spec': {
                 'analysis_ids': [], 'include_representative': False, 'comparisons': [], 'destination': destination}})
-            self.assertEqual(result['sheets'], ['유해요인조사표', '부담작업 해당 여부', '체크리스트', '자세 분석(REBA)', '입력한 값', '확인사항'])
+            self.assertEqual(result['sheets'], ['조사 결과'])
             workbook = load_workbook(destination, data_only=False)
             try:
-                self.assertEqual(workbook.sheetnames, ['유해요인조사표', '부담작업 해당 여부', '체크리스트', '자세 분석(REBA)', '입력한 값', '확인사항'])
+                self.assertEqual(workbook.sheetnames, ['조사 결과'])
+                all_text = ' '.join(str(cell.value) for sheet in workbook for row in sheet.iter_rows() for cell in row if cell.value is not None)
+                self.assertNotIn('아직 답하지 않은 기준', all_text)
+                for marker in ('입력 필요', '입력 안 됨', '입력되지 않음', '확인사항'):
+                    self.assertNotIn(marker, all_text)
                 # A task name that looks like a formula must stay text everywhere it is written.
                 formula_like = [cell for sheet in workbook for row in sheet.iter_rows() for cell in row if cell.value == '=2+2']
                 self.assertTrue(formula_like)
                 self.assertTrue(all(cell.data_type == 's' for cell in formula_like))
-                self.assertTrue(any(cell.value == '=2+2' for row in workbook['유해요인조사표'].iter_rows() for cell in row))
+                self.assertTrue(any(cell.value == '=2+2' for row in workbook['조사 결과'].iter_rows() for cell in row))
             finally:
                 workbook.close()
 

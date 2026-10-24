@@ -37,7 +37,7 @@ SERVICE_METHODS = {
     'get_task_result': (('task_id',), ()),
     'select_representative': (('analysis_id','slot_no'), ()),
     'set_investigator_conclusion': (('analysis_id','conclusion'), ()),
-    'generate_ai_text': (('analysis_id',), ('purpose',)),
+    'generate_ai_text': (('analysis_id',), ('purpose','provisional_reba')),
     'edit_ai_text': (('analysis_id','text_id','text'), ()),
     'apply_ai_text': (('analysis_id','text_id','use_edited'), ()),
     'preview_excel': (('survey_id',), ('analysis_ids','comparisons')),

@@ -1,6 +1,7 @@
 """One contextual extraction and follow-up request using the shared intake contract."""
 import json
 from ergo import ai_config as config
+from .client_pool import get_client
 from ergo.intake.grounding import DURATION_SUM
 
 PROMPT_VERSION='LOCO_ADAPTIVE_INTAKE_V1'
@@ -55,9 +56,8 @@ def request(payload,schema,model,api_key,settings=None):
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
-        from openai import OpenAI
-        transport,options=config.request_options(model,settings)
-        response=OpenAI(api_key=api_key,**transport).responses.create(
+        options=config.request_options(model,settings)
+        response=get_client(api_key).responses.create(
             **options,input=[
                 dict(role='system',content=PROMPT),dict(role='user',content=json.dumps(payload,ensure_ascii=False,separators=(',',':')))],
             text=dict(format=dict(type='json_schema',name='loco_adaptive_intake',strict=True,schema=schema)))
