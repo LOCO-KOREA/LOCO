@@ -1,7 +1,7 @@
 """OpenAI Responses client with a strict, non-judgment schema."""
 import json
 from ergo import ai_config as config
-from .client_pool import get_client
+from .client_pool import create_response
 from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
@@ -67,8 +67,7 @@ def interpret(text, targets, schema, model, api_key, settings=None):
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
         options=config.request_options(model,settings)
-        shared=get_client(api_key)
-        response=shared.responses.create(**options,input=[
+        response=create_response(api_key,**options,input=[
             {'role':'system','content':INTAKE_PROMPT},
             {'role':'user','content':json.dumps({'text':text,'targets':targets},ensure_ascii=False,separators=(',',':'))}
         ],text={'format':{'type':'json_schema','name':'loco_intake','strict':True,'schema':schema}})
@@ -85,8 +84,7 @@ def generate(summary, model, api_key, settings=None):
     if not model: return None,'MODEL_NOT_CONFIGURED'
     try:
         options=config.request_options(model,settings)
-        shared=get_client(api_key)
-        response=shared.responses.create(**options,input=[
+        response=create_response(api_key,**options,input=[
             {'role':'system','content':SYSTEM_PROMPT},
             {'role':'user','content':json.dumps(summary,ensure_ascii=False,separators=(',',':'))}
         ],text={'format':{'type':'json_schema','name':'loco_explanation','strict':True,'schema':explanation_schema()}})
