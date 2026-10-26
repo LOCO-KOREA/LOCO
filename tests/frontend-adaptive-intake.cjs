@@ -339,7 +339,7 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
    const delayedRestore=new Promise(resolve=>{releaseRestore=resolve;});
    const restoredFlow=Object.create(QuickFlow.prototype),restorationRenders=[],restoreErrors=[];
    Object.assign(restoredFlow,{busy:false,step:'home',settings:{gpt_enabled:true},host:{querySelectorAll:()=>[]},
-    intake:{reset(){intakeResets++;this.state=null;this.dialogOpen=false;this.text='';},hasSession:()=>true,
+    intake:{reset(){intakeResets++;this.state=null;this.dialogOpen=false;this.text='';},hasSession:()=>true,restorePage(shown){this.pageShown=Boolean(shown);},
      async open(){openStarted=true;this.state=await delayedRestore;return this.state;}},
     render(){restorationRenders.push({step:this.step,busy:this.busy});},onError:error=>restoreErrors.push(error),
     api:async method=>{

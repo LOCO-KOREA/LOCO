@@ -157,7 +157,7 @@ export class QuickFlow {
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
-    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.intake.fillNote=''; this.revealPhotoRows=false; this.render(); } }, true);
+    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.closePage(); this.revealPhotoRows=false; this.render(); } }, true);
     host.addEventListener('toggle', event => {
       if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
     }, true);
@@ -268,7 +268,7 @@ export class QuickFlow {
       }
       Object.assign(this.intake, {text: draft.intake.text, dialogOpen: draft.intake.dialogOpen,
         editing: draft.intake.editing, writingFor: draft.intake.writingFor, focusPair: draft.intake.focusPair,
-        formStage: draft.intake.formStage||0, formValues: new Map(draft.intake.formValues||[]), values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
+        pageShown: draft.intake.pageShown ?? Boolean(draft.intake.dialogOpen), formValues: new Map(draft.intake.formValues||[]), values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
       if (this.baseline && this.result) await this.compare();
       if (draft.step === 'excel') {
         const args = {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons: this.comparison ? [this.comparison.spec] : []};
@@ -409,8 +409,10 @@ export class QuickFlow {
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
-      if(Array.isArray(state.form_fields)&&!this.intake.pendingFormFields(0).length)this.intake.formStage=1;
-      this.intake.dialogOpen=Boolean(state.reason||(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length));
+      // The page opens by itself right here, once: with a reason to show, or while anything on it still waits for an answer.
+      const form=Array.isArray(state.form_fields);
+      if(state.reason||!form&&state.questions.length)this.intake.showPage();
+      else if(form)this.intake.openPageOnce();
     });
   }
 
@@ -571,7 +573,7 @@ export class QuickFlow {
   }
 
   async finish() {
-    this.intake.dialogOpen=false;
+    this.intake.closePage();
     await this.run('최종 결과를 계산하고 있어요…', async () => {
       if (this.intake?.state) {
         await this.intake.flush();
@@ -643,7 +645,7 @@ export class QuickFlow {
 
   // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
   jumpTo(questionId) {
-    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.dialogOpen=true; this.step = 'questions'; this.render(); return; }
+    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.showPage(); this.step = 'questions'; this.render(); return; }
     if (this.ai) { this.step = 'questions'; this.render(); window.scrollTo({top: 0}); return; }
     const groups = this.groups(), index = groups.findIndex(group => group.questions.some(q => q.id === questionId));
     if (index < 0) return;
@@ -868,11 +870,10 @@ export class QuickFlow {
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.intake.fillNote=''; this.revealPhotoRows=d.revealPhoto==='1'; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
-    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.intake.fillNote=''; this.revealPhotoRows=false; this.render(); }
-    else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.intake.fillNote=''; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.intake.fillNote=''; this.revealPhotoRows=d.revealPhoto==='1'; if(this.intake.state) { this.intake.continueQuestions(); this.intake.showPage(); } this.render(); }
+    else if (d.quick === 'intake-close') { this.intake.closePage(); this.revealPhotoRows=false; this.render(); }
     else if (d.quick === 'intake-form-next') this.saveIntakeForm();
-    else if (d.quick === 'intake-no-other-work') this.saveIntakeForm({remainingWorkAbsent:true});
+    else if (d.quick === 'intake-no-other-work') this.fillIntakeForm({kind:'no-work'});
     else if (d.quick === 'intake-fill') this.fillIntakeForm({kind:d.fillKind,condition:d.fillCondition,side:d.fillSide,identity:d.fillIdentity});
     else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
@@ -985,22 +986,42 @@ export class QuickFlow {
     this.setFillNote(this.intake.fillMessage(spec,plan));
   }
 
-  // The photo situation decides which photo rows exist (a checklist only for a photo that may be used). It is saved right here and the dialog redraws with those rows opened,
-  // instead of sending the user through the result screen and the posture button a second time.
+  // One page: an answer that decides which other fields exist (a work feature brings its conditions, the photo situation brings the checklist) is saved right here
+  // and the page grows, instead of sending the user through the result screen and back. Bulk fills wait for the final save so a typed sentence can still beat them.
   async refreshIntakeForm(field,value) {
     const saved=this.intake.state?.facts.find(f=>f.identity===field.identity);
     if(saved?.state==='KNOWN'&&saved.value===value) { this.intake.clearFormValue(field.identity); return; }
-    const answers=this.intake.formAnswers();
-    this.revealPhotoRows=true;
-    await this.run('사진 확인 내용을 저장하고 있어요…',async()=>{
+    const answers=this.intake.splitFormAnswers().direct, photo=field.target==='context', ui=this.captureDialogUi();
+    this.revealPhotoRows=photo;
+    await this.run(photo?'사진 확인 내용을 저장하고 있어요…':'선택한 작업의 입력칸을 불러오고 있어요…',async()=>{
       await this.intake.flush();
       const state=await this.intake.turn('',answers,false);
       if(!state)return;
-      if(state.reason) { if(state.reason!=='INPUT_CHANGED')this.onError(new Error('사진 확인 내용을 저장하지 못했어요. 다시 시도해 주세요.')); return; }
+      if(state.reason) { if(state.reason!=='INPUT_CHANGED')this.onError(new Error(photo?'사진 확인 내용을 저장하지 못했어요. 다시 시도해 주세요.':'선택한 내용을 저장하지 못했어요. 다시 시도해 주세요.')); return; }
       this.task=state.task;this.preview=state.preview;
       for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
     });
     this.revealPhotoRows=false;
+    this.restoreDialogUi(ui);
+  }
+
+  // The redraw replaces the page: remember where the user was looking (scroll, opened sections, the box in use) and put it back.
+  captureDialogUi() {
+    const host=this.host;
+    return {scroll:host?.querySelector?.('[data-intake-dialog] .intake-dialog-body')?.scrollTop??null,
+      open:[...(host?.querySelectorAll?.('[data-intake-dialog] details')||[])].map(el=>[el.querySelector?.('summary')?.textContent?.trim()||'',Boolean(el.open)]),
+      focus:host?.ownerDocument?.activeElement?.dataset?.intakeForm||null};
+  }
+  restoreDialogUi(ui) {
+    const host=this.host;
+    if(!ui||!host)return;
+    for(const el of host.querySelectorAll?.('[data-intake-dialog] details')||[]) {
+      const was=ui.open.find(([title])=>title===(el.querySelector?.('summary')?.textContent?.trim()||''));
+      if(was)el.open=was[1];
+    }
+    const body=host.querySelector?.('[data-intake-dialog] .intake-dialog-body');
+    if(body&&ui.scroll!=null)body.scrollTop=ui.scroll;
+    if(ui.focus)host.querySelector?.(`[data-intake-dialog] [data-intake-form="${ui.focus}"]`)?.focus?.();
   }
 
   // The posture button leads to the photo rows, so they are shown opened instead of behind two folded headings.
@@ -1008,38 +1029,33 @@ export class QuickFlow {
     for(const section of this.host?.querySelectorAll?.('[data-intake-dialog] [data-intake-direct-fields], [data-intake-dialog] [data-intake-photo-optional]')||[])section.open=true;
   }
 
-  async saveIntakeForm({remainingWorkAbsent=false}={}) {
+  // The whole page is saved at once and the result follows; nothing is asked after it.
+  async saveIntakeForm() {
     const invalid=this.host?.querySelector('[data-intake-form]:invalid');
     if(invalid) { invalid.reportValidity(); return; }
     this.intake.fillNote='';
-    let saved=false, last=this.intake.formStage===1;
-    const absent=remainingWorkAbsent?this.intake.pendingFormFields(0).filter(field=>!this.intake.formValues.has(field.identity)):[];
+    let saved=false;
     await this.run('입력한 내용을 저장하고 있어요…',async()=>{
       await this.intake.flush();
       const answers=this.intake.formAnswers(), {direct,confirmed}=this.intake.splitFormAnswers(answers);
       const text=this.intake.text.trim();
       if(text)await this.ensureAiOn();
-      // "확인 끝" says "does not apply" for boxes nobody answered. A typed sentence may answer some of them, so with a sentence the confirmation goes second and only for what is still blank.
-      const blank=this.intake.stillBlank(confirmed), first=text?direct:answers.filter(a=>a.quote!==CHECKLIST_CONFIRM_QUOTE||blank.includes(a));
+      // "확인 끝" and "나머지 작업은 모두 안 해요" say "does not apply" for boxes nobody answered. A typed sentence may answer some of them, so with a sentence the fills go second and only for what is still blank.
+      const blank=this.intake.stillBlank(confirmed), first=text?direct:answers.filter(a=>!this.intake.isBulkAnswer(a)||blank.includes(a));
       let state=first.length||text?await this.intake.turn(text,first):this.intake.state;
       if(!state||state.reason)return;
-      const later=[...(text?this.intake.stillBlank(confirmed):[]),
-        ...absent.filter(field=>!this.intake.formHandled(field)).map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'}))];
+      const later=text?this.intake.stillBlank(confirmed):[];
       if(later.length) {
         state=await this.intake.turn('',later,false);
         if(!state||state.reason)return;
       }
       this.task=state.task;this.preview=state.preview;
       for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
-      if(!last) {
-        this.intake.formStage=1;
-        last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
-      }
-      // Close before run() renders its completed state; an empty next stage must never flash.
-      if(last) { this.intake.dialogOpen=false; this.revealPhotoRows=false; }
+      // Close before run() renders its completed state, so the page never flashes again.
+      this.intake.closePage(); this.revealPhotoRows=false;
       saved=true;
     });
-    if(saved&&last)await this.finish();
+    if(saved)await this.finish();
   }
 
   async respondIntake(text=this.intake.text,answers=[]) {
@@ -1053,11 +1069,9 @@ export class QuickFlow {
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
       if(directNumber&&!state.reason&&this.intake.text===submittedText) { this.intake.text=''; this.intake.writingFor=null; }
-      if(Array.isArray(state.form_fields)) {
-        if(!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;
-        ready=!state.reason&&!this.intake.text.trim()&&![0,1].some(stage=>this.intake.pendingFormFields(stage).length||this.intake.formAnswers(stage).length);
-      } else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
-      if(ready) { this.intake.dialogOpen=false; this.revealPhotoRows=false; }
+      if(Array.isArray(state.form_fields))ready=!state.reason&&!this.intake.text.trim()&&!this.intake.hasOpenItems()&&!this.intake.formAnswers().length;
+      else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
+      if(ready) { this.intake.closePage(); this.revealPhotoRows=false; }
     });
     if(ready)await this.finish();
   }
@@ -1086,7 +1100,7 @@ export class QuickFlow {
       this.setFillNote('');
       this.syncFills();
       this.keepDraft();
-      if(field.destination?.type==='context'&&value!=null)this.refreshing=this.refreshIntakeForm(field,value);
+      if(value!=null&&this.intake.changesFields(field,value))this.refreshing=this.refreshIntakeForm(field,value);
     }
     else if (d.intakeFlag) {
       const field=this.intake.formFields().find(f=>f.identity===d.intakeFlag);
@@ -1197,7 +1211,7 @@ export class QuickFlow {
     const draft={id:this.draftId,ownerId:this.draftOwnerId,scope:this.drafts.scope,
       surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
-      formStage:this.intake?.formStage||0, formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
+      pageShown:Boolean(this.intake?.pageShown), formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
     if(this.drafts.put('quick',this.draftId,draft)&&!writeDraft(draft))this.drafts.error='임시 저장 안내를 갱신하지 못했어요. 저장 공간을 확인해 주세요.';
   }
 
@@ -1229,8 +1243,9 @@ export class QuickFlow {
         let state = await this.intake.open(full.task.task_id, views);
 
         this.preview = state.preview; this.task = state.task; this.stale = false;
-        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formStage=draft.formStage||0; this.intake.formValues=new Map(draft.formValues||[]);
-        this.intake.dialogOpen=Boolean(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length);
+        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formValues=new Map(draft.formValues||[]);
+        // A draft that already showed the page does not ask again on its own.
+        this.intake.restorePage(draft.pageShown);
         this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
       }
       if(draft.step==='start')return;
@@ -1442,9 +1457,9 @@ export class QuickFlow {
       </section></div>`;
   }
 
-  // The way back from an unfinished score to the posture checklist: the dialog lists what is still unanswered for the photo.
+  // The way back from an unfinished score to the one input page. It is the user's own move: a plain button, no request, nothing that opens the page by itself.
   postureAction() {
-    return Array.isArray(this.intake?.state?.form_fields) ? '<div class="quick-nav left"><button type="button" class="primary" data-quick="questions" data-reveal-photo="1">자세 항목 확인하고 확정하기 →</button></div>' : '';
+    return Array.isArray(this.intake?.state?.form_fields) ? '<div class="quick-nav left"><button type="button" data-quick="questions" data-reveal-photo="1">입력 수정하기</button></div>' : '';
   }
 
   rebaPanel() {

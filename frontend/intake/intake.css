@@ -107,10 +107,15 @@
 .intake-review-details > summary { cursor: pointer; color: var(--color-secondary); font-size: 14px; }
 .intake-review-details .intake-progress { margin-top: 12px; }
 
-.intake-form-steps { display:flex; gap:16px; padding:16px 28px; color:var(--color-secondary); }
-.intake-form-steps [aria-current] { color:var(--color-primary); font-weight:700; }
 .intake-form-section { margin:20px 0; }
 .intake-form-section summary { cursor:pointer; font-weight:600; padding:10px 0; }
+.intake-remaining { margin:0 0 10px; color:var(--color-primary); font-size:15px; font-weight:700; }
+.intake-section-lead { margin:0 0 10px; color:var(--color-secondary); font-size:14px; line-height:1.7; }
+.intake-section-actions { margin-top:12px; }
+.intake-form-group > h3, .intake-photo-block > h3 { margin:0 0 6px; font-size:15px; }
+.intake-form-group + .intake-form-group, .intake-photo-block + .intake-photo-block { margin-top:16px; }
+.intake-form-section[data-intake-section] > summary { color:var(--color-primary); font-size:16px; }
+[data-intake-natural-answer] textarea { display:block; width:100%; min-height:88px; box-sizing:border-box; margin:6px 0 10px; padding:12px; border:1px solid #dfe4f1; border-radius:10px; font:inherit; }
 .intake-group-question input { width:100%; min-width:0; box-sizing:border-box; padding:12px; border:1px solid #dfe4f1; background:#fff; border-radius:10px; font:inherit; }
 .intake-quick-fill { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:4px 0 12px; padding:12px; border:1px dashed var(--color-line); border-radius:10px; background:var(--color-surface-soft); }
 .intake-quick-fill button { min-height:40px; padding:8px 14px; font-size:14px; line-height:1.4; text-align:left; overflow-wrap:anywhere; }
@@ -136,9 +141,6 @@
 .intake-checklist-actions small { color:var(--color-secondary); }
 .intake-suggestion { display:block; margin-top:4px; line-height:1.7; color:var(--color-secondary); overflow-wrap:anywhere; }
 .intake-suggestion button { min-height:32px; margin-left:6px; padding:4px 12px; font-size:13px; }
-
-.intake-form-progress { padding:0 28px 16px; font-size:14px; }
-.intake-form-progress .intake-progress-track { margin:8px 0; }
 
 .intake-photo-vision { margin:16px 0; padding:16px; border:1px solid var(--color-line); border-radius:12px; background:var(--color-surface); }
 .intake-photo-vision > h3 { margin-top:0; }

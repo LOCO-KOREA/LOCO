@@ -52,11 +52,11 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     return {api, calls, fact: identity => known(identity), turns: () => calls.filter(([method]) => method === 'turn').map(([, params]) => params)};
   };
 
-  const open = async (svc, {formStage = 1} = {}) => {
+  const open = async svc => {
     const notes = [], log = {labels: [], reveal: [], errors: [], renders: 0, finished: 0};
     const intake = new AdaptiveIntake({changed() {}, notify: message => notes.push(message), api: svc.api});
     await intake.open(1);
-    Object.assign(intake, {formStage, dialogOpen: true});
+    Object.assign(intake, {dialogOpen: true, pageShown: true});
     const note = {textContent: '', hidden: true}, flow = Object.create(QuickFlow.prototype);
     Object.assign(flow, {intake, busy: false, task: null, preview: null, host: {querySelectorAll: () => [], querySelector: selector => selector === '[data-intake-fill-note]' ? note : null},
       keepDraft() {}, render() { log.renders++; }, async ensureAiOn() {}, async finish() { log.finished++; }, onError(error) { log.errors.push(error.message); }, notify(message) { notes.push(message); },
@@ -223,7 +223,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     t.flow.setFillNote('x');
     pick(t.flow, by('COMMON', 'neck_base'), '2');
     assert.equal(t.intake.fillNote, '', 'and an edit of an ordinary box');
-    for (const dataset of [{quick: 'intake-close'}, {quick: 'intake-form-back'}, {quick: 'questions'}]) {
+    for (const dataset of [{quick: 'intake-close'}, {quick: 'questions'}]) {
       t.flow.setFillNote('x');
       press(t.flow, dataset);
       assert.equal(t.intake.fillNote, '', `${dataset.quick} ends the note`);

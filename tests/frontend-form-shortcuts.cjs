@@ -53,7 +53,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
 
   // 1. What the section shows: a titled box with only the copy buttons that apply; one with nothing to copy yet is dimmed and says why.
   const a = await open();
-  const section = a.html.match(/<details class="intake-form-section" data-intake-photo-optional>[\s\S]*?<\/details>/)[0];
+  const section = a.html.match(/<details class="intake-form-section" data-intake-section="angles" data-intake-photo-optional open>[\s\S]*?<\/details>/)[0];
   assert.match(section, /<strong>한 번에 채우기<\/strong>/);
   assert.match(section, /왼쪽 팔·손목은 오른쪽과 같아요/);
   assert.match(section, /오른쪽 팔·손목은 왼쪽과 같아요/);

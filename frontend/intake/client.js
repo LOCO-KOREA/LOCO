@@ -5,10 +5,12 @@ import {DRAFT_POLICY,intakeDraftKey} from '../drafts.js';
 export const INTAKE_CONTRACT_METHOD = 'intake_contract';
 // Quote of every box "확인 끝" fills. Such a fill says "does not apply" for a box nobody answered, so it is sent after a typed sentence and never beats a value somebody else saved.
 export const CHECKLIST_CONFIRM_QUOTE = '자세 체크리스트에서 체크하지 않은 항목을 해당 없음으로 직접 확인';
+// Quote of every work feature "나머지 작업은 모두 안 해요" fills with "no".
+export const ABSENT_WORK_QUOTE = '표시된 남은 작업은 하지 않는다고 직접 확인';
 
 export class AdaptiveIntake {
   constructor({api, changed, notify,drafts=null}) { Object.assign(this, {api, changed, notify,drafts}); this.reset(); }
-  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.pending=new Map(); this.pendingConflicts=new Set(); this.pendingVersion=0; this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.reviewThreshold = null; this.formStage = 0; this.formValues = new Map(); this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); this.fillNote = ''; }
+  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.pending=new Map(); this.pendingConflicts=new Set(); this.pendingVersion=0; this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.reviewThreshold = null; this.pageShown = false; this.formValues = new Map(); this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); this.fillNote = ''; }
   persistPending(){if(this.drafts&&this.state)this.drafts.put('intake',intakeDraftKey(this.state.task),{taskId:this.state.task.task_id,createdAt:this.state.task.created_at,entries:[...this.pending]});}
   pendingValue(identity,value){const field=this.field(identity);if(!field)return;const old=this.pending.get(identity);this.pending.set(identity,{value,target:field.target,condition:field.condition,base:old?old.base:this.state.facts.find(f=>f.identity===identity)?.value??null,version:++this.pendingVersion});this.values.set(identity,value);this.persistPending();}
   async restorePending(){
@@ -69,8 +71,9 @@ export class AdaptiveIntake {
     this.serial = request.catch(() => {});
     return request;
   }
-  formFields(stage=this.formStage) {
-    return (this.state?.form_fields||[]).filter(f => (f.destination.type==='work_type') === (stage===0));
+  // One page: work features, conditions, photo questions and the posture checklist are one list. (The old stage argument is ignored.)
+  formFields() {
+    return this.state?.form_fields||[];
   }
   formHandled(field) {
     if(field.photo_unused)return false;
@@ -80,21 +83,48 @@ export class AdaptiveIntake {
   optionalPhoto(field) {
     return (this.state?.contract.policy.optional_photo_destinations||['manual','view']).includes(field.destination.type);
   }
-  pendingFormFields(stage=this.formStage,{includePhoto=false}={}) {
-    return this.formFields(stage).filter(field=>!this.formHandled(field)&&(includePhoto||!this.optionalPhoto(field)));
+  pendingFormFields(_stage,{includePhoto=false}={}) {
+    return this.formFields().filter(field=>!this.formHandled(field)&&(includePhoto||!this.optionalPhoto(field)));
+  }
+  /** Something on the page still waits for an answer, photo questions included: the page is worth opening. */
+  hasOpenItems() { return this.pendingFormFields(undefined,{includePhoto:true}).length>0; }
+  /** The page opens by itself at most once per analysis: only while nothing was shown yet and something is open. */
+  openPageOnce() {
+    if(this.pageShown||!this.hasOpenItems())return false;
+    this.pageShown=true; this.dialogOpen=true; return true;
+  }
+  /** A restored draft opens the page only if it had not been shown yet. */
+  restorePage(shown) {
+    this.pageShown=Boolean(shown);
+    if(Array.isArray(this.state?.form_fields))this.openPageOnce(); else this.dialogOpen=Boolean(this.state?.questions?.length);
+  }
+  /** The user opens the page by pressing a button. */
+  showPage() { this.pageShown=true; this.dialogOpen=true; }
+  /** The user leaves the page (closed or saved): nothing opens it again by itself. */
+  closePage() { this.pageShown=true; this.dialogOpen=false; this.fillNote=''; }
+  /** An answer that decides which other fields exist: a work feature (its conditions) or the photo situation (the photo rows). */
+  isGate(field) { return field.target==='context'||String(field.target).startsWith('work_type.'); }
+  /** Does this answer change which fields are on the page? A "no" for a work feature whose conditions are not shown changes nothing, so it waits for the final save like any other answer. */
+  changesFields(field,value) {
+    if(!this.isGate(field))return false;
+    if(field.target==='context')return true;
+    const gate=String(field.target).slice('work_type.'.length);
+    return value==='YES'||this.formFields().some(f=>f.gate===gate);
   }
   formValue(field) {
     if(this.formValues.has(field.identity))return this.formValues.get(field.identity);
     const saved=this.state.facts.find(f=>f.identity===field.identity);
     return saved?.state==='KNOWN'&&!field.photo_unused?saved.value:undefined;
   }
-  formAnswers(stage=this.formStage) {
-    return this.formFields(stage).filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity),
+  formAnswers() {
+    return this.formFields().filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity),
       ...(this.formValues.has('quote:'+f.identity)?{quote:this.formValues.get('quote:'+f.identity)}:{})}));
   }
-  /** The form answers split into what may travel with a typed sentence and the "확인 끝" fills that must follow it. */
+  /** A fill that says "does not apply" for boxes nobody answered ("확인 끝", "나머지 작업은 모두 안 해요"): it must never beat what a typed sentence says. */
+  isBulkAnswer(answer) { return answer.quote===CHECKLIST_CONFIRM_QUOTE||answer.quote===ABSENT_WORK_QUOTE; }
+  /** The form answers split into what may travel with a typed sentence and the bulk fills that must follow it. */
   splitFormAnswers(answers=this.formAnswers()) {
-    return {direct:answers.filter(a=>a.quote!==CHECKLIST_CONFIRM_QUOTE),confirmed:answers.filter(a=>a.quote===CHECKLIST_CONFIRM_QUOTE)};
+    return {direct:answers.filter(a=>!this.isBulkAnswer(a)),confirmed:answers.filter(a=>this.isBulkAnswer(a))};
   }
   /** The fills that still decide something: a box the sentence, the photo or the user answered in the meantime is not blank any more. */
   stillBlank(confirmed) {
@@ -103,8 +133,10 @@ export class AdaptiveIntake {
   }
   /** A saved "does not apply" fill for a box that has an answer now is only a stale draft: the saved value is shown and stays. */
   dropAnsweredConfirmations() {
-    for(const field of this.state?.form_fields||[])
-      if(this.formValues.get('quote:'+field.identity)===CHECKLIST_CONFIRM_QUOTE&&this.formHandled(field))this.clearFormValue(field.identity);
+    for(const field of this.state?.form_fields||[]) {
+      const quote=this.formValues.get('quote:'+field.identity);
+      if((quote===CHECKLIST_CONFIRM_QUOTE||quote===ABSENT_WORK_QUOTE)&&this.formHandled(field))this.clearFormValue(field.identity);
+    }
   }
   // A value picked by a shortcut says how it was chosen; any later edit makes it the user's own answer again.
   // shortcut: the quote rides in formValues as 'quote:<identity>' so the saved form draft keeps it without touching four serializers.
@@ -161,6 +193,7 @@ export class AdaptiveIntake {
   fillPlan({kind,condition,side,identity}) {
     const fields=this.formFields(), manual=(f,scope)=>f.destination.type==='manual'&&f.destination.scope===scope&&f.condition===condition;
     // A box that still shows a front-photo reading waits for the user's yes or no; the bulk confirmation leaves it alone.
+    if(kind==='no-work')return fields.filter(f=>f.destination.type==='work_type'&&this.fillable(f)).map(f=>({field:f,value:'NO',quote:ABSENT_WORK_QUOTE}));
     if(kind==='confirm')return fields.filter(f=>f.checklist&&f.condition===condition&&this.fillable(f)&&!f.suggestion).map(f=>({field:f,value:f.checklist.no,quote:AdaptiveIntake.CONFIRM_QUOTE}));
     if(kind==='mirror') {
       const name={LEFT:'왼쪽',RIGHT:'오른쪽'}, from=side==='LEFT'?'RIGHT':'LEFT';
@@ -186,6 +219,7 @@ export class AdaptiveIntake {
     const waiting=spec.kind==='confirm'?this.checklistRows(spec.condition).filter(f=>f.suggestion).length:0;
     if(!plan.length) {
       if(spec.kind==='mirror')return this.mirrorHint(spec).replace(/^(왼쪽|오른쪽) 값/,'반대쪽 값');
+      if(spec.kind==='no-work')return '아직 고르지 않은 작업이 없어요.';
       if(spec.kind==='confirm')return waiting?`사진이 본 ${waiting}개는 위에서 ‘맞아요, 체크’나 ‘아니에요’를 눌러 주세요.`:'체크하지 않은 항목이 없어서 채울 칸이 없어요.';
       return '채울 수 있는 값이 없어요.';
     }

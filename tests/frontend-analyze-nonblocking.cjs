@@ -66,6 +66,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     assert.equal(t.flow.stale, false);
     assert.equal(t.flow.step, 'provisional');
     assert.equal(t.flow.intake.dialogOpen, true, 'the dialog opens when the answers are back');
+    assert.equal(t.flow.intake.pageShown, true, 'and it remembers that the page was shown');
     assert.deepEqual(disabledButtons(t.lastRender().html).filter(([, disabled]) => disabled), [], 'everything is usable again');
     assert.equal(t.turns(), 1);
     assert.deepEqual(t.log.errors, []);
@@ -95,6 +96,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     assert.equal(t.flow.preview.score.total, 4);
     assert.equal(t.flow.stale, true, 'the analysis is still open, so it can be run again');
     assert.equal(t.flow.intake.dialogOpen, false);
+    assert.equal(t.flow.intake.pageShown, false, 'nothing was shown yet');
     assert.deepEqual(disabledButtons(t.lastRender().html).filter(([, disabled]) => disabled), [], 'the buttons are back, so the user can go on by hand');
   }
 
@@ -143,6 +145,37 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     await Promise.race([t.flow.analyze(), new Promise(resolve => setTimeout(resolve, 300))]); // a regression would leave the sent request unanswered: fail on the count, never hang
     assert.equal(t.turns(), 0, 'no request left for a task nobody is looking at');
     assert.deepEqual(t.log.errors, []);
+  }
+
+  // A reason to show opens the page even when nothing is left to ask.
+  {
+    const t = make(), done = t.flow.analyze();
+    await until(() => t.turns() === 1, 'the AI turn');
+    t.turn.resolve({...snapshot({reason: 'AI_ERROR'}), form_fields: []});
+    await done;
+    assert.equal(t.flow.intake.dialogOpen, true, 'the reason is shown');
+    assert.equal(t.flow.intake.pageShown, true);
+  }
+
+  // 8. One page, once: nothing open means no page, and a page the user has left never comes back by itself.
+  {
+    const t = make(), done = t.flow.analyze();
+    await until(() => t.turns() === 1, 'the AI turn');
+    t.turn.resolve({...snapshot(), form_fields: []});
+    await done;
+    assert.equal(t.flow.intake.dialogOpen, false, 'nothing waits for an answer, so nothing is asked');
+    assert.equal(t.flow.intake.pageShown, false);
+  }
+  {
+    const t = make(), done = t.flow.analyze();
+    await until(() => t.turns() === 1, 'the AI turn');
+    t.turn.resolve(snapshot());
+    await done;
+    assert.equal(t.flow.intake.dialogOpen, true);
+    t.flow.intake.closePage();
+    await t.flow.analyze();
+    assert.equal(t.flow.intake.dialogOpen, false, 'a second analyze on the same photos does not ask again');
+    assert.equal(t.turns(), 1);
   }
 
   console.log('PASS analyze shows the first score at once, locks every sending control while the AI works, keeps the score on failure, ignores late answers and leaves sentence-only analysis as before');

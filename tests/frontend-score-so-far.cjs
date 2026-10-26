@@ -38,10 +38,11 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   assert.ok(bare.includes('아직 점수를 계산할 수 없어요'));
   assert.equal(markers(bare).length, 0, 'without a score so far nothing is invented');
 
-  // The unfinished score points the way back to the posture checklist; a finished score, or a task without the adaptive form, has no such button.
+  // The unfinished score keeps one plain way back to the single input page (the user's own move, not a request); a finished score, or a task without the adaptive form, has no such button.
   const withForm = slot => { const ui = flow(slot); ui.intake = {state: {form_fields: []}}; return ui.rebaPanel(); };
   const action = withForm({...unfinished, score_so_far: soFar});
-  assert.match(action, /<button type="button" class="primary" data-quick="questions" data-reveal-photo="1">자세 항목 확인하고 확정하기 →<\/button>/);
+  assert.match(action, /<button type="button" data-quick="questions" data-reveal-photo="1">입력 수정하기<\/button>/);
+  assert.doesNotMatch(action, /확정하기|class="primary"|→/, 'a plain button: no request, not the main button');
   assert.ok(action.includes('아직 점수를 계산할 수 없어요'), 'the button comes with the explanation, not instead of it');
   assert.match(withForm(unfinished), /data-quick="questions"/, 'it is offered even when no score so far can be shown');
   assert.doesNotMatch(shown, /data-quick="questions"/, 'no form to reopen, no button');
