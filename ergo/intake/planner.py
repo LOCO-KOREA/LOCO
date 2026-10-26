@@ -1,10 +1,10 @@
 """Find unanswered inputs using the real calculators; let AI select and phrase them."""
-from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS
+from .contract import fields, key, POLICY, LIFT_FIELDS, PHOTO_VIEWS, MOTION_FLAGS, FRONT_READINGS
 from .photo_load import photo_load
 from . import photo_facts
 from ergo.engine.burden_rules import calculate_v2
 from ergo.engine.reba_scoring import calculate_reba
-from ergo.pose_contract import WRIST_REASONS
+from ergo.pose_contract import WRIST_REASONS, PHOTO_SOURCES
 
 
 def paths(field, condition):
@@ -31,6 +31,16 @@ def work_feature_needed(field, judgments):
                (not scope or row['criterion_no'] in scope) for row in judgments)
 
 
+def front_suggestion(facts, target, owner, views):
+    """The front photo's reading, shown beside the reference photo's question. A click by the user is the answer; this never fills anything."""
+    front=views.get('FRONT')
+    if front is None or front==owner: return None
+    reading=facts.get(key(target,photo_facts.condition(front)))
+    if not reading or reading['source'] not in PHOTO_SOURCES or reading['state'] not in ('KNOWN','ESTIMATED') or reading['value'] is None: return None
+    return dict(value=reading['value'],estimated=reading['state']=='ESTIMATED',quote=reading.get('quote',''),photo_label=photo_facts.label(front,views),
+        reading=FRONT_READINGS.get(target.rsplit('.',1)[-1],'읽은 값이 있어요'))
+
+
 def _assess(task, facts, views, catalogue, only_identity=None):
     judgments=calculate_v2(task['conditions'],task['legal'])['judgments']
     reba=calculate_reba(task, None) if views else None
@@ -39,6 +49,10 @@ def _assess(task, facts, views, catalogue, only_identity=None):
     load_state, load_kg = photo_load(facts)
     known=lambda t: load_state if t == 'load' else load_kg if t == 'load_kg' else (facts.get(key(t)) or {}).get('value')
     has=lambda t: key(t) in facts
+    context=facts.get(key('context')) or {}
+    photo_in_use=context.get('value')=='YES'
+    # A refused or unknown photo confirmation is an answer: the photo's values are then not used, so those inputs are asked by hand.
+    context_answered=context.get('state')=='KNOWN' or context.get('state')=='UNKNOWN' and context.get('source')=='USER'
     unknown_work=[f for f in catalogue if f['destination']['type']=='work_type' and not has(f['target'])]
     masses={f['value'] for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['state']=='KNOWN'}
     candidates=[]
@@ -49,7 +63,7 @@ def _assess(task, facts, views, catalogue, only_identity=None):
         if kind in ('work_type','other_work') and not work_feature_needed(field,judgments): continue
         if kind in ('context','view','manual','load','load_kg','load_link') and not views: continue
         if kind=='view' and d['view'] not in views: continue
-        if kind=='manual' and known('context')!='YES': continue
+        if kind=='manual' and not photo_in_use and not context_answered: continue
         if kind=='manual' and d['field']=='coupling' and (known('load')=='UNLOADED' or known('load_kg')==0): continue
         if t=='load_link' and (len(masses)!=1 or has('load') or has('load_kg')): continue
         if t=='load' and load_state!='UNKNOWN': continue
@@ -67,7 +81,8 @@ def _assess(task, facts, views, catalogue, only_identity=None):
             if only_identity is not None and key(t,condition) != only_identity and t != 'other_work': continue
             owner=photo_facts.photo_id(dict(condition=condition),views) if kind=='manual' else None
             item=photo_facts.fact_for(facts,t,owner,views) if kind=='manual' else facts.get(key(t,condition))
-            if item and (item['state']=='KNOWN' or item['state']=='UNKNOWN' and item['source']=='USER'): continue
+            photo_value_unused=kind=='manual' and bool(item) and item['source'] in PHOTO_SOURCES and not photo_in_use
+            if item and not photo_value_unused and (item['state']=='KNOWN' or item['state']=='UNKNOWN' and item['source']=='USER'): continue
             relevant=bool(set(paths(field,condition)) & missing)
             if kind=='manual':relevant=any(row['photo_id']==owner and bool(set(paths(field,condition)) & set(row['missing_fields'])) for row in (reba or {}).get('slots',[]))
             if kind=='criterion' and not relevant and not (item and item['state']=='CONFLICT'):
@@ -85,10 +100,17 @@ def _assess(task, facts, views, catalogue, only_identity=None):
             measurement_reason=bool(item and item['source'] in ('POSE','MOVENET') and item.get('measurement_diagnostic') in WRIST_REASONS)
             if measurement_reason: reason=WRIST_REASONS[item['measurement_diagnostic']]
             elif item and item.get('measurement_reason'):reason=item['measurement_reason'];measurement_reason=True
+            reask=bool(item and item.get('reask'))
+            if reask: reason='사진 또는 측정 설정이 바뀌어 이전 확인을 쓸 수 없어요. 다시 확인해 주세요.';measurement_reason=True
+            elif kind=='manual' and not item and any(f['target']==t and f['source'] in ('USER','AI') and f['state']=='KNOWN' and f.get('photo_id') not in (None,owner) for f in facts.values()):
+                reask=True;reason='이전 사진에서 답한 항목이에요. 새 사진 기준으로 다시 확인해 주세요.';measurement_reason=True
+            if photo_value_unused: reason='사진 측정값은 쓰지 않기로 해서 직접 확인해 주세요.';measurement_reason=True
             if item and item['state']=='CONFLICT': reason='앞서 기록한 값과 새 설명이 달라 확인이 필요해요.'
+            suggestion=front_suggestion(facts,t,owner,views) if kind=='manual' and photo_in_use else None
             candidates.append(dict(field,target=t,condition=condition,text=question,reason=reason,
                 **(dict(photo_id=owner,photo_label=photo_facts.label(owner,views),label=photo_facts.label(owner,views)+' · '+field['label'],display_condition=photo_facts.label(owner,views),legacy_primary=owner==next((views[view] for view in PHOTO_VIEWS if view in views),None)) if kind=='manual' else {}),
-                identity=key(t,condition),priority=0 if item and item['state']=='CONFLICT' else field['priority'],photo_measurement_reason=measurement_reason))
+                identity=key(t,condition),priority=0 if item and item['state']=='CONFLICT' else field['priority'],photo_measurement_reason=measurement_reason,
+                **{name:value for name,value in (('reask',reask),('photo_unused',photo_value_unused),('suggestion',suggestion)) if value}))
     if any(c['target']=='other_work' for c in candidates) and not has('other_work'):
         candidates=[c for c in candidates if c['destination']['type']!='work_type']
     candidates.sort(key=lambda c:(c['priority'],c['target'],c['condition']))
@@ -141,6 +163,8 @@ def progress(task, facts, views, candidates):
         field = by_target.get(item['target'])
         if not field or field['destination']['type'] == 'task': continue
         if item['state'] != 'KNOWN' and not (item['state'] == 'UNKNOWN' and item['source'] == 'USER'): continue
+        # Photo values of a refused photo are asked again, so they are not handled yet.
+        if field['destination']['type'] == 'manual' and item['source'] in PHOTO_SOURCES and (facts.get(key('context')) or {}).get('value') != 'YES': continue
         # A confirmed work feature remains part of the scope even when the other
         # unknown work features are currently folded into one other_work question.
         if field['destination']['type'] == 'work_type':
@@ -210,7 +234,7 @@ def with_answer_questions(question, candidates, saved_facts):
         common_groups = (
             ('몸통·목 자세를 함께 확인해 주세요', {'trunk_base', 'neck_base', 'trunk_twisted', 'trunk_side_bent', 'neck_twisted', 'neck_side_bent'}),
             ('다리 자세를 함께 확인해 주세요', {'legs_support', 'seated', 'knee_band'}),
-            ('작업 중 움직임과 힘을 함께 확인해 주세요', {'shock_force', 'static_over_1min', 'small_repeat_over_4min', 'rapid_change_or_unstable'}),
+            ('작업 중 움직임과 힘을 함께 확인해 주세요', set(MOTION_FLAGS)),
         )
         arm_flags = {'arm_abducted_or_rotated', 'shoulder_raised', 'arm_supported_or_gravity_assisted', 'wrist_deviated_or_twisted'}
         scope = destination['scope']; name = destination['field']

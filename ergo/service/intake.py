@@ -20,6 +20,14 @@ from .quick import handle_quick_preview
 from . import photo_vision
 
 
+FORM_ONLY = ('suggestion', 'checklist')
+
+
+def _for_model(rows):
+    """Hints for the form stay on the form: the model gets the questions, not another photo's reading."""
+    return [{name: value for name, value in row.items() if name not in FORM_ONLY} for row in rows]
+
+
 def _prepare(ctx, task_id, requested_views=None):
     with ctx.db_lock:
         task=ctx.require('task',task_id)
@@ -63,7 +71,7 @@ def _prepare(ctx, task_id, requested_views=None):
         invalidated={k for k,f in current_facts.items() if f['source'] in pose_contract.PHOTO_SOURCES}
     for identity in invalidated:
         session.setdefault('invalidated_photo_facts',{})[identity+'@'+str(session.get('fingerprint',''))]=copy.deepcopy(current_facts[identity])
-        current_facts[identity]=dict(current_facts[identity],value=None,state='UNKNOWN',source='POSE',quote='사진 또는 측정 설정이 바뀌어 다시 확인',conflict=None)
+        current_facts[identity]=dict(current_facts[identity],value=None,state='UNKNOWN',source='POSE',quote='사진 또는 측정 설정이 바뀌어 다시 확인',conflict=None,reask=True)
     actual=facts.read_values(task)
     externally_changed=session.get('projected_revision') is not None and session['projected_revision']!=task['input_revision']
     for identity,item in actual.items():
@@ -223,7 +231,7 @@ def handle_intake_turn(ctx,method,p):
         return dict(phase='EXTRACT_AND_PLAN',text=text,known=source_coverage.known_values(session),source_photo_scope=copy.deepcopy(source_scope),
             known_visual_observations=observations,
             visual_observation_policy='이미 사진에서 확인한 자세는 다시 묻지 마세요. 관찰은 사진별로만 적용하고 사용자 인용문으로 쓰지 마세요. 무게·시간·횟수는 사진에서 만들지 마세요.',
-            targets=contract.fields(),missing=assessment['candidates'],asked=focus,
+            targets=_for_model(contract.fields()),missing=_for_model(assessment['candidates']),asked=_for_model(focus),
             question_limit=contract.POLICY['question_limit'],
             prior_user_text=receipts.context(session,message['message_id'] if message else None)['texts'])
 
@@ -300,7 +308,7 @@ def handle_intake_turn(ctx,method,p):
         else:task=saved
         followup_context=receipts.context(session)
         followup_context['source_photo_scope']=copy.deepcopy(source_scope)
-        followup_payload=source_coverage.payload(payload,session,preview,turn,followup_context,source_scope,assessment['candidates'])
+        followup_payload=source_coverage.payload(payload,session,preview,turn,followup_context,source_scope,_for_model(assessment['candidates']))
         followup_payload['known_visual_observations']=photo_vision.known(session)
         if not coverage:followup_payload.update(text='',purpose='QUESTION_PLANNING')
         session.pop('local_answers_only',None)

@@ -14,6 +14,15 @@ AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
 SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED', 'VISION')
 LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
+MOTION_FLAGS = ('shock_force', 'static_over_1min', 'small_repeat_over_4min', 'rapid_change_or_unstable')
+# The yes/no posture items one checklist can take, in display order: (group, fields). A box means "this applies"; the form fills the rest with the no value only when the user says so.
+CHECKLIST = (('몸통·목', ('trunk_twisted', 'trunk_side_bent', 'neck_twisted', 'neck_side_bent')),
+             ('어깨·팔·손목', ('shoulder_raised', 'arm_abducted_or_rotated', 'arm_supported_or_gravity_assisted', 'wrist_deviated_or_twisted')),
+             ('다리', ('legs_support', 'seated')),
+             ('작업 중 움직임과 힘', MOTION_FLAGS))
+# The old combined wording ("비틀거나 옆으로 기울임") sat on two separate fields; each box now says which one it asks.
+CHECKLIST_LABELS = {'trunk_twisted': '몸통을 비틀어 작업함', 'trunk_side_bent': '몸통을 옆으로 기울여 작업함', 'neck_twisted': '목을 비틀어 작업함', 'neck_side_bent': '목을 옆으로 기울여 작업함'}
+FRONT_READINGS = {'trunk_side_bent': '몸통이 옆으로 기울어 보여요', 'neck_side_bent': '목이 옆으로 기울어 보여요', 'arm_abducted_or_rotated': '팔이 옆으로 벌어져 보여요'}  # what a front photo can read
 PHOTO_DESTINATIONS = ('context','view','manual','load','load_kg','load_link')
 POLICY.update(optional_photo_destinations=list(PHOTO_DESTINATIONS), form_prompt_limit=3)
 LIFT_FIELDS = {8: ('load_mass_kg','lift_count_day'),
@@ -84,9 +93,15 @@ def fields():
         choices=YES_NO, priority=18, group='사진 속 물건 확인')
     add('other_work', '아직 확인하지 못한 아래 작업 특징이 있나요?', 'choice', dict(type='other_work'),
         choices=[dict(value='NO',label='아래 특징은 모두 없어요'),dict(value='YES',label='해당하는 특징이 있어요')], priority=80, group='나머지 작업 특징')
+    checklist = {name: (group, order) for order, (group, name) in enumerate((group, name) for group, names in CHECKLIST for name in names)}
     for field in result:
         field['ai_writable']=field['target']!='other_work'
         field['photo_scoped']=field['destination']['type']=='manual'
+        name = field['destination'].get('field')
+        if field['photo_scoped'] and name in checklist:
+            if name in CHECKLIST_LABELS: field['label'] = field['question'] = CHECKLIST_LABELS[name]
+            shown = field['label'].split(' ', 1)[1] if field['destination']['scope'] in ('LEFT', 'RIGHT') else field['label']
+            field['checklist'] = dict(group=checklist[name][0], order=checklist[name][1], label=shown, yes=field['choices'][0]['value'], no=field['choices'][1]['value'])
     for field in result: field['derivations']=[DURATION_SUM] if field['target']=='daily_work_min' else []
     return result
 

@@ -1,6 +1,6 @@
 # 실제 사진 관찰 계약
 
-`ergo.vision.contract`의 VERSION/PROMPT_VERSION/RESPONSE_FORMAT_NAME/SOURCE, policy(), CATALOGUE, OBSERVATION_LABELS, OBSERVATION_STATUS_LABELS가 공통 계약이다. `intake_contract.photo_vision`에 동일한 공개 계약을 제공한다. 기본은 기존 gpt-6-luna/xhigh 설정, image detail high, 긴 변 1280, JPEG 품질 88, 자동 입력에 필요한 관찰 확신도 0.9, 사진 동시 요청 3개다. 환경변수 LOCO_VISION_DETAIL/MAX_EDGE/JPEG_QUALITY/MIN_CONFIDENCE/PARALLELISM으로 조정한다.
+`ergo.vision.contract`의 VERSION/PROMPT_VERSION/RESPONSE_FORMAT_NAME/SOURCE, policy(), CATALOGUE, OBSERVATION_LABELS, OBSERVATION_STATUS_LABELS가 공통 계약이다. `intake_contract.photo_vision`에 동일한 공개 계약을 제공한다. 기본은 기존 gpt-6-luna/high 설정(2026-10-26 소유자 지시로 xhigh에서 낮춤), image detail high, 긴 변 1280, JPEG 품질 88, 자동 입력에 필요한 관찰 확신도 0.9, 사진 동시 요청 3개다. 환경변수 LOCO_VISION_DETAIL/MAX_EDGE/JPEG_QUALITY/MIN_CONFIDENCE/PARALLELISM으로 조정한다.
 
 Responses user content에 input_text(사진 방향·ID)와 실제 input_image(data:image/jpeg;base64,...)를 넣는다. 등록한 크롭 파일의 바이트를 읽고 EXIF 방향을 반영한 RGB JPEG를 전송한다. 원본은 바꾸지 않고 인코딩된 이미지에서 EXIF를 제거한다. key/이미지 base64를 저장하지 않는다. 공식 근거: https://developers.openai.com/api/docs/models/gpt-6-luna 및 https://developers.openai.com/api/docs/guides/images-vision?api-mode=responses .
 

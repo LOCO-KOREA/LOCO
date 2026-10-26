@@ -79,6 +79,13 @@ class AiSettings(unittest.TestCase):
             self.assertEqual(saved['gpt_model'],'saved-model');self.assertEqual(saved['gpt_reasoning_effort'],'xhigh')
             self.assertEqual(saved['gpt_max_output_tokens'],18000)
 
+    def test_default_reasoning_effort_is_high_and_a_saved_choice_still_wins(self):
+        with patch.dict(os.environ,{},clear=False):
+            os.environ.pop('LOCO_AI_REASONING_EFFORT',None)
+            self.assertEqual(config.defaults()['gpt_reasoning_effort'],'high')
+            self.assertEqual(config.request_options('m')['reasoning'],dict(effort='high'))
+            self.assertEqual(config.values(dict(gpt_reasoning_effort='xhigh'))['gpt_reasoning_effort'],'xhigh')
+
     def test_omitting_reasoning_is_explicit_and_does_not_substitute_a_model(self):
         options=config.request_options('existing-model',dict(gpt_reasoning_effort=''))
         self.assertEqual(options['model'],'existing-model');self.assertNotIn('reasoning',options)

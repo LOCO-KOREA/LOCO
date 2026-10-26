@@ -207,8 +207,9 @@ type RebaSideScore = {
   upper_arm:Count|null,lower_arm:Count|null,wrist:Count|null,table_b:Count|null,coupling_score:Count|null,score_b:Count|null,
   table_c:Count|null,activity_score:Count|null,total:Count|null,risk:Risk|null,missing_fields:string[],review_reasons:ReviewReason[]
 };
-type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[]};
-type RebaSummary = {complete_count:Count,total_slot_count:Count,available_max:Count|null,full_max:Count|null,representative_slot_no:Count|null,selection:'AUTO'|'MANUAL'|null};
+type RebaScoreSoFar = {total:Count,risk:Risk,selected_side:Side,left:Count,right:Count,assumed:string[],unconfirmed_photo?:string[],assumption:string};
+type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[],score_so_far?:RebaScoreSoFar};
+type RebaSummary = {complete_count:Count,total_slot_count:Count,available_max:Count|null,full_max:Count|null,representative_slot_no:Count|null,selection:'AUTO'|'MANUAL'|null,score_so_far?:RebaScoreSoFar&{slot_no:Count}};
 type RebaResult = {status:'COMPLETE'|'INCOMPLETE',slots:RebaSlotResult[],summary:RebaSummary};
 type BasisItem = {item_code:string,value:Number|Truth|null,unit:'MIN_DAY'|'KG'|'KG_EQUIV'|'COUNT_DAY'|'COUNT_MIN'|'COUNT_HOUR'|'MONTH'|'COUNT_YEAR'|'BOOLEAN',operator:'GE'|'LE'|'EQ'|'OR'|null,threshold:Number|null,source:string};
 type InvestigatorConclusion = {criterion_no:Count,status:FinalStatus|null,reason:string|null,evidence:Evidence,reviewer:string|null,reviewed_at:Timestamp|null};
@@ -246,7 +247,7 @@ type ProvisionalRebaInput = {total:Count,risk:string,photo_ids:ID[]};
 type NumericSummary = {
   schema_version:'2.0',purpose:AiPurpose,rule_version:string,module_states:ModuleStates,requested_scope:AnalysisScope,
   pose_quality:{target_count:Count,valid_count:Count|null},
-  reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null},
+  reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null,score_so_far?:{total:Count,risk:Risk,assumed_count:Count,unconfirmed_photo_count?:Count}},
   provisional_reba?:{assumption:string,analysis_currentness:'CURRENT'|'STALE',initial_total:Count,initial_risk:string,initial_photo_count:Count,final_photo_count:Count,same_photo_scope:boolean,final_complete:boolean,final_total:Count|null,final_risk:string|null,comparable:boolean,comparison_status:'COMPARABLE'|'STALE_ANALYSIS'|'FINAL_INCOMPLETE'|'DIFFERENT_PHOTO_SCOPE'|'MULTI_PHOTO_COMPOSITION',score_delta:Count|null},
   posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
   tag_counts:TagSummary[],criteria:NumericCriterion[],public_rule_text:string[]
@@ -275,7 +276,7 @@ type SettingsUpdate = Omit<Settings,'gpt_key_present'|'gpt_contract'|'pose_contr
 Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모든 응답 필드를 required, additionalProperties=false로 정의한다. 1차 점수 입력이 있으면 응답에 reba_comparison 설명을 반드시 포함하며, 입력이 없으면 빈 문자열을 반환한다. 설명 응답에 판정·점수 변경 필드를 두지 않는다. criteria는 1~11호를 각각 한 번 포함한다. 잘못된/중복/누락 호 번호·basis_refs·스키마는 대체 설명으로 처리한다. Responses API의 text.format에 type=json_schema, strict=true와 스키마를 지정한다. 구조 적합이 내용 정확성을 보장하지 않으므로 생성문은 조사자가 편집·적용한다.
 [OpenAI 공식 문서](https://developers.openai.com/api/docs/guides/structured-outputs)
 
-입력 정리·후속 질문·설명·사진 관찰은 ergo/ai_config.py의 공통 AI 설정과 프로세스 공유 OpenAI client/HTTP 연결 풀을 쓴다. 모델·추론 강도·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / xhigh / 32768토큰(추론 포함)이며, 저장된 설정이 환경 기본값보다 우선한다. 앱은 AI 요청 제한시간을 두지 않고 SDK 자동 재시도도 끈다. 구버전 gpt_timeout_seconds 저장값과 LOCO_AI_TIMEOUT_SECONDS 환경값은 호환을 위해 오류 없이 무시하며 새 Settings/gpt_contract 응답에는 포함하지 않는다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
+입력 정리·후속 질문·설명·사진 관찰은 ergo/ai_config.py의 공통 AI 설정과 프로세스 공유 OpenAI client/HTTP 연결 풀을 쓴다. 모델·추론 강도·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / high / 32768토큰(추론 포함, 2026-10-26 소유자 지시로 xhigh에서 낮춤)이며, 저장된 설정이 환경 기본값보다 우선한다. 앱은 AI 요청 제한시간을 두지 않고 SDK 자동 재시도도 끈다. 구버전 gpt_timeout_seconds 저장값과 LOCO_AI_TIMEOUT_SECONDS 환경값은 호환을 위해 오류 없이 무시하며 새 Settings/gpt_contract 응답에는 포함하지 않는다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
 
 provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_ids 원문은 보존하지 않고 GPT에 보내지 않는다. ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교하고, 해당 분석이 최신 작업 입력·최신 계산 결과인지 확인해 source_current를 반환한다. 입력 또는 계산이 바뀐 과거 분석에는 source_current=false를 반환하고 REBA 차이를 계산하지 않으며, 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
@@ -556,3 +557,17 @@ FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJE
 원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
 
 context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.
+
+### 미완성 REBA의 지금까지 기준 점수 (2026-10-26)
+
+`calculate_reba` 결과의 미완성 슬롯에는 선택 필드 `score_so_far`가 붙는다. 지금까지 저장된 자세·답변 값은 그대로 쓰고, 비어 있거나 UNKNOWN인 REBA 입력(OR 규칙으로 제외된 칸은 제외)만 계산에서 부담 없음 선택지로 대신해 얻은 점수다. 대신한 값은 입력으로 저장하지 않으며 분석 snapshot의 manual·observation은 바뀌지 않는다. `assumed`는 대신한 입력 경로(common.*, left.*, right.*)이고 하중 상태가 UNKNOWN이면 하중 없음을 가정하고 `observation.load_state`를 함께 적는다. 물건을 든다고 답했는데 손잡이 상태가 비어 있으면 GOOD을 가정한다.
+
+사진 상황 확인(context)에 사용자가 아직 답하지 않았으면, 분석 snapshot에 담긴 intake 세션에서 같은 사진이 소유한 POSE·MOVENET KNOWN 판독(작업 입력에는 아직 투영되지 않은 값이며 방향·신뢰도·경계 검사를 통과한 값만 KNOWN이다)을 아직 비어 있는 자리에 빌려 쓰고, 그 경로를 `unconfirmed_photo`에 적는다. 이 값은 `assumed`에서 빠지며 입력으로 저장되지 않는다. context가 NO이거나 사용자의 모름이면 빌리지 않고(planner가 같은 항목을 직접 묻는다), YES이면 이미 받아들인 값만 쓴다. 다른 사진이 소유한 값, ESTIMATED 값, 이미 입력된 값은 빌리지도 덮어쓰지도 않으며 intake 세션이 없는 작업에는 빌릴 값이 없다.
+
+만들지 않는 경우: 몸통(trunk_base)과 위팔(upper_arm_base, 좌·우 중 하나) 값이 모두 있지 않을 때(가정만으로 ‘무시 가능’이 나오는 것을 막는다), 하중이 MEASURED인데 무게가 없을 때, 하중 상태가 UNKNOWN인데 무게가 있는 것처럼 입력이 충돌할 때, 같은 사진이 여러 슬롯에 배정되었을 때. 하중 상태가 UNKNOWN이고 무게도 없으면 하중 없음을 가정하고 `observation.load_state`를 `assumed`에 적으며 `assumption`에 그 사실을 덧붙인다. `assumption`은 “실제 점수는 더 높을 수 있고 확정 점수가 아닙니다”를 포함한다. 팔 받침처럼 점수를 낮추는 항목을 NO로 가정하므로 최솟값을 보장하지 않는다. `summary.score_so_far`는 미완성 슬롯 중 가장 높은 값에 `slot_no`를 붙인 사본이다. complete_count·available_max·full_max·대표 사진·전후 비교에는 쓰지 않고, 모든 슬롯이 완성이면 두 곳 모두 없다. 1차 점수(quick_preview의 score)와 같은 입력이면 같은 값이다.
+
+`NumericSummary.reba.score_so_far`는 total(1~15, risk와 일치할 때만)·risk·assumed_count와, 있을 때만 unconfirmed_photo_count·load_assumed를 허용 목록으로 전달한다. AI는 이를 확정 전 점수로만 설명하고 사진 확인 전 값이 들어 있으면 함께 밝힌다(PROMPT_VERSION `LOCO_NUMERIC_EXPLANATION_V9`). 설명이 없을 때의 대체 문장도 같은 표현을 쓴다. Excel은 REBA 요약 칸에 “확정 전 N점 (위험도) · [사진 확인 전 값 K개 포함 ·] 확인하지 못한 M개는 부담 없음으로 가정[ · 들고 있는 물건 없음으로 가정] · 실제 점수는 더 높을 수 있어요”를 쓰고 공식 서식의 판정 칸은 확정 점수일 때만 채운다. `score_so_far`를 조사자 결론이나 법적 판정으로 표시하지 않는다.
+
+## 자세 체크리스트와 한 번에 채우기 보조 필드 (2026-10-26)
+
+`intake_contract.fields[]`의 manual 항목 중 선택지가 [예, 아니오]인 18개(COMMON `trunk_twisted`·`trunk_side_bent`·`neck_twisted`·`neck_side_bent`·`legs_support`·`seated`·`shock_force`·`static_over_1min`·`small_repeat_over_4min`·`rapid_change_or_unstable`, LEFT/RIGHT `shoulder_raised`·`arm_abducted_or_rotated`·`arm_supported_or_gravity_assisted`·`wrist_deviated_or_twisted`)에는 선택 필드 `checklist:{group:string,order:Count,label:string,yes:string,no:string}`이 붙는다. `yes`/`no`는 해당 항목 `choices`의 값이며(`legs_support`는 UNILATERAL_OR_UNSTABLE/BILATERAL_STABLE) 같은 항목을 담는 `form_fields[]`에도 그대로 실린다. 다른 항목에는 없다. 몸통·목의 네 항목은 `label`/`question`도 칸마다 다른 문구로 바뀌었다. 기준 사진의 manual 질문 후보와 `form_fields[]`에는 정면·후면 사진 판독이 있을 때만 `suggestion?:{value:string,estimated:boolean,quote:string,photo_label:string,reading:string}`이 붙는다(조건과 의미는 [적응형 추가 확인 계약](adaptive-intake.md)의 같은 날짜 절). `suggestion`은 입력값이 아니며 사실·manual 행·REBA 입력을 바꾸지 않는다. `intake_turn.answers[]`의 각 항목은 `{target,condition?,value,quote?}`이며 `quote`는 USER 사실의 근거 문구가 된다(없으면 “직접 입력”). 서식의 체크·채우기는 이 필드로 선택 경위를 보낸다. 요청·응답 메서드와 매개변수는 늘지 않는다. 모델 요청(EXTRACT_AND_PLAN·FOLLOWUP)의 `targets`·`missing`·`asked`에는 `checklist`·`suggestion`을 싣지 않는다.

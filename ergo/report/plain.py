@@ -163,6 +163,11 @@ def _reba_text(a):
     if top is None and summary.get('available_max') is not None:
         top, partial = summary['available_max'], True
     if top is None:
+        so_far = summary.get('score_so_far')
+        if so_far:
+            photo = f" · 사진 확인 전 값 {len(so_far['unconfirmed_photo'])}개 포함" if so_far.get('unconfirmed_photo') else ''
+            load = ' · 들고 있는 물건 없음으로 가정' if 'observation.load_state' in (so_far.get('assumed') or []) else ''
+            return f"확정 전 {so_far['total']}점 ({say(so_far['risk'])}){photo} · 확인하지 못한 {len(so_far.get('assumed') or [])}개는 부담 없음으로 가정{load} · 실제 점수는 더 높을 수 있어요"
         return '계산하지 못했어요'
     slot = next((s for s in reba.get('slots', []) if s.get('total') == top), {})
     text = f'{top}점' + (f" ({say(slot['risk'])})" if slot.get('risk') else '')
@@ -337,6 +342,8 @@ def _posture(c):
                     remarks.append('두 쪽 중 높은 쪽')
                 if s.get('review_reasons'):
                     remarks.append('확인: ' + ', '.join(reason_label(x) for x in s['review_reasons']))
+                if r.get('score_so_far') and s.get('total') is None:
+                    remarks.append(f"확정 전 {r['score_so_far'][side]}점 (가정 {len(r['score_so_far']['assumed'])}개 포함)")
                 reba_rows.append([t['name'], label, SIDE[side.upper()], s.get('trunk'), s.get('neck'), s.get('legs'), s.get('upper_arm'), s.get('lower_arm'), s.get('wrist'),
                                   s.get('load_score'), s.get('coupling_score'), s.get('activity_score'), s.get('total') if s.get('total') is not None else '계산 못 함',
                                   say(s.get('risk')), ' · '.join(remarks)])

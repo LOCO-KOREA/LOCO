@@ -128,6 +128,17 @@ def _posture_results(analysis,targets):
     return output
 
 
+def _reba_overview(reba):
+    summary=reba.get('summary') or {}
+    overview=dict(complete_count=summary.get('complete_count'),available_max=summary.get('available_max'),full_max=summary.get('full_max'))
+    so_far=summary.get('score_so_far')
+    if isinstance(so_far,dict) and type(so_far.get('total')) is int and 1<=so_far['total']<=15 and so_far.get('risk')==_reba_risk(so_far['total']):
+        overview['score_so_far']=dict(total=so_far['total'],risk=so_far['risk'],assumed_count=len(so_far.get('assumed') or []))
+        if so_far.get('unconfirmed_photo'): overview['score_so_far']['unconfirmed_photo_count']=len(so_far['unconfirmed_photo'])
+        if 'observation.load_state' in (so_far.get('assumed') or []): overview['score_so_far']['load_assumed']=True
+    return overview
+
+
 def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=None,analysis_currentness=None):
     if analysis_currentness is None:
         analysis_currentness=analysis.get('currentness')
@@ -158,7 +169,7 @@ def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=N
     normalized=normalize_provisional_reba_input(analysis,provisional_reba)
     summary=dict(schema_version='2.0',purpose=purpose,rule_version='|'.join(str(x) for x in [settings.get('burden_rule'),settings.get('reba_rule'),(settings.get('posture_profile') or {}).get('version')]),module_states=analysis.get('module_states') or {},requested_scope=scope,
         pose_quality=dict(target_count=len(targets),valid_count=pose.get('valid_count') if pose else None),
-        reba=dict(complete_count=(reba.get('summary') or {}).get('complete_count'),available_max=(reba.get('summary') or {}).get('available_max'),full_max=(reba.get('summary') or {}).get('full_max')),
+        reba=_reba_overview(reba),
         posture_results=_posture_results(analysis,targets) if scope.get('pose') or scope.get('reba') else [],
         tag_counts=tags,criteria=criteria,public_rule_text=PUBLIC_RULE_TEXT)
     comparison=_provisional_reba_summary(analysis,normalized,targets,analysis_currentness)

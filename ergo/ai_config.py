@@ -7,7 +7,7 @@ VERSION = 'LOCO_AI_SETTINGS_V1'
 FIELDS = (
     dict(key='gpt_enabled', label='AI 사용', kind='boolean', default=False),
     dict(key='gpt_model', label='모델 ID', kind='text', default='gpt-6-luna', env='LOCO_AI_MODEL'),
-    dict(key='gpt_reasoning_effort', label='추론 강도', kind='choice', default='xhigh', env='LOCO_AI_REASONING_EFFORT',
+    dict(key='gpt_reasoning_effort', label='추론 강도', kind='choice', default='high', env='LOCO_AI_REASONING_EFFORT',
          choices=[dict(value=v, label=label) for v,label in (
              ('','전송 안 함'),('none','None'),('low','Low'),('medium','Medium'),('high','High'),('xhigh','Extra high'),('max','Max'))]),
     dict(key='gpt_max_output_tokens', label='최대 출력 토큰 (추론 포함)', kind='integer', default=32768, env='LOCO_AI_MAX_OUTPUT_TOKENS'),

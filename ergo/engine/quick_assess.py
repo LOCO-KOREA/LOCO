@@ -8,19 +8,9 @@ import math
 from copy import deepcopy
 
 from .joint_angles import angles as joint_angles
-from .reba_scoring import calculate_reba, candidates
+from .reba_scoring import calculate_reba, candidates, NO_BURDEN
 from .task_defaults import ARM, COMMON
 
-# The no-burden option for every REBA item, used only for the provisional score.
-NO_BURDEN = {
-    'trunk_base': 1, 'trunk_twisted': 'NO', 'trunk_side_bent': 'NO', 'neck_base': 1,
-    'neck_twisted': 'NO', 'neck_side_bent': 'NO', 'legs_support': 'BILATERAL_STABLE',
-    'seated': 'NO', 'knee_band': 'UNDER_30', 'shock_force': 'NO', 'static_over_1min': 'NO',
-    'small_repeat_over_4min': 'NO', 'rapid_change_or_unstable': 'NO',
-    'upper_arm_base': 1, 'arm_abducted_or_rotated': 'NO', 'shoulder_raised': 'NO',
-    'arm_supported_or_gravity_assisted': 'NO', 'lower_arm_base': 1, 'wrist_base': 1,
-    'wrist_deviated_or_twisted': 'NO', 'coupling': 'NOT_APPLICABLE',
-}
 FIELD_LABELS = {
     'trunk_base': '몸통 굽힘', 'knee_band': '무릎 굽힘', 'upper_arm_base': '위팔 들림',
     'lower_arm_base': '아래팔 굽힘', 'wrist_base': '손목 굽힘·폄',

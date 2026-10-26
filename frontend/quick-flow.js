@@ -8,7 +8,7 @@ import {DRAFT_POLICY,localDrafts,initializeDrafts,newDraftId,readExplanationDraf
 
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
-import {AdaptiveIntake} from './intake/client.js';
+import {AdaptiveIntake, CHECKLIST_CONFIRM_QUOTE} from './intake/client.js';
 import {renderPhotoVision,photoVisionForTask} from './intake/photo-vision.js';
 import {renderPostureReview} from './quick-review.js';
 import {renderActivity,updateActivity} from './intake/activity.js';
@@ -157,7 +157,7 @@ export class QuickFlow {
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
-    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.render(); } }, true);
+    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.intake.fillNote=''; this.revealPhotoRows=false; this.render(); } }, true);
     host.addEventListener('toggle', event => {
       if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
     }, true);
@@ -401,13 +401,27 @@ export class QuickFlow {
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
       let state = await this.intake.open(this.task.task_id, views);
       if (!state) return;
-      await this.ensureAiOn(); state = await this.intake.turn(this.intakeText);
+      this.showFirstScore(state);
+      const generation = this.intake.generation;
+      await this.ensureAiOn();
+      if (generation !== this.intake.generation) return; // something else took the screen while the AI switch was being made: never send this sentence to that task
+      state = await this.intake.turn(this.intakeText);
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
       if(Array.isArray(state.form_fields)&&!this.intake.pendingFormFields(0).length)this.intake.formStage=1;
       this.intake.dialogOpen=Boolean(state.reason||(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length));
     });
+  }
+
+  // The pose measurement needs no AI. When it already gives a score, show it now and let the AI part finish behind it.
+  // The run stays locked (busy): every control that would send something is disabled until the AI turn is back, so two requests can never overlap.
+  showFirstScore(state) {
+    if (!Object.keys(this.photos).length || !state.preview?.score) return;
+    this.task = state.task; this.preview = state.preview; this.group = 0; this.step = 'provisional';
+    this.busy = 'AI가 사진과 작업 설명을 정리하고 있어요. 1차 점수는 먼저 보여 드려요.';
+    this.busyStartedAt = Date.now();
+    this.render(); globalThis.window?.scrollTo?.({top: 0});
   }
 
   // ================= step 3: questions
@@ -609,7 +623,7 @@ export class QuickFlow {
       if (this.reopened) this.saved = {task: (await this.api('get_task', {task_id: this.task.task_id})).task, survey: await this.api('get_survey', {survey_id: this.survey.survey_id})};
       this.baseline = this.result; this.comparison = null; this.exported = null; this.reopened = false;
       this.step = 'start'; this.preview = null; this.stale = true; this.result = null; this.excelPreview = null; this.overview = null; this.review = {reviewer: this.review.reviewer, note: ''};
-      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 이전 답변은 그대로 유지돼요.');
+      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 작업 종류·시간·횟수 답변은 그대로 유지되고, 사진 자세 확인은 새 사진 기준으로 다시 물어봐요.');
     });
   }
 
@@ -854,11 +868,12 @@ export class QuickFlow {
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
-    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
-    else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.intake.fillNote=''; this.revealPhotoRows=d.revealPhoto==='1'; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
+    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.intake.fillNote=''; this.revealPhotoRows=false; this.render(); }
+    else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.intake.fillNote=''; this.render(); }
     else if (d.quick === 'intake-form-next') this.saveIntakeForm();
     else if (d.quick === 'intake-no-other-work') this.saveIntakeForm({remainingWorkAbsent:true});
+    else if (d.quick === 'intake-fill') this.fillIntakeForm({kind:d.fillKind,condition:d.fillCondition,side:d.fillSide,identity:d.fillIdentity});
     else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
@@ -924,31 +939,104 @@ export class QuickFlow {
     this.render();
   }
 
+  // The message lives inside the dialog: the page toast sits behind a modal dialog and would never be seen.
+  setFillNote(message) {
+    this.intake.fillNote=message;
+    const note=this.host?.querySelector?.('[data-intake-fill-note]');
+    if(note){note.textContent=message;note.hidden=!message;}
+  }
+
+  // Typing does not re-render the form (an opened section must stay open), so the buttons, ticks and suggestion lines follow the boxes themselves.
+  syncFills() {
+    for(const button of this.host?.querySelectorAll?.('[data-quick="intake-fill"]')||[]) {
+      const d=button.dataset;
+      const spec={kind:d.fillKind,condition:d.fillCondition,side:d.fillSide,identity:d.fillIdentity};
+      button.disabled=Boolean(this.busy)||!this.intake.fillPlan(spec).length;
+      button.title=button.disabled?this.intake.fillHint(spec):'';
+    }
+    // The reason a copy button waits is written next to it, so it can be read without hovering a button that cannot be focused.
+    for(const hint of this.host?.querySelectorAll?.('[data-fill-hint-for]')||[]) {
+      const text=this.intake.fillHint({kind:'mirror',side:hint.dataset.fillHintFor,condition:hint.dataset.fillHintCondition});
+      hint.textContent=text;hint.hidden=!text;
+    }
+    for(const box of this.host?.querySelectorAll?.('[data-intake-flag]')||[]) {
+      const field=this.intake.formFields().find(f=>f.identity===box.dataset.intakeFlag);
+      if(field)box.checked=this.intake.formValue(field)===field.checklist.yes;
+    }
+    for(const status of this.host?.querySelectorAll?.('[data-checklist-status]')||[])status.textContent=this.intake.checklistStatus(status.dataset.checklistStatus);
+    for(const line of this.host?.querySelectorAll?.('[data-suggestion-for]')||[]) {
+      const field=this.intake.formFields().find(f=>f.identity===line.dataset.suggestionFor);
+      line.hidden=!field||this.intake.formValue(field)!=null;
+    }
+  }
+
+  // A shortcut only sets the boxes (no re-render, so the opened section stays open); saving stays the user's step.
+  fillIntakeForm(spec) {
+    const plan=this.intake.fillPlan(spec);
+    if(!plan.length)return this.setFillNote(this.intake.fillMessage(spec,plan));
+    const controls=[...(this.host?.querySelectorAll?.('[data-intake-form]')||[])];
+    for(const {field,value,quote} of plan) {
+      this.intake.setFormValue(field.identity,value,quote);
+      const control=controls.find(el=>el.dataset.intakeForm===field.identity);
+      if(control)control.value=String(value);
+    }
+    this.keepDraft();
+    this.syncFills();
+    this.setFillNote(this.intake.fillMessage(spec,plan));
+  }
+
+  // The photo situation decides which photo rows exist (a checklist only for a photo that may be used). It is saved right here and the dialog redraws with those rows opened,
+  // instead of sending the user through the result screen and the posture button a second time.
+  async refreshIntakeForm(field,value) {
+    const saved=this.intake.state?.facts.find(f=>f.identity===field.identity);
+    if(saved?.state==='KNOWN'&&saved.value===value) { this.intake.clearFormValue(field.identity); return; }
+    const answers=this.intake.formAnswers();
+    this.revealPhotoRows=true;
+    await this.run('사진 확인 내용을 저장하고 있어요…',async()=>{
+      await this.intake.flush();
+      const state=await this.intake.turn('',answers,false);
+      if(!state)return;
+      if(state.reason) { if(state.reason!=='INPUT_CHANGED')this.onError(new Error('사진 확인 내용을 저장하지 못했어요. 다시 시도해 주세요.')); return; }
+      this.task=state.task;this.preview=state.preview;
+      for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
+    });
+    this.revealPhotoRows=false;
+  }
+
+  // The posture button leads to the photo rows, so they are shown opened instead of behind two folded headings.
+  openPhotoRows() {
+    for(const section of this.host?.querySelectorAll?.('[data-intake-dialog] [data-intake-direct-fields], [data-intake-dialog] [data-intake-photo-optional]')||[])section.open=true;
+  }
+
   async saveIntakeForm({remainingWorkAbsent=false}={}) {
     const invalid=this.host?.querySelector('[data-intake-form]:invalid');
     if(invalid) { invalid.reportValidity(); return; }
+    this.intake.fillNote='';
     let saved=false, last=this.intake.formStage===1;
     const absent=remainingWorkAbsent?this.intake.pendingFormFields(0).filter(field=>!this.intake.formValues.has(field.identity)):[];
     await this.run('입력한 내용을 저장하고 있어요…',async()=>{
       await this.intake.flush();
-      const answers=this.intake.formAnswers();
+      const answers=this.intake.formAnswers(), {direct,confirmed}=this.intake.splitFormAnswers(answers);
       const text=this.intake.text.trim();
       if(text)await this.ensureAiOn();
-      let state=answers.length||text?await this.intake.turn(text,answers):this.intake.state;
+      // "확인 끝" says "does not apply" for boxes nobody answered. A typed sentence may answer some of them, so with a sentence the confirmation goes second and only for what is still blank.
+      const blank=this.intake.stillBlank(confirmed), first=text?direct:answers.filter(a=>a.quote!==CHECKLIST_CONFIRM_QUOTE||blank.includes(a));
+      let state=first.length||text?await this.intake.turn(text,first):this.intake.state;
       if(!state||state.reason)return;
-      const remaining=absent.filter(field=>!this.intake.formHandled(field));
-      if(remaining.length) {
-        state=await this.intake.turn('',remaining.map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'})),false);
+      const later=[...(text?this.intake.stillBlank(confirmed):[]),
+        ...absent.filter(field=>!this.intake.formHandled(field)).map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'}))];
+      if(later.length) {
+        state=await this.intake.turn('',later,false);
         if(!state||state.reason)return;
       }
       this.task=state.task;this.preview=state.preview;
-      for(const answer of answers)this.intake.formValues.delete(answer.target+'@'+answer.condition);
+      for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
       if(!last) {
         this.intake.formStage=1;
         last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
       }
       // Close before run() renders its completed state; an empty next stage must never flash.
-      if(last)this.intake.dialogOpen=false;
+      if(last) { this.intake.dialogOpen=false; this.revealPhotoRows=false; }
       saved=true;
     });
     if(saved&&last)await this.finish();
@@ -969,7 +1057,7 @@ export class QuickFlow {
         if(!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;
         ready=!state.reason&&!this.intake.text.trim()&&![0,1].some(stage=>this.intake.pendingFormFields(stage).length||this.intake.formAnswers(stage).length);
       } else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
-      if(ready)this.intake.dialogOpen=false;
+      if(ready) { this.intake.dialogOpen=false; this.revealPhotoRows=false; }
     });
     if(ready)await this.finish();
   }
@@ -993,7 +1081,20 @@ export class QuickFlow {
       const raw=el.value;
       if(field.kind==='number'&&raw!==''&&(!Number.isFinite(Number(raw))||Number(raw)<0||field.maximum!=null&&Number(raw)>field.maximum)) { el.setCustomValidity('입력 범위를 확인해 주세요.'); el.reportValidity(); return; }
       el.setCustomValidity('');
-      this.intake.formValues.set(field.identity,raw===''?null:field.kind==='number'?Number(raw):field.kind==='choice'?field.choices.find(c=>String(c.value)===raw)?.value:raw);
+      const value=raw===''?null:field.kind==='number'?Number(raw):field.kind==='choice'?field.choices.find(c=>String(c.value)===raw)?.value:raw;
+      this.intake.setFormValue(field.identity,value);
+      this.setFillNote('');
+      this.syncFills();
+      this.keepDraft();
+      if(field.destination?.type==='context'&&value!=null)this.refreshing=this.refreshIntakeForm(field,value);
+    }
+    else if (d.intakeFlag) {
+      const field=this.intake.formFields().find(f=>f.identity===d.intakeFlag);
+      if(!field||this.busy)return;
+      if(el.checked)this.intake.setFormValue(field.identity,field.checklist.yes,'자세 체크리스트에서 해당한다고 직접 체크');
+      else this.intake.clearFormValue(field.identity);
+      this.setFillNote('');
+      this.syncFills();
       this.keepDraft();
     }
     else if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
@@ -1066,6 +1167,7 @@ export class QuickFlow {
     const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
     this.host.innerHTML = `${bar}${busy}${body}<p class="quick-warn" data-draft-status role="alert" ${this.drafts?.error?'':'hidden'}>${esc(this.drafts?.error||'')}</p>${this.intake.dialog(this.busy)}`;
     this.intake.mount(this.host,this.busy);
+    if(this.revealPhotoRows&&this.intake.dialogOpen)this.openPhotoRows();
     mountPoseSettings(this.host,this.settings);
     this.keepDraft();
   }
@@ -1188,7 +1290,7 @@ export class QuickFlow {
     return `${this.baseline ? '<p class="quick-ok">개선 전 결과를 기억하고 있어요. 개선 후 사진으로 넣으면 전후를 비교해 드려요.</p>' : ''}
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
-      <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
+      <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><p class="quick-note">이런 것을 말해 주시면 질문이 줄어요: 1년에 며칠 하는지, 하루 총 몇 시간 일하는지, 들기는 무게와 하루 횟수·1분에 몇 번인지, 충격·반복·같은 자세 유지가 있는지 없는지.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 1년에 220일, 하루 8시간 일해요. 20kg 상자를 하루 30번(1분에 1번쯤) 옮기고, 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
       <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
   }
 
@@ -1222,7 +1324,7 @@ export class QuickFlow {
       const note = scene.angles.length ? `${scene.origin === 'preview' ? '현재 사진의 1차 측정 후보' : '저장된 분석의 측정 각도'}${sides.length === 1 ? ` · ${sides[0] === 'LEFT' ? '왼쪽' : '오른쪽'} 관절` : ''}` : '이 사진은 표시할 수 있는 각도 근거가 없어요.';
       return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px" role="img" aria-label="${esc(VIEW_LABEL[view.id])} 관절 및 각도">${skeleton.markup}${renderPhotoAngles(scene)}</svg></figure><p class="quick-angle-note">${note}</p>${skeleton.hasLowConfidence ? '<p class="quick-confidence-note"><span class="quick-confidence-dot" aria-hidden="true"></span><span class="quick-confidence-line" aria-hidden="true"></span> 낮은 신뢰도 · 위치 확인 필요</p>' : ''}`;
     })() : '<div class="quick-photo-empty">등록된 사진이 없어요.</div>';
-    return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
+    return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : `<button type="button" class="quick-change" data-quick="photos" ${this.busy ? 'disabled' : ''}>사진 바꾸기</button>`}</div>`;
   }
 
   viewProvisional() {
@@ -1241,8 +1343,8 @@ export class QuickFlow {
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
         ${spatial ? `<details class="quick-spatial"><summary>3D 추정 각도 (참고)</summary><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 기존 사진 각도와 확인값을 사용해요.</p><ul>${spatial}</ul></details>` : ''}${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
-        ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
-        <div class="quick-nav"><button class="quick-back" data-quick="photos">뒤로 가기</button><button class="primary" data-quick="questions">부족한 부분만 확인</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
+        ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}${this.intakePanel()}
+        <div class="quick-nav"><button class="quick-back" data-quick="photos" ${this.busy ? 'disabled' : ''}>뒤로 가기</button><button class="primary" data-quick="questions" ${this.busy ? 'disabled' : ''}>부족한 부분만 확인</button>${this.intake?.state ? `<button data-quick="next" ${this.busy ? 'disabled' : ''}>현재 정보로 결과 보기</button>` : ''}</div>
       </section></div>`;
   }
 
@@ -1340,12 +1442,20 @@ export class QuickFlow {
       </section></div>`;
   }
 
+  // The way back from an unfinished score to the posture checklist: the dialog lists what is still unanswered for the photo.
+  postureAction() {
+    return Array.isArray(this.intake?.state?.form_fields) ? '<div class="quick-nav left"><button type="button" class="primary" data-quick="questions" data-reveal-photo="1">자세 항목 확인하고 확정하기 →</button></div>' : '';
+  }
+
   rebaPanel() {
     const r = this.result, slot = r.reba?.slots?.[0], pv = this.preview?.score;
     if (!slot) return '<h2>REBA</h2><p class="quick-note">이 분석에는 REBA 계산이 없어요.</p>';
     if (slot.total == null) {
       const missing = [...new Set([...(slot.left?.missing_fields || []), ...(slot.right?.missing_fields || [])].map(f => FIELD_KO[f.split('.').pop()] || f))];
-      return `<h2>최종 REBA 점수</h2><p class="quick-warn">아직 점수를 계산할 수 없어요. 빠진 항목: ${esc(missing.join(', ') || '사진 확인')}.</p>`;
+      const sf = slot.score_so_far;
+      const soFar = sf ? `<h3>지금까지 확인한 값 기준 <small>(확정 전)</small></h3><div class="quick-big"><strong class="${rebaScoreClass(sf.total)}">${sf.total}</strong><span>점 · ${esc(RISK[sf.risk] || sf.risk)}</span></div>
+        ${renderRebaScale(sf.total, {label: '지금까지 기준 '})}<p class="quick-note">${esc(sf.assumption)} 가정한 항목 ${sf.assumed.length}개.${sf.unconfirmed_photo?.length ? ` 사진 상황(한 사람·전신·평소 작업)을 아직 확인하지 않아 사진에서 읽은 값 ${sf.unconfirmed_photo.length}개를 임시로 썼어요.` : ''}</p>` : '';
+      return `<h2>최종 REBA 점수</h2><p class="quick-warn">아직 점수를 계산할 수 없어요. 빠진 항목: ${esc(missing.join(', ') || '사진 확인')}.</p>${soFar}${this.postureAction()}`;
     }
     const side = slot.selected_side === 'LEFT' ? '왼쪽' : '오른쪽';
     const first = pv ? ` · 1차 점수 ${pv.total ?? '—'}점에서 답변을 반영했어요.` : '';

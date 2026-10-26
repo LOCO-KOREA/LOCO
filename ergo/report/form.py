@@ -259,7 +259,9 @@ def _reba_tables(t, official=False):
     slot = next((s for s in reba.get('slots', []) if s.get('total') == top), {}) if top is not None else {}
     result = _reba_text(a)
     if summary.get('total_slot_count'):
-        result += f"\n사진 {summary['total_slot_count']}장 중 {summary.get('complete_count', 0)}장을 계산했어요"
+        finished = summary.get('complete_count', 0)
+        result += (f"\n확정 계산을 마친 사진 {finished}장 / 전체 {summary['total_slot_count']}장" if top is None and summary.get('score_so_far')
+                   else f"\n사진 {summary['total_slot_count']}장 중 {finished}장을 계산했어요")
     detail = _grid(_table(['작업·분석평가도구', '평가결과', '판정'],
                           [['REBA(전신 자세 평가)', result, REBA_ACTION.get(slot.get('risk'), '') if top is not None else '']],
                           WIDE[:3], None if official else f"3-1. REBA 자세 평가 — {t['name']}"))
