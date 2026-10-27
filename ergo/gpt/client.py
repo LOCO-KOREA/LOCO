@@ -1,4 +1,5 @@
 """OpenAI Responses client with a strict, non-judgment schema."""
+import copy
 import json
 from ergo import ai_config as config
 from .client_pool import create_response
@@ -6,7 +7,7 @@ from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V14'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V15'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -18,6 +19,11 @@ SYSTEM_PROMPT=(
     'recorded_work_inputs는 실제 저장된 작업시간·횟수·중량·작업조건 입력입니다. field와 고정 label/unit으로 뜻을 구분하고 익명 condition_ref가 다른 조건의 값을 합치지 마세요. '
     '전체 작업시간·연간 작업일수·하루 횟수는 작업 맥락이며, 특정 자세 노출시간이나 REBA 활동 가산점으로 다시 환산하지 마세요. REBA 활동은 같은 사진의 recorded_inputs와 엔진 current_score를 그대로 설명하세요. '
     '입력한 작업시간·횟수·연간 작업일수는 summary에 실제 값으로 짧게 반영하고, 기록된 값이 있는데도 미입력이라고 말하지 마세요. 알려진 0과 NO도 실제 응답입니다. '
+    '기준별 추가 확인은 missing_fields와 review_reasons에 실제 남은 항목으로 한정하세요. '
+    'computed_status가 APPLICABLE·NOT_APPLICABLE·EXCLUDED이고 두 목록이 모두 비었으면 선택적 근거의 null·UNKNOWN을 별도의 필수 미입력으로 만들지 마세요. '
+    'investigator_status나 effective_status만으로 미완성 계산이 완료되었다고 간주하지 마세요. '
+    'recorded_work_inputs의 같은 조건 값을 다시 입력하라고 하거나, effective_source가 INVESTIGATOR인 저장된 해당·비해당 결론을 다시 선택하라고 하지 마세요. '
+    '조사자 결론과 계산의 미완성은 구분해서 설명하세요. 전체 120회와 위치별 횟수처럼 서로 다른 조건의 값은 같은 입력으로 간주하지 마세요. '
     'unknown_work_inputs와 사진별 unknown_inputs는 사용자가 모름으로 답한 항목이며 value=null은 0이나 아니오가 아닙니다. 아예 묻지 않은 항목과 구분하고 이미 답한 모름을 다시 입력하라고 하지 마세요. '
     'posture_results가 있으면 posture_explanations에 각 photo_ref를 입력 순서대로 빠짐없이 한 번씩 넣고 그 사진의 측정 관절 수/토폴로지 수, 신뢰도 수준, 좌우 REBA 결과·누락을 설명하세요. 관절 신뢰도는 검출 신뢰도일 뿐 REBA 정확도 보증이 아닙니다. '
     '각 사진의 current_score는 엔진이 계산한 그 사진의 현재 표시 점수입니다. 전체 최대 점수를 다른 사진의 점수로 쓰거나 기록된 입력으로 점수를 다시 계산하지 마세요. '
@@ -91,6 +97,19 @@ def interpret(text, targets, schema, model, api_key, settings=None):
     except ImportError: return None,'OPENAI_SDK_MISSING'
     except Exception as error: return None,_reason(error)
 
+def explanation_request_summary(summary):
+    """Hide unused unknown basis only in the model view; preserve audit/currentness data."""
+    request=copy.deepcopy(summary)
+    for criterion in request.get('criteria',[]):
+        if (isinstance(criterion,dict) and
+                criterion.get('computed_status') in ('APPLICABLE','NOT_APPLICABLE','EXCLUDED') and
+                criterion.get('missing_fields')==[] and criterion.get('review_reasons')==[] and
+                isinstance(criterion.get('basis'),list)):
+            criterion['basis']=[item for item in criterion['basis'] if not (
+                isinstance(item,dict) and 'value' in item and item['value'] in (None,'UNKNOWN'))]
+    return request
+
+
 def generate(summary, model, api_key, settings=None):
     if not api_key: return None,'NO_API_KEY'
     if not model: return None,'MODEL_NOT_CONFIGURED'
@@ -98,7 +117,7 @@ def generate(summary, model, api_key, settings=None):
         options=config.request_options(model,settings)
         response=create_response(api_key,**options,input=[
             {'role':'system','content':SYSTEM_PROMPT},
-            {'role':'user','content':json.dumps(summary,ensure_ascii=False,separators=(',',':'))}
+            {'role':'user','content':json.dumps(explanation_request_summary(summary),ensure_ascii=False,separators=(',',':'))}
         ],text={'format':{'type':'json_schema','name':'loco_explanation','strict':True,'schema':explanation_schema()}})
         if getattr(response,'status',None)!='completed': return None,'INCOMPLETE_RESPONSE'
         raw=getattr(response,'output_text',None)
@@ -219,7 +238,7 @@ def fallback_text(summary):
 def content_text(content):
     if not content: return None
     parts=[content.get('summary','')]
-    if content.get('reba_comparison'): parts.append('1차 가정 점수와 최종 REBA: '+content['reba_comparison'])
+    if content.get('reba_comparison'): parts.append('REBA 현재 점수와 계산 설명: '+content['reba_comparison'])
     if content.get('posture_explanations'):
         parts.append('사진별 자세·REBA 설명:')
         parts.extend(f"{item['photo_ref']}: {item['explanation']}" for item in content['posture_explanations'])

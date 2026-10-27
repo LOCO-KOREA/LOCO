@@ -21,7 +21,7 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
     generated_text: generated, edited_text: null, content, is_active: false, source_current: true};
   const html = renderQuickExplanation(ai, generated);
   assert.match(html, /한눈에 보기/);
-  assert.match(html, /첫 사진 점수와 현재 REBA 설명 보기/);
+  assert.match(html, /REBA 현재 점수와 계산 설명 보기/);
   assert.match(html, /data-evidence-posture/);
   assert.match(html, /data-evidence-criteria/);
   assert.match(html, /data-evidence-photo="1"/);

@@ -399,7 +399,28 @@ def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=N
     if comparison is not None: summary['provisional_reba']=comparison
     return summary
 
+def _current_reba_text(summary):
+    reba=(summary.get('reba') or {}) if isinstance(summary,dict) else {}
+    score=reba.get('current_score') or reba.get('score_so_far') or {}
+    if not isinstance(score,dict) or type(score.get('total')) is not int or not 1<=score['total']<=15:return ''
+    risk={'NEGLIGIBLE':'무시 가능','LOW':'낮음','MEDIUM':'보통','HIGH':'높음','VERY_HIGH':'매우 높음'}.get(score.get('risk'),'위험수준 미확인')
+    comparison=(summary.get('provisional_reba') or {})
+    label='저장 당시 REBA' if comparison.get('analysis_currentness')=='STALE' else '현재 REBA'
+    if score.get('kind')=='CONFIRMED':
+        return f"{label}는 {score['total']}점({risk})이며, 입력이 확인된 완성 계산 점수입니다."
+    if score.get('kind')=='ASSUMED_REFERENCE':
+        return f"{label} 참조값은 {score['total']}점({risk}·부담 없음 가정)입니다. 측정·답변 근거가 부족한 참조값이며 측정값이나 확정 점수가 아닙니다."
+    count=score.get('assumed_count')
+    missing=f'미확인 {count}개 항목' if type(count) is int and count>=0 else '미확인 항목'
+    return f"{label}는 {score['total']}점({risk}·가정 포함)입니다. {missing}을 부담 없음으로 가정한 점수이며, 확정 점수가 아니고 실제 부담은 더 클 수 있습니다."
+
+
 def reba_comparison_text(summary):
+    # Server-owned explanation text; raw scores and the numeric summary stay unchanged.
+    return ' '.join(text for text in (_current_reba_text(summary),_initial_reba_comparison_text(summary)) if text)
+
+
+def _initial_reba_comparison_text(summary):
     comparison = summary.get('provisional_reba') if isinstance(summary, dict) else None
     if not comparison:
         return ''
@@ -464,7 +485,7 @@ def validate_content(content,summary):
         if not isinstance(item,dict) or set(item)!={'proposal','basis_refs','needs_confirmation'} or not isinstance(item['proposal'],str) or not isinstance(item['needs_confirmation'],bool) or not isinstance(item['basis_refs'],list): return False
         refs.extend(item['basis_refs'])
     if not isinstance(content['summary'],str) or not isinstance(content['reba_comparison'],str) or not isinstance(content['check_items'],list) or not all(isinstance(x,str) for x in content['check_items']): return False
-    if bool(summary.get('provisional_reba')) != bool(content['reba_comparison'].strip()): return False
+    if bool(reba_comparison_text(summary)) != bool(content['reba_comparison'].strip()): return False
     if any(not isinstance(ref,str) or ref not in references for ref in refs): return False
     sentences=[content['summary'],content['reba_comparison'],*(x['explanation'] for x in posture),*content['check_items'],*(x['explanation'] for x in criteria),*(x['proposal'] for x in content['improvement_options'])]
     return numbers_in_text_are_allowed(sentences,summary)

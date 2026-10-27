@@ -17,7 +17,7 @@ def summary_fixture():
 
 def content_fixture(summary):
     comparison=summary.get('provisional_reba')
-    reba_comparison=(f"1차 {comparison['initial_total']}점, 최종 {comparison['final_total']}점" if comparison and comparison.get('final_complete') else '1차 가정 점수와 최종 분석은 사진 범위가 달라 직접 비교하지 않음' if comparison else '')
+    reba_comparison=payload.reba_comparison_text(summary)
     return {'summary': '입력 근거를 기준별로 확인하세요.', 'reba_comparison': reba_comparison, 'posture_explanations': [
             {'photo_ref': item['photo_ref'], 'explanation': '사진 결과를 확인하세요.'}
             for item in summary.get('posture_results', [])],
@@ -112,7 +112,7 @@ class GptBoundary(unittest.TestCase):
         self.assertTrue(payload.validate_content(content_fixture(summary),summary))
         content=content_fixture(summary);content['reba_comparison']=''
         self.assertFalse(payload.validate_content(content,summary),'comparison context requires an explanation')
-        self.assertIn('1차 가정 점수와 최종 REBA',client.content_text(content_fixture(summary)))
+        self.assertIn('REBA 현재 점수와 계산 설명',client.content_text(content_fixture(summary)))
 
         stored=payload.normalize_provisional_reba_input(saved,first)
         self.assertEqual(payload.build_numeric_summary(saved,provisional_reba=stored),summary)
