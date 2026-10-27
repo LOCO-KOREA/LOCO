@@ -229,7 +229,8 @@ def _legal_rows(name, source):
         ev = c.get('evidence') or {}
         origin=trace.lookup('work_type',state,criterion=no)
         if trace.criterion_presence_recorded(c, no):
-            rows.append([name, group, f'{short}: 이 작업을 한다', say(state), *(origin or (_source(ev),note(ev.get('text'))))])
+            presence = f'물건 들기·옮기기 작업({no}호 입력)' if origin and no in (8, 9, 10) else short
+            rows.append([name, group, f'{presence}: 이 작업을 한다', say(state), *(origin or (_source(ev),note(ev.get('text'))))])
         for e in exposures:
             if int(e['condition_code'][1:e['condition_code'].index('_')]) == no:
                 done.add(e['condition_code'])
@@ -404,9 +405,13 @@ def _estimated_rows(name,source,analysis):
 
 def _world_angle_used(reba_slot,angle):
     current=reba_slot.get('current_score') or reba_slot.get('score_so_far') or {}
-    if current.get('kind')=='CONFIRMED' or angle.get('value_deg') is None:return False
+    value=angle.get('value_deg')
+    if (current.get('kind')=='CONFIRMED' or type(value) not in (int,float) or not math.isfinite(value) or
+            angle.get('coordinate_space','INFERRED_WORLD_3D')!='INFERRED_WORLD_3D'):return False
     return any(ref.get('coordinate_space')=='INFERRED_WORLD_3D' and ref.get('used_for_reba') is True and
-               ref.get('side')==angle.get('side') and ref.get('angle_code')==angle.get('angle_code') and ref.get('value_deg')==angle.get('value_deg')
+               ref.get('side')==angle.get('side') and ref.get('angle_code')==angle.get('angle_code') and
+               type(ref.get('value_deg')) in (int,float) and math.isfinite(ref['value_deg']) and
+               ref['value_deg'] in (value,round(value,1))  # Stored quick_assess evidence precision.
                for item in current.get('measurement_refs') or [] for ref in item.get('angles') or [])
 
 

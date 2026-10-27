@@ -185,12 +185,15 @@ def _owned_measurement(rows,slot):
 
 def _world_angle_used(reba_slot,angle):
     current=reba_slot.get('current_score') or reba_slot.get('score_so_far') or {}
-    if current.get('kind')=='CONFIRMED' or _safe_number(angle.get('value_deg')) is None:return False
+    value=_safe_number(angle.get('value_deg'))
+    if (current.get('kind')=='CONFIRMED' or value is None or
+            angle.get('coordinate_space','INFERRED_WORLD_3D')!='INFERRED_WORLD_3D'):return False
     for measurement in current.get('measurement_refs') or []:
         for ref in measurement.get('angles') or []:
             if (ref.get('coordinate_space')=='INFERRED_WORLD_3D' and ref.get('used_for_reba') is True and
                     ref.get('side')==angle.get('side') and ref.get('angle_code')==angle.get('angle_code') and
-                    _safe_number(ref.get('value_deg'))==_safe_number(angle.get('value_deg'))):return True
+                    # quick_assess._measured stores selected evidence at one decimal.
+                    _safe_number(ref.get('value_deg')) in (value,round(value,1))):return True
     return False
 
 

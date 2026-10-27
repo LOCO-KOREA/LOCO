@@ -134,6 +134,23 @@ const assert=require('node:assert/strict');
   assert.match(renderPostureReview(world),/현재 REBA 초안에 사용/,'selected current draft refs must identify used 3D measurements');
   world.reba.slots[0].current_score.kind='CONFIRMED';
   assert.doesNotMatch(renderPostureReview(world),/현재 REBA 초안에 사용/,'automatic estimates must stay separate from human confirmed results');
+  const rounded=structuredClone(world);
+  const rawKnee={side:'LEFT',angle_code:'KNEE_FLEX_3D',value_deg:66.88395999428462,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false};
+  rounded.pose.slots[0].world_angles=[rawKnee];
+  rounded.reba.slots[0].current_score={total:8,kind:'WITH_ASSUMPTIONS',measurement_refs:[{scope:'COMMON',field:'knee_band',angles:[{...rawKnee,value_deg:66.9,used_for_reba:true}]}]};
+  const beforeRounded=JSON.stringify(rounded);
+  assert.match(renderPostureReview(rounded),/현재 REBA 초안에 사용/,'stored one-decimal knee reference must match its original 66.88395999428462 degree observation');
+  assert.equal(JSON.stringify(rounded),beforeRounded,'display must not rewrite measured angles or scores');
+  for(const [raw,reference,expected] of [[66.88395999428462,66.89,false],[66.84,66.9,false],[66.84,66.8,true],[66.25,66.2,true],[66.25,66.3,false],[66.55,66.5,true],[66.55,66.6,false]]){
+    const value=structuredClone(rounded);value.pose.slots[0].world_angles[0].value_deg=raw;value.reba.slots[0].current_score.measurement_refs[0].angles[0].value_deg=reference;
+    assert.equal(/현재 REBA 초안에 사용/.test(renderPostureReview(value)),expected,`raw ${raw} reference ${reference} must follow the stored Python one-decimal precision`);
+  }
+  for(const change of [value=>value.reba.slots[0].photo_id=999,value=>value.pose.slots[0].world_angles[0].side='RIGHT',
+    value=>value.pose.slots[0].world_angles[0].angle_code='ELBOW_FLEX_3D',value=>value.pose.slots[0].world_angles[0].coordinate_space='IMAGE_2D',
+    value=>value.reba.slots[0].current_score.measurement_refs[0].angles[0].coordinate_space='IMAGE_2D',
+    value=>value.reba.slots[0].current_score.measurement_refs[0].angles[0].used_for_reba=false,value=>value.snapshot.capture.slots[0].analysis_target=false]){
+    const value=structuredClone(rounded);change(value);assert.doesNotMatch(renderPostureReview(value),/현재 REBA 초안에 사용/,'rounded precision must not cross photo, side, angle, coordinate, selection or target ownership');
+  }
   world.snapshot.input_revision=3;
   const estimate={target:'manual.COMMON.neck_base',condition:'photo:7',photo_id:7,state:'ESTIMATED',source:'VISION',value:2,measurement_method:'AI_PHOTO_CATEGORY',vision_confidence:.75,
     vision_proof:{scope:'COMMON',field:'neck_base',value:'NECK_OVER_20',status:'OBSERVED',confidence:.75,evidence:'목을 숙인 사진 근거'}};

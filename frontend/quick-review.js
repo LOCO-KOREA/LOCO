@@ -29,9 +29,16 @@ export function renderMeasurementQuality(quality,{compact=false}={}){
   const tag=compact?'span':'div';
   return `<${tag} class="quick-measurement-quality ${compact?'compact':''}" aria-label="${esc(count)} · 측정 신뢰도 ${esc(level)}${confidence?` ${confidence}`:''}"><span>${esc(count)}</span><span class="quick-quality-badge ${className}">신뢰도 ${esc(level)}</span>${confidence?`<span>평균 ${esc(confidence)}</span>`:''}</${tag}>`;
 }
+function storedAnglePrecision(value){
+  // Match Python round(value,1), including exact binary quarter-degree ties.
+  if(Number.isInteger(value*4)&&!Number.isInteger(value*2)){
+    const lower=Math.floor(value*10);return (lower%2===0?lower:lower+1)/10;
+  }
+  return Number(value.toFixed(1));
+}
 function worldAngleUsed(result,angle){
   const current=result?.current_score||result?.score_so_far||{};
-  return current.kind!=='CONFIRMED'&&angle.value_deg!=null&&(current.measurement_refs||[]).some(item=>(item.angles||[]).some(ref=>ref.coordinate_space==='INFERRED_WORLD_3D'&&ref.used_for_reba===true&&ref.side===angle.side&&ref.angle_code===angle.angle_code&&ref.value_deg===angle.value_deg));
+  return current.kind!=='CONFIRMED'&&Number.isFinite(angle.value_deg)&&(angle.coordinate_space??'INFERRED_WORLD_3D')==='INFERRED_WORLD_3D'&&(current.measurement_refs||[]).some(item=>(item.angles||[]).some(ref=>ref.coordinate_space==='INFERRED_WORLD_3D'&&ref.used_for_reba===true&&ref.side===angle.side&&ref.angle_code===angle.angle_code&&Number.isFinite(ref.value_deg)&&(ref.value_deg===angle.value_deg||ref.value_deg===storedAnglePrecision(angle.value_deg))));
 }
 function angleTable(angles,{world=false,result=null}={}){const values=Array.isArray(angles)?angles:[];return table(['쪽','각도','결과','관절 신뢰도','설명'],values.map(a=>[cell(SIDE[a.side]||a.side),cell(ANGLE[a.angle_code]||a.label||a.angle_code),a.value_deg==null?'측정 불가':`${fmt(a.value_deg)}°`,a.min_confidence==null?'—':`${fmt(a.min_confidence*100)}%`,cell([a.diagnostic,world?`단안 사진의 3D 추정 · ${worldAngleUsed(result,a)?'현재 REBA 초안에 사용':'현재 REBA에 사용하지 않음'}`:''].filter(Boolean).join(' · '))]));}
 function rebaTable(result){if(!result)return '<p class="quick-note">REBA를 계산하지 않았어요.</p>';const rows=['left','right'].map(side=>{const item=result[side]||{};return [side==='left'?'왼쪽':'오른쪽',...REBA_FIELDS.map(([key])=>cell(item[key])),cell(RISK[item.risk]||item.risk),cell((item.missing_fields||[]).map(missingName).join(', ')),cell((item.review_reasons||[]).map(reasonName).join(', '))];});return `${table(['쪽',...REBA_FIELDS.map(([,label])=>label),'위험도','필요한 입력','확인 사유'],rows)}<p class="quick-note">사진 결과 ${esc(STATUS[result.status]||result.status||'미계산')} · ${result.total==null?'양쪽 결과가 완성되지 않아 합계 없음':`높은 쪽 ${fmt(result.total,0)}점 · ${esc(RISK[result.risk]||result.risk||'')}`} · 적용 하중 ${result.effective_load_kg==null?'미확인':`${fmt(result.effective_load_kg,2)}kg`}</p>`;}
