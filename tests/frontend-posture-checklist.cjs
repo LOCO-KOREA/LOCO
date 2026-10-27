@@ -74,7 +74,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal((a.html.match(/class="intake-check-item intake-check-pair"/g) || []).length, 4, 'an arm item is one line with a left and a right box');
   for (const [, , label] of ITEMS.slice(0, 4)) assert.match(a.html, new RegExp(`<span>${label}</span>`), 'each twist or bend box says which one it asks');
   for (const field of all) assert.doesNotMatch(a.html, new RegExp(`data-intake-form="${field.identity}"`), 'a checklist item is not also an ordinary select');
-  assert.match(a.html, /<h4 class="intake-angle-title">사진이 읽지 못해 직접 골라야 하는 항목<\/h4>/);
+  assert.match(a.html, /<h4 class="intake-angle-title">사진 측정 보완 \(선택\)<\/h4>/);
   assert.match(a.html, /data-intake-form="manual\.COMMON\.neck_base@photo:2"/, 'what the photo could not read is still asked');
   assert.equal(a.button('confirm').disabled, false);
   assert.equal(a.statuses[0].textContent, '체크하지 않은 18개는 아직 비어 있어요. 해당 없으면 위 버튼을 눌러 주세요.');

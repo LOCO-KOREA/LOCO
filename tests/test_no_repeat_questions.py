@@ -93,12 +93,69 @@ class QuestionCatalogue(unittest.TestCase):
         self.assertEqual(photo_load(facts.apply_answers(saved,[answer('card.lift.load_mass_kg',30,'다른 상자')])),('UNKNOWN',None))
         self.assertEqual(photo_load(facts.apply_answers(saved,[answer('load_link','NO')])),('UNKNOWN',None))
 
+    def test_measured_load_without_kg_still_offers_the_single_weight_link(self):
+        saved=facts.apply_answers({},[answer('context','YES'),answer('load','MEASURED'),
+            answer('card.lift.load_mass_kg',20,'상자')])
+        views=dict(LEFT=1)
+        task=facts.project(task_input({}),saved,views,{})
+        before=copy.deepcopy((task,saved))
+        link=next((q for q in planner.assess(task,saved,views)['candidates'] if q['target']=='load_link'),None)
+        self.assertIsNotNone(link,'knowing that an object is held must not hide its missing weight connection')
+        self.assertIn('20',link['text'])
+        self.assertEqual(photo_load(saved),('MEASURED',None),'a stated work weight is not yet a photo load')
+        self.assertIsNone(task['capture']['slots'][0]['observation']['measured_load_kg'])
+        self.assertEqual((task,saved),before,'offering a connection must not save or guess it')
+        confirmed=facts.apply_answers(saved,[answer('load_link','YES')])
+        self.assertEqual(photo_load(confirmed),('MEASURED',20))
+        after=facts.project(task,confirmed,views,{})
+        self.assertEqual(after['capture']['slots'][0]['observation']['measured_load_kg'],20)
+        self.assertNotIn('load_kg',{q['target'] for q in planner.assess(after,confirmed,views)['candidates']})
+
+    def test_weight_link_does_not_bypass_unknown_conflicting_or_explicit_photo_loads(self):
+        saved=facts.apply_answers({},[answer('context','YES'),answer('load','MEASURED'),
+            answer('card.lift.load_mass_kg',20,'상자')])
+        probes=[facts.apply_answers(saved,[answer(target,value)]) for target,value in
+                [('load',None),('load','UNLOADED'),('load_kg',None),('load_kg',30),('load_link',None),('load_link','NO')]]
+        conflicting_load=copy.deepcopy(saved)
+        conflicting_load[contract.key('load')]['state']='CONFLICT'
+        probes.append(conflicting_load)
+        conflicting_mass=copy.deepcopy(saved)
+        conflicting_mass['card.lift.load_mass_kg@다른 상자']=dict(
+            conflicting_mass['card.lift.load_mass_kg@상자'],condition='다른 상자',state='CONFLICT',conflict=dict(value=30))
+        probes.append(conflicting_mass)
+        probes.append(facts.apply_answers(saved,[answer('card.lift.load_mass_kg',30,'다른 상자')]))
+        for index,probe in enumerate(probes):
+            with self.subTest(index=index):
+                before=copy.deepcopy(probe)
+                task=facts.project(task_input({}),probe,dict(LEFT=1),{})
+                self.assertNotIn('load_link',{q['target'] for q in planner.assess(task,probe,dict(LEFT=1))['candidates']})
+                self.assertEqual(probe,before)
+
 
 class ReportedWeight(unittest.TestCase):
     setUp = fixtures.AdaptiveIntake.setUp
     turn = fixtures.AdaptiveIntake.turn
     get = fixtures.AdaptiveIntake.get
     photo_session = fixtures.PairedAdaptiveIntake.photo_session
+
+    def test_held_photo_object_can_link_the_stated_weight_without_reentering_it(self):
+        self.photo_session(sides=('LEFT',))
+        state=self.turn([answer('context','YES'),answer('load','MEASURED'),answer('manual.LEFT.coupling','UNACCEPTABLE')],
+            text='20kg 상자를 옮겨요.',raw=dict(answers=[model('card.lift.load_mass_kg',number=20,quote='20kg 상자',condition='상자')],questions=[]))
+        self.assertIsNone(state['task']['capture']['slots'][0]['observation']['measured_load_kg'])
+        self.assertIn('load_link',{q['target'] for q in state['form_fields']},'a usable explicit connection must remain available')
+        linked=self.turn([answer('load_link','YES')],plan=False)
+        observation=linked['task']['capture']['slots'][0]['observation']
+        self.assertEqual((observation['load_state'],observation['measured_load_kg']),('MEASURED',20))
+        manual=next(row for row in linked['task']['manual'] if row['scope']=='LEFT' and row['field']=='coupling')
+        self.assertEqual(manual['value'],'UNACCEPTABLE','the load connection must preserve the actual grip answer')
+        revision=linked['task']['input_revision']
+        restored=self.get()
+        self.assertEqual(restored['task']['input_revision'],revision)
+        self.assertEqual(restored['task']['capture']['slots'][0]['observation']['measured_load_kg'],20)
+        self.assertFalse({'load','load_kg'} & {q['target'] for q in restored['form_fields']})
+        session=restored['task']['conditions'][contract.SESSION_KEY]
+        self.assertNotIn('load_link',{q['target'] for q in planner.assess(restored['task'],session['facts'],session['views'])['candidates']})
 
     def test_ai_weight_confirmed_for_photo_is_not_asked_again_and_reads_stay_stable(self):
         self.photo_session()

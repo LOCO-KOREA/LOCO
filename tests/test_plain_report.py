@@ -310,7 +310,7 @@ class PlainWorkbook(unittest.TestCase):
             'text_id': generated['text']['text_id'], 'use_edited': True})
 
         current_preview = application.dispatch('preview_excel_sheets', {'survey_id': self.survey['survey_id']})
-        self.assertIn('쉬운 설명', [sheet['name'] for sheet in current_preview['sheets']])
+        self.assertIn('결과 설명', [sheet['name'] for sheet in current_preview['sheets']])
         task = application.dispatch('get_task', {'task_id': self.task['task_id']})['task']
         updated = application.task_input(task)
         updated['task_name'] = '설명 확정 뒤 바뀐 작업'
@@ -319,10 +319,10 @@ class PlainWorkbook(unittest.TestCase):
 
         stale_preview = application.dispatch('preview_excel_sheets', {'survey_id': self.survey['survey_id']})
         stale_names = [sheet['name'] for sheet in stale_preview['sheets']]
-        self.assertNotIn('쉬운 설명', stale_names)
+        self.assertNotIn('결과 설명', stale_names)
         self.assertIn('부담작업 해당 여부', stale_names)
         book = self.export()
-        self.assertNotIn('쉬운 설명', book.sheetnames)
+        self.assertNotIn('결과 설명', book.sheetnames)
         self.assertIn('부담작업 해당 여부', book.sheetnames)
 
     def test_human_review_sheet_requires_current_review_and_is_shared_by_preview_and_excel(self):
@@ -395,19 +395,19 @@ class PlainWorkbook(unittest.TestCase):
         self.assertEqual(application.dispatch('list_export_logs', {'survey_id': self.survey['survey_id']}), before)
 
     def test_applied_explanation_gets_its_own_sheet_and_an_unapplied_one_does_not(self):
-        self.assertNotIn('쉬운 설명', self.export().sheetnames)
+        self.assertNotIn('결과 설명', self.export().sheetnames)
         settings = application.dispatch('get_settings', {})
         settings.pop('gpt_key_present', None)
         settings.update(gpt_enabled=True, gpt_model='test-model')
         application.dispatch('update_settings', {'settings': settings})
         with patch('ergo.gpt.client.generate', return_value=(None, 'NO_API_KEY')):
             generated = application.dispatch('generate_ai_text', {'analysis_id': self.analysis['analysis_id'], 'purpose': 'TASK_EXPLANATION'})
-        self.assertNotIn('쉬운 설명', self.export().sheetnames, 'a generated draft must not appear in Excel')
+        self.assertNotIn('결과 설명', self.export().sheetnames, 'a generated draft must not appear in Excel')
         application.dispatch('edit_ai_text', {'analysis_id': self.analysis['analysis_id'], 'text_id': generated['text']['text_id'], 'text': '조사자가 확인하고 확정한 문장입니다.'})
         application.dispatch('apply_ai_text', {'analysis_id': self.analysis['analysis_id'], 'text_id': generated['text']['text_id'], 'use_edited': True})
         book = self.export()
-        self.assertEqual(book.sheetnames, PLAIN_SHEETS + ['쉬운 설명'])
-        cells=self.cells(book, '쉬운 설명')
+        self.assertEqual(book.sheetnames, PLAIN_SHEETS + ['결과 설명'])
+        cells=self.cells(book, '결과 설명')
         self.assertIn('조사자가 확인하고 확정한 문장입니다.', cells)
         self.assertIn('확정 시각', cells)
         self.assertIn('조사자가 고친 설명', cells)

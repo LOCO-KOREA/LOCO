@@ -55,6 +55,11 @@ def _assess(task, facts, views, catalogue, only_identity=None):
     context_answered=context.get('state')=='KNOWN' or context.get('state')=='UNKNOWN' and context.get('source')=='USER'
     unknown_work=[f for f in catalogue if f['destination']['type']=='work_type' and not has(f['target'])]
     masses={f['value'] for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['state']=='KNOWN'}
+    # A held object (MEASURED) can still lack its kg value. Offer the explicit
+    # single-weight connection in that case, without bypassing a prior answer.
+    link_blocked=any((facts.get(key(t)) or {}).get('state')=='CONFLICT' or
+                     (facts.get(key(t)) or {}).get('state')=='UNKNOWN' and (facts.get(key(t)) or {}).get('source')=='USER'
+                     for t in ('load','load_kg')) or any(f['target']=='card.lift.load_mass_kg' and f['state']=='CONFLICT' for f in facts.values())
     candidates=[]
     for field in catalogue:
         t=field['target']; d=field['destination']; kind=d['type']
@@ -65,7 +70,7 @@ def _assess(task, facts, views, catalogue, only_identity=None):
         if kind=='view' and d['view'] not in views: continue
         if kind=='manual' and not photo_in_use and not context_answered: continue
         if kind=='manual' and d['field']=='coupling' and (known('load')=='UNLOADED' or known('load_kg')==0): continue
-        if t=='load_link' and (len(masses)!=1 or has('load') or has('load_kg')): continue
+        if t=='load_link' and (len(masses)!=1 or load_state not in ('UNKNOWN','MEASURED') or load_kg is not None or link_blocked): continue
         if t=='load' and load_state!='UNKNOWN': continue
         if t=='load_kg' and load_kg is not None: continue
         if t=='load' and len(masses)==1 and not has('load_link'): continue

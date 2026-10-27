@@ -58,7 +58,7 @@ function current(html, score) {
     ui.result = {reba: {slots: [{total: score, risk: ui.preview.score.risk, selected_side: 'LEFT', left: {total: score}, right: {total: 1}}]}};
     const final = ui.rebaPanel();
     current(final, score);
-    assert.ok(final.includes('최종 REBA 점수'));
+    assert.ok(final.includes('REBA 현재 점수'));
   }
 
   const missing = flow();

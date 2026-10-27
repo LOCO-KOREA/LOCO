@@ -102,9 +102,11 @@ def export(worker, survey_id, ids, name):
                                     comparisons=[], destination=str(target)))
     assert Path(receipt['file_path']) == target and target.is_file()
     book = load_workbook(target, read_only=True, data_only=False)
-    count = len(book.sheetnames)
+    names = list(book.sheetnames)
     book.close()
-    return count
+    preview = worker.call('preview_excel_sheets', survey_id=survey_id, analysis_ids=ids, comparisons=[])
+    assert names == [sheet['name'] for sheet in preview['sheets']], names
+    return names
 
 
 def main():
@@ -149,6 +151,11 @@ def main():
         if MODEL_ID.startswith('mediapipe-'):
             assert not pose['points'] and any(d['code']=='NO_PERSON' for d in pose['diagnostics']),pose
             assert pose['engine']['actual_model_sha256']==digest(MODEL)
+            current = analysis['reba']['summary']['current_score']
+            assert current['total'] == 1 and current['kind'] == 'ASSUMED_REFERENCE', current
+            quality = analysis['measurement_quality']
+            assert quality['measured_points'] == 0 and quality['total_points'] == 33, quality
+            assert quality['confidence_level'] == 'MISSING' and quality['mean_confidence'] is None, quality
         else:assert len(pose['points'])==MODELS[MODEL_ID]['point_count'],pose
         assert all(math.isfinite(p[key]) for p in pose['points'] for key in ('x_px', 'y_px', 'confidence'))
         assert 'MODEL_ERROR' not in [d['code'] for d in pose['diagnostics']]
@@ -167,10 +174,11 @@ def main():
         worker.call('edit_ai_text', analysis_id=analysis['analysis_id'], text_id=ai['text_id'], text='합성 자료 · 현장 확인 필요')
         worker.call('apply_ai_text', analysis_id=analysis['analysis_id'], text_id=ai['text_id'], use_edited=True)
         check('disabled explanation cannot be applied; no-key local fallback can be edited/applied without external GPT call')
-        assert export(worker, survey['survey_id'], [analysis['analysis_id']], 'regular-7-sheets') == 7
+        assert export(worker, survey['survey_id'], [analysis['analysis_id']], 'recorded-analysis') == [
+            '조사 결과', '자세 분석(REBA)', '입력한 값', '결과 설명']
         occasional = worker.call('create_survey', draft=dict(title='수시 합성 검증', survey_type='OCCASIONAL'))
-        assert export(worker, occasional['survey_id'], [], 'occasional-6-sheets') == 6
-        check('frozen service exports readable official-form workbooks (7 sheets with the applied explanation, 6 without tasks)')
+        assert export(worker, occasional['survey_id'], [], 'no-tasks') == ['조사 결과']
+        check('frozen service preview and Excel share recorded-data sheets; applied explanation included and empty forms omitted')
         saved = worker.call('get_analysis', analysis_id=analysis['analysis_id'])
     finally:
         worker.close()
@@ -181,7 +189,7 @@ def main():
         assert restored['snapshot'] == saved['snapshot']
         assert restored['pose']['slots'][0]['points'] == saved['pose']['slots'][0]['points']
         assert restored['ai'] == saved['ai']
-        check('frozen service restart preserves task, immutable snapshot, 17 points and applied explanation')
+        check('frozen service restart preserves task, immutable snapshot, measured points and applied explanation')
     finally:
         reopened.close()
     broken_model = OUTPUT / 'incorrect-model.tflite'
@@ -199,7 +207,7 @@ def main():
     finally:
         rejected.close()
     report = dict(kind='development-PC frozen-service smoke check; GUI, external GPT and separate PC not verified',
-                  package_name=PACKAGE.name, source_commit=manifest['source_commit'], source_has_local_changes=True,
+                  package_name=PACKAGE.name, source_commit=manifest['source_commit'], source_has_local_changes=manifest['source_has_local_changes'],
                   app_exe_sha256=digest(PACKAGE / 'LOCO.exe'), service_exe_sha256=digest(EXE),
                   model_sha256=digest(MODEL), checks=CHECKS)
     (OUTPUT / 'receipt.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')

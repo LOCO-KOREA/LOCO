@@ -39,11 +39,14 @@ const assert=require('node:assert/strict');
  const snapshot={capture:{slots:[{photo_id:17}]},conditions:{configured_session:{photo_vision:{photos:[{...record,summary:'선택한 분석에 저장한 관찰'},second]}}}};
  const flow=Object.assign(Object.create(QuickFlow.prototype),{intake,result:{snapshot},task});
  assert.match(flow.photoVisionPanel(),/선택한 분석에 저장한 관찰/);assert.match(flow.photoVisionPanel(true),/<details open>/,'review stage opens all AI photo observation details');assert.doesNotMatch(flow.photoVisionPanel(),/공개 응답의 현재 사진 관찰|두 번째 사진/);flow.result={};assert.equal(flow.photoVisionPanel(),'','old result without saved vision never borrows newer task observations');
- const labels=[],calls=[];const ready={task:{task_id:1},preview:{},form_fields:[],questions:[]};
+ const labels=[],calls=[],automaticPageCalls=[];const ready={task:{task_id:1},preview:{},form_fields:[],questions:[]};
  for(const withPhoto of [true,false]){
-  const f=Object.assign(Object.create(QuickFlow.prototype),{stale:true,photos:withPhoto?{RIGHT:{photo:{photo_id:17}}}:{},intakeText:'작업 설명',task:{task_id:1},ensureTask:async()=>{},ensureAiOn:async()=>{},async run(label,fn){labels.push(label);await fn();},intake:{state:null,async open(){calls.push('open');return ready;},async turn(){calls.push('turn');return ready;},pendingFormFields(){return [];},openPageOnce(){this.dialogOpen=this.pendingFormFields().length>0;return this.dialogOpen;},showPage(){this.dialogOpen=true;}}});await f.analyze();assert.equal(f.intake.dialogOpen,false);
+  const intake={state:null,dialogOpen:false,async open(){calls.push('open');return ready;},async turn(){calls.push('turn');return ready;},pendingFormFields(){return [];},openPageOnce(){automaticPageCalls.push('openPageOnce');this.dialogOpen=true;return true;},showPage(){automaticPageCalls.push('showPage');this.dialogOpen=true;},closePage(){this.closeCount=(this.closeCount||0)+1;this.dialogOpen=false;}};
+  const f=Object.assign(Object.create(QuickFlow.prototype),{stale:true,photos:withPhoto?{RIGHT:{photo:{photo_id:17}}}:{},intakeText:'작업 설명',task:{task_id:1},ensureTask:async()=>{},ensureAiOn:async()=>{},async run(label,fn){labels.push(label);await fn();},intake});
+  await f.analyze();assert.equal(f.intake.dialogOpen,false,'finishing photo and task analysis never opens optional questions');assert.equal(f.intake.closeCount,1,'the optional page is explicitly closed after analysis');
  }
  assert.match(labels[0],/사진에서 자세와 동작/);assert.match(labels[1],/작업 설명/);assert.deepEqual(calls,['open','turn','open','turn'],'existing analyze automatically uses the service hook without extra gates or frontend AI calls');
+ assert.deepEqual(automaticPageCalls,[],'the analysis path never opens or restores the optional question page');
  const copy=QuickFlow.prototype.intakePanel.call({busy:false,intake:null,intakeText:''});assert.match(copy,/등록한 사진과 이 설명을 AI가 함께 확인/);assert.doesNotMatch(copy,/이 문장만 AI에 보내|사진·이름은 보내지/);
- console.log('PASS photo vision per-photo Korean observations, visible activity/body/knees, uncertainty, escaping, no confidence claims/codes, immutable snapshot and minimum-question analyze path');
+ console.log('PASS photo vision per-photo Korean observations, visible activity/body/knees, uncertainty, escaping, no confidence claims/codes, immutable snapshot and no automatic follow-up questions');
 })().catch(error=>{console.error(error);process.exitCode=1;});

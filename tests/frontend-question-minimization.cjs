@@ -15,7 +15,8 @@ const assert=require('node:assert/strict');
   return {intake,flow,calls,finished:()=>finished};
  }
  const a=setup(),before=structuredClone(a.intake.state.facts);
- const html=a.intake.dialog(false);assert.ok(html.indexOf('data-intake-form=')<html.indexOf('data-intake-natural-answer'),'the choices come first; the sentence box is only an option after them');assert.match(html,/<details class="intake-form-section" data-intake-natural-answer><summary>문장으로 더 적기<\/summary>/,'the sentence box is closed and is not a question');assert.match(html,/data-quick="intake-no-other-work"/);
+ const html=a.intake.dialog(false);assert.ok(html.indexOf('data-intake-form=')<html.indexOf('data-intake-natural-answer'),'the choices come first; the sentence box is only an option after them');assert.match(html,/<details class="intake-form-section" data-intake-natural-answer><summary>문장으로 더 적기<\/summary>/,'the sentence box is closed and is not a question');
+ assert.equal(a.intake.formAnswers().filter(answer=>answer.value==='NO').length,0,'opening optional inputs must not turn unanswered work into NO');
  for(const {field,value,quote} of a.intake.fillPlan({kind:'no-work'}))a.intake.setFormValue(field.identity,value,quote);
  assert.equal(a.calls.length,0,'pressing "the rest is no" only fills the boxes; nothing is saved by it');
  assert.equal(a.intake.formAnswers().filter(x=>x.value==='NO'&&x.target.startsWith('work_type.remaining')).length,7);

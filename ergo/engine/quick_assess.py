@@ -259,7 +259,7 @@ def provisional(measured, front, settings, seated=False):
     slot = _confirmed_slot('LEFT', 'SCREEN_RIGHT')
     snapshot = {'schema_version': '2.0', 'capture': {'slots': [slot]}, 'manual': manual, 'settings': {'pose_model': settings['pose_model']}}
     reba = calculate_reba(snapshot, {'slots': []})['slots'][0]
-    return {'total': reba['total'], 'risk': reba['risk'], 'selected_side': reba['selected_side'],
+    return {'total': reba['total'], 'risk': reba['risk'], 'selected_side': reba['selected_side'], 'kind': 'WITH_ASSUMPTIONS', 'source': 'FIRST_PASS',
             'left': reba['left']['total'], 'right': reba['right']['total'], 'assumed': assumed,
             'assumption': '사진에서 보이지 않는 항목은 부담 없음으로 가정한 1차 점수입니다. 질문에 답하면 달라질 수 있습니다.'}
 

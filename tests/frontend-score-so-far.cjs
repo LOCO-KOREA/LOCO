@@ -22,17 +22,16 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   const unfinished = {total: null, left: {total: 1, missing_fields: []}, right: {total: null, missing_fields: ['right.wrist_base']}};
 
   const shown = flow({...unfinished, score_so_far: soFar}).rebaPanel();
-  assert.ok(shown.includes('아직 점수를 계산할 수 없어요'), 'the missing-items warning must stay');
-  assert.ok(shown.includes('최종 REBA 점수') && shown.includes('확정 전'), 'the heading must say the score is not final');
-  assert.ok(shown.includes('확정 점수가 아닙니다') && shown.includes('가정한 항목 3개'), 'the assumption and its size must be visible');
+  assert.ok(shown.includes('REBA 현재 점수') && shown.includes('미확인 항목을 가정한 점수'), 'the current score stays prominent and is labelled as assumption-based');
+  assert.ok(shown.includes('확정 점수가 아닙니다') && shown.includes('미확인 항목 3개를 가정한 현재 점수예요'), 'the assumption and its size must be visible');
   assert.ok(shown.includes('낮음'), 'the risk name must be readable without color');
   assert.deepEqual(markers(shown).map(marker => marker.score), [3], 'exactly one marker, on the score so far');
-  assert.ok(shown.includes('지금까지 기준 REBA 3점'), 'the accessible description must say it is the score so far, not a first-pass or final score');
-  assert.ok(!shown.includes('1차 REBA'), 'it must not be mislabelled as the first-pass score');
+  assert.ok(shown.includes('확인 전 현재 REBA 3점'), 'the accessible description must say it is provisional, not a first-pass or final score');
+  assert.ok(!shown.includes('처음 사진 기준 점수'), 'it must not be mislabelled as the first-pass score');
 
   assert.ok(!shown.includes('임시로 썼어요'), 'no photo-confirmation note when every value was confirmed');
   const borrowed = flow({...unfinished, score_so_far: {...soFar, unconfirmed_photo: ['common.trunk_base', 'right.upper_arm_base']}}).rebaPanel();
-  assert.ok(borrowed.includes('사진 상황(한 사람·전신·평소 작업)을 아직 확인하지 않아 사진에서 읽은 값 2개를 임시로 썼어요'), 'values borrowed from an unconfirmed photo must be named');
+  assert.ok(borrowed.includes('사진 상황 미확인으로 측정값 2개를 임시 사용했어요'), 'values borrowed from an unconfirmed photo must be named');
 
   const bare = flow(unfinished).rebaPanel();
   assert.ok(bare.includes('아직 점수를 계산할 수 없어요'));
@@ -43,13 +42,34 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   const action = withForm({...unfinished, score_so_far: soFar});
   assert.match(action, /<button type="button" data-quick="questions" data-reveal-photo="1">입력 수정하기<\/button>/);
   assert.doesNotMatch(action, /확정하기|class="primary"|→/, 'a plain button: no request, not the main button');
-  assert.ok(action.includes('아직 점수를 계산할 수 없어요'), 'the button comes with the explanation, not instead of it');
+  assert.ok(action.includes('미확인 항목을 가정한 점수'), 'the button comes with the score explanation, not instead of it');
   assert.match(withForm(unfinished), /data-quick="questions"/, 'it is offered even when no score so far can be shown');
   assert.doesNotMatch(shown, /data-quick="questions"/, 'no form to reopen, no button');
   assert.doesNotMatch(withForm({total: 3, risk: 'LOW', selected_side: 'LEFT', left: {total: 3}, right: {total: 1}}), /data-quick="questions"/, 'a final score needs no button');
 
   const final = flow({total: 3, risk: 'LOW', selected_side: 'LEFT', left: {total: 3}, right: {total: 1}, score_so_far: soFar}).rebaPanel();
   assert.ok(!final.includes('확정 전'), 'a final score must not carry the not-final label');
+
+  const compactUi = Object.create(QuickFlow.prototype);
+  const longAssumption = '확인한 입력과 사진 측정값으로 계산했으며 미확인 항목은 부담 없음으로 가정한 확정 전 점수입니다. 실제 점수는 더 높을 수 있습니다.';
+  Object.assign(compactUi, {photos: {}, answers: {}, preview: null, intakeText: '', reopened: false, step: 'review', result: {
+    reba: {summary: {complete_count: 0, total_slot_count: 1, current_score: {total: 11, risk: 'VERY_HIGH', kind: 'WITH_ASSUMPTIONS', slot_no: 2,
+      assumed: Array.from({length: 6}, (_, index) => `right.item_${index + 1}`), assumption: longAssumption},
+      first_pass: {total: 5, risk: 'MEDIUM', slot_no: 2, assumption: {text: '답변 전 사진 기준 가정'}}},
+      slots: [{slot_no: 2, total: null, left: {total: null}, right: {total: null}, score_so_far: {left: null, right: null}}]},
+    measurement_quality: {slots: [{slot_no: 1, measured_points: 0, total_points: 33, mean_confidence: null, confidence_level: 'MISSING'},
+      {slot_no: 2, measured_points: 26, total_points: 33, mean_confidence: .79, confidence_level: 'HIGH'}]}}});
+  const compact = compactUi.rebaPanel({compact: true}), primary = compact.slice(0, compact.indexOf('<details'));
+  assert.match(primary, /11점/);
+  assert.match(primary, /미확인 항목 6개/,'the compact count comes from canonical current_score.assumed');
+  assert.match(primary, /측정된 관절 26\/33개/,'quality matches the score slot, not another photo');
+  assert.doesNotMatch(primary, /0\/33개/);
+  assert.doesNotMatch(primary, /실제 점수는 더 높을 수 있습니다/,'the long caveat is progressive disclosure');
+  assert.doesNotMatch(compact, /\[object Object\]/,'structured first-pass notes never stringify as an object');
+  assert.match(compact, /답변 전 사진 기준 가정/,'structured assumption text stays readable in details');
+  assert.doesNotMatch(compact, /왼쪽 —점|오른쪽 —점/,'missing side totals are omitted instead of shown as dashes');
+  assert.ok(compact.indexOf('<details') < compact.indexOf('reba-scale'),'the risk band is folded in the compact review panel');
+  assert.equal((compact.match(/REBA 현재 점수/g) || []).length, 0,'the review wrapper owns the single score heading');
 
   assert.ok(renderRebaScale(5, {provisional: true}).includes('1차 REBA 5점'), 'the first-pass label stays as it was');
   assert.ok(renderRebaScale(5).includes('"REBA 5점') || renderRebaScale(5).includes('aria-label="REBA 5점'), 'the default label stays as it was');

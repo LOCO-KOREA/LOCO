@@ -202,8 +202,11 @@ type RebaSideScore = {
   table_c:Count|null,activity_score:Count|null,total:Count|null,risk:Risk|null,missing_fields:string[],review_reasons:ReviewReason[]
 };
 type RebaScoreSoFar = {total:Count,risk:Risk,selected_side:Side,left:Count,right:Count,assumed:string[],unconfirmed_photo?:string[],assumption:string};
-type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[],score_so_far?:RebaScoreSoFar};
-type RebaSummary = {complete_count:Count,total_slot_count:Count,available_max:Count|null,full_max:Count|null,representative_slot_no:Count|null,selection:'AUTO'|'MANUAL'|null,score_so_far?:RebaScoreSoFar&{slot_no:Count}};
+type RebaCurrentScore = {total:Count,risk:Risk,kind:'CONFIRMED'|'WITH_ASSUMPTIONS'|'ASSUMED_REFERENCE',source:'COMPLETE'|'ANSWERS_SO_FAR'|'FIRST_PASS'|'ASSUMED_REFERENCE',slot_no:Count,complete_count:Count,total_slot_count:Count,assumed:string[],assumption:string};
+type PhotoMeasurementQuality = {slot_no:Count,photo_id:ID|null,measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING'};
+type MeasurementQuality = {measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING',slots:PhotoMeasurementQuality[]};
+type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[],score_so_far?:RebaScoreSoFar,current_score?:RebaCurrentScore};
+type RebaSummary = {complete_count:Count,total_slot_count:Count,available_max:Count|null,full_max:Count|null,representative_slot_no:Count|null,selection:'AUTO'|'MANUAL'|null,score_so_far?:RebaScoreSoFar&{slot_no:Count},first_pass?:RebaScoreSoFar&{photo_count:Count,slot_no:Count},current_score?:RebaCurrentScore};
 type RebaResult = {status:'COMPLETE'|'INCOMPLETE',slots:RebaSlotResult[],summary:RebaSummary};
 type BasisItem = {item_code:string,value:Number|Truth|null,unit:'MIN_DAY'|'KG'|'KG_EQUIV'|'COUNT_DAY'|'COUNT_MIN'|'COUNT_HOUR'|'MONTH'|'COUNT_YEAR'|'BOOLEAN',operator:'GE'|'LE'|'EQ'|'OR'|null,threshold:Number|null,source:string};
 type InvestigatorConclusion = {criterion_no:Count,status:FinalStatus|null,reason:string|null,evidence:Evidence,reviewer:string|null,reviewed_at:Timestamp|null};
@@ -212,7 +215,7 @@ type JudgmentResult = {judgments:Judgment[]};
 type AnalysisV2 = {
   analysis_id:ID,task_id:ID,input_revision:Count,snapshot:TaskSnapshot,status:JobStatus,
   module_states:ModuleStates,pose:PoseResult|null,slot_tags:SlotTag[],tags:TagSummary[],
-  reba:RebaResult|null,judgment:JudgmentResult|null,ai:AiText[],notes:Diagnostic[],
+  reba:RebaResult|null,judgment:JudgmentResult|null,ai:AiText[],notes:Diagnostic[],measurement_quality?:MeasurementQuality,
   created_at:Timestamp,finished_at:Timestamp|null,currentness:Currentness
 };
 type RunHandle = {analysis_id:ID,task_id:ID,status:JobStatus};
@@ -240,10 +243,10 @@ type NumericCriterion = {
 type ProvisionalRebaInput = {total:Count,risk:string,photo_ids:ID[]};
 type NumericSummary = {
   schema_version:'2.0',purpose:AiPurpose,rule_version:string,module_states:ModuleStates,requested_scope:AnalysisScope,
-  pose_quality:{target_count:Count,valid_count:Count|null},
-  reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null,score_so_far?:{total:Count,risk:Risk,assumed_count:Count,unconfirmed_photo_count?:Count}},
+  pose_quality:{target_count:Count,valid_count:Count|null,measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING'},
+  reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null,current_score?:{total:Count,risk:Risk,kind:string,source:string,assumed_count:Count},first_pass?:{total:Count,risk:Risk,assumed_count:Count},score_so_far?:{total:Count,risk:Risk,assumed_count:Count,unconfirmed_photo_count?:Count,load_assumed?:boolean}},
   provisional_reba?:{assumption:string,analysis_currentness:'CURRENT'|'STALE',initial_total:Count,initial_risk:string,initial_photo_count:Count,final_photo_count:Count,same_photo_scope:boolean,final_complete:boolean,final_total:Count|null,final_risk:string|null,comparable:boolean,comparison_status:'COMPARABLE'|'STALE_ANALYSIS'|'FINAL_INCOMPLETE'|'DIFFERENT_PHOTO_SCOPE'|'MULTI_PHOTO_COMPOSITION',score_delta:Count|null},
-  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
+  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count,measurement_quality?:Omit<PhotoMeasurementQuality,'slot_no'|'photo_id'>,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
   tag_counts:TagSummary[],criteria:NumericCriterion[],public_rule_text:string[]
 };
 type ExplanationContent = {
@@ -383,14 +386,14 @@ REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때�
 | 자세 분석(REBA) | 자세/REBA/기술태그 데이터가 있을 때 | 사진별 REBA 구성점수, 읽은 각도, 자세 표시 |
 | 입력한 값 | 실제 계산 입력·사진 확인·자세 입력 근거가 있을 때 | 입력한 값과 AI가 정리한 입력 사실만 표시한다. 기본 UNKNOWN과 입력되지 않은 기본값은 숨긴다. |
 | 확인사항 | 사용하지 않음 | Excel에는 다음 입력·미입력·미질문 안내 시트를 만들지 않는다. 앱 조사화면의 보완 입력 안내는 유지한다. |
-| 쉬운 설명 | 사람이 확정한 설명이 있을 때 | 활성 적용본의 확정 문장·종류·확정 시각. 미확정 생성/편집 초안은 제외 |
+| 결과 설명 | 사람이 확정한 설명이 있을 때 | 활성 적용본의 확정 문장·종류·확정 시각. 미확정 생성/편집 초안은 제외 |
 | 개선 전후 비교 | 비교를 골랐을 때 | 기준별 변화와 바뀐 입력 |
 
 시트 정의 표는 name, title, lead, tables, notes, tab_color를 사용하며 각 표는 heading, columns, rows, widths와 선택 키 header, labels, label_rows, label_cells, merges, bordered, heights, break, photo를 가질 수 있다. 대표 사진 이미지는 조사자가 포함을 선택하고 실제 대표 사진이 있을 때만 기본 결과 시트의 사진 칸에 들어가며 파일에만 있다. 비교 블록은 정렬 표 밖에 두고 실제 입력 변화와 비교 제한은 비교 시트에 표시한다.
 
 needs_input_count/needs_review_count는 computed_status별 기준 수(작업당 0~11)다. judgment 미계산이면 null이며 조사 집계에 null이 있으면 합계도 null이다. incomplete_reba_count는 요청하고 계산한 REBA의 N−complete_count다. 미계산/미요청은 null로 두고 상태로 구분한다. 요청 대상 0건은 0과 NO_ANALYSIS_TARGET을 함께 표시한다. REBA 조사 합계는 전체 미요청이면 null, 요청 작업 중 미계산이 있으면 null, 나머지는 요청·계산한 작업의 수를 더한다.
 
-has_incomplete는 요청 모듈의 NOT_CALCULATED/RUNNING/INCOMPLETE/FAILED/CANCELED에서 산출하고 NOT_REQUESTED는 제외한다. 분석 없음은 true다. GPT 실패·이전 설명은 앱 상태에 남기며 Excel에는 표시하지 않는다. 사람이 확정한 설명만 쉬운 설명 시트에 출력한다. has_stale는 선택 분석의 STALE 여부다.
+has_incomplete는 요청 모듈의 NOT_CALCULATED/RUNNING/INCOMPLETE/FAILED/CANCELED에서 산출하고 NOT_REQUESTED는 제외한다. 분석 없음은 true다. GPT 실패·이전 설명은 앱 상태에 남기며 Excel에는 표시하지 않는다. 사람이 확정한 설명만 결과 설명 시트에 출력한다. has_stale는 선택 분석의 STALE 여부다.
 
 reviewed는 선택 ID가 검토 목록에 있고 reviewed=true일 때다. review_current는 여기에 metadata_revision 일치와 CURRENT까지 만족할 때다. 조사 전체 reviewed/review_current는 작업이 1건 이상이고 모두 true일 때, incomplete/stale는 하나라도 true일 때다. 작업 0건이면 네 값 모두 false다.
 
@@ -557,9 +560,15 @@ context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추
 
 사진 상황 확인(context)에 사용자가 아직 답하지 않았으면, 분석 snapshot에 담긴 intake 세션에서 같은 사진이 소유한 POSE·MOVENET KNOWN 판독(작업 입력에는 아직 투영되지 않은 값이며 방향·신뢰도·경계 검사를 통과한 값만 KNOWN이다)을 아직 비어 있는 자리에 빌려 쓰고, 그 경로를 `unconfirmed_photo`에 적는다. 이 값은 `assumed`에서 빠지며 입력으로 저장되지 않는다. context가 NO이거나 사용자의 모름이면 빌리지 않고(planner가 같은 항목을 직접 묻는다), YES이면 이미 받아들인 값만 쓴다. 다른 사진이 소유한 값, ESTIMATED 값, 이미 입력된 값은 빌리지도 덮어쓰지도 않으며 intake 세션이 없는 작업에는 빌릴 값이 없다.
 
-만들지 않는 경우: 몸통(trunk_base)과 위팔(upper_arm_base, 좌·우 중 하나) 값이 모두 있지 않을 때(가정만으로 ‘무시 가능’이 나오는 것을 막는다), 하중이 MEASURED인데 무게가 없을 때, 하중 상태가 UNKNOWN인데 무게가 있는 것처럼 입력이 충돌할 때, 같은 사진이 여러 슬롯에 배정되었을 때. 하중 상태가 UNKNOWN이고 무게도 없으면 하중 없음을 가정하고 `observation.load_state`를 `assumed`에 적으며 `assumption`에 그 사실을 덧붙인다. `assumption`은 “실제 점수는 더 높을 수 있고 확정 점수가 아닙니다”를 포함한다. 팔 받침처럼 점수를 낮추는 항목을 NO로 가정하므로 최솟값을 보장하지 않는다. `summary.score_so_far`는 미완성 슬롯 중 가장 높은 값에 `slot_no`를 붙인 사본이다. complete_count·available_max·full_max·대표 사진·전후 비교에는 쓰지 않고, 모든 슬롯이 완성이면 두 곳 모두 없다. 1차 점수(quick_preview의 score)와 같은 입력이면 같은 값이다.
+2026-10-27 사용자 변경: 등록한 분석대상 사진에는 `summary.current_score`를 항상 제공한다. 기존의 몸통·위팔 누락 등으로 현재 점수를 생략하던 표시 문턱은 폐기한다. 확정 점수는 기존 검증을 유지하며, 필요한 근거가 없거나 입력이 충돌하면 부담 없음 가정을 명시한 `ASSUMED_REFERENCE`로 수치를 제공한다. 실제 입력과 확정 total을 0이나 가정으로 덮어쓰지 않는다. 무사진 작업에는 사진 점수를 만들지 않는다. `summary.score_so_far`와 `summary.first_pass`는 확인 전 점수와 사진 1차 점수를 구분해 보존한다. `current_score`는 완성 사진과 확인 전 점수 중 큰 값을 선택하고, 동점이면 확정 사진을 우선한다.
 
-`NumericSummary.reba.score_so_far`는 total(1~15, risk와 일치할 때만)·risk·assumed_count와, 있을 때만 unconfirmed_photo_count·load_assumed를 허용 목록으로 전달한다. AI는 이를 확정 전 점수로만 설명하고 사진 확인 전 값이 들어 있으면 함께 밝힌다(PROMPT_VERSION `LOCO_NUMERIC_EXPLANATION_V9`). 설명이 없을 때의 대체 문장도 같은 표현을 쓴다. Excel은 REBA 요약 칸에 “확정 전 N점 (위험도) · [사진 확인 전 값 K개 포함 ·] 확인하지 못한 M개는 부담 없음으로 가정[ · 들고 있는 물건 없음으로 가정] · 실제 점수는 더 높을 수 있어요”를 쓰고 공식 서식의 판정 칸은 확정 점수일 때만 채운다. `score_so_far`를 조사자 결론이나 법적 판정으로 표시하지 않는다.
+`NumericSummary.reba.score_so_far`는 total·risk·assumed_count와, 있을 때만 unconfirmed_photo_count·load_assumed를 허용 목록으로 전달한다. AI는 LOCO가 계산한 점수와 가정을 설명하며 점수를 생성하거나 삭제하지 않는다. 화면과 Excel의 주 결과는 `REBA 현재 점수`이며, 확인 전 항목은 점수 옆에 가정 포함으로 표시한다. 확정 계산 total과 별도인 현재 점수를 조사자 결론이나 법적 판정으로 표시하지 않는다.
+
+### 측정 신뢰도와 현재 점수 읽기 투영 (2026-10-27)
+
+`analysis.measurement_quality`는 분석대상 사진별 측정된 관절 수, topology의 전체 관절 수, 관절 신뢰도 평균과 품질 수준을 제공한다. 유한한 좌표·신뢰도를 가진 점 중 snapshot의 confidence_min 이상인 점만 measured_points에 센다. MediaPipe는 33, MoveNet은 17을 분모로 쓰며 없는 관절을 측정한 것으로 채우지 않는다. 검출 비율과 평균 신뢰도가 모두 0.75 이상이면 HIGH, 모두 0.50 이상이면 MEDIUM, 측정점이 남으면 LOW, 측정점이 없으면 MISSING이다. 이 값은 모델 검출 품질이며 REBA 정확도나 질환 확률이 아니다. 점수 옆 품질은 current_score.slot_no와 같은 사진의 값이다.
+
+기존 저장 분석에 현재 점수 필드가 없으면 서비스의 공통 읽기 투영으로 같은 snapshot·pose·사진별 근거에서 계산한다. `project_score_continuity(analysis)`는 원 객체·DB·불변 snapshot을 수정하지 않으며, 화면과 보고서는 같은 `current_score`를 사용한다.
 
 ## 자세 체크리스트와 한 번에 채우기 보조 필드 (2026-10-26)
 

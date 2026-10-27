@@ -33,7 +33,7 @@ async function main(){
  const task=await api('create_task',{survey_id:survey.survey_id,draft:{task_name:'private task',conditions:{worker_code:'private worker'}}});
  const original=await api('recalculate_judgments',{task_id:task.task_id});
  const settings=await api('get_settings');settings.gpt_enabled=true;settings.gpt_model='local-fixture';await api('update_settings',{settings});
- await page.reload();await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S06"]').click();
+ await page.reload();await page.locator('#connection.connected').waitFor();await page.evaluate(()=>{if(document.body.classList.contains('quick-mode'))document.querySelector('#mode-toggle').click();});await page.locator('[data-nav="S02"]').click();await page.locator(`#survey-rows [data-id="${survey.survey_id}"]`).first().click();await page.locator('#close-survey-editor').click();await page.locator('#open-survey').click();await page.locator('[data-nav="S07"]').click();
  await page.locator('[data-action="generate-explanation"]').click();
  let generated=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===1);
  assert.equal(generated.ai[0].result,'GENERATED');assert.deepEqual(generated.judgment,original.judgment);
@@ -42,7 +42,7 @@ async function main(){
  await page.locator('.modal-backdrop [data-action="open-next-input"]').click();
  await page.locator('[data-path="legal.criteria.0.condition_present"]').waitFor();assert.equal(await page.evaluate(()=>document.activeElement.dataset.path),'legal.criteria.0.condition_present');
  pass('strict SDK response renders linked criterion grounds and navigates to the source field');
- await page.locator('[data-nav="S06"]').click();await page.locator('#explanation-text').fill('로컬 응답을 조사자가 수정한 설명');await page.locator('[data-action="edit-explanation"]').click();await page.locator('[data-action="apply-edited"]').click();
+ await page.locator('[data-explanation-editor] summary').click();await page.locator('#explanation-text').fill('로컬 응답을 조사자가 수정한 설명');await page.locator('[data-action="edit-explanation"]').click();await page.locator('[data-explanation-editor] summary').click();await page.locator('[data-action="apply-edited"]').click();
  const active=(await api('get_analysis',{analysis_id:original.analysis_id})).ai.find(x=>x.is_active);assert.equal(active.applied_text,'로컬 응답을 조사자가 수정한 설명');
  mode='invalid';await page.locator('[data-action="generate-explanation"]').click();
  let failed=await poll(()=>api('get_analysis',{analysis_id:original.analysis_id}),a=>a.ai.length===2);
