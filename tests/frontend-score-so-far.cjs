@@ -60,15 +60,15 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
     measurement_quality: {slots: [{slot_no: 1, measured_points: 0, total_points: 33, mean_confidence: null, confidence_level: 'MISSING'},
       {slot_no: 2, measured_points: 26, total_points: 33, mean_confidence: .79, confidence_level: 'HIGH'}]}}});
   const compact = compactUi.rebaPanel({compact: true}), primary = compact.slice(0, compact.indexOf('<details'));
-  assert.match(primary, /11점/);
+  assert.match(primary, /class="quick-big"><strong[^>]*>11<\/strong><span>점 · 매우 높음/);
   assert.match(primary, /미확인 항목 6개/,'the compact count comes from canonical current_score.assumed');
   assert.match(primary, /측정된 관절 26\/33개/,'quality matches the score slot, not another photo');
   assert.doesNotMatch(primary, /0\/33개/);
-  assert.doesNotMatch(primary, /실제 점수는 더 높을 수 있습니다/,'the long caveat is progressive disclosure');
+  assert.match(primary, /실제 점수는 더 높을 수 있습니다/,'the review score caveat is visible without a toggle');
   assert.doesNotMatch(compact, /\[object Object\]/,'structured first-pass notes never stringify as an object');
   assert.match(compact, /답변 전 사진 기준 가정/,'structured assumption text stays readable in details');
   assert.doesNotMatch(compact, /왼쪽 —점|오른쪽 —점/,'missing side totals are omitted instead of shown as dashes');
-  assert.ok(compact.indexOf('<details') < compact.indexOf('reba-scale'),'the risk band is folded in the compact review panel');
+  assert.ok(compact.indexOf('reba-scale') < compact.indexOf('<details'),'the risk band is visible before optional first-pass history');
   assert.equal((compact.match(/REBA 현재 점수/g) || []).length, 0,'the review wrapper owns the single score heading');
 
   assert.ok(renderRebaScale(5, {provisional: true}).includes('1차 REBA 5점'), 'the first-pass label stays as it was');

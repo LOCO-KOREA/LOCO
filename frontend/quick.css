@@ -21,6 +21,10 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-photo line { stroke: #7cf2c4; stroke-width: calc(var(--r) * 0.6); stroke-linecap: round; }
 .quick-photo circle { fill: #5c61db; stroke: #fff; stroke-width: calc(var(--r) * 0.35); }
 .quick-score h2, .quick-ask h3 { margin-top: 0; }
+.quick-title-field { margin: 16px 0; }
+.quick-title-field > label { display: block; margin-bottom: 10px; font-size: 16px; font-weight: 700; }
+.quick-title-field > label small { color: var(--color-muted); font-size: 13px; font-weight: 400; }
+.quick-title-field > input { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); color: var(--color-text); font: inherit; }
 .quick-big { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 4px; }
 .quick-big strong { font-size: 64px; line-height: 1; color: var(--color-primary); }
 .quick-big span { font-size: 20px; font-weight: 700; }
@@ -49,6 +53,10 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .reba-scale-key.is-current { font-weight: 700; color: var(--color-text); }
 .reba-scale-key.is-current small { color: var(--color-text); }
 .quick-note { color: var(--color-secondary); font-size: 14px; line-height: 1.6; }
+.quick-provisional-evidence { border-top: 1px solid var(--color-line); margin-top: 24px; padding-top: 22px; }
+.quick-provisional-evidence > h3 { margin-top: 0; }
+.quick-provisional-evidence > .quick-review-technical { border-top: 0; }
+.quick-provisional-evidence > .quick-review-technical:first-child { margin-top: 0; padding-top: 0; }
 .quick-warn { color: #a5461a; background: #fff3ea; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
 .quick-ok { color: var(--color-success); background: var(--color-success-soft); padding: 10px 12px; border-radius: 8px; font-size: 14px; word-break: break-all; }
 .quick-measured { padding-left: 18px; line-height: 1.9; }
@@ -153,6 +161,7 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-list { list-style: none; padding: 0; margin: 0; }
 .quick-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-line); }
 .quick-list li div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.quick-list li div:first-child > strong { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
 .quick-list li span { color: var(--color-muted); font-size: 13px; }
 .quick-list .badge { margin-left: 10px; }
 .quick-list-actions { display: flex; gap: 8px; }
