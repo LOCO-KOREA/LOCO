@@ -51,6 +51,63 @@ class VisionOwnership(unittest.TestCase):
         record=state['photo_vision']['photos'][0];self.assertEqual(record['raw_response']['manual_candidates'][0]['value'],'YES');self.assertEqual(after['source'],'USER');self.assertIsNone(after['value'])
         stable=self.get();self.ctx=create_service(str(self.db));self.assertEqual(self.get()['task'],stable['task']);json.dumps(self.get(),allow_nan=False)
 
+    def test_completed_text_waits_for_photo_then_replacement_and_user_save_win(self):
+        from concurrent.futures import ThreadPoolExecutor as BaseExecutor
+
+        replacement=self.directory/'replacement-after-text.png';Image.new('RGB',(80,100),'gold').save(replacement)
+        text_finished=threading.Event();photo_started=threading.Event();release_photo=threading.Event()
+        results=[];errors=[];payloads=[];initial_revision=self.get()['task']['input_revision']
+        class CompletionObservedExecutor(BaseExecutor):
+            def submit(self,*args,**kwargs):
+                future=super().submit(*args,**kwargs)
+                future.add_done_callback(lambda _future:text_finished.set())
+                return future
+        def respond(payload,*args):
+            payloads.append(copy.deepcopy(payload))
+            if payload.get('phase')=='EXTRACT_AND_PLAN':
+                return dict(answers=[dict(target='manual.COMMON.trunk_base',condition=self.condition,
+                    number=None,text='4',quote='이 사진은 몸통이 크게 굽었어요.')],questions=[]),None
+            return dict(answers=[],questions=[]),None
+        def vision(*args,**kwargs):
+            photo_started.set()
+            if not release_photo.wait(10):raise TimeoutError('photo fixture was not released')
+            return response('교체 전 사진'),None
+        def work():
+            try:results.append(self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,text='이 사진은 몸통이 크게 굽었어요.')))
+            except Exception as error:errors.append(error)
+        with patch('ergo.service.intake.ThreadPoolExecutor',CompletionObservedExecutor), \
+             patch('ergo.gpt.client.adaptive_intake',side_effect=respond), \
+             patch('ergo.vision.client.observe',side_effect=vision):
+            thread=threading.Thread(target=work);thread.start()
+            try:
+                self.assertTrue(photo_started.wait(5),'photo request did not start')
+                self.assertTrue(text_finished.wait(5),'text response did not finish while photo request was pending')
+                self.assertTrue(thread.is_alive(),'service must still be waiting for the pending photo response')
+                self.ctx.dispatch('update_photo',dict(photo_id=self.owner,file_path=str(replacement),consent='UNKNOWN'))
+                saved=self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(
+                    target='manual.COMMON.trunk_twisted',condition=self.condition,value=None,
+                    quote='직접 확인해도 아직 모르겠어요.')],plan=False))
+                user_revision=saved['task']['input_revision']
+                user_before=next(row for row in saved['facts'] if row['identity']=='manual.COMMON.trunk_twisted@'+self.condition)
+                self.assertEqual((user_before['source'],user_before['state'],user_before['value']),('USER','UNKNOWN',None))
+            finally:
+                release_photo.set();thread.join(10)
+        self.assertFalse(thread.is_alive());self.assertEqual(errors,[]);self.assertEqual(len(results),1)
+        current=self.get();final_revision=current['task']['input_revision']
+        self.assertGreater(user_revision,initial_revision)
+        self.assertGreaterEqual(final_revision,user_revision)
+        user_after=next(row for row in current['facts'] if row['identity']==user_before['identity'])
+        self.assertEqual({key:user_after[key] for key in ('source','state','value','quote','updated_at')},
+            {key:user_before[key] for key in ('source','state','value','quote','updated_at')})
+        text_target=next((row for row in current['facts'] if row['identity']=='manual.COMMON.trunk_base@'+self.condition),None)
+        self.assertTrue(text_target is None or (text_target['source'],text_target['value'])!=('AI','4'))
+        self.assertFalse(current['photo_vision']['photos'])
+        stale=next(row for row in current['photo_vision']['history'] if row['photo_id']==self.owner and row['raw_response']['summary']=='교체 전 사진의 관찰 결과')
+        self.assertEqual(stale['status'],'STALE')
+        followup=next(payload for payload in payloads if payload.get('phase')=='FOLLOWUP')
+        self.assertNotEqual(followup['source_photo_scope']['photo_signature'],followup['current_photo_scope']['photo_signature'])
+        self.assertEqual(results[0]['reason'],'INPUT_CHANGED')
+
     def test_replacing_file_at_the_same_photo_id_preserves_old_result_only_as_history(self):
         replacement=self.directory/'replacement.png';Image.new('RGB',(80,100),'gold').save(replacement)
         def replace():self.ctx.dispatch('update_photo',dict(photo_id=self.owner,file_path=str(replacement),consent='UNKNOWN'));self.get()

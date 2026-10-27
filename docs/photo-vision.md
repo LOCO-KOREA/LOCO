@@ -1,6 +1,6 @@
 # 실제 사진 관찰 계약
 
-`ergo.vision.contract`의 VERSION/PROMPT_VERSION/RESPONSE_FORMAT_NAME/SOURCE, policy(), CATALOGUE, OBSERVATION_LABELS, OBSERVATION_STATUS_LABELS가 공통 계약이다. `intake_contract.photo_vision`에 동일한 공개 계약을 제공한다. 기본은 기존 gpt-6-luna/xhigh 설정, image detail high, 긴 변 1280, JPEG 품질 88, 자동 입력에 필요한 관찰 확신도 0.9, 사진 동시 요청 3개다. 환경변수 LOCO_VISION_DETAIL/MAX_EDGE/JPEG_QUALITY/MIN_CONFIDENCE/PARALLELISM으로 조정한다.
+`ergo.vision.contract`의 VERSION/PROMPT_VERSION/RESPONSE_FORMAT_NAME/SOURCE, policy(), CATALOGUE, OBSERVATION_LABELS, OBSERVATION_STATUS_LABELS가 공통 계약이다. `intake_contract.photo_vision`에 동일한 공개 계약을 제공한다. 기본은 기존 gpt-6-luna/high 설정(2026-10-26 소유자 지시로 xhigh에서 낮춤), image detail high, 긴 변 1280, JPEG 품질 88, 자동 입력에 필요한 관찰 확신도 0.9, 사진 동시 요청 3개다. 환경변수 LOCO_VISION_DETAIL/MAX_EDGE/JPEG_QUALITY/MIN_CONFIDENCE/PARALLELISM으로 조정한다.
 
 Responses user content에 input_text(사진 방향·ID)와 실제 input_image(data:image/jpeg;base64,...)를 넣는다. 등록한 크롭 파일의 바이트를 읽고 EXIF 방향을 반영한 RGB JPEG를 전송한다. 원본은 바꾸지 않고 인코딩된 이미지에서 EXIF를 제거한다. key/이미지 base64를 저장하지 않는다. 공식 근거: https://developers.openai.com/api/docs/models/gpt-6-luna 및 https://developers.openai.com/api/docs/guides/images-vision?api-mode=responses .
 
@@ -37,3 +37,5 @@ VISION의 계산 입력 근거는 면담이 아닌 OTHER이며, 허용된 관찰
 원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
 
 context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.
+
+사진 관찰 요청은 적응형 입력·GPT 설명과 같은 프로세스 공유 OpenAI client/HTTP 연결 풀을 사용하며, 요청 한 번은 120초까지만 기다리고 답이 없으면 같은 요청을 다시 보낸다(처음 포함 최대 3번). 이는 응답 속도 보장이 아니며 네트워크·서비스 오류는 기존 실패 경로로 표시한다.

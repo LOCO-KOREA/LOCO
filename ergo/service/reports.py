@@ -3,7 +3,7 @@ import sqlite3
 from ergo.db import storage
 from ergo.legacy.v13 import upgrade_task
 from ergo.engine.task_defaults import now
-from ergo.engine.survey_defaults import normalize_survey
+from ergo.engine.survey_defaults import read_survey
 from ergo.report import workbook as report
 
 def export_snapshot(ctx, survey_id, analysis_ids, include=True, comparisons=None):
@@ -11,8 +11,7 @@ def export_snapshot(ctx, survey_id, analysis_ids, include=True, comparisons=None
         return ctx._export_snapshot(survey_id, analysis_ids, include, comparisons)
 
 def _export_snapshot(ctx, survey_id, analysis_ids, include=True, comparisons=None):
-    survey = ctx.require('survey', survey_id)
-    survey.update(normalize_survey(survey))
+    survey = read_survey(ctx.require('survey', survey_id))
     tasks = [upgrade_task(t) for t in ctx.store('list_tasks', survey_id)]
     chosen = []
     unanalysed = []

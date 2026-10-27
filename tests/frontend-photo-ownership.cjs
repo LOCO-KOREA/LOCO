@@ -11,7 +11,7 @@ const assert=require('node:assert/strict');
  const inactive={...fact,identity:target+'@photo:999',photo_active:false,source:'USER',label:'삭제된 사진의 손목'};
  const intake=new AdaptiveIntake({api(){},notify(){},changed(){}});
  intake.state={contract:{policy:{text_limit:2400,default_condition:'default'},photo_policy:{condition_prefix:'photo:'},fields:[field]},form_fields:[field],facts:[fact,alias,inactive],messages:[],history:[]};
- intake.formStage=1;intake.dialogOpen=true;
+ intake.dialogOpen=true;
  const html=intake.dialog(false),visible=html.replace(/<[^>]*>/g,'');
  assert.match(visible,/오른쪽에서 찍은 사진/);assert.match(visible,/오른쪽 손목/);assert.match(visible,/손이 가려져/);assert.doesNotMatch(visible,/photo:|manual\.|WRIST_FLEX|POSE|UNKNOWN/);
  const summary=renderSummary(intake),summaryText=summary.replace(/<[^>]*>/g,'');

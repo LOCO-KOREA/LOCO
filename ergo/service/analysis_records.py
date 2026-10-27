@@ -12,7 +12,11 @@ def analysis(ctx, identity):
     result.setdefault('module_states', dict(pose='NOT_CALCULATED' if result.get('pose') is None else 'COMPLETE' if result['pose'].get('status') == 'DONE' else 'INCOMPLETE', tags='NOT_CALCULATED' if result.get('tags') is None else 'COMPLETE', reba='NOT_CALCULATED' if result.get('reba') is None else 'COMPLETE' if result['reba'].get('status') == 'COMPLETE' else 'INCOMPLETE', judgment='NOT_CALCULATED' if result.get('judgment') is None else 'COMPLETE'))
     try:
         for item in result.get('ai', []):
-            item['source_current'] = item.get('input_summary') == gpt_payload.build_numeric_summary(result, item.get('purpose', 'TASK_EXPLANATION'))
+            try:
+                current=gpt_payload.build_numeric_summary(result,item.get('purpose','TASK_EXPLANATION'),provisional_reba=item.get('provisional_reba_input'),analysis_currentness=result['currentness'])
+                item['source_current']=result['currentness']=='CURRENT' and item.get('input_summary')==current
+            except (TypeError,ValueError):
+                item['source_current']=False
     except Exception:
         pass
     return result

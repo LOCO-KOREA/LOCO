@@ -24,9 +24,9 @@ export function workspaceDraftDiffers(checkpoint, draft) {
   if (!checkpoint?.ui || !checkpoint.intake) return true; // Unknown content is not evidence of an identical version.
   const before = {text: checkpoint.ui.intakeText || '', reply: checkpoint.intake.text || '',
     answers: checkpoint.ui.answers || {}, group: checkpoint.ui.group || 0,
-    formStage: checkpoint.intake.formStage || 0, formValues: checkpoint.intake.formValues || [], photos: checkpoint.photos || {}};
+    formValues: checkpoint.intake.formValues || [], photos: checkpoint.photos || {}};
   const after = {text: draft.intakeText || '', reply: draft.reply || '', answers: draft.answers || {}, group: draft.group || 0,
-    formStage: draft.formStage || 0, formValues: draft.formValues || [], photos: draft.photos || {}};
+    formValues: draft.formValues || [], photos: draft.photos || {}};
   return JSON.stringify(before) !== JSON.stringify(after) ||
     draft.taskRevision != null && checkpoint.task?.revision != null && draft.taskRevision !== checkpoint.task.revision;
 }
@@ -73,7 +73,7 @@ export function captureWorkspace(flow) {
     adaptive: Boolean(flow.intake?.state), preview: flow.preview,
     ui: Object.fromEntries(['answers', 'group', 'review', 'aiDraft', 'aiEditorOpen', 'ai', 'intakeText',
       'laterOpen', 'excelTab', 'selectedPhotoView', 'reopened', 'stale'].map(key => [key, flow[key]])),
-    intake: {formStage: flow.intake?.formStage, formValues: [...(flow.intake?.formValues||[])],state: flow.intake?.state, questions: flow.intake?.questions || [],
+    intake: {pageShown: Boolean(flow.intake?.pageShown), formValues: [...(flow.intake?.formValues||[])],state: flow.intake?.state, questions: flow.intake?.questions || [],
       text: flow.intake?.text || '', dialogOpen: Boolean(flow.intake?.dialogOpen),
       editing: flow.intake?.editing, writingFor: flow.intake?.writingFor, focusPair: flow.intake?.focusPair,
       values: [...(flow.intake?.values || [])], pairValues: [...(flow.intake?.pairValues || [])]}

@@ -185,7 +185,7 @@ class DurableRecordedEvidence(unittest.TestCase):
         book=load_workbook(destination,data_only=True)
         cells=[cell.value for sheet in book for row in sheet for cell in row if cell.value is not None]
         book.close()
-        self.assertIn('AI: '+RESOLVED,cells)
+        self.assertTrue(any(cell.endswith('AI: '+RESOLVED) for cell in cells))
         snapshot=copy.deepcopy(selected['snapshot'])
         edited=self.turn([dict(target='load',value='MEASURED')],plan=False)
         reread=self.get()

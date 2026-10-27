@@ -43,12 +43,12 @@ const assert=require('node:assert/strict'),path=require('node:path'),{pathToFile
   const survey=hasTask?{survey_id:1,created_at:'survey-a'}:null,task=hasTask?{task_id:11,survey_id:1,created_at:'task-a',input_revision:4,capture:{slots:[]}}:null;
   Object.assign(owner,{drafts,step:'start',busy:false,survey,task,photos:{},answers:{zero:0,unknown:null},intakeText:'수동 저장 시점의 원문',draftId:'manual-owner',settings:{},
    render(){this.keepDraft();},notify(){},onError:error=>errors.push(error.message),
-   intake:{text:'수동 저장 시점의 답변',state:null,values:new Map(),pairValues:new Map(),formStage:0,formValues:new Map([['weight',0]]),hasSession(){return false;},async flush(){},reset(){this.state=null;this.text='';this.values=new Map();this.pairValues=new Map();this.formValues=new Map();}},
+   intake:{text:'수동 저장 시점의 답변',state:null,values:new Map(),pairValues:new Map(),pageShown:false,formValues:new Map([['weight',0]]),hasSession(){return false;},async flush(){},reset(){this.state=null;this.text='';this.values=new Map();this.pairValues=new Map();this.formValues=new Map();}},
    api:async method=>{if(method==='get_survey')return survey;if(method==='get_task')return {task,photos:[]};throw Error('unexpected '+method);}});
   owner.keepDraft();await owner.saveWorkspace();
-  owner.intakeText='수동 저장 뒤 아직 보내지 않은 원문';owner.intake.text='수동 저장 뒤 아직 보내지 않은 답변';owner.intake.formStage=1;owner.intake.formValues.set('weight',20);owner.keepDraft();
+  owner.intakeText='수동 저장 뒤 아직 보내지 않은 원문';owner.intake.text='수동 저장 뒤 아직 보내지 않은 답변';owner.intake.pageShown=true;owner.intake.formValues.set('weight',20);owner.keepDraft();
   const later=drafts.get('quick','manual-owner');
-  assert.equal(later.intakeText,'수동 저장 뒤 아직 보내지 않은 원문');assert.equal(later.formValues[0][1],20);
+  assert.equal(later.intakeText,'수동 저장 뒤 아직 보내지 않은 원문');assert.equal(later.formValues[0][1],20);assert.equal(later.pageShown,true,'a draft remembers that the input page was already shown');assert.equal('formStage' in later,false,'there is no wizard step to remember');
   owner.step='home';owner.surveys=hasTask?[survey]:[];
   assert.equal((owner.viewHome().match(/<section class="panel quick-draft"/g)||[]).length,1,'one owner has one visible card');
   assert.match(owner.viewHome(),/data-draft="manual-owner"/,'later automatic input remains reachable inside manual card');

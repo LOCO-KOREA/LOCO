@@ -14,10 +14,10 @@ export function rebaScoreClass(score) {
   return band ? `reba-score-${band.key}` : '';
 }
 
-export function renderRebaScale(score, {provisional = false} = {}) {
+export function renderRebaScale(score, {provisional = false, label = provisional ? '1차 ' : ''} = {}) {
   if (!Number.isInteger(score) || score < 1 || score > 15) return '';
   const current = bandFor(score);
-  const description = `${provisional ? '1차 ' : ''}REBA ${score}점, 위험 수준 ${current.label}. 전체 범위 1~15점. ` + BANDS.map(band => `${band.range} ${band.label}`).join(', ');
+  const description = `${label}REBA ${score}점, 위험 수준 ${current.label}. 전체 범위 1~15점. ` + BANDS.map(band => `${band.range} ${band.label}`).join(', ');
   return `<div class="reba-scale" role="img" aria-label="${description}">
     <div aria-hidden="true">
       <div class="reba-scale-caption"><strong>점수별 위험 수준</strong><span>현재 ${score}점 · ${current.label}</span></div>

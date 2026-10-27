@@ -5,6 +5,7 @@ Only display metadata is resolved here. No input values or judgments are changed
 from ergo.intake.contract import SESSION_KEY,fields
 
 SOURCE_NAMES={'AI':'작업 설명(AI 정리)','USER':'직접 입력','SAVED':'저장된 입력','POSE':'사진 자동 측정','MOVENET':'사진 자동 측정','VISION':'AI 사진 관찰'}
+LEGACY_UNASKED_WORK_TYPE_NOTE='빠른 분석: "이 작업의 특징"에서 선택하지 않음(해당 없음)'
 
 class InputTrace:
     def __init__(self,source):
@@ -38,3 +39,16 @@ class InputTrace:
             prefix='AI' if fact['source']=='AI' else label
             return label,f"{prefix}: {fact.get('quote','')}"
         return None
+
+    def criterion_presence_recorded(self,criterion,number):
+        state=criterion.get('condition_present')
+        if state not in ('YES','NO','UNKNOWN'):
+            return False
+        origin=self.lookup('work_type',state,criterion=number)
+        if origin:
+            return True
+        if state=='UNKNOWN':
+            return False
+        evidence=criterion.get('evidence') or {}
+        text=evidence.get('text')
+        return isinstance(text,str) and bool(text.strip()) and text!=LEGACY_UNASKED_WORK_TYPE_NOTE

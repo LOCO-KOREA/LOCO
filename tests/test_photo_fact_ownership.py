@@ -122,7 +122,7 @@ class PhotoServiceOwnership(unittest.TestCase):
         settings=self.ctx.dispatch('get_settings',{});settings.pop('gpt_key_present',None);settings.update(gpt_enabled=True,gpt_model='fixture');self.ctx.dispatch('update_settings',dict(settings=settings))
         def delayed(*args,**kwargs):
             started.set();release.wait();return dict(answers=[dict(target='manual.COMMON.trunk_base',condition=condition,number=None,text='4',quote='이 사진은 몸통이 크게 굽었어요.')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=delayed):
+        with patch('ergo.vision.client.observe',return_value=(None,'NO_API_KEY')), patch('ergo.gpt.client.adaptive_intake',side_effect=delayed):
             thread=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text='이 사진은 몸통이 크게 굽었어요.'))));thread.start();self.assertTrue(started.wait(3))
             saved=self.turn([dict(target='manual.COMMON.trunk_base',condition=condition,value=None)])
             release.set();thread.join(5);self.assertFalse(thread.is_alive())

@@ -17,7 +17,7 @@ export class SurveyEditor {
     this.nav = document.createElement('aside');
     this.nav.className = 'survey-editor-nav';
     this.nav.setAttribute('aria-label', '조사 입력 항목');
-    const labels = ['기본 정보', '조사 유형·근거', '작업장 상황', '근로자 참여', '증상조사'];
+    const labels = ['기본 정보', '이전 조사'];
     this.sections.forEach((section, index) => {
       section.id = `survey-editor-section-${index}`;
       const button = document.createElement('button');

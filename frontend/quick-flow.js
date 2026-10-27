@@ -8,8 +8,9 @@ import {DRAFT_POLICY,localDrafts,initializeDrafts,newDraftId,readExplanationDraf
 
 import {renderQuickExplanation} from './quick-explanation.js';
 import {renderRebaScale, rebaScoreClass} from './reba-scale.js';
-import {AdaptiveIntake} from './intake/client.js';
+import {AdaptiveIntake, CHECKLIST_CONFIRM_QUOTE} from './intake/client.js';
 import {renderPhotoVision,photoVisionForTask} from './intake/photo-vision.js';
+import {renderPostureReview} from './quick-review.js';
 import {renderActivity,updateActivity} from './intake/activity.js';
 import {enabledAiSettings,persistedSettings} from './ai-settings.js';
 // LOCO simple flow: everything happens here, in order, with question cards.
@@ -29,12 +30,12 @@ const VALUE_KO = {UNDER_30: '30° 미만', FROM_30_TO_60: '30~60°', OVER_60: '6
 const FIELD_KO = {trunk_base: '몸통 굽힘', trunk_twisted: '몸통 비틀림', trunk_side_bent: '몸통 옆 기울임', neck_base: '목 굽힘', neck_twisted: '목 비틀림', neck_side_bent: '목 옆 기울임', legs_support: '다리 지지', seated: '앉은 자세', knee_band: '무릎 굽힘', shock_force: '충격', static_over_1min: '1분 이상 유지', small_repeat_over_4min: '반복', rapid_change_or_unstable: '불안정 자세', upper_arm_base: '위팔', arm_abducted_or_rotated: '팔 벌림', shoulder_raised: '어깨 들림', arm_supported_or_gravity_assisted: '팔 받침', lower_arm_base: '팔꿈치', wrist_base: '손목', wrist_deviated_or_twisted: '손목 비틀림', coupling: '손잡이', effective_load_kg: '무게'};
 const CRIT_NAME = {1: '키보드·마우스 집중 입력', 2: '같은 동작 반복', 3: '손·팔의 부담 자세', 4: '목·허리 굽힘·비틀림', 5: '쪼그림·무릎 굽힘', 6: '한 손 손가락 집기', 7: '한 손 들기·쥐기', 8: '25kg 이상 들기', 9: '10kg 이상 불편한 위치 들기', 10: '반복 들기', 11: '손·무릎 충격'};
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
-const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
+const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'previous_survey_date'];
 const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
 // Which ticked work type feeds which statutory criterion (numbers are never shown while answering).
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
 const GATE_CRITERIA = Object.entries(GATES).reduce((map, [n, gate]) => ({...map, [gate]: [...(map[gate] || []), Number(n)]}), {});
-const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답이 설정한 제한 시간 안에 오지 않았어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
+const AI_REASON = {DISABLED: 'AI 설명이 꺼져 있어요', NO_API_KEY: '이 PC에 AI 키가 없어요', MODEL_NOT_CONFIGURED: 'AI 모델이 정해지지 않았어요', TIMEOUT: 'AI 응답 연결이 끝났어요', API_ERROR: 'AI 서버가 요청을 받지 못했어요(키·모델·네트워크 확인)', INVALID_STRUCTURED_CONTENT: 'AI 응답이 정해진 형식과 맞지 않았어요', INCOMPLETE_RESPONSE: 'AI 응답이 끝까지 오지 않았어요', REFUSAL_OR_EMPTY_RESPONSE: 'AI가 답을 주지 않았어요', OPENAI_SDK_MISSING: 'AI 연결 부품이 없어요'};
 const DRAFT_KEY = DRAFT_POLICY.legacyQuick;
 const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
 const writeDraft = value => { try { value ? localStorage.setItem(DRAFT_KEY, JSON.stringify(value)) : localStorage.removeItem(DRAFT_KEY); return true; } catch { return false; } };
@@ -76,9 +77,6 @@ export function savedAnswers(questions, task, survey) {
       if (value && !(t.field === 'task_name' && value === '사진 분석 작업')) a[q.id] = value;
     }
     else if (t.type === 'survey') { if (survey[t.field]) a[q.id] = survey[t.field]; }
-    else if (t.type === 'situation') { const v = survey.workplace_situation?.[t.field]; if (v && v !== 'UNKNOWN') a[q.id] = v; }
-    else if (t.type === 'participation') { const v = survey.participation?.[t.field]; if (v && v !== 'UNKNOWN') a[q.id] = v; }
-    else if (t.type === 'symptom') { const v = survey.symptom_survey?.method; if (v && v !== 'UNKNOWN') a[q.id] = v; }
     else if (t.type === 'work_types') {
       const present = Object.entries(GATE_CRITERIA).filter(([, numbers]) => numbers.some(n => task.legal.criteria[n - 1]?.condition_present === 'YES')).map(([gate]) => gate);
       const known = Object.values(GATE_CRITERIA).flat().some(n => task.legal.criteria[n - 1]?.condition_present && task.legal.criteria[n - 1].condition_present !== 'UNKNOWN');
@@ -106,7 +104,7 @@ export function savedAnswers(questions, task, survey) {
 // ----- AI intake: one sentence about the work fills question boxes. Every item arrives with its own quote from the sentence.
 const INTAKE_REASON = {...AI_REASON, NOTHING_FOUND: '문장에서 채울 수 있는 값을 찾지 못했어요. 작업 내용과 숫자(시간·횟수·무게)를 함께 적어 보세요.'};
 // Survey information that does not change any calculation: asked after the result, not before it, when the AI intake is used.
-export const LATER_GROUPS = ['조사 정보', '작업장 상황', '참여·증상'];
+export const LATER_GROUPS = ['조사 정보'];
 
 export function applyIntake(answers, questions, items) {
   const types = questions.find(q => q.id === 'work_types');
@@ -156,7 +154,7 @@ export class QuickFlow {
     host.addEventListener('click', event => this.click(event));
     host.addEventListener('input', event => this.input(event));
     host.addEventListener('change', event => this.input(event));
-    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.dialogOpen=false; this.render(); } }, true);
+    host.addEventListener('cancel', event => { if (event.target.matches('[data-intake-dialog]')) { event.preventDefault(); this.intake.closePage(); this.revealPhotoRows=false; this.render(); } }, true);
     host.addEventListener('toggle', event => {
       if (event.target.isConnected && event.target.matches('[data-ai-editor]')) this.aiEditorOpen = event.target.open;
     }, true);
@@ -267,7 +265,7 @@ export class QuickFlow {
       }
       Object.assign(this.intake, {text: draft.intake.text, dialogOpen: draft.intake.dialogOpen,
         editing: draft.intake.editing, writingFor: draft.intake.writingFor, focusPair: draft.intake.focusPair,
-        formStage: draft.intake.formStage||0, formValues: new Map(draft.intake.formValues||[]), values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
+        pageShown: draft.intake.pageShown ?? Boolean(draft.intake.dialogOpen), formValues: new Map(draft.intake.formValues||[]), values: new Map(draft.intake.values), ...(this.intake.pairValues ? {pairValues: new Map(draft.intake.pairValues)} : {})});
       if (this.baseline && this.result) await this.compare();
       if (draft.step === 'excel') {
         const args = {survey_id: this.survey.survey_id, analysis_ids: [this.result.analysis_id], comparisons: this.comparison ? [this.comparison.spec] : []};
@@ -342,10 +340,10 @@ export class QuickFlow {
   // ================= step 1: photos (any of three views, each replaceable)
   async ensureTask(isCurrent=()=>true) {
     if (this.task) return;
-    const survey = await this.api('create_survey', {draft: {survey_type: 'REGULAR', survey_date: today(), title: `빠른 분석 ${today()}`, investigator: '', department: '', process: '', occasional_reason: ''}});
+    const survey = await this.api('create_survey', {draft: {investigator: '', department: '', process: ''}});
     if(!isCurrent())return;
     this.survey=survey;
-    const task = await this.api('create_task', {survey_id: survey.survey_id, draft: {task_name: '사진 분석 작업', input_template: 'GENERAL', conditions: {}}});
+    const task = await this.api('create_task', {survey_id: survey.survey_id, draft: {task_name: '', input_template: 'GENERAL', conditions: {}}});
     if(isCurrent())this.task=task;
   }
 
@@ -400,13 +398,29 @@ export class QuickFlow {
       const views = Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id]));
       let state = await this.intake.open(this.task.task_id, views);
       if (!state) return;
-      await this.ensureAiOn(); state = await this.intake.turn(this.intakeText);
+      this.showFirstScore(state);
+      const generation = this.intake.generation;
+      await this.ensureAiOn();
+      if (generation !== this.intake.generation) return; // something else took the screen while the AI switch was being made: never send this sentence to that task
+      state = await this.intake.turn(this.intakeText);
       if (!state) return;
       this.task = state.task; this.preview = state.preview;
       this.stale = false; this.step = 'provisional'; this.group = 0;
-      if(Array.isArray(state.form_fields)&&!this.intake.pendingFormFields(0).length)this.intake.formStage=1;
-      this.intake.dialogOpen=Boolean(state.reason||(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length));
+      // The page opens by itself right here, once: with a reason to show, or while anything on it still waits for an answer.
+      const form=Array.isArray(state.form_fields);
+      if(state.reason||!form&&state.questions.length)this.intake.showPage();
+      else if(form)this.intake.openPageOnce();
     });
+  }
+
+  // The pose measurement needs no AI. When it already gives a score, show it now and let the AI part finish behind it.
+  // The run stays locked (busy): every control that would send something is disabled until the AI turn is back, so two requests can never overlap.
+  showFirstScore(state) {
+    if (!Object.keys(this.photos).length || !state.preview?.score) return;
+    this.task = state.task; this.preview = state.preview; this.group = 0; this.step = 'provisional';
+    this.busy = 'AI가 사진과 작업 설명을 정리하고 있어요. 1차 점수는 먼저 보여 드려요.';
+    this.busyStartedAt = Date.now();
+    this.render(); globalThis.window?.scrollTo?.({top: 0});
   }
 
   // ================= step 3: questions
@@ -452,21 +466,22 @@ export class QuickFlow {
     return String(value) === String(q.suggested) ? ` · 사진 추정 ${degrees}(신뢰도 낮음)를 그대로 확인` : ` · 사진 추정 ${degrees}(신뢰도 낮음)와 다르게 선택`;
   }
 
-  // Work types the person ticked decide which criteria are asked about; the ones left unticked are recorded as "not applicable".
+  // A blank work-type checkbox is not a confirmed NO. Only the explicit all-no action can set NO.
   applyCriteria(input) {
-    const a = this.answers, types = Array.isArray(a.work_types) ? a.work_types : null;
-    if (types) {
-      const note = evidence('빠른 분석: "이 작업의 특징"에서 선택하지 않음(해당 없음)');
-      for (let n = 1; n <= 11; n++) {
-        if (types.includes(GATES[n])) continue;
-        const criterion = input.legal.criteria[n - 1];
-        criterion.condition_present = 'NO'; criterion.evidence = note;
-        if (n >= 6) { criterion.rows = []; criterion.rows_complete = 'YES'; }
-      }
-    }
+    const a = this.answers;
     for (const q of this.preview.questions) {
       if (q.kind !== 'criterion' || !this.visible(q)) continue;
-      const values = a[q.id]?.values || {}, note = `빠른 분석 질문: ${q.text}`;
+      const answer = a[q.id] || {};
+      if (answer.present === 'NO') {
+        const numbers = q.mode === 'lift' ? q.criteria : [q.criterion];
+        for (const number of numbers) {
+          const criterion = input.legal.criteria[number - 1];
+          criterion.condition_present = 'NO';
+          criterion.evidence = evidence('빠른 분석: 조사자가 이 기준을 직접 확인해 아니오로 선택');
+        }
+        continue;
+      }
+      const values = answer.values || {}, note = `빠른 분석 질문: ${q.text}`;
       const value = field => values[field.key] === undefined ? (field.type === 'truth' ? 'UNKNOWN' : null) : values[field.key];
       if (q.mode === 'lift') {
         const shared = {};
@@ -510,7 +525,7 @@ export class QuickFlow {
       camera_side: view === 'FRONT' ? 'FRONT' : !usable ? null : (this.preview.views?.[view]?.guess?.camera_side || view), forward_direction: view === 'FRONT' || !usable ? null : a[`view_${view}`] ?? null,
       side_view_verified: view === 'FRONT' ? 'NO' : known, observation: observation()
     }));
-    input.task_name = String(a.task_name ?? '').trim() || '사진 분석 작업';
+    input.task_name = String(a.task_name ?? '').trim();
     input.input_template = a.template || 'GENERAL';
     const manual = new Map(), put = (scope, field, value, source, note, evidenceSource) => {
       if (value === null || value === undefined) return;
@@ -541,23 +556,12 @@ export class QuickFlow {
 
   surveyDraft(survey) {
     const a = this.answers, draft = Object.fromEntries(SURVEY_KEYS.map(key => [key, structuredClone(survey[key])]));
-    const name = String(a.task_name ?? '').trim();
-    draft.title = name ? `${name} (${draft.survey_date || today()})` : draft.title;
     for (const key of ['investigator', 'department', 'process']) if (String(a[key] ?? '').trim()) draft[key] = String(a[key]).trim();
-    for (const key of ['equipment', 'workload', 'speed', 'work_pattern']) {
-      const value = a[`situation_${key}`];
-      if (value) draft.workplace_situation[`${key}_status`] = value;
-    }
-    if (a.participation) {
-      draft.participation.status = a.participation;
-      if (a.participation === 'YES' && a.participation_method) draft.participation.method = a.participation_method;
-    }
-    if (a.symptom) draft.symptom_survey.method = a.symptom;
     return draft;
   }
 
   async finish() {
-    this.intake.dialogOpen=false;
+    this.intake.closePage();
     await this.run('최종 결과를 계산하고 있어요…', async () => {
       if (this.intake?.state) {
         await this.intake.flush();
@@ -609,7 +613,7 @@ export class QuickFlow {
       if (this.reopened) this.saved = {task: (await this.api('get_task', {task_id: this.task.task_id})).task, survey: await this.api('get_survey', {survey_id: this.survey.survey_id})};
       this.baseline = this.result; this.comparison = null; this.exported = null; this.reopened = false;
       this.step = 'start'; this.preview = null; this.stale = true; this.result = null; this.excelPreview = null; this.overview = null; this.review = {reviewer: this.review.reviewer, note: ''};
-      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 이전 답변은 그대로 유지돼요.');
+      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 작업 종류·시간·횟수 답변은 그대로 유지되고, 사진 자세 확인은 새 사진 기준으로 다시 물어봐요.');
     });
   }
 
@@ -629,16 +633,11 @@ export class QuickFlow {
 
   // From the check list back to the question that fills the gap. Only possible while the questions of this session exist.
   jumpTo(questionId) {
-    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.dialogOpen=true; this.step = 'questions'; this.render(); return; }
+    if (this.intake?.state) { this.intake.questions = this.intake?.state.questions; this.intake.showPage(); this.step = 'questions'; this.render(); return; }
     if (this.ai) { this.step = 'questions'; this.render(); window.scrollTo({top: 0}); return; }
     const groups = this.groups(), index = groups.findIndex(group => group.questions.some(q => q.id === questionId));
     if (index < 0) return;
     this.step = 'questions'; this.group = index; this.render(); window.scrollTo({top: 0});
-  }
-
-  followupTarget(message) {
-    const table = [[/참여/, 'participation'], [/증상/, 'symptom'], [/설비/, 'situation_equipment'], [/작업량/, 'situation_workload'], [/속도/, 'situation_speed'], [/업무형태|업무 형태/, 'situation_work_pattern']];
-    return table.find(([pattern]) => pattern.test(message))?.[1] || null;
   }
 
   checklistPanel() {
@@ -649,9 +648,10 @@ export class QuickFlow {
     const cardFor = n => { const id = `crit_${GATES[n]}`, shown = this.preview?.questions.find(q => q.id === id && this.visible(q)); return shown ? id : 'work_types'; };
     const jump = id => canJump && id ? `<button type="button" data-jump="${esc(id)}">입력하러 가기</button>` : '';
     const lines = [];
-    for (const message of overview.survey_followups || []) lines.push(`<li><span>${esc(message)}</span>${jump(this.followupTarget(message))}</li>`);
     for (const next of item.next_inputs || []) {
       if (next.kind !== 'MISSING_INPUT' && next.kind !== 'REVIEW_REQUIRED') continue;
+      // The posture-count table (자세 표시) is a side calculation no score uses: its "partly empty" note is neither shown nor asked (owner rule: what no score uses is not shown).
+      if (next.module === 'TAGS') continue;
       let content=esc(next.message);
       // Service messages already contain human labels; keep the original as a fallback.
       const match=next.kind==='MISSING_INPUT'&&next.message?.match(/^([^:]+): (.+) 입력 필요$/);
@@ -670,7 +670,7 @@ export class QuickFlow {
     const counts = item.counts || {};
     return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>Excel 만들기 전 확인</h3>
       <p class="quick-note">입력 필요 기준 <b>${counts.needs_input_count ?? 0}</b>개 · 검토 필요 <b>${counts.needs_review_count ?? 0}</b>개 · 조사자 결론 <b>${conclusions}</b>/11개</p>
-      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? '<p class="quick-note">답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.</p>' : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
+      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? `<p class="quick-note">${this.intake?.state ? '답을 고치면 입력 창에서 "저장하고 결과 보기"를 다시 눌러야 반영돼요.' : '답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.'}</p>` : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
       : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
   }
 
@@ -683,15 +683,30 @@ export class QuickFlow {
     });
   }
 
+  reviewIsCurrent() {
+    const review = this.survey?.review;
+    const analysisId = this.result?.analysis_id;
+    return Boolean(review?.reviewed && Number.isInteger(analysisId) &&
+      Array.isArray(review.reviewed_analysis_ids) && review.reviewed_analysis_ids.includes(analysisId) &&
+      review.reviewed_metadata_revision === this.survey?.metadata_revision && this.result?.currentness === 'CURRENT');
+  }
+
   async markReviewed(reviewed) {
+    if (reviewed && (!Number.isInteger(this.result?.analysis_id) || this.result?.currentness !== 'CURRENT')) {
+      this.notify('현재 입력과 일치하는 최신 분석에서만 검토 완료로 표시할 수 있어요. 다시 분석한 뒤 검토해 주세요.');
+      return;
+    }
     await this.run('검토 표시를 저장하고 있어요…', async () => {
       const survey = await this.api('get_survey', {survey_id: this.survey.survey_id});
-      const tasks = await this.api('list_tasks', {survey_id: this.survey.survey_id});
-      const ids = tasks.map(t => t.task_id === this.task.task_id ? this.result.analysis_id : t.latest_analysis_id).filter(Boolean);
+      const ids = reviewed && this.result?.analysis_id ? [this.result.analysis_id] : [];
       const review = {reviewed, reviewed_analysis_ids: ids, reviewed_metadata_revision: survey.metadata_revision, reviewer: this.review.reviewer || survey.investigator || null, reviewed_at: new Date().toISOString(), note: this.review.note || null};
       this.survey = await this.api('set_survey_review', {survey_id: survey.survey_id, review});
       this.notify(reviewed ? '검토 완료로 표시했어요. 계산 완전성과는 별개예요.' : '검토 표시를 해제했어요.');
     });
+  }
+
+  explanationIsCurrent(ai) {
+    return Boolean(this.result?.currentness === 'CURRENT' && ai?.source_current === true);
   }
 
   // Pressing "AI가 정리하기" is the opt-in; only the typed sentence is sent.
@@ -758,7 +773,10 @@ export class QuickFlow {
         await this.api('update_settings', {settings:persistedSettings(settings)});
         this.settings = await this.api('get_settings');
       }
-      await this.api('generate_ai_text', {analysis_id: this.result.analysis_id, purpose: 'TASK_EXPLANATION'});
+      const firstScore = this.preview?.score;
+      const firstPhotoIds = [...new Set(Object.values(this.preview?.views || {}).map(view => view?.photo_id).filter(id => Number.isInteger(id) && id > 0))];
+      const provisional = firstScore && firstPhotoIds.length ? {total: firstScore.total, risk: firstScore.risk, photo_ids: firstPhotoIds} : null;
+      await this.api('generate_ai_text', {analysis_id: this.result.analysis_id, purpose: 'TASK_EXPLANATION', ...(provisional ? {provisional_reba: provisional} : {})});
       await this.refreshResult(); this.aiDraft = null; this.aiEditorOpen = false;
     });
   }
@@ -768,14 +786,18 @@ export class QuickFlow {
   async applyAi(useEdited) {
     const ai = this.activeAi();
     if (!ai) return;
+    if (!this.explanationIsCurrent(ai)) {
+      this.notify('현재 입력과 설명 근거가 확인된 결과에서만 설명을 확정할 수 있어요. 최신 분석에서 설명을 다시 만들고 검토해 주세요.');
+      return;
+    }
     const edited = this.editedExplanation(ai);
-    if (useEdited && !edited.trim()) return this.onError(new Error('수정한 설명을 입력한 뒤 적용해 주세요.'));
+    if (useEdited && !edited.trim()) return this.onError(new Error('수정한 설명을 입력한 뒤 확정해 주세요.'));
     await this.run('설명을 적용하고 있어요…', async () => {
       if (useEdited) await this.api('edit_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, text: edited});
       if(useEdited)clearExplanationDraft(this.result,ai,edited,this.drafts);
       await this.api('apply_ai_text', {analysis_id: this.result.analysis_id, text_id: ai.text_id, use_edited: useEdited});
       await this.refreshResult(); this.aiDraft = null; this.aiEditorOpen = false;
-      this.notify('설명을 적용했어요. 계산 결과는 바뀌지 않아요.');
+      this.notify('설명을 사람 검토 결과로 확정했어요. 현재 분석의 Excel에 반영돼요.');
     });
   }
 
@@ -795,6 +817,23 @@ export class QuickFlow {
     const b = event.target.closest('button');
     if (!b || b.disabled) return;
     const d = b.dataset;
+    if (d.evidenceCriterion || d.evidenceCriteria || d.evidencePosture || d.evidencePhoto) {
+      let target = null;
+      if (d.evidenceCriterion) {
+        const number = Number(d.evidenceCriterion);
+        if (Number.isInteger(number) && number >= 1 && number <= 11) target = this.host.querySelector(`#quick-criterion-${number}`);
+      } else if (d.evidenceCriteria) target = this.host.querySelector('#quick-criteria-review');
+      else if (d.evidencePhoto) {
+        const number = Number(d.evidencePhoto);
+        if (Number.isInteger(number) && number > 0) target = this.host.querySelector(`#quick-posture-photo-${number}`);
+      } else target = this.host.querySelector('#quick-posture-review');
+      if (!target) return;
+      const closedDetails = target.closest?.('details:not([open])');
+      if (closedDetails) closedDetails.open = true;
+      target.focus?.({preventScroll: true});
+      target.scrollIntoView?.({behavior: globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center'});
+      return;
+    }
     if (d.choose) {
       if (!window.loco?.choose_photo_paths) return this.onError(new Error('사진 선택은 앱에서만 할 수 있어요.'));
       window.loco.choose_photo_paths().then(paths => this.setPhoto(d.choose, paths?.[0])).catch(error => this.onError(error));
@@ -815,11 +854,11 @@ export class QuickFlow {
     else if (d.quick === 'home' || d.quick === 'home-bar') this.workspaceHome();
     else if (d.quick === 'analyze') this.analyze();
     else if (d.quick === 'photos') { this.step = 'start'; this.render(); }
-    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; if(this.intake.state) { this.intake.continueQuestions();if(Array.isArray(this.intake.state.form_fields)&&!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;this.intake.dialogOpen=true; } this.render(); }
-    else if (d.quick === 'intake-close') { this.intake.dialogOpen=false; this.render(); }
-    else if (d.quick === 'intake-form-back') { this.intake.formStage=0; this.render(); }
+    else if (d.quick === 'questions') { this.step = 'questions'; this.group = 0; this.intake.fillNote=''; this.revealPhotoRows=d.revealPhoto==='1'; if(this.intake.state) { this.intake.continueQuestions(); this.intake.showPage(); } this.render(); }
+    else if (d.quick === 'intake-close') { this.intake.closePage(); this.revealPhotoRows=false; this.render(); }
     else if (d.quick === 'intake-form-next') this.saveIntakeForm();
-    else if (d.quick === 'intake-no-other-work') this.saveIntakeForm({remainingWorkAbsent:true});
+    else if (d.quick === 'intake-no-other-work') this.fillIntakeForm({kind:'no-work'});
+    else if (d.quick === 'intake-fill') this.fillIntakeForm({kind:d.fillKind,condition:d.fillCondition,side:d.fillSide,identity:d.fillIdentity});
     else if (d.quick === 'intake-continue') { this.intake.continueQuestions(); this.render(); }
     else if (d.quick === 'prev') { if (this.ai) this.step = 'provisional'; else this.group = Math.max(0, this.group - 1); this.render(); window.scrollTo({top: 0}); }
     else if (d.quick === 'next') {
@@ -885,34 +924,122 @@ export class QuickFlow {
     this.render();
   }
 
-  async saveIntakeForm({remainingWorkAbsent=false}={}) {
+  // The message lives inside the dialog: the page toast sits behind a modal dialog and would never be seen.
+  setFillNote(message) {
+    this.intake.fillNote=message;
+    const note=this.host?.querySelector?.('[data-intake-fill-note]');
+    if(note){note.textContent=message;note.hidden=!message;}
+  }
+
+  // Typing does not re-render the form (an opened section must stay open), so the buttons, ticks and suggestion lines follow the boxes themselves.
+  syncFills() {
+    for(const button of this.host?.querySelectorAll?.('[data-quick="intake-fill"]')||[]) {
+      const d=button.dataset;
+      const spec={kind:d.fillKind,condition:d.fillCondition,side:d.fillSide,identity:d.fillIdentity};
+      button.disabled=Boolean(this.busy)||!this.intake.fillPlan(spec).length;
+      button.title=button.disabled?this.intake.fillHint(spec):'';
+    }
+    // The reason a copy button waits is written next to it, so it can be read without hovering a button that cannot be focused.
+    for(const hint of this.host?.querySelectorAll?.('[data-fill-hint-for]')||[]) {
+      const text=this.intake.fillHint({kind:'mirror',side:hint.dataset.fillHintFor,condition:hint.dataset.fillHintCondition});
+      hint.textContent=text;hint.hidden=!text;
+    }
+    for(const box of this.host?.querySelectorAll?.('[data-intake-flag]')||[]) {
+      const field=this.intake.formFields().find(f=>f.identity===box.dataset.intakeFlag);
+      if(field)box.checked=this.intake.formValue(field)===field.checklist.yes;
+    }
+    for(const status of this.host?.querySelectorAll?.('[data-checklist-status]')||[])status.textContent=this.intake.checklistStatus(status.dataset.checklistStatus);
+    for(const line of this.host?.querySelectorAll?.('[data-suggestion-for]')||[]) {
+      const field=this.intake.formFields().find(f=>f.identity===line.dataset.suggestionFor);
+      line.hidden=!field||this.intake.formValue(field)!=null;
+    }
+  }
+
+  // A shortcut only sets the boxes (no re-render, so the opened section stays open); saving stays the user's step.
+  fillIntakeForm(spec) {
+    const plan=this.intake.fillPlan(spec);
+    if(!plan.length)return this.setFillNote(this.intake.fillMessage(spec,plan));
+    const controls=[...(this.host?.querySelectorAll?.('[data-intake-form]')||[])];
+    for(const {field,value,quote} of plan) {
+      this.intake.setFormValue(field.identity,value,quote);
+      const control=controls.find(el=>el.dataset.intakeForm===field.identity);
+      if(control)control.value=String(value);
+    }
+    this.keepDraft();
+    this.syncFills();
+    this.setFillNote(this.intake.fillMessage(spec,plan));
+  }
+
+  // One page: an answer that decides which other fields exist (a work feature brings its conditions, the photo situation brings the checklist) is saved right here
+  // and the page grows, instead of sending the user through the result screen and back. Bulk fills wait for the final save so a typed sentence can still beat them.
+  async refreshIntakeForm(field,value) {
+    const saved=this.intake.state?.facts.find(f=>f.identity===field.identity);
+    if(saved?.state==='KNOWN'&&saved.value===value) { this.intake.clearFormValue(field.identity); return; }
+    const answers=this.intake.splitFormAnswers().direct, photo=field.target==='context', ui=this.captureDialogUi();
+    this.revealPhotoRows=photo;
+    await this.run(photo?'사진 확인 내용을 저장하고 있어요…':'선택한 작업의 입력칸을 불러오고 있어요…',async()=>{
+      await this.intake.flush();
+      const state=await this.intake.turn('',answers,false);
+      if(!state)return;
+      if(state.reason) { if(state.reason!=='INPUT_CHANGED')this.onError(new Error(photo?'사진 확인 내용을 저장하지 못했어요. 다시 시도해 주세요.':'선택한 내용을 저장하지 못했어요. 다시 시도해 주세요.')); return; }
+      this.task=state.task;this.preview=state.preview;
+      for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
+    });
+    this.revealPhotoRows=false;
+    this.restoreDialogUi(ui);
+  }
+
+  // The redraw replaces the page: remember where the user was looking (scroll, opened sections, the box in use) and put it back.
+  captureDialogUi() {
+    const host=this.host;
+    return {scroll:host?.querySelector?.('[data-intake-dialog] .intake-dialog-body')?.scrollTop??null,
+      open:[...(host?.querySelectorAll?.('[data-intake-dialog] details')||[])].map(el=>[el.querySelector?.('summary')?.textContent?.trim()||'',Boolean(el.open)]),
+      focus:host?.ownerDocument?.activeElement?.dataset?.intakeForm||null};
+  }
+  restoreDialogUi(ui) {
+    const host=this.host;
+    if(!ui||!host)return;
+    for(const el of host.querySelectorAll?.('[data-intake-dialog] details')||[]) {
+      const was=ui.open.find(([title])=>title===(el.querySelector?.('summary')?.textContent?.trim()||''));
+      if(was)el.open=was[1];
+    }
+    const body=host.querySelector?.('[data-intake-dialog] .intake-dialog-body');
+    if(body&&ui.scroll!=null)body.scrollTop=ui.scroll;
+    if(ui.focus)host.querySelector?.(`[data-intake-dialog] [data-intake-form="${ui.focus}"]`)?.focus?.();
+  }
+
+  // The posture button leads to the photo rows, so they are shown opened instead of behind two folded headings.
+  openPhotoRows() {
+    for(const section of this.host?.querySelectorAll?.('[data-intake-dialog] [data-intake-direct-fields], [data-intake-dialog] [data-intake-photo-optional]')||[])section.open=true;
+  }
+
+  // The whole page is saved at once and the result follows; nothing is asked after it.
+  async saveIntakeForm() {
     const invalid=this.host?.querySelector('[data-intake-form]:invalid');
     if(invalid) { invalid.reportValidity(); return; }
-    let saved=false, last=this.intake.formStage===1;
-    const absent=remainingWorkAbsent?this.intake.pendingFormFields(0).filter(field=>!this.intake.formValues.has(field.identity)):[];
+    this.intake.fillNote='';
+    let saved=false;
     await this.run('입력한 내용을 저장하고 있어요…',async()=>{
       await this.intake.flush();
-      const answers=this.intake.formAnswers();
+      const answers=this.intake.formAnswers(), {direct,confirmed}=this.intake.splitFormAnswers(answers);
       const text=this.intake.text.trim();
       if(text)await this.ensureAiOn();
-      let state=answers.length||text?await this.intake.turn(text,answers):this.intake.state;
+      // "확인 끝" and "나머지 작업은 모두 안 해요" say "does not apply" for boxes nobody answered. A typed sentence may answer some of them, so with a sentence the fills go second and only for what is still blank.
+      const blank=this.intake.stillBlank(confirmed), first=text?direct:answers.filter(a=>!this.intake.isBulkAnswer(a)||blank.includes(a));
+      let state=first.length||text?await this.intake.turn(text,first):this.intake.state;
       if(!state||state.reason)return;
-      const remaining=absent.filter(field=>!this.intake.formHandled(field));
-      if(remaining.length) {
-        state=await this.intake.turn('',remaining.map(field=>({target:field.target,condition:field.condition,value:'NO',quote:'표시된 남은 작업은 하지 않는다고 직접 확인'})),false);
+      const later=text?this.intake.stillBlank(confirmed):[];
+      if(later.length) {
+        state=await this.intake.turn('',later,false);
         if(!state||state.reason)return;
       }
       this.task=state.task;this.preview=state.preview;
-      for(const answer of answers)this.intake.formValues.delete(answer.target+'@'+answer.condition);
-      if(!last) {
-        this.intake.formStage=1;
-        last=!this.intake.pendingFormFields(1).length&&!this.intake.formAnswers(1).length;
-      }
-      // Close before run() renders its completed state; an empty next stage must never flash.
-      if(last)this.intake.dialogOpen=false;
+      for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
+      // Close before run() renders its completed state, so the page never flashes again.
+      this.intake.closePage(); this.revealPhotoRows=false;
       saved=true;
     });
-    if(saved&&last)await this.finish();
+    if(saved)await this.finish();
   }
 
   async respondIntake(text=this.intake.text,answers=[]) {
@@ -926,18 +1053,20 @@ export class QuickFlow {
       if(!state)return;
       this.task=state.task;this.preview=state.preview;
       if(directNumber&&!state.reason&&this.intake.text===submittedText) { this.intake.text=''; this.intake.writingFor=null; }
-      if(Array.isArray(state.form_fields)) {
-        if(!this.intake.pendingFormFields(0).length&&!this.intake.formAnswers(0).length)this.intake.formStage=1;
-        ready=!state.reason&&!this.intake.text.trim()&&![0,1].some(stage=>this.intake.pendingFormFields(stage).length||this.intake.formAnswers(stage).length);
-      } else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
-      if(ready)this.intake.dialogOpen=false;
+      if(Array.isArray(state.form_fields))ready=!state.reason&&!this.intake.text.trim()&&!this.intake.hasOpenItems()&&!this.intake.formAnswers().length;
+      else ready=!state.questions.length&&!state.reason&&!this.intake.text.trim();
+      if(ready) { this.intake.closePage(); this.revealPhotoRows=false; }
     });
     if(ready)await this.finish();
   }
 
   allNo() {
     const group = this.groups()[this.group];
-    for (const q of group.questions) if (q.kind === 'criterion' && this.answers[q.id]?.present === undefined) this.answers[q.id] = {present: 'NO', values: {}};
+    for (const q of group.questions) {
+      const answer = this.answers[q.id] || {}, values = answer.values || {};
+      const alreadyAnswered = q.fields?.some(field => Object.prototype.hasOwnProperty.call(values, field.key));
+      if (q.kind === 'criterion' && answer.present === undefined && !alreadyAnswered) this.answers[q.id] = {present: 'NO', values: {}};
+    }
     this.render();
   }
 
@@ -950,7 +1079,20 @@ export class QuickFlow {
       const raw=el.value;
       if(field.kind==='number'&&raw!==''&&(!Number.isFinite(Number(raw))||Number(raw)<0||field.maximum!=null&&Number(raw)>field.maximum)) { el.setCustomValidity('입력 범위를 확인해 주세요.'); el.reportValidity(); return; }
       el.setCustomValidity('');
-      this.intake.formValues.set(field.identity,raw===''?null:field.kind==='number'?Number(raw):field.kind==='choice'?field.choices.find(c=>String(c.value)===raw)?.value:raw);
+      const value=raw===''?null:field.kind==='number'?Number(raw):field.kind==='choice'?field.choices.find(c=>String(c.value)===raw)?.value:raw;
+      this.intake.setFormValue(field.identity,value);
+      this.setFillNote('');
+      this.syncFills();
+      this.keepDraft();
+      if(value!=null&&this.intake.changesFields(field,value))this.refreshing=this.refreshIntakeForm(field,value);
+    }
+    else if (d.intakeFlag) {
+      const field=this.intake.formFields().find(f=>f.identity===d.intakeFlag);
+      if(!field||this.busy)return;
+      if(el.checked)this.intake.setFormValue(field.identity,field.checklist.yes,'자세 체크리스트에서 해당한다고 직접 체크');
+      else this.intake.clearFormValue(field.identity);
+      this.setFillNote('');
+      this.syncFills();
       this.keepDraft();
     }
     else if (d.intakeReply !== undefined) { this.intake.text = el.value; const send=this.host.querySelector('[data-intake-dialog] [data-quick="adaptive-next"]'); if(send)send.disabled=Boolean(this.busy)||!el.value.trim()&&this.intake.state?.ai?.status!=='ERROR'; this.keepDraft(); }
@@ -1023,6 +1165,7 @@ export class QuickFlow {
     const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
     this.host.innerHTML = `${bar}${busy}${body}<p class="quick-warn" data-draft-status role="alert" ${this.drafts?.error?'':'hidden'}>${esc(this.drafts?.error||'')}</p>${this.intake.dialog(this.busy)}`;
     this.intake.mount(this.host,this.busy);
+    if(this.revealPhotoRows&&this.intake.dialogOpen)this.openPhotoRows();
     mountPoseSettings(this.host,this.settings);
     this.keepDraft();
   }
@@ -1052,7 +1195,7 @@ export class QuickFlow {
     const draft={id:this.draftId,ownerId:this.draftOwnerId,scope:this.drafts.scope,
       surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
-      formStage:this.intake?.formStage||0, formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
+      pageShown:Boolean(this.intake?.pageShown), formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
     if(this.drafts.put('quick',this.draftId,draft)&&!writeDraft(draft))this.drafts.error='임시 저장 안내를 갱신하지 못했어요. 저장 공간을 확인해 주세요.';
   }
 
@@ -1084,8 +1227,9 @@ export class QuickFlow {
         let state = await this.intake.open(full.task.task_id, views);
 
         this.preview = state.preview; this.task = state.task; this.stale = false;
-        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formStage=draft.formStage||0; this.intake.formValues=new Map(draft.formValues||[]);
-        this.intake.dialogOpen=Boolean(Array.isArray(state.form_fields)?this.intake.pendingFormFields(0).length||this.intake.pendingFormFields(1).length:state.questions.length);
+        this.intakeText = draft.intakeText || ''; this.intake.text = draft.reply || ''; this.intake.formValues=new Map(draft.formValues||[]);
+        // A draft that already showed the page does not ask again on its own.
+        this.intake.restorePage(draft.pageShown);
         this.step = draft.step === 'questions' ? 'questions' : 'provisional'; return;
       }
       if(draft.step==='start')return;
@@ -1145,7 +1289,7 @@ export class QuickFlow {
     return `${this.baseline ? '<p class="quick-ok">개선 전 결과를 기억하고 있어요. 개선 후 사진으로 넣으면 전후를 비교해 드려요.</p>' : ''}
       <p class="quick-lead">옆에서 찍은 작업자 전신 사진이 있으면 관절 각도로 1차 REBA 점수를 바로 보여 드려요. 양쪽 옆 사진이 있으면 두 팔을 모두 재고, 정면(또는 후면) 사진이 있으면 옆으로 기울임·팔 벌림을 제안해요. 한 장만 넣어도 돼요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
-      <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 옮겨요. 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
+      <section class="panel intake-start"><h3>어떤 작업인가요?</h3><p class="quick-note">아는 만큼 적어 주세요. 사진과 설명에서 파악한 값은 저장하고, 부족한 부분만 다시 물어볼게요.</p><p class="quick-note">이런 것을 말해 주시면 질문이 줄어요: 1년에 며칠 하는지, 하루 총 몇 시간 일하는지, 들기는 무게와 하루 횟수·1분에 몇 번인지, 충격·반복·같은 자세 유지가 있는지 없는지.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 1년에 220일, 하루 8시간 일해요. 20kg 상자를 하루 30번(1분에 1번쯤) 옮기고, 나머지는 앉아서 키보드를 4시간 사용해요.">${esc(this.intakeText)}</textarea></section>
       <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
   }
 
@@ -1179,7 +1323,7 @@ export class QuickFlow {
       const note = scene.angles.length ? `${scene.origin === 'preview' ? '현재 사진의 1차 측정 후보' : '저장된 분석의 측정 각도'}${sides.length === 1 ? ` · ${sides[0] === 'LEFT' ? '왼쪽' : '오른쪽'} 관절` : ''}` : '이 사진은 표시할 수 있는 각도 근거가 없어요.';
       return `<figure class="quick-photo"><img src="${item.image.data_url}" alt="${esc(VIEW_LABEL[view.id])}"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="--r:${r}px" role="img" aria-label="${esc(VIEW_LABEL[view.id])} 관절 및 각도">${skeleton.markup}${renderPhotoAngles(scene)}</svg></figure><p class="quick-angle-note">${note}</p>${skeleton.hasLowConfidence ? '<p class="quick-confidence-note"><span class="quick-confidence-dot" aria-hidden="true"></span><span class="quick-confidence-line" aria-hidden="true"></span> 낮은 신뢰도 · 위치 확인 필요</p>' : ''}`;
     })() : '<div class="quick-photo-empty">등록된 사진이 없어요.</div>';
-    return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : '<button type="button" class="quick-change" data-quick="photos">사진 바꾸기</button>'}</div>`;
+    return `<div class="quick-strip">${tabs}${picture}${this.reopened || this.step === 'review' ? '' : `<button type="button" class="quick-change" data-quick="photos" ${this.busy ? 'disabled' : ''}>사진 바꾸기</button>`}</div>`;
   }
 
   viewProvisional() {
@@ -1198,8 +1342,8 @@ export class QuickFlow {
         <ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
         ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
         ${spatial ? `<details class="quick-spatial"><summary>3D 추정 각도 (참고)</summary><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 기존 사진 각도와 확인값을 사용해요.</p><ul>${spatial}</ul></details>` : ''}${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
-        ${this.intake?.state ? this.intake.summary() : ''}${this.intakePanel()}
-        <div class="quick-nav"><button class="quick-back" data-quick="photos">뒤로 가기</button><button class="primary" data-quick="questions">부족한 부분만 확인</button>${this.intake?.state ? '<button data-quick="next">현재 정보로 결과 보기</button>' : ''}</div>
+        ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}${this.intakePanel()}
+        <div class="quick-nav"><button class="quick-back" data-quick="photos" ${this.busy ? 'disabled' : ''}>뒤로 가기</button><button class="primary" data-quick="questions" ${this.busy ? 'disabled' : ''}>부족한 부분만 확인</button>${this.intake?.state ? `<button data-quick="next" ${this.busy ? 'disabled' : ''}>현재 정보로 결과 보기</button>` : ''}</div>
       </section></div>`;
   }
 
@@ -1243,13 +1387,13 @@ export class QuickFlow {
     const todo = groups.filter(g => !LATER_GROUPS.includes(g.name)).map(g => ({name: g.name, questions: g.questions.filter(q => !settled(q))})).filter(g => g.questions.length);
     const later = groups.filter(g => LATER_GROUPS.includes(g.name));
     for (const g of [...todo, ...later]) for (const q of g.questions) if (q.kind === 'checklist' && this.answers[q.id] === undefined) this.answers[q.id] = q.items.filter(i => i.suggested).map(i => i.key);
-    const ready = todo.every(g => this.groupReady(g)), count = todo.reduce((n, g) => n + g.questions.length, 0);
+    const ready = todo.every(g => this.groupReady(g));
     return `<div class="quick-columns">${this.photoStrip()}
       <section class="panel quick-ask">
-        <div class="quick-loco"><b>로코</b> 남은 확인 ${count}개 · 한 화면에서 끝내요</div>
+        <div class="quick-loco"><b>로코</b> 결과에 필요한 항목을 관련 내용끼리 묶어 보여드려요</div>
         ${this.intakeSummary()}
         ${todo.map(g => `<h4 class="quick-section">${esc(g.name)}</h4>${g.questions.map(q => this.question(q)).join('')}`).join('')}
-        ${later.length ? `<details class="quick-later" ${this.laterOpen ? 'open' : ''}><summary>조사 정보·작업장 상황 (나중에 입력해도 돼요)</summary>${later.map(g => g.questions.map(q => this.question(q)).join('')).join('')}</details>` : ''}
+        ${later.length ? `<details class="quick-later" ${this.laterOpen ? 'open' : ''}><summary>조사 정보 (나중에 입력해도 돼요)</summary>${later.map(g => g.questions.map(q => this.question(q)).join('')).join('')}</details>` : ''}
         ${ready ? '' : '<p class="quick-note">확인할 질문에 답해 주세요. 모르면 "모름"을 고르면 돼요. 숫자는 0 이상이고, 하루 시간은 1440분 이하예요.</p>'}
         <div class="quick-nav"><button data-quick="prev">이전</button>
           <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>최종 결과 계산</button></div>
@@ -1297,12 +1441,20 @@ export class QuickFlow {
       </section></div>`;
   }
 
+  // The way back from an unfinished score to the one input page. It is the user's own move: a plain button, no request, nothing that opens the page by itself.
+  postureAction() {
+    return Array.isArray(this.intake?.state?.form_fields) ? '<div class="quick-nav left"><button type="button" data-quick="questions" data-reveal-photo="1">입력 수정하기</button></div>' : '';
+  }
+
   rebaPanel() {
     const r = this.result, slot = r.reba?.slots?.[0], pv = this.preview?.score;
     if (!slot) return '<h2>REBA</h2><p class="quick-note">이 분석에는 REBA 계산이 없어요.</p>';
     if (slot.total == null) {
       const missing = [...new Set([...(slot.left?.missing_fields || []), ...(slot.right?.missing_fields || [])].map(f => FIELD_KO[f.split('.').pop()] || f))];
-      return `<h2>최종 REBA 점수</h2><p class="quick-warn">아직 점수를 계산할 수 없어요. 빠진 항목: ${esc(missing.join(', ') || '사진 확인')}.</p>`;
+      const sf = slot.score_so_far;
+      const soFar = sf ? `<h3>지금까지 확인한 값 기준 <small>(확정 전)</small></h3><div class="quick-big"><strong class="${rebaScoreClass(sf.total)}">${sf.total}</strong><span>점 · ${esc(RISK[sf.risk] || sf.risk)}</span></div>
+        ${renderRebaScale(sf.total, {label: '지금까지 기준 '})}<p class="quick-note">${esc(sf.assumption)} 가정한 항목 ${sf.assumed.length}개.${sf.unconfirmed_photo?.length ? ` 사진 상황(한 사람·전신·평소 작업)을 아직 확인하지 않아 사진에서 읽은 값 ${sf.unconfirmed_photo.length}개를 임시로 썼어요.` : ''}</p>` : '';
+      return `<h2>최종 REBA 점수</h2><p class="quick-warn">아직 점수를 계산할 수 없어요. 빠진 항목: ${esc(missing.join(', ') || '사진 확인')}.</p>${soFar}${this.postureAction()}`;
     }
     const side = slot.selected_side === 'LEFT' ? '왼쪽' : '오른쪽';
     const first = pv ? ` · 1차 점수 ${pv.total ?? '—'}점에서 답변을 반영했어요.` : '';
@@ -1316,7 +1468,7 @@ export class QuickFlow {
     const line = j => {
       const inv = j.investigator?.status ?? null;
       const conclude = editable ? `<td><div class="quick-choices small"><button type="button" class="${inv === 'APPLICABLE' ? 'selected' : ''}" data-concl="${j.criterion_no}" data-status="APPLICABLE">해당</button><button type="button" class="${inv === 'NOT_APPLICABLE' ? 'selected' : ''}" data-concl="${j.criterion_no}" data-status="NOT_APPLICABLE">비해당</button></div></td>` : '';
-      return `<tr><td>${esc(CRIT_NAME[j.criterion_no])} <small>(법정 ${j.criterion_no}호)</small></td><td><span class="quick-status ${esc(j.computed_status)}">${esc(STATUS[j.computed_status] || j.computed_status)}</span>${(j.missing_fields || []).length ? ` <small>추가 입력 ${j.missing_fields.length}개</small>` : ''}</td>${conclude}</tr>`;
+      return `<tr id="quick-criterion-${j.criterion_no}" tabindex="-1"><td>${esc(CRIT_NAME[j.criterion_no])} <small>(법정 ${j.criterion_no}호)</small></td><td><span class="quick-status ${esc(j.computed_status)}">${esc(STATUS[j.computed_status] || j.computed_status)}</span>${(j.missing_fields || []).length ? ` <small>추가 입력 ${j.missing_fields.length}개</small>` : ''}</td>${conclude}</tr>`;
     };
     const table = list => `<table class="quick-table"><thead><tr><th>기준</th><th>계산 초안</th>${editable ? '<th>조사자 결론</th>' : ''}</tr></thead><tbody>${list.map(line).join('')}</tbody></table>`;
     const relevant = rows.filter(j => j.computed_status !== 'NOT_APPLICABLE'), none = rows.filter(j => j.computed_status === 'NOT_APPLICABLE');
@@ -1344,10 +1496,10 @@ export class QuickFlow {
   }
 
   // The result has its own screen: the score and the criteria, nothing to edit.
-  photoVisionPanel() {
+  photoVisionPanel(expandDetails=false) {
     const contract=this.intake?.state?.contract||this.intake?.contract||{};
     const snapshot=this.result?.snapshot;
-    return renderPhotoVision(photoVisionForTask(snapshot,contract),contract,{photoIds:(snapshot?.capture?.slots||[]).map(slot=>slot.photo_id).filter(id=>id!=null)});
+    return renderPhotoVision(photoVisionForTask(snapshot,contract),contract,{photoIds:(snapshot?.capture?.slots||[]).map(slot=>slot.photo_id).filter(id=>id!=null),expandDetails});
   }
 
   viewResult() {
@@ -1363,38 +1515,64 @@ export class QuickFlow {
   aiPanel() {
     const s = this.settings || {};
     const ai = this.activeAi();
-    let body = '<p class="quick-note">쉬운 설명을 만들 때는 계산된 숫자 요약만 보내요. 이름·사진·메모는 보내지 않아요.</p>';
-    if (!s.gpt_key_present) body = '<p class="quick-warn">AI 키(OPENAI_API_KEY)가 이 PC에 없어요. 없어도 "기본 설명"을 만들 수 있어요.</p>';
+    const active = (this.result.ai || []).filter(x => x.purpose === 'TASK_EXPLANATION' && x.is_active).at(-1);
+    const currentAnalysis = this.result?.currentness === 'CURRENT';
+    let body = '<p class="quick-note">설명 생성에는 사진별 각도·REBA 수치와 기준별 계산 요약을 보냅니다. 원본 사진·좌표·이름·경로·자유입력 메모는 보내지 않아요.</p>';
+    if (!s.gpt_key_present) body += '<p class="quick-warn">AI 키(OPENAI_API_KEY)가 이 PC에 없어요. 없어도 기본 설명 초안을 만들 수 있어요.</p>';
     body += `<div class="quick-nav left"><button class="primary" data-quick="gen-ai" ${this.busy ? 'disabled' : ''}>${ai ? '설명 다시 만들기' : (s.gpt_key_present ? 'AI 설명 만들기' : '기본 설명 만들기')}</button></div>`;
     if (ai) {
       const text = this.editedExplanation(ai);
       const shown = (ai.is_active ? ai.applied_text : null) ?? ai.edited_text ?? ai.generated_text ?? '';
-      const kind = shown !== ai.generated_text ? '조사자가 수정한 설명' : ai.result === 'GENERATED' ? 'AI가 쓴 설명' : '기본 설명(AI를 쓰지 못했어요)';
+      const kind = ai.is_active ? (ai.applied_kind === 'INVESTIGATOR' ? '조사자가 고쳐 확정한 설명' : ai.applied_kind === 'FALLBACK' ? '조사자가 확인해 확정한 기본 설명' : 'AI가 쓴 설명') : shown !== ai.generated_text ? '조사자가 수정 중인 설명' : ai.result === 'GENERATED' ? 'AI 설명 초안' : '기본 설명 초안';
       const reason = ai.result === 'DISABLED' ? AI_REASON.DISABLED : (AI_REASON[ai.fallback_reason] || userText(ai.fallback_reason) || '');
-      body += `<p class="quick-note">${esc(kind)}${ai.result !== 'GENERATED' ? ` · 이유: ${esc(reason)}` : ''}${ai.is_active ? ' · <b>적용 중</b>' : ''}</p>
+      const activeIsCurrent = active && this.explanationIsCurrent(active);
+      let confirmation;
+      if (ai.is_active && !currentAnalysis) confirmation = '이전 분석에서 확정된 설명이에요. 현재 Excel에는 포함되지 않아요.';
+      else if (ai.is_active && ai.source_current === false) confirmation = '확정된 설명의 근거가 현재 요약과 달라요. 최신 내용을 다시 확인해 주세요.';
+      else if (ai.is_active && ai.source_current !== true) confirmation = '확정된 설명의 현재성을 확인할 수 없어요. 최신 분석에서 다시 확인해 주세요.';
+      else if (ai.is_active) confirmation = '확정됨 · 현재 분석의 Excel에 반영돼요.';
+      else if (activeIsCurrent) confirmation = '새 설명은 미확정이에요. Excel에는 이전 확정 설명이 포함돼요.';
+      else if (active && !currentAnalysis) confirmation = '새 설명은 미확정이에요. 이전 분석 설명은 현재 Excel에 포함되지 않아요.';
+      else if (active) confirmation = '새 설명은 미확정이에요. 이전 확정 설명의 현재성을 확인해 주세요.';
+      else if (!currentAnalysis) confirmation = '미확정 초안이에요. 현재 입력과 일치하는 분석이 아니라 Excel에 포함되지 않아요.';
+      else confirmation = '미확정 초안이에요. Excel에는 아직 포함되지 않아요.';
+      const canConfirm = currentAnalysis && ai.source_current === true && ai.result !== 'DISABLED';
+      const editorGuidance = canConfirm ? '문장을 검토·수정한 뒤 확정하면 현재 분석의 Excel에 반영돼요.' : '이 설명은 현재 Excel에 반영할 수 없어요. 최신 분석에서 다시 확인해 주세요.';
+      const staleNote = !currentAnalysis ? ' · 최신 입력과 다른 과거 분석이에요.' : ai.source_current === false ? ' · 현재 입력 근거와 일치하지 않아 다시 확인이 필요해요.' : ai.source_current !== true ? ' · 설명 근거의 현재성을 확인할 수 없어요.' : '';
+      body += `<p class="quick-note"><b>${esc(confirmation)}</b>${staleNote}</p>
+        <p class="quick-note">${esc(kind)}${ai.result !== 'GENERATED' ? ` · 이유: ${esc(reason)}` : ''}</p>
+        ${active && active.text_id !== ai.text_id ? `<details class="quick-explanation-details"><summary>Excel에 현재 확정되어 있는 설명 보기</summary><div class="quick-explanation-reading">${renderQuickExplanation(active, active.applied_text || '')}</div></details>` : ''}
         <div class="quick-explanation-reading">${renderQuickExplanation(ai, shown)}</div>
-        <div class="quick-nav left"><button data-quick="apply-ai">생성 원문 적용</button></div>
-        <details class="quick-explanation-details quick-explanation-editor" data-ai-editor ${this.aiEditorOpen ? 'open' : ''}><summary>전체 원문 보기 · 직접 수정</summary>
-          <p class="quick-note">수정 내용은 ‘수정본 적용’을 누른 뒤 위 읽기 화면에 반영돼요.</p>
-          ${readExplanationDraft(this.result,ai,this.drafts)?'<p class="quick-note" data-explanation-draft>수정 중인 문장을 이 PC에 임시 저장했어요. 수정문 적용을 누르면 결과에 반영돼요.</p>':''}<textarea class="quick-ai" rows="12" aria-label="쉬운 설명 원문 수정" data-aidraft>${esc(text)}</textarea>
-          <div class="quick-nav left"><button data-quick="apply-edited">수정본 적용</button></div>
+        <div class="quick-nav left"><button data-quick="apply-ai" ${canConfirm ? '' : 'disabled'}>생성 원문 확정 · Excel 반영</button></div>
+        <details class="quick-explanation-details quick-explanation-editor" data-ai-editor ${this.aiEditorOpen ? 'open' : ''}><summary>전체 설명 편집</summary>
+          <p class="quick-note">${editorGuidance}</p>
+          ${readExplanationDraft(this.result,ai,this.drafts)?'<p class="quick-note" data-explanation-draft>수정 중인 문장을 이 PC에 임시 저장했어요. 수정본을 확정하면 결과에 반영돼요.</p>':''}<textarea class="quick-ai" rows="12" aria-label="쉬운 설명 원문 수정" data-aidraft ${canConfirm ? '' : 'disabled'}>${esc(text)}</textarea>
+          <div class="quick-nav left"><button data-quick="apply-edited" ${canConfirm ? '' : 'disabled'}>수정본 확정 · Excel 반영</button></div>
         </details>
-        <p class="quick-note">설명은 보고서에 들어갈 문장일 뿐, 계산 결과와 판정은 바뀌지 않아요.</p>`;
+        <p class="quick-note">확정한 설명은 보고서 문장이에요. 계산 결과와 판정은 바뀌지 않아요.</p>`;
     }
     return `<section class="panel"><h3>③ 쉬운 설명</h3>${body}</section>`;
   }
 
   // Review: the investigator's conclusions, the review mark and the easy explanation.
   viewReview() {
-    const reviewed = this.survey?.review?.reviewed && this.survey?.review?.reviewed_metadata_revision === this.survey?.metadata_revision;
+    const review = this.survey?.review || {};
+    const reviewHistory = Boolean(review.reviewed && Array.isArray(review.reviewed_analysis_ids) && review.reviewed_analysis_ids.length);
+    const reviewed = this.reviewIsCurrent();
+    const reviewStatus = reviewed ? '<b>검토 완료</b>로 표시되어 있어요.' :
+      reviewHistory ? '<b>현재 분석의 검토 표시는 없어요.</b> 이전 검토 기록은 남아 있어요.' :
+      '현재 분석은 아직 검토 표시가 없어요.';
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel"><h3>① 조사자 결론</h3>
+      <div><section class="panel quick-review-intro"><h3>5단계 · 결과 설명과 사람의 최종 확인</h3>
+        <p class="quick-note">자동 분석 전체를 확인하고 설명을 직접 고쳐 확정할 수 있어요. 확정한 설명만 Excel의 ‘쉬운 설명’ 시트에 기록돼요. 입력이 덜 된 결과도 확인·저장할 수 있어요.</p></section>
+      ${this.photoVisionPanel(true)}${renderPostureReview(this.result)}
+      <section id="quick-criteria-review" tabindex="-1" class="panel"><h3>① 조사자 결론</h3>
         <p class="quick-note">계산 초안을 보고 최종 해당 여부를 직접 정해요. 정하지 않으면 초안 그대로 남아요. 같은 버튼을 다시 누르면 취소돼요.</p>${this.criteriaRows(true)}</section>
       <section class="panel"><h3>② 검토 표시</h3>
         <div class="quick-setting-row"><label>검토자<input type="text" data-rev="reviewer" value="${esc(this.review.reviewer)}" placeholder="이름"></label>
         <label>메모<input type="text" data-rev="note" value="${esc(this.review.note)}" placeholder="예: 야간 작업 추가 관찰 필요"></label></div>
-        <div class="quick-nav left"><button class="primary" data-quick="reviewed">검토 완료로 표시</button>${reviewed ? '<button data-quick="unreview">검토 표시 해제</button>' : ''}</div>
-        <p class="quick-note">${reviewed ? '<b>검토 완료</b>로 표시되어 있어요.' : '아직 검토 표시가 없어요.'} 검토 표시는 계산 완전성과 별개예요.</p></section>
+        <div class="quick-nav left"><button class="primary" data-quick="reviewed" ${this.result?.currentness === 'CURRENT' && Number.isInteger(this.result?.analysis_id) ? '' : 'disabled'}>검토 완료로 표시</button>${reviewed ? '<button data-quick="unreview">검토 표시 해제</button>' : ''}</div>
+        <p class="quick-note">${reviewStatus} ${this.result?.currentness === 'CURRENT' ? '' : '최신 입력과 일치하는 분석에서만 검토 완료를 표시할 수 있어요. '}검토 표시는 계산 완전성과 별개예요.</p></section>
       ${this.aiPanel()}
       <section class="panel"><div class="quick-nav"><button class="quick-back" data-quick="result">뒤로 가기</button><button class="primary" data-quick="preview">Excel 미리보기</button></div></section></div></div>`;
   }

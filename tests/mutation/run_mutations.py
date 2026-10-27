@@ -100,7 +100,7 @@ MUTATIONS += [
  ('설정한 추론 강도를 실제 요청에서 누락', 'ergo/ai_config.py',
   "if selected['gpt_reasoning_effort']: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",
   "if False: options['reasoning']=dict(effort=selected['gpt_reasoning_effort'])",
-  'test_each_sdk_path_uses_the_same_selected_model_effort_timeout_and_tokens', 'tests.test_ai_settings.AiSettings'),
+  'test_text_intake_photo_and_explanation_share_one_unlimited_no_retry_client', 'tests.test_ai_settings.AiSettings'),
  ('AI가 직접 수정값을 덮어쓰게 변경', 'ergo/intake/facts.py',
   "if previous and previous['source']=='USER':", "if False:",
   'test_zero_is_a_real_value_and_user_edit_wins_over_ai', 'tests.test_adaptive_intake.AdaptiveIntake'),

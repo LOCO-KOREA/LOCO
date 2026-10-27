@@ -60,7 +60,7 @@ INCOMPLETE = {
     'reba': 'REBA 점수를 일부 계산하지 못했어요. 필요한 자세 입력을 채우면 계산돼요.',
     'judgment': '법정 기준 중 입력이나 검토가 더 필요한 항목이 있어요.',
 }
-AI_REASON_KO = {'DISABLED': 'AI 설명 설정이 꺼져 있음', 'NO_API_KEY': '이 PC에 AI 키가 없음', 'MODEL_NOT_CONFIGURED': 'AI 모델이 정해지지 않음', 'TIMEOUT': 'AI 응답이 늦어짐',
+AI_REASON_KO = {'DISABLED': 'AI 설명 설정이 꺼져 있음', 'NO_API_KEY': '이 PC에 AI 키가 없음', 'MODEL_NOT_CONFIGURED': 'AI 모델이 정해지지 않음', 'TIMEOUT': 'AI 응답 연결이 끝남',
                 'API_ERROR': 'AI 서버에 연결하지 못함', 'INVALID_STRUCTURED_CONTENT': 'AI 응답 형식이 맞지 않음', 'INCOMPLETE_RESPONSE': 'AI 응답이 끝까지 오지 않음',
                 'REFUSAL_OR_EMPTY_RESPONSE': 'AI가 답을 주지 않음', 'OPENAI_SDK_MISSING': 'AI 연결 부품이 없음'}
 

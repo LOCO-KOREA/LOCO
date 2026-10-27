@@ -1,14 +1,68 @@
 """REBA_TABLE_2000_V2 candidates and scores; pure DTO functions."""
-from .task_defaults import COMMON, ARM, diagnostic
-from ergo.pose_contract import WRIST_POLICY
+from .task_defaults import COMMON, ARM, AUXILIARY_CONDITION_KEYS, diagnostic
+from ergo.pose_contract import WRIST_POLICY, PHOTO_SOURCES
 import math
 
 TABLE_A = [[1,2,3,4,1,2,3,4,3,3,5,6],[2,3,4,5,3,4,5,6,4,5,6,7],[2,4,5,6,4,5,6,7,5,6,7,8],[3,5,6,7,5,6,7,8,6,7,8,9],[4,6,7,8,6,7,8,9,7,8,9,9]]
 TABLE_B = [[1,2,2,1,2,3],[1,2,3,2,3,4],[3,4,5,4,5,5],[4,5,5,5,6,7],[6,7,8,7,8,8],[7,8,8,8,9,9]]
 TABLE_C = [[1,1,1,2,3,3,4,5,6,7,7,7],[1,2,2,3,4,4,5,6,6,7,7,8],[2,3,3,3,4,5,6,7,7,8,8,8],[3,4,4,4,5,6,7,8,8,9,9,9],[4,4,4,5,6,7,8,8,9,9,9,9],[6,6,6,7,8,8,9,9,10,10,10,10],[7,7,7,8,9,9,9,10,10,11,11,11],[8,8,8,9,10,10,10,10,10,11,11,11],[9,9,9,10,10,10,11,11,11,12,12,12],[10,10,10,11,11,11,11,12,12,12,12,12],[11,11,11,11,12,12,12,12,12,12,12,12],[12,12,12,12,12,12,12,12,12,12,12,12]]
 
+# The no-burden option for every REBA item: used for the first-pass score and the score so far, never stored as an input.
+NO_BURDEN = {
+    'trunk_base': 1, 'trunk_twisted': 'NO', 'trunk_side_bent': 'NO', 'neck_base': 1,
+    'neck_twisted': 'NO', 'neck_side_bent': 'NO', 'legs_support': 'BILATERAL_STABLE',
+    'seated': 'NO', 'knee_band': 'UNDER_30', 'shock_force': 'NO', 'static_over_1min': 'NO',
+    'small_repeat_over_4min': 'NO', 'rapid_change_or_unstable': 'NO',
+    'upper_arm_base': 1, 'arm_abducted_or_rotated': 'NO', 'shoulder_raised': 'NO',
+    'arm_supported_or_gravity_assisted': 'NO', 'lower_arm_base': 1, 'wrist_base': 1,
+    'wrist_deviated_or_twisted': 'NO', 'coupling': 'NOT_APPLICABLE',
+}
+
 def risk(total):
     return 'NEGLIGIBLE' if total == 1 else 'LOW' if total <= 3 else 'MEDIUM' if total <= 7 else 'HIGH' if total <= 10 else 'VERY_HIGH'
+
+def score_so_far(snapshot, slot, current, open_paths):
+    """Score of the answers so far, every open item at its no-burden option; None until trunk and an upper arm are known (assumptions alone read as negligible).
+
+    shortcut: arm support and sitting are assumed NO although YES scores lower, so this is not a strict minimum; upgrade if a lower bound is ever promised.
+    """
+    borrowed = []
+    saved = ((snapshot.get('conditions') or {}).get(AUXILIARY_CONDITION_KEYS[0]) or {}).get('facts') or {}
+    confirmation = saved.get('context@default') or {}
+    # While the photo confirmation is unanswered, readings the task does not project yet are borrowed and named. They were already filtered by view and confidence.
+    if not (confirmation.get('state') == 'KNOWN' or confirmation.get('state') == 'UNKNOWN' and confirmation.get('source') == 'USER'):
+        for item in saved.values():
+            parts = item.get('target', '').split('.')
+            if (len(parts) == 3 and parts[0] == 'manual' and item.get('source') in PHOTO_SOURCES and item.get('state') == 'KNOWN' and not item.get('alias_of')
+                    and item.get('photo_id') == slot['photo_id'] and item.get('value') is not None and current.get((parts[1], parts[2])) in (None, 'UNKNOWN')):
+                current = {**current, (parts[1], parts[2]): item['value']}
+                borrowed.append(f'{parts[1].lower()}.{parts[2]}')
+    known = lambda scope, field: current.get((scope, field)) not in (None, 'UNKNOWN')
+    if not (known('COMMON', 'trunk_base') and (known('LEFT', 'upper_arm_base') or known('RIGHT', 'upper_arm_base'))):
+        return None
+    obs = dict(slot['observation'])
+    assumed = sorted(path for path in open_paths if path.split('.')[0] in ('common', 'left', 'right') and path not in borrowed)
+    note = '지금까지 확인한 값으로 계산하고, 확인하지 못한 항목은 부담 없음으로 가정한 점수입니다. 실제 점수는 더 높을 수 있고 확정 점수가 아닙니다.'
+    if obs.get('load_state', 'UNKNOWN') == 'UNKNOWN' and obs.get('measured_load_kg') is None:
+        obs['load_state'] = 'UNLOADED'
+        assumed.append('observation.load_state')
+        note += ' 들고 있는 물건이 있는지 몰라 없는 것으로 계산했어요.'
+    carrying = obs.get('load_state') == 'MEASURED' and obs.get('measured_load_kg') != 0
+    rows = []
+    for scope, fields in (('COMMON', COMMON), ('LEFT', ARM), ('RIGHT', ARM)):
+        for field in fields:
+            value = current.get((scope, field))
+            if value in (None, 'UNKNOWN'):
+                value = 'GOOD' if field == 'coupling' and carrying else NO_BURDEN[field]
+            rows.append(dict(slot_no=slot['slot_no'], photo_id=slot['photo_id'], scope=scope, field=field, value=value))
+    filled = dict(snapshot, capture=dict(slots=[dict(slot, observation=obs)]), manual=rows)
+    result = calculate_reba(filled, None, with_score_so_far=False)['slots'][0]
+    if result['total'] is None:
+        return None
+    so_far = dict(total=result['total'], risk=result['risk'], selected_side=result['selected_side'], left=result['left']['total'],
+                  right=result['right']['total'], assumed=assumed, assumption=note)
+    if borrowed: so_far['unconfirmed_photo'] = sorted(borrowed)
+    return so_far
 
 def candidates(slot, pose, camera_side, confidence_min=0.5):
     angles = (pose or {}).get('angles', [])
@@ -44,7 +98,7 @@ def candidates(slot, pose, camera_side, confidence_min=0.5):
         result.append(dict(slot_no=slot['slot_no'],photo_id=slot['photo_id'],scope=scope,field=field,proposed_value=value,angles=refs,min_confidence=min(a['min_confidence'] for a in refs) if usable else None,review_reasons=reasons,diagnostics=[note] if note else []))
     return result
 
-def calculate_reba(snapshot, pose):
+def calculate_reba(snapshot, pose, with_score_so_far=True):
     if snapshot.get('schema_version')!='2.0': raise ValueError('과거 REBA는 저장된 결과로 읽으세요. 새 계산에는 2.0 입력이 필요합니다')
     output=[]
     targets=[s for s in snapshot['capture']['slots'] if s.get('analysis_target',True) and s.get('photo_id') is not None]
@@ -114,14 +168,23 @@ def calculate_reba(snapshot, pose):
         total=sides[chosen.lower()]['total'] if chosen else None
         ps=next((p for p in (pose or {}).get('slots',[]) if p['slot_no']==number),None)
         camera=slot.get('camera_side'); confidence=(snapshot.get('settings') or {}).get('pose_model',{}).get('confidence_min',0.5)
-        output.append(dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,camera,confidence),load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields']))))
+        entry=dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidates(slot,ps,camera,confidence),load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields'])))
+        so_far=None if complete or not with_score_so_far else score_so_far(snapshot,slot,current,entry['missing_fields'])
+        if so_far: entry['score_so_far']=so_far
+        output.append(entry)
     by_photo={}
     for slot in output: by_photo.setdefault(slot['photo_id'],[]).append(slot)
     for repeated in by_photo.values():
         if len(repeated)>1:
             for slot in repeated:
                 slot.update(status='INCOMPLETE',selected_side=None,total=None,risk=None)
+                slot.pop('score_so_far',None)
                 slot['missing_fields']=sorted(set(slot['missing_fields']+['duplicate_photo_id']))
     done=[s for s in output if s['total'] is not None]; highest=max((s['total'] for s in done),default=None)
     representative=next((s['slot_no'] for s in done if s['total']==highest),None)
-    return dict(status='COMPLETE' if len(done)==len(targets) and bool(targets) else 'INCOMPLETE',slots=output,summary=dict(complete_count=len(done),total_slot_count=len(targets),available_max=highest,full_max=highest if len(done)==len(targets) and bool(targets) else None,representative_slot_no=representative,selection='AUTO' if done else None))
+    summary=dict(complete_count=len(done),total_slot_count=len(targets),available_max=highest,full_max=highest if len(done)==len(targets) and bool(targets) else None,representative_slot_no=representative,selection='AUTO' if done else None)
+    unfinished=[s for s in output if 'score_so_far' in s]
+    if unfinished:
+        best=max(unfinished,key=lambda s:s['score_so_far']['total'])
+        summary['score_so_far']=dict(best['score_so_far'],slot_no=best['slot_no'])
+    return dict(status='COMPLETE' if len(done)==len(targets) and bool(targets) else 'INCOMPLETE',slots=output,summary=summary)

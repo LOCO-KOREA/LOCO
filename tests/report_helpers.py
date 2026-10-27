@@ -7,12 +7,11 @@ from ergo.service import application
 
 # Words a reader of the workbook must never meet: stored codes, field paths, internal names.
 CODE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z_]+\.[a-z0-9_.-]+\b|MoveNet|기술태그|스키마|None|null|UNKNOWN')
-SURVEY_KEYS = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date',
-               'workplace_situation', 'participation', 'symptom_survey')
+SURVEY_KEYS = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'previous_survey_date')
 
 
 def make_survey(title='일반 보고서 검증', **changes):
-    draft = {'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자', 'department': '팀', 'process': '공정', 'title': title, 'occasional_reason': None}
+    draft = {'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자', 'department': '팀', 'process': '공정', 'title': title}
     draft.update(changes)
     return application.dispatch('create_survey', {'draft': draft})
 
@@ -39,12 +38,10 @@ def lifting_input(task_name='상자 들기'):
     draft = task_input({'task_name': task_name, 'input_template': 'LIFTING'})
     draft['conditions'].update(one_off='NO', daily_work_min=480, annual_work_days=220)
     note = {'source': 'INTERVIEW', 'text': '빠른 분석 질문: 무거운 물건을 드는 작업', 'observed_at': '2026-10-23T01:00:00Z'}
-    for criterion in draft['legal']['criteria']:
-        criterion['condition_present'] = 'NO'
-        if criterion['criterion_no'] >= 6:
-            criterion['rows_complete'] = 'YES'
     keyboard = draft['legal']['criteria'][0]
     keyboard.update(condition_present='YES', evidence=dict(note))
+    neck = draft['legal']['criteria'][1]
+    neck.update(condition_present='NO', evidence={**note, 'text': '목 반복 동작이 없는 것으로 면담 확인'})
     next(e for e in draft['legal']['exposures'] if e['condition_code'] == 'C1_KEYBOARD_FOCUSED').update(minutes=240, evidence=dict(note))
     lift = draft['legal']['criteria'][7]
     lift.update(condition_present='YES', evidence=dict(note), rows=[{'row_id': 'quick-1', 'label': '빠른 분석 입력', 'evidence': dict(note), 'load_mass_kg': 20, 'lift_count_day': 30}], rows_complete='YES')

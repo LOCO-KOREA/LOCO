@@ -42,18 +42,18 @@ class LiveOutputFindings(unittest.TestCase):
         self.turn('하루 전체 8시간 연 220일 일해요',[answer('daily_work_min',480,'하루 전체 8시간'),answer('annual_work_days',220,'연 220일')])
         self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],answers=[dict(target='daily_work_min',value=421)],plan=False))
         rows=self.rows();daily=next(r for r in rows if len(r)>3 and r[2]=='하루 실제 작업시간');annual=next(r for r in rows if len(r)>3 and r[2]=='1년에 작업하는 날 수')
-        self.assertTrue(daily[4]);self.assertIn('직접 입력',daily[5]);self.assertTrue(annual[4]);self.assertIn('연 220일',annual[5])
+        self.assertIn('421 분/일 · 직접 입력',daily[3]);self.assertIn('연 220일',annual[3])
     def test_each_condition_row_field_keeps_its_own_quote(self):
         self.turn('20kg 상자를 하루 30회 들어요',[answer('card.lift.load_mass_kg',20,'20kg'),answer('card.lift.lift_count_day',30,'하루 30회')])
         self.turn('20kg 상자를 1분에 1번씩 하루 30분 들어요',[answer('card.lift.lift_rate_min',1,'1분에 1번씩'),answer('card.lift.minutes',30,'하루 30분')])
         rows=self.rows();rate=next(r for r in rows if len(r)>3 and '분당 들기' in str(r[2]));duration=next(r for r in rows if len(r)>3 and '하루 노출시간' in str(r[2]))
-        self.assertIn('1분에 1번씩',rate[5]);self.assertIn('하루 30분',duration[5])
+        self.assertIn('1분에 1번씩',rate[3]);self.assertIn('하루 30분',duration[3])
     def test_explicit_zero_exposure_is_visible_even_when_work_type_is_no(self):
         self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],answers=[dict(target='work_type.keyboard',value='NO'),dict(target='card.keyboard.C1_KEYBOARD_FOCUSED',value=0)],plan=False))
-        self.assertTrue(any(len(r)>3 and '키보드' in str(r[2]) and r[3]=='0 분/일' for r in self.rows()))
+        self.assertTrue(any(len(r)>3 and '키보드' in str(r[2]) and str(r[3]).startswith('0 분/일') for r in self.rows()))
     def test_recorded_condition_completeness_has_an_output_row(self):
         self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],answers=[dict(target='card.lift.load_mass_kg',value=20),dict(target='card.lift.lift_count_day',value=30),dict(target='complete.lift',value='YES')],plan=False))
-        self.assertTrue(any(len(r)>3 and '조건' in str(r[2]) and ('모든' in str(r[2]) or '전체' in str(r[2])) and r[3]=='예' for r in self.rows()))
+        self.assertTrue(any(len(r)>3 and '조건' in str(r[2]) and ('모든' in str(r[2]) or '전체' in str(r[2])) and str(r[3]).startswith('예') for r in self.rows()))
     def test_followup_replay_keeps_conflict_until_a_new_user_statement(self):
         self.turn('20kg',[answer('card.lift.load_mass_kg',20,'20kg')])
         state=self.turn('30kg',[answer('card.lift.load_mass_kg',30,'30kg')])
@@ -64,9 +64,9 @@ class LiveOutputFindings(unittest.TestCase):
     def test_explicit_unknown_and_explicit_no_keep_display_provenance(self):
         self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],answers=[dict(target='annual_work_days',value=None),dict(target='work_type.keyboard',value='NO')],plan=False))
         rows=self.rows();annual=next(r for r in rows if len(r)>3 and r[2]=='1년에 작업하는 날 수')
-        self.assertEqual(annual[3],'모름');self.assertIn('직접 입력',annual[5])
+        self.assertIn('모름 · 직접 입력',annual[3])
         keyboard=next(r for r in rows if len(r)>3 and '키보드' in str(r[2]) and '이 작업을 한다' in str(r[2]))
-        self.assertEqual(keyboard[3],'아니오');self.assertIn('직접 입력',keyboard[5])
+        self.assertIn('아니오 · 직접 입력',keyboard[3])
     def test_old_fact_metadata_cannot_claim_a_later_advanced_edit(self):
         from ergo.report.input_trace import InputTrace
         source=dict(input_revision=6,conditions=dict(intake_session=dict(projected_revision=5,facts={

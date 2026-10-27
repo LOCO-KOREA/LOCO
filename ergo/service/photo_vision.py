@@ -46,7 +46,7 @@ def _descriptor(task,session,view,identity,digest,settings):
 def _descriptors(task,session,settings):
     source={(entry[0],entry[1]):entry[2] for entry in json.loads(session.get('photo_signature') or '[]')}
     return [_descriptor(task,session,view,identity,source.get((view,identity),'unreadable'),settings)
-        for view,identity in session.get('views',{}).items()]
+        for view,identity in sorted(session.get('views',{}).items())]
 
 def refresh(task,session,settings,preview=None,photos=None):
     """Pure cache selection/invalidation: never request a model during a read."""
@@ -199,11 +199,12 @@ def _request(job,settings):
         _diagnostic(record,reason or 'INVALID_STRUCTURED_CONTENT',record['reason'])
     return record
 
-def observe_turn(ctx,task,session,preview,prepare,save):
-    """Explicit planning only; every completed response is reconciled without a TTL."""
+def request_turn(ctx,task,session,preview):
+    """Request uncached observations without writing task/session state."""
     settings=ai_config.values(ctx.settings())
-    if not settings['gpt_enabled'] or not settings.get('gpt_model') or not session.get('views'):return task,session,preview,False
     initial_signature=session.get('photo_signature')
+    if not settings['gpt_enabled'] or not settings.get('gpt_model') or not session.get('views'):
+        return task,session,preview,initial_signature,[]
     with ctx.db_lock:
         current=ctx.require('task',task['task_id'])
         if current['created_at']!=task['created_at']:raise LookupError(ERROR_MESSAGES['TASK_REPLACED'])
@@ -211,14 +212,23 @@ def observe_turn(ctx,task,session,preview,prepare,save):
     refresh(task,session,settings,preview,photos)
     cached={record['signature'] for record in session['photo_vision']['photos'] if record['status'] in ('OBSERVED','UNCERTAIN')}
     jobs=[dict(descriptor=item,photo=photos[item['photo_id']]) for item in _descriptors(task,session,settings) if item['signature'] not in cached and item['photo_id'] in photos]
+    records=[]
     with ThreadPoolExecutor(max_workers=contract.policy()['parallelism']) as executor:
-      pending=[executor.submit(_request,job,settings) for job in jobs]
-      for future in as_completed(pending):
-        record=future.result()
+        pending=[executor.submit(_request,job,settings) for job in jobs]
+        for future in as_completed(pending):records.append(future.result())
+    return task,session,preview,initial_signature,records
+
+def reconcile_turn(ctx,task,session,preview,initial_signature,records,prepare,save,expected_input_revision=None):
+    """Apply completed observations only after checking the latest task/photo owner."""
+    input_changed=False
+    expected_revision=expected_input_revision
+    for record in records:
         with ctx.db_lock:
             try:current=ctx.require('task',task['task_id'])
-            except ValueError:return task,session,preview,True
+            except ValueError:return task,session,preview,True,True
             if current['created_at']!=task['created_at']:raise LookupError(ERROR_MESSAGES['TASK_REPLACED'])
+            if expected_revision is not None and current['input_revision']!=expected_revision:
+                input_changed=True
             current,latest,current_preview=prepare(ctx,task['task_id'])
             desired={item['signature'] for item in _descriptors(current,latest,ctx.settings())}
             state=latest['photo_vision']
@@ -236,5 +246,12 @@ def observe_turn(ctx,task,session,preview,prepare,save):
                     _merge_candidates(latest,record)
             saved,ok=save(ctx,current,latest,current_preview)
             if not ok:raise RuntimeError('사진 관찰을 현재 작업에 저장하지 못했어요.')
+            expected_revision=saved['input_revision']
             task,session,preview=saved,latest,current_preview
-    return task,session,preview,session.get('photo_signature')!=initial_signature
+    return task,session,preview,session.get('photo_signature')!=initial_signature,input_changed
+
+def observe_turn(ctx,task,session,preview,prepare,save):
+    """Explicit planning only; every completed response is reconciled without a TTL."""
+    request=request_turn(ctx,task,session,preview)
+    task,session,preview,stale,_=reconcile_turn(ctx,*request,prepare,save,task['input_revision'])
+    return task,session,preview,stale

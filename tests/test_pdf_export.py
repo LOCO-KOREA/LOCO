@@ -26,8 +26,7 @@ class PdfExportTests(unittest.TestCase):
         self.ctx=create_service(self.root/'case.db')
         self.survey=self.ctx.dispatch('create_survey',{'draft':{
             'survey_type':'REGULAR','survey_date':'2026-10-22','investigator':'검증 조사자',
-            'department':'검증 부서','process':'포장 공정','title':'임시 DB 검증',
-            'workplace_situation':{'workload_status':'YES','workload_notes':'10월부터 물량 증가: 원문 검증'}}})
+            'department':'검증 부서','process':'포장 공정','title':'임시 DB 검증'}})
         self.task=self.task_create('원래 작업')
         self.other=self.task_create('포함하면 안 되는 다른 작업')
 
@@ -54,7 +53,6 @@ class PdfExportTests(unittest.TestCase):
         texts=[p.extract_text() for p in reader.pages]
         self.assertIn('원래 작업',texts[0])
         self.assertNotIn('포함하면 안 되는 다른 작업','\n'.join(texts))
-        self.assertNotIn('10월부터 물량 증가: 원문 검증','\n'.join(texts))
         self.assertTrue(result['warnings'],'warnings remain available outside the PDF')
         self.assertNotIn('홍길동','\n'.join(texts))
         self.assertEqual(self.ctx.dispatch('list_export_logs',{'survey_id':self.survey['survey_id']}),[])

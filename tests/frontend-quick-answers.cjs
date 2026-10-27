@@ -4,6 +4,7 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 (async()=>{
  const {savedAnswers}=await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
+ const {QuickFlow}=await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
  const choices=values=>values.map(value=>({value,label:String(value)}));
  const card=(id,criterion,fields,extra={})=>({id,kind:'criterion',criterion,implicit:true,target:{type:'criterion_card',criterion},fields,...extra});
  const questions=[
@@ -21,8 +22,6 @@ const {pathToFileURL}=require('node:url');
   {id:'one_off',kind:'choice',target:{type:'conditions',field:'one_off'},choices:choices(['YES','NO','UNKNOWN'])},
   {id:'task_name',kind:'text',target:{type:'task',field:'task_name'}},
   {id:'investigator',kind:'text',target:{type:'survey',field:'investigator'}},
-  {id:'situation_equipment',kind:'choice',target:{type:'situation',field:'equipment_status'},choices:choices(['YES','NO','UNKNOWN'])},
-  {id:'participation',kind:'choice',target:{type:'participation',field:'status'},choices:choices(['YES','NO','UNKNOWN'])},
   card('crit_keyboard',1,[{key:'C1_KEYBOARD_FOCUSED',type:'number',to:{exposure:'C1_KEYBOARD_FOCUSED'}}]),
   card('crit_trunk_neck',4,[{key:'unsupported',type:'truth',to:{criterion:'unsupported'}},{key:'C4_TRUNK_FLEX',type:'number',to:{exposure:'C4_TRUNK_FLEX'}}]),
   card('crit_impact',11,[{key:'impact_rate_hour',type:'number',to:{row:'impact_rate_hour'}}]),
@@ -37,20 +36,62 @@ const {pathToFileURL}=require('node:url');
   capture:{slots:[{slot_no:1,photo_id:7,camera_side:'RIGHT',forward_direction:'SCREEN_RIGHT',side_view_verified:'YES',observation:{single_person:'YES',load_state:'MEASURED',measured_load_kg:10}}]},
   manual:[{scope:'COMMON',field:'trunk_base',value:3},{scope:'LEFT',field:'coupling',value:'NOT_APPLICABLE'},{scope:'COMMON',field:'seated',value:'NO'},{scope:'COMMON',field:'neck_twisted',value:'YES'},{scope:'COMMON',field:'neck_side_bent',value:'NO'}],
   legal:{criteria,exposures}};
- const survey={investigator:'김조사',workplace_situation:{equipment_status:'NO'},participation:{status:'UNKNOWN'},symptom_survey:{method:'UNKNOWN'}};
+ const survey={investigator:'김조사'};
  const a=savedAnswers(questions,task,survey);
  assert.equal(a.context,'YES');assert.equal(a.view_RIGHT,'SCREEN_RIGHT');assert.equal(a.load,'MEASURED');assert.equal(a.load_kg,10);
  assert.equal(a.trunk_base,3);assert.ok(!('coupling' in a),'NOT_APPLICABLE is derived from "no load", not an answer');
  assert.deepEqual(a.posture_flags,['neck_turn'],'only checked flags come back');
  assert.equal(a.daily_work_min,480);assert.equal(a.one_off,'NO');assert.equal(a.task_name,'박스 포장');assert.equal(a.investigator,'김조사');
- assert.equal(a.situation_equipment,'NO');assert.ok(!('participation' in a),'UNKNOWN is not restored as an answer');
  assert.deepEqual([...a.work_types].sort(),['keyboard','lift','trunk_neck'],'ticked work types come back from the criteria that were switched on');
  assert.deepEqual(a.crit_keyboard,{values:{C1_KEYBOARD_FOCUSED:240}});
  assert.deepEqual(a.crit_trunk_neck,{values:{unsupported:'YES',C4_TRUNK_FLEX:120}});
  assert.deepEqual(a.crit_lift,{values:{load_mass_kg:30,lift_count_day:20,lift_rate_min:2}},'one lifting card is rebuilt from the three criteria it fed');
  assert.ok(!('crit_impact' in a),'a work type that was not ticked has no card answer');
- const empty=savedAnswers(questions,{...task,capture:{slots:[]},manual:[],conditions:{},legal:{criteria:criteria.map(c=>({...c,condition_present:'UNKNOWN'})),exposures:[]},task_name:'사진 분석 작업'},{workplace_situation:{},participation:{},symptom_survey:{}});
+ const empty=savedAnswers(questions,{...task,capture:{slots:[]},manual:[],conditions:{},legal:{criteria:criteria.map(c=>({...c,condition_present:'UNKNOWN'})),exposures:[]},task_name:'사진 분석 작업'},{});
  assert.deepEqual(empty,{},'nothing saved means nothing restored');
+
+ const noCriteria = () => Array.from({length: 11}, (_, i) => ({criterion_no: i + 1, condition_present: 'UNKNOWN', evidence: null, rows: [], rows_complete: 'UNKNOWN'}));
+ const uncheckedInput = {legal: {criteria: noCriteria()}};
+ const uncheckedFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: []}, visible: () => true
+ });
+ uncheckedFlow.applyCriteria(uncheckedInput);
+ assert.equal(uncheckedInput.legal.criteria[0].condition_present, 'UNKNOWN', 'an unchecked criterion was not asked and stays UNKNOWN');
+ assert.equal(uncheckedInput.legal.criteria[0].rows_complete, 'UNKNOWN', 'an unchecked criterion does not become complete');
+ assert.equal(uncheckedInput.legal.criteria[7].condition_present, 'UNKNOWN', 'a checked work type alone does not invent a criterion answer');
+ assert.equal(uncheckedInput.legal.criteria[7].rows_complete, 'UNKNOWN');
+ assert.equal(uncheckedInput.legal.criteria[0].evidence, null, 'no provenance is attached to an unasked criterion');
+ const explicitQuestion = {id: 'crit_lift', kind: 'criterion', criterion: 8, fields: [], mode: 'row'};
+ const explicitInput = {legal: {criteria: noCriteria()}};
+ const explicitFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: [explicitQuestion]}, group: 0,
+  groups: () => [{questions: [explicitQuestion]}], visible: () => true, render() {}
+ });
+ explicitFlow.allNo();
+ explicitFlow.applyCriteria(explicitInput);
+ assert.equal(explicitInput.legal.criteria[7].condition_present, 'NO', 'the explicit all-no action preserves a direct user-confirmed NO');
+ assert.match(explicitInput.legal.criteria[7].evidence.text, /직접 확인해 아니오로 선택/);
+ assert.equal(explicitInput.legal.criteria[7].rows_complete, 'UNKNOWN', 'internal row completeness is not fabricated by an all-no answer');
+ assert.equal(explicitInput.legal.criteria[0].condition_present, 'UNKNOWN', 'the explicit action only applies to the visible criterion');
+ const liftQuestion = {id: 'crit_lift', kind: 'criterion', criteria: [8, 9, 10], fields: [], mode: 'lift'};
+ const liftInput = {legal: {criteria: noCriteria()}};
+ const liftFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {work_types: ['lift']}, preview: {questions: [liftQuestion]}, group: 0,
+  groups: () => [{questions: [liftQuestion]}], visible: () => true, render() {}
+ });
+ liftFlow.allNo();
+ liftFlow.applyCriteria(liftInput);
+ assert.deepEqual([8, 9, 10].map(n => liftInput.legal.criteria[n - 1].condition_present), ['NO', 'NO', 'NO'], 'one explicit all-no answer covers all three related lift criteria');
+ assert.deepEqual([8, 9, 10].map(n => liftInput.legal.criteria[n - 1].rows_complete), ['UNKNOWN', 'UNKNOWN', 'UNKNOWN']);
+ const partialQuestion = {id: 'crit_impact', kind: 'criterion', criterion: 11, fields: [{key: 'impact_rate_hour'}], mode: 'row'};
+ const partialFlow = Object.assign(Object.create(QuickFlow.prototype), {
+  answers: {crit_impact: {values: {impact_rate_hour: 4}}}, preview: {questions: [partialQuestion]}, group: 0,
+  groups: () => [{questions: [partialQuestion]}], visible: () => true, render() {}
+ });
+ partialFlow.allNo();
+ assert.equal(partialFlow.answers.crit_impact.present, undefined, 'all-no does not overwrite a criterion the person already answered');
+ assert.equal(partialFlow.answers.crit_impact.values.impact_rate_hour, 4);
+
  console.log('PASS saved answers restore only what was really saved');
  const {applyIntake, dropIntakeItem, settledByIntake, LATER_GROUPS} = await import(pathToFileURL(path.resolve(__dirname,'..','frontend','quick-flow.js')).href);
  const item = (target, kind, qid, extra = {}) => ({target, kind, question_id: qid, field_key: null, gate: null, value: true, quote: '근거', label: target, ...extra});
@@ -84,6 +125,6 @@ const {pathToFileURL}=require('node:url');
  assert.equal(settledByIntake({id: 'daily_work_min', kind: 'number'}, filled, intake), true);
  assert.equal(settledByIntake({id: 'daily_work_min', kind: 'number'}, {...filled, daily_work_min: 300}, intake), false, 'a changed answer is no longer the AI\'s');
  assert.equal(settledByIntake({id: 'coupling', kind: 'choice'}, filled, intake), false);
- assert.deepEqual(LATER_GROUPS, ['조사 정보', '작업장 상황', '참여·증상']);
+ assert.deepEqual(LATER_GROUPS, ['조사 정보']);
  console.log('PASS AI intake fills, keeps a person\'s own answers, drops cleanly and settles only what it fully answered');
 })().catch(error=>{console.error(error);process.exit(1);});

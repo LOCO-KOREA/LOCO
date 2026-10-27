@@ -1,7 +1,7 @@
 """Survey completeness, review state and actionable missing inputs."""
 from .common import currentness
 from .comparisons import build_comparisons
-from .labels import AI_REASON_KO, INCOMPLETE, MODULE_PLAIN, criterion_name, input_label, josa, reason_label
+from .labels import AI_REASON_KO, INCOMPLETE, MODULE_PLAIN, criterion_name, input_label, reason_label
 
 def overview(snapshot):
     tasks = []
@@ -100,29 +100,8 @@ def overview(snapshot):
         next_inputs.sort(key=lambda item: 0 if item['kind'] == 'MISSING_INPUT' else 1)
         tasks.append(dict(task_id=task['task_id'], task_name=source['task_name'], analysis_id=a['analysis_id'] if a else None, input_revision=source['input_revision'], source_schema_version=source.get('schema_version', '1.3'), module_states=states if a else None, currentness=cur, state=state, review_status='NO_ANALYSIS' if not a else 'UNREVIEWED' if not reviewed else 'REVIEWED_CURRENT' if state['review_current'] else 'REVIEWED_HISTORY', counts=counts, next_inputs=next_inputs))
     state = {key: bool(tasks) and all((t['state'][key] for t in tasks)) if key in ('reviewed', 'review_current') else any((t['state'][key] for t in tasks)) for key in ('reviewed', 'review_current', 'has_incomplete', 'has_stale')}
-    survey_followups = []
-    if survey.get('survey_type') == 'OCCASIONAL' and (not survey.get('occasional_cause')):
-        survey_followups.append('기존 수시조사의 세부 사유 유형을 확인하세요.')
-    participation = survey.get('participation') or {}
-    if participation.get('status') != 'YES':
-        survey_followups.append('근로자대표 또는 해당 작업 근로자의 참여 여부·기록을 확인하세요.')
-    elif participation.get('role') in (None, 'UNKNOWN') or participation.get('method') in (None, 'UNKNOWN') or (not participation.get('participant_code')):
-        survey_followups.append('참여자의 역할, 참여 방법, 이름(또는 표시명)을 보완하세요.')
-    situation = survey.get('workplace_situation') or {}
-    for key, label in [('equipment_status', '작업설비'), ('workload_status', '작업량'), ('speed_status', '작업속도'), ('work_pattern_status', '업무형태')]:
-        if situation.get(key, 'UNKNOWN') == 'UNKNOWN':
-            survey_followups.append(f'{label}의 변경 여부와 주요 내용을 확인하세요.')
-        elif situation.get(key) == 'YES' and (not situation.get(key.replace('_status', '_notes'))):
-            survey_followups.append(f'{label}{josa(label, "이", "가")} 변경되었다고 기록했어요. 주요 변경 내용을 입력하세요.')
-    symptom = survey.get('symptom_survey') or {}
-    if symptom.get('method') in (None, 'UNKNOWN', 'NOT_DONE') or (not symptom.get('responses') and (not symptom.get('respondent_count') or not symptom.get('summary'))):
-        survey_followups.append('작업 관련 근골격계 징후·증상 조사 방법과 결과를 기록하세요.')
-    for response in symptom.get('responses') or []:
-        if response.get('work_related_symptoms_last_year') == 'YES' and (not any(((response.get('regions') or {}).get(site, {}).get('side') not in (None, 'UNKNOWN', 'NONE') for site in ('neck', 'shoulder', 'arm_elbow', 'hand_wrist', 'back', 'leg_foot')))):
-            survey_followups.append(f'{response.get('response_code', '익명 응답')}: 작업 관련 증상이 있다고 답한 신체 부위를 입력하세요.')
-    state['survey_input_complete'] = not survey_followups
     counts = {key: sum((t['counts'][key] for t in tasks)) if all((t['counts'][key] is not None for t in tasks)) else None for key in ('needs_input_count', 'needs_review_count')}
     reba_requested = [t for t in tasks if t['task_id'] in reba_task_ids]
     counts['incomplete_reba_count'] = sum((t['counts']['incomplete_reba_count'] for t in reba_requested)) if reba_requested and all((t['counts']['incomplete_reba_count'] is not None for t in reba_requested)) else None
     comparisons = build_comparisons(snapshot)
-    return dict(report_version='2.0', state=state, counts=counts, tasks=tasks, comparisons=comparisons, survey_followups=survey_followups)
+    return dict(report_version='2.0', state=state, counts=counts, tasks=tasks, comparisons=comparisons)

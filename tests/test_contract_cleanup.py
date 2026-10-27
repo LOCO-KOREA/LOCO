@@ -94,6 +94,14 @@ class ContractCleanup(unittest.TestCase):
         self.assertTrue(ai['source_current'])
         self.assertTrue(app.analysis(a['analysis_id'])['ai'][0]['source_current'])
 
+        current=app.require('task',self.task['task_id'])
+        edited=app.task_input(current)
+        edited['conditions']['method_description']='입력 변경 후 저장'
+        app.dispatch('save_task_input',{'task_id':self.task['task_id'],'input':edited})
+        historical=app.analysis(a['analysis_id'])
+        self.assertEqual(historical['currentness'],'STALE')
+        self.assertFalse(historical['ai'][0]['source_current'])
+
     def test_terminal_analysis_cannot_be_restored_by_a_delayed_worker(self):
         a=self.calculate()
         for terminal in ('FAILED','CANCELED'):

@@ -172,11 +172,10 @@ class Questions(unittest.TestCase):
         self.assertIn('신뢰도 낮음', ids['trunk_base']['help'])
         self.assertEqual(ids['knee_band']['show_if'], {'context': ['NO']}, 'a reliable value is not asked at all')
 
-    def test_work_info_has_no_defaults_and_conditional_participation_method(self):
+    def test_work_info_has_no_defaults(self):
         qs = {q['id']: q for q in quick_assess.questions({}, [], {})}
         self.assertTrue(qs['task_name']['required'])
-        self.assertEqual(qs['participation_method']['show_if'], {'participation': ['YES']})
-        for key in ('situation_equipment', 'participation', 'symptom'):
+        for key in ('investigator', 'department', 'process'):
             self.assertIsNone(qs[key].get('suggested'))
 
     def test_every_rebar_item_is_reachable_from_some_question(self):

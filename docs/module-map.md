@@ -6,14 +6,14 @@
 |---|---|---|
 | 서비스 조립 | `ergo/service/application.py`, `runtime.py` | 메서드 연결, DB 주입, 앱별 잠금·취소 상태. `create_service(path)`는 독립 앱 인스턴스다. |
 | 작업 입력 | `service/task_inputs.py` | 2.0 입력 검증·사진 배정 변경·revision·수동값 보존 |
-| 조사 검토 | `service/surveys.py` | 조사 CRUD·참여/증상 입력·검토 이력 |
+| 조사 검토 | `service/surveys.py` | 조사 CRUD·검토 이력 |
 | 사진 | `service/photos.py` | 등록·재연결·미리보기·삭제 |
 | 분석 기록/실행 | `service/analysis_records.py`, `analysis_jobs.py` | 불변 snapshot·부분 저장·결론·대표 선택 / 재사용·추론·취소 |
 | 설명 | `service/explanations.py`, `gpt/client.py`, `gpt/payload.py` | 생성/편집/적용 이력 / SDK 호출 / 비식별 허용 요약과 응답 검증 |
 | 설정·출력 | `service/settings.py`, `reports.py` | 실제 엔진 설정·현재성 / 단일 읽기 snapshot·출력 영수증 |
 | 순수 계산 | `engine/burden_rules.py`, `reba_scoring.py`, `movenet.py`, `joint_angles.py`, `pose_tags.py` | 11개 기준·좌우 REBA·공식 모델·관절 각도·표본 태그. DB/화면을 참조하지 않는다. |
 | 저장 | `db/storage.py`, `storage_common.py`, `surveys.py`, `tasks.py`, `photos.py`, `analyses.py`, `settings.py`, `exports.py` | 기존 여섯 테이블의 entity별 CRUD, 짧은 트랜잭션, JSON 행 변환 |
-| 보고서 | `report/workbook.py`, `common.py`, `overview.py`, `comparisons.py`, `plain.py`, `form.py`, `renderer.py`, `labels.py`, `display.py` | 공통 상태/누락·전후 비교·일반인용 시트 정의(plain)·공식 서식 구성 시트(form)·Excel 렌더링(renderer)·한글 표시 |
+| 보고서 | `report/workbook.py`, `common.py`, `overview.py`, `comparisons.py`, `plain.py`, `form.py`, `renderer.py`, `labels.py`, `display.py` | 공통 상태/누락·전후 비교·일반인용 데이터 시트 정의(plain)·기록 입력 요약(form)·Excel 렌더링(renderer)·한글 표시 |
 | 이전 자료 | `legacy/v13.py` | 저장된 1.3 입력을 메모리에서 편집 DTO로 읽는다. 이전 규칙을 실행하지 않는다. |
 
 서비스의 domain 모듈은 조립 진입점을 import하지 않고 `Runtime`을 인자로 받는다. 저장 모듈은 engine/GPT/service를 import하지 않는다. 분석 완료와 AI·조사자 편집은 각자 담당 필드만 저장하며 snapshot을 수정하지 않는다.
