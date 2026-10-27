@@ -29,7 +29,8 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  assert.equal(calls.filter(c=>c.method==='custom_turn')[0].args.answers[0].value,0);
  assert.equal(state.facts[0].value,null);
  intake.editing=question.identity;
- assert.match(intake.summary(),/<details open>/,'an active editor must stay expanded after rerender');
+ assert.match(intake.summary(),/role="status"/,'the compact summary keeps the saved-input status');
+ assert.equal(intake.editing,question.identity,'summary rendering must retain an explicit edit in progress');
  intake.editing=null;
  intake.dialogOpen=true;
  assert.match(intake.dialog(false),/maxlength="321"/);

@@ -1416,7 +1416,7 @@ export class QuickFlow {
           <section class="quick-review-technical">
             <h3>사진에서 측정한 값</h3><ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
             ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
-            ${spatial ? `<h3>3D 추정 각도 (참고)</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 사용하지 않아요.</p><ul>${spatial}</ul>` : ''}
+            ${spatial ? `<h3>3D 추정 각도</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. 유효한 팔꿈치·무릎 값은 현재 점수 초안에 사용하며, 실제 반영 여부는 결과 설명에서 확인할 수 있어요.</p><ul>${spatial}</ul>` : ''}
             ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
           </section>
           ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}
