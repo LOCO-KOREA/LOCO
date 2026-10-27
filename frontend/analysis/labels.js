@@ -69,7 +69,7 @@ function candidateValueText(candidate){
 
 import {SCREEN_INFO as pages} from '../screens.js';
 
-const statusNames={CURRENT:'현재 입력 기준',STALE:'이전 입력/분석 기준',NONE:'분석 없음',NEEDS_INPUT:'입력 필요',NEEDS_REVIEW:'추가 검토',APPLICABLE:'해당 초안',NOT_APPLICABLE:'비해당 초안',UNREVIEWED:'미검토',NO_ANALYSIS:'분석 없음',REVIEWED_CURRENT:'조사자 검토완료',REVIEWED_HISTORY:'이전결과 검토',VALID:'유효',INVALID:'확인 필요',ERROR:'오류',PENDING:'대기',CANCELED:'취소',NOT_PROCESSED:'미처리',FINISHED:'요청 처리 완료',RUNNING:'처리 중',FAILED:'분석 실패',COMPLETE:'완전',INCOMPLETE:'입력 필요',DONE:'포즈 완료',PARTIAL_REVIEW:'일부 사진 확인 필요'};
+const statusNames={CURRENT:'현재 입력 기준',STALE:'이전 입력/분석 기준',NONE:'분석 없음',NEEDS_INPUT:'입력 필요',NEEDS_REVIEW:'추가 검토',APPLICABLE:'해당 초안',NOT_APPLICABLE:'비해당 초안',UNREVIEWED:'미검토',NO_ANALYSIS:'분석 없음',REVIEWED_CURRENT:'조사자 검토 완료',REVIEWED_HISTORY:'이전 결과 검토',VALID:'유효',INVALID:'확인 필요',ERROR:'오류',PENDING:'대기',CANCELED:'취소됨',NOT_PROCESSED:'처리되지 않음',FINISHED:'요청 처리 완료',RUNNING:'처리 중',FAILED:'분석 실패',COMPLETE:'계산 완료',INCOMPLETE:'계산 미완료',NOT_REQUESTED:'요청하지 않음',NOT_CALCULATED:'계산 전',DONE:'자세 분석 완료',PARTIAL_REVIEW:'일부 사진 확인 필요'};
 
 const truth=[['UNKNOWN','미확인'],['YES','예'],['NO','아니오']];
 

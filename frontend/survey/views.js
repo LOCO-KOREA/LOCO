@@ -7,7 +7,8 @@ input(name, label, type='text', attrs='') {
   },
 render() {
     this.host.innerHTML=`
-      <section class="panel intake-panel"><h2>이전 조사</h2>
+      <section class="panel intake-panel"><h2>선택 입력 · 이전 조사일</h2>
+        <p>알고 있는 경우에만 입력하세요. 모르면 비워 둬도 조사를 저장할 수 있습니다.</p>
         <div class="intake-grid">${this.input('previous_survey_date','이전 조사일','date')}</div>
       </section>`;
   }

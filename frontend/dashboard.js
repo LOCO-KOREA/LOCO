@@ -35,14 +35,17 @@ export class DashboardWorkspace {
     const e = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const task = tasks?.[0];
     const counts = [
-      ['등록된 조사', recent.length, '조사 단위'],
-      ['등록된 단위작업', recent.reduce((sum,s)=>sum+s.task_count,0), '작업 종류와 무관하게 기록'],
-      ['미검토 조사', recent.filter(s=>!s.reviewed).length, '계산 완전성과 별도 표시'],
-      ['이전 결과를 검토한 조사', recent.filter(s=>s.reviewed&&!s.review_current).length, '현재 입력으로 다시 확인 가능']
+      ['저장된 조사', recent.length, '조사'],
+      ['등록된 작업', recent.reduce((sum,s)=>sum+s.task_count,0), '작업']
+    ];
+    const reviewCounts = [
+      ['검토하지 않은 조사', recent.filter(s=>!s.reviewed).length, '조사'],
+      ['이전 결과만 검토한 조사', recent.filter(s=>s.reviewed&&!s.review_current).length, '다시 검토 가능']
     ];
     this.host.innerHTML = `
       <div class="dashboard-actions"><button class="primary" data-dashboard="new">＋ 새 조사</button><button data-dashboard="sample" title="실제 자료가 아닌 합성 예시 조사를 만들어 둘러봅니다">샘플 조사 불러오기</button></div>
-      <div class="dashboard-stats">${counts.map(([label,value,note])=>`<section class="panel"><h2>${label}</h2><div><strong>${window.loco ? value : '—'}</strong><span>${note}</span></div></section>`).join('')}</div>
+      <div class="dashboard-stats dashboard-stats-primary">${counts.map(([label,value,note])=>`<section class="panel"><h2>${label}</h2><div><strong>${window.loco ? value : '—'}</strong><span>${note}</span></div></section>`).join('')}</div>
+      <details class="dashboard-review-stats"><summary>조사 검토 현황 보기</summary><div class="dashboard-stats dashboard-stats-compact">${reviewCounts.map(([label,value,note])=>`<section class="panel"><h2>${label}</h2><div><strong>${window.loco ? value : '—'}</strong><span>${note}</span></div></section>`).join('')}</div></details>
       <h2 class="dashboard-heading">이어 할 조사</h2>
       <div class="dashboard-columns">
         <section class="panel dashboard-continue">
@@ -63,7 +66,7 @@ export class DashboardWorkspace {
           <div class="dashboard-card-heading"><h2>최근 조사</h2><button class="text-button" data-dashboard="list">전체 보기</button></div>
           <div class="table-wrap"><table><thead><tr><th>조사명</th><th>조사일</th><th>단위작업</th><th>상태</th></tr></thead><tbody>${recent.slice(0,3).map(s=>`<tr><td><button class="row-button" data-survey="${s.survey_id}"><strong>${e(s.title || '제목 없는 조사')}</strong></button></td><td>${e(s.survey_date || '미입력')}</td><td>${s.task_count}</td><td>${this.badge(s)}</td></tr>`).join('') || `<tr><td colspan="4" class="empty">${window.loco ? '등록된 조사가 없습니다.' : '브라우저 미리보기 · 실제 목록은 Electron에서 표시됩니다.'}</td></tr>`}</tbody></table></div>
         </section>
-        <section class="panel dashboard-guide"><h2>작업 분석 안내</h2><ol><li>작업 종류와 관계없이 작업 조건을 기록합니다.</li><li>11개 기준의 관찰값과 근거를 입력합니다.</li><li>필요한 경우 사진 분석을 추가하고, 계산 결과와 조사자 결론을 나누어 검토합니다.</li></ol><p>모르는 값은 비워 두고 이어서 작성할 수 있습니다.</p></section>
+        <details class="panel dashboard-guide"><summary>작업 분석 안내</summary><ol><li>작업 정보를 적고 11개 기준을 입력합니다.</li><li>필요한 사진만 추가해 자세를 살펴봅니다.</li><li>계산 결과와 조사자 결론을 나누어 확인합니다.</li></ol><p>모르는 값은 비워 둔 채 계속할 수 있습니다.</p></details>
       </div>`;
   }
 }

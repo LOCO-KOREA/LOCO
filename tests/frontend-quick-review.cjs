@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 (async()=>{
-  const {renderPostureReview}=await import('../frontend/quick-review.js');
+  const {renderMeasurementQuality,renderPostureReview}=await import('../frontend/quick-review.js');
   const {QuickFlow}=await import('../frontend/quick-flow.js');
   const calls=[];
   const flow=Object.assign(Object.create(QuickFlow.prototype),{api:async(method,params)=>{calls.push({method,params});return method==='create_survey'?{survey_id:9}:{task_id:10};}});
@@ -64,7 +64,10 @@ const assert=require('node:assert/strict');
        angles:[{side:'LEFT',angle_code:'TRUNK_TILT_VERT',value_deg:28.5,min_confidence:.91}],
        world_angles:[{side:'LEFT',angle_code:'ARM_3D',label:'팔꿈치 굽힘',value_deg:41.2,min_confidence:.8}]},
       {slot_no:81,status:'ERROR',diagnostics:[{code:'MODEL_ERROR',message:'사진 판독 실패'}],points:[],angles:[]} ]},
-    reba:{summary:{complete_count:0,total_slot_count:2,available_max:4,full_max:null},slots:[
+    measurement_quality:{measured_points:26,total_points:33,mean_confidence:.73,confidence_level:'MEDIUM',slots:[
+      {slot_no:70,photo_id:98765,measured_points:26,total_points:33,mean_confidence:.73,confidence_level:'MEDIUM'},
+      {slot_no:81,photo_id:98766,measured_points:0,total_points:33,mean_confidence:null,confidence_level:'MISSING'}]},
+    reba:{summary:{complete_count:0,total_slot_count:2,available_max:4,full_max:null,current_score:{total:4,risk:'MEDIUM',kind:'WITH_ASSUMPTIONS',slot_no:70,assumed:['common.neck_base'],assumption:'목은 부담 없음으로 가정했어요.'}},slots:[
       {slot_no:70,status:'INCOMPLETE',effective_load_kg:3.2,left:{trunk:2,total:4,risk:'MEDIUM',missing_fields:['common.neck_base'],review_reasons:[]},
        right:{trunk:2,total:3,risk:'LOW',missing_fields:[],review_reasons:[]},candidates:[{scope:'COMMON',field:'trunk_base',proposed_value:2,angles:[{side:'LEFT',angle_code:'TRUNK_TILT_VERT',value_deg:28.5}],min_confidence:.91,review_reasons:['BOUNDARY_REVIEW']}]}
     ]}, tags:[{tag:'SQUAT',yes_count:1,observed_count:2}]
@@ -79,7 +82,33 @@ const assert=require('node:assert/strict');
   assert.match(html,/관절 좌표 전체 1개/);
   assert.match(html,/REBA에 사용하지 않음/);
   assert.match(html,/사진 판독 실패/);
+  assert.match(html,/REBA 4점 · 보통 · 가정 포함/,'the current score must be shown beside its source photo');
+  assert.match(html,/측정된 관절 26\/33개/,'the measured point count must use the backend contract');
+  assert.match(html,/신뢰도 보통/,'the per-photo confidence grade must be visible');
+  assert.doesNotMatch(html,/측정된 관절 26\/66개/,'quality must not mix the denominator across photos');
   assert.doesNotMatch(html,/<script>/);
   assert.doesNotMatch(html,/98765|98766|사진 행 70|사진 행 81|common\\.neck_base|INPUT_CONFLICT|BOUNDARY_REVIEW/);
+  const reference=renderMeasurementQuality({measured_points:0,total_points:33,mean_confidence:null,confidence_level:'MISSING'});
+  assert.match(reference,/측정된 관절 0\/33개/);
+  assert.match(reference,/신뢰도 측정 전/);
+  const referenceScore=renderPostureReview({
+    snapshot:{schema_version:'2.0',analysis_scope:{pose:true,reba:true},capture:{slots:[{slot_no:91,photo_id:98770,label:'참고 사진',analysis_target:true}]}},
+    pose:{valid_count:0,total_slot_count:1,slots:[]},measurement_quality:{slots:[{slot_no:91,photo_id:98770,measured_points:0,total_points:33,mean_confidence:null,confidence_level:'MISSING'}]},
+    reba:{summary:{complete_count:0,total_slot_count:1,current_score:{total:1,risk:'NEGLIGIBLE',kind:'ASSUMED_REFERENCE',slot_no:91,assumed:['common.trunk_base'],assumption:'자세 측정값이 없어 기준 점수를 표시합니다.'}},slots:[]}
+  });
+  assert.match(referenceScore,/REBA 1점 · 무시 가능 · 참고값/,'a backend-provided reference score remains visible without pose points');
+  assert.match(referenceScore,/측정된 관절 0\/33개/,'missing measurements must stay explicit beside the reference score');
+  assert.match(referenceScore,/자세 측정값이 없어 기준 점수를 표시합니다/);
+  const individual=renderPostureReview({
+    snapshot:{schema_version:'2.0',capture:{slots:[
+      {slot_no:1,photo_id:7,label:'첫 사진',analysis_target:true},
+      {slot_no:2,photo_id:8,label:'다음 사진',analysis_target:true}]}},
+    reba:{summary:{current_score:{total:11,risk:'VERY_HIGH',kind:'WITH_ASSUMPTIONS',slot_no:2}},slots:[
+      {slot_no:1,status:'INCOMPLETE',current_score:{total:2,risk:'LOW',kind:'WITH_ASSUMPTIONS'}},
+      {slot_no:2,status:'INCOMPLETE',current_score:{total:11,risk:'VERY_HIGH',kind:'WITH_ASSUMPTIONS'}}]}
+  });
+  const firstPhoto=individual.split('id="quick-posture-photo-2"')[0];
+  assert.match(firstPhoto,/REBA 2점/,'a nonrepresentative photo must use its own projected score');
+  assert.doesNotMatch(firstPhoto,/REBA 11점|REBA 점수 미산출/);
   process.stdout.write('Human review includes all anonymous pose, coordinate, candidate, REBA, and failure results.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});

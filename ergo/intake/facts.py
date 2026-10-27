@@ -189,6 +189,9 @@ def project(task, facts, views, preview):
     primary=next((v for v in PHOTO_VIEWS if v in views),None)
     context=known('context'); usable=context=='YES'
     load_state, load_kg = photo_load(facts)
+    load_link=(facts.get(key('load_kg')) or {}).get('input_link') or {}
+    prior_link=(((task.get('conditions') or {}).get(SESSION_KEY) or {}).get('facts',{}).get(key('load_kg')) or {})
+    prior_slots={slot.get('photo_id'):slot for slot in (task.get('capture') or {}).get('slots',[]) if slot.get('photo_id') is not None}
     slots=[]
     for i,view in enumerate(v for v in PHOTO_VIEWS if v in views):
         guess=(preview.get('views',{}).get(view) or {}).get('guess') or {}
@@ -199,6 +202,14 @@ def project(task, facts, views, preview):
             observation=dict(load_state=load_state,measured_load_kg=load_kg if load_state=='MEASURED' else None,
                 single_person=context or 'UNKNOWN',full_frame=context or 'UNKNOWN',normal_work=context or 'UNKNOWN',
                 evidence=dict(source='INTERVIEW',text='추가 확인: 사진과 작업 정보',observed_at=(facts.get(key('context')) or {}).get('updated_at')))))
+        if load_link or prior_link.get('origin')=='INPUT_LINK':
+            old=(prior_slots.get(views[view]) or {}).get('observation') or {}
+            old_owned=prior_link.get('origin')=='INPUT_LINK' and views[view] in (prior_link.get('input_link') or {}).get('photo_ids',[]) and old.get('measured_load_kg')==prior_link.get('value')
+            valid_mass=type(old.get('measured_load_kg')) in (int,float) and math.isfinite(old['measured_load_kg']) and old['measured_load_kg']>=0
+            if not old_owned and (old.get('load_state')=='UNLOADED' or old.get('load_state')=='MEASURED' and valid_mass):
+                # A photo-specific observation has priority over the work-wide
+                # derived link. Keep its own evidence as well as its value.
+                slots[-1]['observation'].update(load_state=old['load_state'],measured_load_kg=old.get('measured_load_kg'),evidence=copy.deepcopy(old.get('evidence') or slots[-1]['observation']['evidence']))
     value['capture']=dict(protocol='GENERAL_STILLS_V1',slots=slots)
     primary_id=views.get(primary)
     # Preserve edits from other photos and fields the intake has never owned.

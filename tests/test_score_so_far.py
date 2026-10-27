@@ -209,17 +209,19 @@ class ScoreSoFarBeforePhotoConfirmation(unittest.TestCase):
         from ergo.report.plain import _reba_text
         base = dict(total=3, risk='LOW', assumed=['a'] * 25)
         text = lambda extra: _reba_text(dict(reba=dict(summary=dict(full_max=None, available_max=None, score_so_far=dict(base, **extra)))))
-        self.assertEqual(text({}), '확정 전 3점 (낮음) · 확인하지 못한 25개는 부담 없음으로 가정 · 실제 점수는 더 높을 수 있어요')
+        self.assertEqual(text({}), '현재 3점 (낮음)\n확인 전 25항목은 부담 없음으로 가정')
         self.assertEqual(text(dict(unconfirmed_photo=['b'] * 4, assumed=['a'] * 24 + ['observation.load_state'])),
-                         '확정 전 3점 (낮음) · 사진 확인 전 값 4개 포함 · 확인하지 못한 25개는 부담 없음으로 가정 · 들고 있는 물건 없음으로 가정 · 실제 점수는 더 높을 수 있어요')
+                         '현재 3점 (낮음)\n확인 전 25항목은 부담 없음으로 가정 · 사진 확인 전 값 4개 포함 · 들고 있는 물건 없음으로 가정')
 
     def test_the_ai_summary_counts_what_was_borrowed_and_assumed(self):
         so_far = dict(total=3, risk='LOW', assumed=['a'] * 24 + ['observation.load_state'], unconfirmed_photo=['b'] * 4)
         overview = lambda: payload._reba_overview(dict(summary=dict(complete_count=0, available_max=None, full_max=None, score_so_far=so_far)))
         self.assertEqual(overview()['score_so_far'], dict(total=3, risk='LOW', assumed_count=25, unconfirmed_photo_count=4, load_assumed=True))
         sentence = client.fallback_text(dict(reba=overview()))
-        self.assertIn('사진 확인 전 값 4개를 포함하고 확인하지 못한 25개 항목을 부담 없음으로 가정한 확정 전 점수입니다', sentence)
-        self.assertIn('들고 있는 물건이 없다고 가정했으며', sentence)
+        self.assertIn('사진 확인 전 값 4개', sentence)
+        self.assertIn('확인하지 못한 25개 항목', sentence)
+        self.assertIn('확정 점수가 아닙니다', sentence)
+        self.assertIn('하중 가산점을 0으로 가정했으며', sentence)
         self.assertIn('실제 점수는 더 높을 수 있습니다', sentence)
         for name in ('unconfirmed_photo_count', 'load_assumed', '실제 점수는 더 높을 수 있다고'):
             self.assertIn(name, client.SYSTEM_PROMPT)
@@ -262,14 +264,14 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         rows = [' | '.join(str(cell) for cell in row) for row in self.reba_rows(analysis)]
         reba = [row for row in rows if 'REBA 자세 점수' in row or 'REBA(전신 자세 평가)' in row]
         self.assertTrue(reba)
-        self.assertTrue(all('확정 전 2점 (낮음)' in row for row in reba), reba)
+        self.assertTrue(all('현재 2점 (낮음)' in row for row in reba), reba)
         self.assertFalse(any('계산하지 못했어요' in row for row in reba), reba)
-        self.assertIn('확정 계산을 마친 사진 0장 / 전체 1장', ' '.join(row for row in rows if 'REBA(전신 자세 평가)' in row))
+        self.assertIn('분석 사진 1장 기준', ' '.join(row for row in rows if 'REBA(전신 자세 평가)' in row))
 
-    def test_the_official_judgement_cell_stays_empty_until_the_score_is_final(self):
+    def test_the_report_marks_assumed_score_separately_from_confirmed_score(self):
         evaluation = [row for row in self.reba_rows(self.analyse()) if row and row[0] == 'REBA(전신 자세 평가)']
         self.assertEqual(len(evaluation), 1)
-        self.assertEqual(evaluation[0][2], '')
+        self.assertEqual(evaluation[0][2], '확인 전 항목 포함')
 
     def test_one_click_without_answering_the_photo_still_shows_what_the_photo_read(self):
         photo = Path(self.temp.name) / 'RIGHT.fixture'
@@ -282,12 +284,15 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         so_far = analysis['reba']['summary']['score_so_far']
         self.assertEqual((so_far['total'], so_far['unconfirmed_photo']), (2, ['common.trunk_base', 'right.lower_arm_base', 'right.upper_arm_base']))
         rows = [' | '.join(str(cell) for cell in row) for row in self.reba_rows(analysis)]
-        self.assertTrue(any('확정 전 2점 (낮음) · 사진 확인 전 값 3개 포함' in row for row in rows), rows)
+        self.assertTrue(any('현재 2점 (낮음)' in row and '사진 확인 전 값 3개 포함' in row for row in rows), rows)
 
-    def test_the_ai_summary_is_unchanged_when_there_is_no_score_so_far(self):
+    def test_legacy_summary_without_score_so_far_keeps_the_current_score_and_official_values(self):
         analysis = self.analyse()
         analysis['reba']['summary'].pop('score_so_far')
-        self.assertEqual(set(payload.build_numeric_summary(analysis)['reba']), {'complete_count', 'available_max', 'full_max'})
+        summary = payload.build_numeric_summary(analysis)['reba']
+        for key in ('complete_count', 'available_max', 'full_max'):
+            self.assertEqual(summary[key], analysis['reba']['summary'][key])
+        self.assertEqual(summary['current_score']['total'], 2)
 
     def test_the_ai_summary_carries_the_numbers_of_a_real_analysis(self):
         analysis = self.analyse()
@@ -296,7 +301,23 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         sentence = ['지금까지 확인한 값 기준 13점이며 확정 전입니다']
         self.assertTrue(payload.numbers_in_text_are_allowed(sentence, dict(reba=dict(score_so_far=dict(total=13, risk='VERY_HIGH', assumed_count=7)))))
         self.assertFalse(payload.numbers_in_text_are_allowed(sentence, dict(reba=dict())))
-        self.assertIn('확정 전 점수입니다', client.fallback_text(summary))
+        self.assertIn('확정 점수가 아닙니다', client.fallback_text(summary))
+
+    def test_explanation_generation_and_apply_preserve_the_current_score_and_snapshot(self):
+        analysis=self.analyse()
+        identity=analysis['analysis_id']
+        before=copy.deepcopy(analysis)
+        settings=self.ctx.dispatch('get_settings',{})
+        settings.pop('gpt_key_present',None)
+        settings.update(gpt_enabled=True,gpt_model='fixture')
+        self.ctx.dispatch('update_settings',dict(settings=settings))
+        with patch('ergo.gpt.client.generate',return_value=(None,'NO_API_KEY')):
+            generated=self.ctx.dispatch('generate_ai_text',dict(analysis_id=identity))
+        self.ctx.dispatch('apply_ai_text',dict(analysis_id=identity,text_id=generated['text']['text_id'],use_edited=False))
+        after=self.ctx.dispatch('get_analysis',dict(analysis_id=identity))
+        self.assertEqual(after['snapshot'],before['snapshot'])
+        self.assertEqual(after['reba'],before['reba'])
+        self.assertEqual(generated['text']['input_summary']['reba']['current_score']['total'],before['reba']['summary']['current_score']['total'])
 
 
 if __name__ == '__main__':

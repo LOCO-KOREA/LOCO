@@ -7,6 +7,7 @@ from .display import OPERATOR
 from .labels import CRITERIA, EXPOSURES, HAZARD_KIND, REBA_ACTION, criterion_name, input_label
 from .plain import SHEET_NOTES, SOURCE_PLAIN, _reba_text, _sheet, _table, kst, note, say, with_unit
 from .input_trace import InputTrace
+from ergo.engine.reba_scoring import project_current_score
 
 FORM_TAB = '1F3A5F'
 TICK, BOX = '☑', '☐'
@@ -255,15 +256,15 @@ def _reba_tables(t, official=False):
     if not reba:
         return []
     summary = reba.get('summary') or {}
-    top = summary.get('full_max') if summary.get('full_max') is not None else summary.get('available_max')
-    slot = next((s for s in reba.get('slots', []) if s.get('total') == top), {}) if top is not None else {}
+    current = project_current_score(reba)
     result = _reba_text(a)
     if summary.get('total_slot_count'):
-        finished = summary.get('complete_count', 0)
-        result += (f"\n확정 계산을 마친 사진 {finished}장 / 전체 {summary['total_slot_count']}장" if top is None and summary.get('score_so_far')
-                   else f"\n사진 {summary['total_slot_count']}장 중 {finished}장을 계산했어요")
-    detail = _grid(_table(['작업·분석평가도구', '평가결과', '판정'],
-                          [['REBA(전신 자세 평가)', result, REBA_ACTION.get(slot.get('risk'), '') if top is not None else '']],
+        result += f"\n분석 사진 {summary['total_slot_count']}장 기준"
+    state = ('확인 완료' if current and current.get('kind') == 'CONFIRMED' and summary.get('full_max') is not None
+             else '가정 기준 · 측정 확인 필요' if current and current.get('kind') == 'ASSUMED_REFERENCE'
+             else '확인 전 항목 포함' if current else '사진 확인 필요')
+    detail = _grid(_table(['작업·분석평가도구', '현재 점수와 측정 근거', '확인 상태'],
+                          [['REBA(전신 자세 평가)', result, state]],
                           WIDE[:3], None if official else f"3-1. REBA 자세 평가 — {t['name']}"))
     if official:
         return [_page(_form([['작업명', t['name'], '단위작업명', t['name']]], WIDE,

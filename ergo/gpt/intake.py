@@ -4,7 +4,7 @@ from ergo import ai_config as config
 from .client_pool import create_response
 from ergo.intake.grounding import DURATION_SUM
 
-PROMPT_VERSION='LOCO_ADAPTIVE_INTAKE_V1'
+PROMPT_VERSION='LOCO_ADAPTIVE_INTAKE_V2'
 PROMPT=(
     '현장 작업 설명과 앞선 답변을 입력 항목에 옮기고, 부족한 사실만 추가로 질문하세요. '
     'targets는 허용 항목, known은 저장된 값, missing은 계산기의 누락 후보, asked는 지금 사용자에게 보여 준 질문입니다. '
@@ -25,7 +25,8 @@ PROMPT=(
     '합산에 사용한 작업별 시간도 각각 해당 항목에 따로 저장하고, 이미 계산할 수 있는 하루 총시간을 다시 묻지 마세요. '
     '동시에 하거나 포함·겹치는 시간, 휴식·범위·다른 주기의 시간은 단순 합산하지 마세요. 일부 작업시간만 말했거나 다른 작업시간이 미확인이면 하루 총시간으로 단정하지 마세요. '
     '물건 무게별로 condition을 나눠 같은 조건의 중량·횟수·시간만 연결하세요. 예: 5kg 99번과 30kg 1번은 두 조건입니다. '
-    '사진 속 물건 무게(load_kg)와 일반 작업의 물건 무게(card.lift.load_mass_kg)를 같다고 가정하지 마세요. '
+    '사진이 설명한 같은 작업·물건이라는 진술과 중량이 명시되면 load=MEASURED와 load_kg도 같은 원문 근거로 기록하세요. 이미 말한 중량이나 관계를 다시 질문하지 마세요. '
+    '서로 다른 작업 조건·물건의 무게를 사진 중량으로 섞지 마세요. 사진별 직접값과 명시적 모름·무하중은 보존하세요. '
     '손잡이·자세·충격·반복·작업 종류는 사용자가 말한 경우에만 선택값으로 옮기세요. 사진 추정은 known에 이미 있습니다. '
     'context는 사진 속 사람이 한 명인지·전신인지·평소 작업 모습인지에 대한 사용자 진술입니다. '
     '예: "사진은 한 사람의 전신이 나온 평소 작업 모습입니다"라고 했으면 context=YES를 answers에 넣고 같은 확인을 다시 질문하지 마세요. '

@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 (async()=>{
  const {AdaptiveIntake}=await import('../frontend/intake/client.js');
+ const {renderForm}=await import('../frontend/intake/form.js');
  const {QuickFlow}=await import('../frontend/quick-flow.js');
  const work={identity:'work_type.lift@default',target:'work_type.lift',condition:'default',label:'들기',kind:'choice',choices:[{value:'YES',label:'예'},{value:'NO',label:'아니오'}],destination:{type:'work_type'}};
  const number={identity:'card.lift.mass@heavy',target:'card.lift.mass',condition:'heavy',label:'무게',kind:'number',unit:'kg',destination:{type:'criterion'}};
@@ -11,6 +12,18 @@ const assert=require('node:assert/strict');
  intake.formValues.set(work.identity,'NO');intake.formValues.set(number.identity,0);
  assert.deepEqual(intake.formAnswers().map(a=>[a.target,a.condition,a.value]).sort(),[[number.target,'heavy',0],[work.target,'default','NO']].sort(),'a zero is an answer and keeps its own condition');
  assert.match(intake.dialog(false),/value="0"/);
+ const context={identity:'context@default',target:'context',condition:'default',label:'사진 상황',kind:'choice',choices:[{value:'YES',label:'예'},{value:'NO',label:'아니오'}],destination:{type:'context'}};
+ const load={identity:'load@default',target:'load',condition:'default',label:'물건 무게',kind:'choice',choices:[{value:'UNLOADED',label:'들지 않음'},{value:'LOADED',label:'들기'}],destination:{type:'load'}};
+ const criteria=Array.from({length:11},(_,i)=>({...number,identity:`criterion.${i+1}@default`,target:`criterion.${i+1}`,label:`기준 ${i+1}`,destination:{type:'criterion'}}));
+ intake.state.contract.policy={text_limit:2400,default_condition:'default'};
+ intake.state.form_fields=[context,load,work,...criteria];intake.state.facts=[];
+ const page=renderForm(intake,false),optionalStart=page.indexOf('<details class="intake-form-optional"><summary>조사 정보 더 입력 (선택)</summary>');
+ assert.ok(optionalStart>page.indexOf('data-intake-section="load"'),'REBA load refinement stays in the primary section');
+ assert.ok(optionalStart>=0&&!page.slice(0,optionalStart).includes('criterion.1@default'),'the 11-criterion survey is outside the default question list');
+ assert.match(page.slice(optionalStart),/data-intake-form="criterion\.1@default"/,'criteria remain accessible inside the optional details');
+ assert.match(page.slice(optionalStart),/data-intake-form="work_type\.lift@default"/,'work types remain accessible inside the optional details');
+ assert.match(page,/비워 둔 값은 미확인으로 남고, 현재 점수로 결과를 볼 수 있어요/,'unknown fields remain unknown and do not block the score');
+ intake.state.form_fields=[work,number];intake.state.facts=[{identity:work.identity,state:'KNOWN',source:'AI',value:'YES'}];
  const flow=Object.create(QuickFlow.prototype);let finished=0,calls=0,fail=true;
  Object.assign(flow,{intake,async run(label,fn){await fn();},async finish(){finished++;}});
  intake.turn=async(text,answers)=>{calls++;assert.equal(text,'');assert.equal(answers.length,2);if(fail)throw Error('offline');return intake.state;};

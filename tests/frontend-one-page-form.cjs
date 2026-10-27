@@ -44,12 +44,12 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
 
   // 1. One page: no wizard, no stepper, no progress bar, no "back"; one save button; the title says it is the single page.
   const all = await open([...WORK, ...CONDITIONS, ...PHOTO]);
-  assert.match(all.html, /<h2 id="intake-dialog-title">작업 정보를 한 번에 확인해 주세요<\/h2>/);
+  assert.match(all.html, /<h2 id="intake-dialog-title">필요한 값만 수정하세요<\/h2>/);
   for (const gone of [/intake-form-steps/, /intake-form-progress/, /입력 단계/, /intake-form-back/, />이전</, /저장하고 작업 조건 확인/, /1\. 작업 특징/, /2\. 작업 조건/, /role="progressbar"/])
     assert.doesNotMatch(all.html, gone, `the wizard is gone: ${gone}`);
   assert.equal([...all.html.matchAll(/data-quick="intake-form-next"/g)].length, 1, 'exactly one save button');
-  assert.match(all.html, /<button type="button" class="primary" data-quick="intake-form-next"[^>]*>저장하고 결과 보기 →<\/button>/);
-  assert.match(all.html, /<button type="button" data-quick="intake-close"[^>]*>나중에 확인<\/button>/);
+  assert.match(all.html, /<button type="button" class="primary" data-quick="intake-form-next"[^>]*>입력 저장 후 결과 보기<\/button>/);
+  assert.match(all.html, /<button type="button" data-quick="intake-close"[^>]*>건너뛰기<\/button>/);
   assert.match(all.html, /<p class="intake-fill-note" data-intake-fill-note role="status" hidden><\/p>/, 'the in-dialog note area stays');
   // the page is the same whatever stage the (old) client still says
   const staged = await open([...WORK, ...CONDITIONS, ...PHOTO]); staged.intake.formStage = 1;
@@ -58,32 +58,33 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   // 2. Sections come in a fixed order and are open while they hold something to answer; the one count line replaces the stepper.
   const full = await open([...WORK, ...CONDITIONS, ...PHOTO, ...flags(), ...angles()]);
   const found = sections(full.html);
-  assert.deepEqual(found.map(s => s.name), ['work', 'conditions', 'photo', 'checklist', 'angles']);
-  assert.ok(found.every(s => / open(?=[\s>])/.test(s.tag)), 'every section that has something to answer is open');
+  assert.deepEqual(found.map(s => s.name), ['photo', 'load', 'checklist', 'angles', 'work', 'conditions']);
+  assert.match(full.html, /<details class="intake-form-optional"><summary>조사 정보 더 입력 \(선택\)<\/summary>/, 'non-REBA survey inputs are closed by default');
   assert.ok(['photo', 'checklist', 'angles'].every(name => /data-intake-photo-optional/.test(found.find(s => s.name === name).tag)), 'the photo sections keep the marker the tests and the test harness use');
   const remaining = full.html.match(/<p class="intake-remaining" data-intake-remaining>([^<]*)<\/p>/);
   // 3 work + 9 conditions + 4 photo + 1 checklist (one decision for the whole list) + 3 angle rows
-  assert.equal(remaining[1], '남은 확인 20개 · 모르면 비워 두세요(미확인으로 남아요)');
-  assert.match(full.html, /아직 확인하지 못한 항목만 보여 드려요\./);
+  assert.match(remaining[1], /입력은 선택이에요/);
+  assert.doesNotMatch(remaining[1], /남은 확인 \d+개/);
+  assert.match(full.html, /현재 점수로 결과를 볼 수 있어요/);
   full.intake.setFormValue('work_type.lift@default', 'YES', '직접 선택');
-  assert.match(full.intake.dialog(false), /남은 확인 19개 · /, 'a box the user answered is no longer counted');
+  assert.doesNotMatch(full.intake.dialog(false), /남은 확인 \d+개/, 'optional edits do not expose an intimidating remaining-question counter');
   full.intake.setFormValue(by('COMMON', 'trunk_twisted'), 'YES', '직접 체크');
-  assert.match(full.intake.dialog(false), /남은 확인 19개 · /, 'one ticked box does not finish the checklist: it stays one decision');
+  assert.equal(full.intake.formAnswers().filter(x=>x.value==='YES').length, 2, 'explicit work and posture selections remain distinct');
   full.intake.formValues.clear();
 
   // 3. The work section holds only the work features and the single "no other work" button.
   const workPart = part(full.html, 'work');
   assert.deepEqual(identities(workPart), WORK.map(f => f.identity));
-  assert.equal([...full.html.matchAll(/data-quick="intake-no-other-work"/g)].length, 1);
-  assert.ok(workPart.includes('data-quick="intake-no-other-work"'), 'the button sits inside the work section');
-  assert.match(workPart, /선택하지 않은 나머지 작업은 모두 안 해요/);
+  assert.equal([...full.html.matchAll(/data-quick="intake-no-other-work"/g)].length, 0);
+  assert.equal(full.intake.formAnswers().length, 0, 'opening optional work fields must not record an answer');
+  assert.doesNotMatch(workPart, /선택하지 않은 나머지 작업은 모두 안 해요/);
   const conditionsPart = part(full.html, 'conditions');
   assert.deepEqual(identities(conditionsPart), CONDITIONS.map(f => f.identity), 'the conditions are the rows stage 2 used to hold, without the photo ones');
 
   // 4. The photo section opens first with the situation question; gates are marked for the in-place refresh.
   const photoPart = part(full.html, 'photo');
   assert.equal(identities(photoPart)[0], 'context@default', 'the photo situation is asked first');
-  assert.deepEqual(identities(photoPart).sort(), PHOTO.map(f => f.identity).sort());
+  assert.deepEqual(identities(photoPart).sort(), PHOTO.filter(f=>['context','view'].includes(f.destination.type)).map(f => f.identity).sort());
   const gateTag = identity => (full.html.match(new RegExp(`<(?:select|input)[^>]*data-intake-form="${identity.replace(/[.]/g, '\\.')}"[^>]*>`)) || [''])[0];
   for (const f of [...WORK, PHOTO[2]]) assert.match(gateTag(f.identity), /data-intake-gate="1"/, `${f.identity} is a gate`);
   for (const f of [...CONDITIONS, PHOTO[0], PHOTO[1], PHOTO[3]]) assert.doesNotMatch(gateTag(f.identity), /data-intake-gate/, `${f.identity} is not a gate`);
@@ -96,12 +97,12 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.match(checklistPart, /data-fill-kind="confirm"/);
   assert.match(checklistPart, /<h3>오른쪽에서 찍은 사진<\/h3>/);
   assert.deepEqual(identities(anglesPart), angles().map(f => f.identity));
-  assert.match(anglesPart, /<h4 class="intake-angle-title">사진이 읽지 못해 직접 골라야 하는 항목<\/h4>/);
+  assert.match(anglesPart, /<h4 class="intake-angle-title">사진 측정 보완 \(선택\)<\/h4>/);
   assert.ok(full.html.indexOf('data-intake-section="photo"') < full.html.indexOf('data-intake-section="checklist"') && full.html.indexOf('data-intake-section="checklist"') < full.html.indexOf('data-intake-section="angles"'));
 
   // 6. Before the photo question is answered there is no checklist yet: only the question and a line that says what comes after it.
   const early = await open([...WORK, ...CONDITIONS, ...PHOTO]);
-  assert.deepEqual(sections(early.html).map(s => s.name), ['work', 'conditions', 'photo']);
+  assert.deepEqual(sections(early.html).map(s => s.name), ['photo', 'load', 'work', 'conditions']);
   assert.match(part(early.html, 'photo'), /고르면 바로 아래에 자세 항목이 나와요/);
   const answered = await open([...WORK, ...CONDITIONS, ...PHOTO, ...flags()], [fact('context@default', 'KNOWN', 'USER', 'YES')]);
   assert.doesNotMatch(part(answered.html, 'photo'), /고르면 바로 아래에 자세 항목이 나와요/, 'the line is gone once the question is answered');
@@ -113,8 +114,8 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.match(done.html, /<details class="intake-form-section" data-intake-confirmed><summary>이미 확인한 정보 3개 · 수정하기<\/summary>/);
   const nothing = await open([...WORK], WORK.map(f => fact(f.identity, 'KNOWN', 'AI', 'NO')));
   assert.deepEqual(sections(nothing.html), []);
-  assert.match(nothing.html, /남은 확인이 없어요 · 저장하고 결과를 확인해 주세요/);
-  assert.match(nothing.html, /추가로 입력할 항목이 없어요\. 저장하고 결과를 확인해 주세요\./);
+  assert.match(nothing.html, /입력은 선택이에요/);
+  assert.equal(identities(nothing.html).length, 3, 'already known inputs remain available only for explicit correction');
   assert.doesNotMatch(nothing.html, /다음 단계/);
 
   // 8. The sentence box is an option, not a question: closed, titled "문장으로 더 적기", still working; open only when a draft is waiting.
@@ -128,6 +129,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.match(all.html, /<button type="button" data-quick="adaptive-next" disabled>답변 정리<\/button>/);
   assert.ok(all.html.indexOf('data-intake-form=') < all.html.indexOf('data-intake-natural-answer'), 'the choices come before the optional sentence box');
   const drafted = await open([...WORK], [], {text: '허리를 자주 숙여요 <초안>'});
+  assert.match(drafted.html, /<details class="intake-form-optional" open>/, 'an unsent draft must also open its outer disclosure');
   assert.match(drafted.html, /data-intake-natural-answer open>/, 'a waiting draft is never hidden');
   assert.match(drafted.html, /허리를 자주 숙여요 &lt;초안&gt;/);
   assert.match(drafted.html, /<button type="button" data-quick="adaptive-next" >답변 정리<\/button>/);
@@ -153,7 +155,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   const busy = await open([...WORK, ...PHOTO], [], {busy: '저장하고 있어요'});
   assert.match(busy.html, /<select data-intake-form="work_type\.lift@default" data-intake-gate="1" disabled>/);
   assert.match(busy.html, /<button type="button" class="primary" data-quick="intake-form-next" disabled>/);
-  assert.match(busy.html, /data-quick="intake-no-other-work" disabled/);
+  assert.match(busy.html, /data-quick="intake-close" disabled/, 'cancellation is disabled during a save');
   assert.match(busy.html, /aria-busy="true"/);
 
   // 11. Escaping and plain language.

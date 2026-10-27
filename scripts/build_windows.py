@@ -5,6 +5,7 @@ a new output directory so a running/previous package is never overwritten.
 """
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -53,7 +54,9 @@ def main():
     if not icon.is_file():
         raise SystemExit('Missing LOCO Windows icon: frontend/assets/app-icon.ico')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    work = ROOT / 'build' / ('windows-' + stamp)
+    work_root = Path(os.environ.get('LOCO_BUILD_WORK_ROOT') or ROOT / 'build').resolve()
+    output_root = Path(os.environ.get('LOCO_BUILD_OUTPUT_ROOT') or ROOT / 'dist').resolve()
+    work = work_root / ('windows-' + stamp)
     work.mkdir(parents=True)
     subprocess.run([
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--name', 'loco-service',
@@ -66,7 +69,8 @@ def main():
         '--distpath', str(work / 'backend'), '--workpath', str(work / 'freeze'),
         '--specpath', str(work), str(ROOT / 'ergo' / 'service' / 'json_lines.py'),
     ], cwd=ROOT, check=True)
-    output = ROOT / 'dist' / ('LOCO-2.0-windows-x64-' + stamp)
+    output_root.mkdir(parents=True, exist_ok=True)
+    output = output_root / ('LOCO-2.0-windows-x64-' + stamp)
     shutil.copytree(electron, output)
     (output / 'electron.exe').rename(output / 'LOCO.exe')
     set_executable_icon(output / 'LOCO.exe', icon)

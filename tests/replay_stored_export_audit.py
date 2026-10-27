@@ -66,7 +66,7 @@ def verify(source,directory):
         audit_source(directory,export['mode'],source_task,catalogue,cells,checks,defects,ledger)
         audit_preview(export['mode'],read(directory/(export['mode']+'-preview.json'))['sheets'],book,checks,defects)
         for ai in analysis.get('ai',[]):
-            if ai.get('is_active'):check('applied explanation reaches exact workbook cell',True,any(cell['value']==user_text(ai['applied_text']) for cell in cells.get('쉬운 설명',[])),mode=export['mode'])
+            if ai.get('is_active'):check('applied explanation reaches exact workbook cell',True,any(cell['value']==user_text(ai['applied_text']) for cell in cells.get('결과 설명',[])),mode=export['mode'])
         representative=(analysis.get('reba') or {}).get('summary',{}).get('representative_slot_no')
         check('representative image matches the selected analysis availability',snap.get('include_representative') and representative is not None,any(sheet._images for sheet in book),mode=export['mode'])
         check('cropped photo provenance survives export',json.loads(stored['snapshot_json']).get('photos',[]),source_task.get('photos',[]),mode=export['mode'])

@@ -117,7 +117,7 @@
 .intake-form-section[data-intake-section] > summary { color:var(--color-primary); font-size:16px; }
 [data-intake-natural-answer] textarea { display:block; width:100%; min-height:88px; box-sizing:border-box; margin:6px 0 10px; padding:12px; border:1px solid #dfe4f1; border-radius:10px; font:inherit; }
 .intake-group-question input { width:100%; min-width:0; box-sizing:border-box; padding:12px; border:1px solid #dfe4f1; background:#fff; border-radius:10px; font:inherit; }
-.intake-quick-fill { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:4px 0 12px; padding:12px; border:1px dashed var(--color-line); border-radius:10px; background:var(--color-surface-soft); }
+.intake-quick-fill { display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px; margin:4px 0 12px; padding:12px; border:1px dashed var(--color-line); border-radius:10px; background:var(--color-surface-soft); }
 .intake-quick-fill button { min-height:40px; padding:8px 14px; font-size:14px; line-height:1.4; text-align:left; overflow-wrap:anywhere; }
 .intake-quick-fill strong { flex-basis:100%; font-size:14px; }
 .intake-quick-fill button:disabled { opacity:.55; cursor:not-allowed; }
