@@ -13,10 +13,10 @@ FIELDS = (
     dict(key='gpt_max_output_tokens', label='최대 출력 토큰 (추론 포함)', kind='integer', default=32768, env='LOCO_AI_MAX_OUTPUT_TOKENS'),
 )
 KEYS = tuple(field['key'] for field in FIELDS)
-# Owner rule (2026-10-26): one request waits at most REQUEST_TIMEOUT_SECONDS; with no answer by then the same request is sent again,
-# REQUEST_ATTEMPTS sends in total. Only a timeout is sent again; the SDK's own retries stay off so no other error is repeated.
-REQUEST_TIMEOUT_SECONDS = 120.0
-REQUEST_ATTEMPTS = 3
+# User rule: wait for this request without a local deadline or automatic resubmission.
+# Provider/connection failures still return through each caller's existing error handling.
+REQUEST_TIMEOUT_SECONDS = None
+REQUEST_ATTEMPTS = 1
 REQUEST_POLICY = dict(timeout=REQUEST_TIMEOUT_SECONDS, max_retries=0)
 
 

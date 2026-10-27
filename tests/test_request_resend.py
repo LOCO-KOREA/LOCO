@@ -1,109 +1,128 @@
-"""A request that gets no answer within the timeout is sent again; only a timeout is sent again; every AI path follows the same rule."""
+"""All AI paths wait for one request; no local deadline or duplicate submission."""
 import json
+import os
+import tempfile
+import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from ergo import ai_config as config
 from ergo.gpt import client, intake, client_pool
+from ergo.service.application import create_service
 from ergo.vision import client as vision_client
-from tests.test_v2_gpt import summary_fixture
+from tests.test_v2_gpt import summary_fixture,content_fixture
 
 
 class APITimeoutError(Exception):
-    """Same class name as the SDK's; the rule (and the reason mapping) look at the name only."""
+    """A provider/transport timeout can still arrive with local timeouts disabled."""
 
 
 class ServerBusy(Exception):
-    """Any error that is not a timeout."""
+    pass
 
 
 def completed(data=None):
-    return SimpleNamespace(id='resp_ok', status='completed', model='m', reasoning=SimpleNamespace(effort='high'),
-                           output_text=json.dumps(data if data is not None else dict(answers=[], questions=[])))
+    return SimpleNamespace(id='resp_ok',status='completed',model='m',reasoning=SimpleNamespace(effort='high'),
+        output_text=json.dumps(data if data is not None else dict(answers=[],questions=[])))
 
 
 class RequestResend(unittest.TestCase):
     def setUp(self):
         client_pool.close_clients()
-        self.settings = config.values(dict(gpt_model='m'))
+        self.settings=config.values(dict(gpt_model='m'))
 
     def tearDown(self):
         client_pool.close_clients()
 
-    def feed(self, outcomes):
-        """One outcome per send: an exception is raised, anything else is returned. The last outcome repeats."""
-        sends = []
-
-        def create(**kwargs):
-            sends.append(kwargs)
-            outcome = outcomes[min(len(sends) - 1, len(outcomes) - 1)]
-            if isinstance(outcome, Exception):
-                raise outcome
-            return outcome
-        return sends, create
-
-    def adaptive(self, create):
-        with patch('openai.OpenAI') as factory:
-            factory.return_value.responses.create.side_effect = create
-            return intake.request({}, {}, 'm', 'k', self.settings)
-
-    def test_policy_is_120_seconds_per_send_three_sends_and_the_sdk_does_not_retry(self):
-        self.assertEqual((config.REQUEST_TIMEOUT_SECONDS, config.REQUEST_ATTEMPTS), (120.0, 3))
+    def test_policy_has_no_deadline_and_disables_both_sdk_and_application_resends(self):
+        self.assertIsNone(config.REQUEST_TIMEOUT_SECONDS)
+        self.assertEqual(config.REQUEST_ATTEMPTS,1)
+        self.assertEqual(config.REQUEST_POLICY,dict(timeout=None,max_retries=0))
         with patch('openai.OpenAI') as factory:
             client_pool.get_client('policy-key')
-        self.assertEqual(factory.call_args.kwargs, dict(api_key='policy-key', timeout=120.0, max_retries=0))
+        self.assertEqual(factory.call_args.kwargs,dict(api_key='policy-key',timeout=None,max_retries=0))
 
-    def test_a_timeout_is_sent_again_with_the_same_input_and_the_late_answer_is_used(self):
-        sends, create = self.feed([APITimeoutError('no answer'), completed()])
-        raw, reason = self.adaptive(create)
-        self.assertIsNone(reason)
-        self.assertEqual(raw['_connection']['response_id'], 'resp_ok')
-        self.assertEqual(len(sends), 2)
-        self.assertEqual(sends[0], sends[1], 'the same request, not a changed one')
+    def test_real_sdk_disables_connect_read_write_and_pool_timeouts_without_network(self):
+        with patch('httpx.Client.send',side_effect=AssertionError('this test must never send a request')):
+            sdk=client_pool.get_client('offline-sdk-test-key')
+            self.assertIsNone(sdk.timeout)
+            self.assertEqual(sdk.max_retries,0)
+            expected=dict(connect=None,read=None,write=None,pool=None)
+            self.assertEqual(sdk._client.timeout.as_dict(),expected)
+            built=sdk._client.build_request('POST','https://offline.invalid/responses')
+            self.assertEqual(built.extensions['timeout'],expected)
 
-    def test_two_timeouts_in_a_row_still_end_with_the_third_send(self):
-        sends, create = self.feed([APITimeoutError('1'), APITimeoutError('2'), completed()])
-        raw, reason = self.adaptive(create)
-        self.assertIsNone(reason)
-        self.assertEqual(len(sends), 3)
+    def test_provider_timeout_reports_once_in_every_ai_path_without_resubmitting(self):
+        calls=dict(adaptive=lambda:intake.request({}, {},'m','k',self.settings),
+            interpret=lambda:client.interpret('진술',[],{},'m','k',self.settings),
+            explanation=lambda:client.generate(summary_fixture(),'m','k',self.settings),
+            photo=lambda:vision_client.observe('data:image/jpeg;base64,AAEC',{},'m','k',self.settings))
+        for name,call in calls.items():
+            with self.subTest(path=name),patch('openai.OpenAI') as factory:
+                factory.return_value.responses.create.side_effect=[APITimeoutError('provider timeout'),completed()]
+                raw,reason=call()
+                self.assertIsNone(raw);self.assertEqual(reason,'TIMEOUT')
+                self.assertEqual(factory.return_value.responses.create.call_count,1)
+            client_pool.close_clients()
 
-    def test_after_the_attempt_limit_every_ai_path_reports_timeout(self):
-        calls = dict(
-            adaptive=lambda: intake.request({}, {}, 'm', 'k', self.settings),
-            interpret=lambda: client.interpret('진술', [], {}, 'm', 'k', self.settings),
-            explanation=lambda: client.generate(summary_fixture(), 'm', 'k', self.settings),
-            photo=lambda: vision_client.observe('data:image/jpeg;base64,AAEC', {}, 'm', 'k', self.settings))
-        for name, call in calls.items():
-            with self.subTest(path=name):
-                sends, create = self.feed([APITimeoutError('no answer')])
-                with patch('openai.OpenAI') as factory:
-                    factory.return_value.responses.create.side_effect = create
-                    result, reason = call()
-                self.assertIsNone(result)
-                self.assertEqual(reason, 'TIMEOUT')
-                self.assertEqual(len(sends), config.REQUEST_ATTEMPTS, 'sent again until the limit, not forever and not once')
-                client_pool.close_clients()
+    def test_other_provider_errors_are_returned_once(self):
+        with patch('openai.OpenAI') as factory:
+            factory.return_value.responses.create.side_effect=[ServerBusy('503'),completed()]
+            raw,reason=intake.request({}, {},'m','k',self.settings)
+        self.assertIsNone(raw);self.assertEqual(reason,'API_ERROR')
+        self.assertEqual(factory.return_value.responses.create.call_count,1)
 
-    def test_only_a_timeout_is_sent_again(self):
-        sends, create = self.feed([ServerBusy('503')])
-        raw, reason = self.adaptive(create)
-        self.assertIsNone(raw)
-        self.assertEqual(reason, 'API_ERROR')
-        self.assertEqual(len(sends), 1, 'an error that is not a timeout is never repeated')
+    def test_incomplete_response_is_reported_once_without_a_second_request(self):
+        with patch('openai.OpenAI') as factory:
+            factory.return_value.responses.create.side_effect=[SimpleNamespace(status='incomplete',output_text=''),completed()]
+            raw,reason=intake.request({}, {},'m','k',self.settings)
+        self.assertIsNone(raw);self.assertEqual(reason,'INCOMPLETE_RESPONSE')
+        self.assertEqual(factory.return_value.responses.create.call_count,1)
 
-    def test_a_timeout_then_another_error_stops_at_that_error(self):
-        sends, create = self.feed([APITimeoutError('no answer'), ServerBusy('503'), completed()])
-        raw, reason = self.adaptive(create)
-        self.assertEqual(reason, 'API_ERROR')
-        self.assertEqual(len(sends), 2)
+    def test_late_single_response_is_saved_while_other_service_requests_remain_responsive(self):
+        entered=threading.Event();release=threading.Event();read_done=threading.Event()
+        outcomes=[];errors=[];sends=[]
+        with tempfile.TemporaryDirectory() as folder:
+            ctx=create_service(str(Path(folder)/'loco.db'))
+            survey=ctx.dispatch('create_survey',dict(draft=dict(survey_type='REGULAR',survey_date='2026-10-27')))
+            task=ctx.dispatch('create_task',dict(survey_id=survey['survey_id'],draft=dict(task_name='지연 응답 시험')))
+            analysis=ctx.dispatch('recalculate_judgments',dict(task_id=task['task_id']))
+            settings=ctx.dispatch('get_settings',{});settings.update(gpt_enabled=True,gpt_model='m')
+            ctx.dispatch('update_settings',dict(settings=settings))
+            operation=ctx.prepare_dispatch('generate_ai_text',dict(analysis_id=analysis['analysis_id']))
+            def create(**request):
+                sends.append(request);entered.set()
+                if not release.wait(5):raise AssertionError('test watchdog expired')
+                summary=json.loads(request['input'][1]['content'])
+                return completed(content_fixture(summary))
+            def generate():
+                try:outcomes.append(operation())
+                except Exception as error:errors.append(error)
+            def read():
+                try:ctx.dispatch('get_task',dict(task_id=task['task_id']));read_done.set()
+                except Exception as error:errors.append(error)
+            with patch.dict(os.environ,dict(OPENAI_API_KEY='offline-delayed-test-key')),patch('openai.OpenAI') as factory:
+                factory.return_value.responses.create.side_effect=create
+                worker=threading.Thread(target=generate,daemon=True);reader=threading.Thread(target=read,daemon=True)
+                worker.start()
+                try:
+                    self.assertTrue(entered.wait(2))
+                    reader.start()
+                    self.assertTrue(read_done.wait(1),'waiting for AI must not hold the service DB lock')
+                    self.assertTrue(worker.is_alive(),'the original request must still be waiting')
+                    self.assertEqual(len(sends),1)
+                    self.assertFalse(outcomes,'do not manufacture a fallback while the same request is pending')
+                finally:
+                    release.set();worker.join(3)
+                    if reader.ident is not None:reader.join(3)
+                self.assertEqual(factory.return_value.responses.create.call_count,1)
+            self.assertFalse(worker.is_alive());self.assertFalse(errors,errors)
+            self.assertEqual(outcomes[0]['text']['result'],'GENERATED')
+            self.assertTrue(outcomes[0]['source_current'])
+            saved=ctx.analysis(analysis['analysis_id'])['ai']
+            self.assertEqual(len(saved),1);self.assertEqual(saved[0]['connection']['response_id'],'resp_ok')
+            self.assertIsNone(saved[0]['fallback_reason'])
 
-    def test_an_answer_that_is_not_complete_is_not_a_timeout_and_is_not_sent_again(self):
-        unfinished = SimpleNamespace(id='r', status='incomplete', model='m', output_text='')
-        sends, create = self.feed([unfinished, completed()])
-        raw, reason = self.adaptive(create)
-        self.assertEqual(reason, 'INCOMPLETE_RESPONSE')
-        self.assertEqual(len(sends), 1)
 
-
-if __name__ == '__main__':
-    unittest.main()
+if __name__=='__main__':unittest.main()

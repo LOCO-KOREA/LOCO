@@ -18,7 +18,7 @@ def _identity(api_key):
 def _new_client(api_key):
     from openai import OpenAI
     from ergo.ai_config import REQUEST_POLICY
-    # The SDK/HTTPX timeout is the 'no answer yet' limit (create_response sends again); zero disables the SDK's own retries.
+    # None disables all HTTPX timeout phases; zero disables SDK retries.
     return OpenAI(api_key=api_key, **REQUEST_POLICY)
 
 
@@ -34,17 +34,8 @@ def get_client(api_key):
 
 
 def create_response(api_key, **request):
-    """responses.create with the resend rule: a request that times out is sent again (same input) until REQUEST_ATTEMPTS sends were made.
-    Any other error is raised at once, and after the last timeout the timeout itself is raised so the caller reports TIMEOUT."""
-    from ergo.ai_config import REQUEST_ATTEMPTS
-    sent = 0
-    while True:
-        sent += 1
-        try:
-            return get_client(api_key).responses.create(**request)
-        except Exception as error:
-            if "Timeout" not in type(error).__name__ or sent >= REQUEST_ATTEMPTS:
-                raise
+    """Send once and wait; provider errors are handled by the calling AI path."""
+    return get_client(api_key).responses.create(**request)
 
 
 def close_clients():

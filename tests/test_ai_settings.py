@@ -21,7 +21,7 @@ class AiSettings(unittest.TestCase):
     def tearDown(self):
         client_pool.close_clients()
 
-    def test_text_intake_photo_and_explanation_share_one_timed_client_without_sdk_retries(self):
+    def test_text_intake_photo_and_explanation_share_one_unlimited_client_without_sdk_retries(self):
         selected=config.values(dict(gpt_model='custom-provider-model',gpt_reasoning_effort='high',
                                     gpt_timeout_seconds=43.5,gpt_max_output_tokens=12567))
         self.assertNotIn('gpt_timeout_seconds',selected)
@@ -46,7 +46,7 @@ class AiSettings(unittest.TestCase):
             raw,reason=client.generate(summary_fixture(),selected['gpt_model'],'test-key',selected)
             self.assertIsNone(reason);self.assertEqual(raw['_connection']['response_id'],'resp_verified')
         self.assertEqual(factory.call_count,1)
-        self.assertEqual(factory.call_args.kwargs,dict(api_key='test-key',timeout=120.0,max_retries=0))
+        self.assertEqual(factory.call_args.kwargs,dict(api_key='test-key',timeout=None,max_retries=0))
         self.assertEqual(len(captured),4)
         for request in captured:
             self.assertEqual(request['model'],'custom-provider-model')
