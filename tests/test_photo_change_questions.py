@@ -55,7 +55,7 @@ class PhotoReplacement(unittest.TestCase):
         photo_bound = {target for target in targets if target in ('context', 'load') or target.startswith('manual.')}
         self.assertEqual(targets - photo_bound, set(), 'work types, times and counts the user gave must stay answered')
 
-    def test_each_returning_question_says_it_is_a_repeat_and_why(self):
+    def test_photo_bound_answers_say_they_are_repeats_but_unasked_posture_is_not_marked_reasked(self):
         self.open_photo('first.fixture')
         self.finish_interview()
         reopened = self.open_photo('second.fixture')
@@ -65,10 +65,9 @@ class PhotoReplacement(unittest.TestCase):
         self.assertTrue(first['load']['reask'])
         rows = {row['target']: row for row in self.turn(CONFIRM)['form_fields']}
         flag = rows['manual.COMMON.static_over_1min']
-        self.assertTrue(flag['reask'])
-        self.assertEqual(flag['reason'], '이전 사진에서 답한 항목이에요. 새 사진 기준으로 다시 확인해 주세요.')
+        self.assertNotIn('reask',flag,'no prior user answer exists because accepted photo values are not asked again')
         activity = ('static_over_1min', 'shock_force', 'small_repeat_over_4min', 'rapid_change_or_unstable', 'legs_support', 'neck_base')
-        self.assertTrue(all(row.get('reask') for target, row in rows.items() if target.startswith('manual.') and target.split('.')[-1] in activity))
+        self.assertTrue(all(not row.get('reask') for target, row in rows.items() if target.startswith('manual.') and target.split('.')[-1] in activity))
 
 
 class EstimatedReading(unittest.TestCase):

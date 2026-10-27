@@ -258,12 +258,17 @@ const url=name=>pathToFileURL(path.join(__dirname,'../frontend/intake',name)).hr
  const groupMembers=Array.from({length:9},(_,i)=>({...choiceQuestion,target:`work_type.sample_${i}`,identity:`work_type.sample_${i}@row`,
   label:`작업 특징 ${i+1}`,destination:{type:'work_type'},choices:i===0?[{value:0,label:'실제 0'},{value:1,label:'실제 1'}]:i===1?[{value:false,label:'아니오'},{value:true,label:'예'}]:choiceQuestion.choices}));
  groupMembers[8]={...groupMembers[8],label:'작업 <img data-x=1> & 아홉',choices:[{value:'YES" data-danger="1',label:'선택 <해당>'},{value:'NO',label:'아니오'}]};
- const groupedQuestion={...choiceQuestion,target:'other_work',identity:'other_work@row',ai_writable:false,group_title:'관련 작업 <확인>',answer_questions:groupMembers,paired_question:rightQuestion};
+ const groupedQuestion={...choiceQuestion,target:'work_type.sample_group',identity:'work_type.sample_group@row',ai_writable:false,group_title:'관련 작업 <확인>',answer_questions:groupMembers,paired_question:rightQuestion};
  const groupState={...structuredClone(initial),facts:[],questions:[groupedQuestion],remaining_count:9,preview:{}};
  const beforeGroup={state:intake.state,questions:intake.questions,text:intake.text,writingFor:intake.writingFor};
  intake.state=groupState;intake.questions=[groupedQuestion];intake.text='';intake.writingFor=null;intake.pairValues.clear();
  const groupSave=html=>/<button\b[^>]*data-quick="intake-group-save"[^>]*>/.exec(html)?.[0];
  let groupHtml=intake.dialog(false);
+ intake.questions=[{...groupedQuestion,target:'other_work',identity:'other_work@row',paired_question:undefined}];
+ const otherWorkHtml=intake.dialog(false);
+ assert.equal((otherWorkHtml.match(/data-intake-group-value=/g)||[]).length,0,'virtual other_work is one question, not nine expanded questions');
+ assert.equal((otherWorkHtml.match(/data-intake-pick="other_work@row"/g)||[]).length,choiceQuestion.choices.length+1,'single work-existence choices retain explicit unknown');
+ intake.questions=[groupedQuestion];
  assert.equal((groupHtml.match(/data-intake-group-value=/g)||[]).length,9,'one screen must contain the current actual group members');
  assert.match(groupHtml,/관련 작업 &lt;확인&gt;/);assert.match(groupHtml,/아는 항목만 선택해도 돼요/);assert.match(groupHtml,/모두 답하지 않아도/);
  assert.doesNotMatch(groupHtml,/data-intake-pair-pick=|data-quick="allno"|<textarea\b/,'groups take priority over legacy pairs and never offer implicit all-no');

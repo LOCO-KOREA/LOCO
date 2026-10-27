@@ -19,6 +19,7 @@ class CurrentRebaExplanation(unittest.TestCase):
     def test_current_eight_is_distinct_from_first_seven_and_incomplete_final(self):
         value=self.summary();before=copy.deepcopy(value);text=payload.reba_comparison_text(value)
         self.assertIn('현재 REBA는 8점',text);self.assertIn('가정 포함',text);self.assertIn('미확인 23개',text)
+        self.assertIn('실제 점수는 이 점수보다 높거나 낮을 수 있습니다',text)
         self.assertIn('1차 가정 REBA는 7점',text);self.assertIn('점수 차이를 비교하지 않습니다',text)
         self.assertNotIn('+1점',text);self.assertEqual(value,before)
 
@@ -26,6 +27,17 @@ class CurrentRebaExplanation(unittest.TestCase):
         value=self.summary(provisional=False);text=payload.reba_comparison_text(value)
         self.assertIn('현재 REBA는 8점',text);self.assertNotIn('1차',text)
         self.assertTrue(payload.validate_content(content_fixture(value),value))
+
+    def test_positive_yes_basis_allows_nonbinding_applicable_proposal_when_calculation_needs_input(self):
+        value=self.summary(provisional=False)
+        value['criteria'][0].update(computed_status='NEEDS_INPUT',basis=[
+            dict(item_code='C01-B01',value='YES',unit='BOOLEAN',operator='EQ',threshold=None)])
+        content=content_fixture(value)
+        content['criteria'][0].update(proposed_status='APPLICABLE',basis_refs=['C01-B01'])
+
+        self.assertTrue(payload.validate_content(content,value))
+        self.assertEqual(value['criteria'][0]['computed_status'],'NEEDS_INPUT',
+                         'the AI proposal is only a review hint and must not change the computed result')
 
     def test_confirmed_assumed_reference_and_score_so_far_keep_different_meanings(self):
         value=self.summary(provisional=False)
@@ -36,8 +48,10 @@ class CurrentRebaExplanation(unittest.TestCase):
         text=payload.reba_comparison_text(value)
         self.assertIn('참조값은 1점',text);self.assertIn('측정값이나 확정 점수가 아닙니다',text)
         value['reba']=dict(score_so_far=dict(total=8,risk='HIGH',assumed_count=23))
-        self.assertIn('현재 REBA는 8점',payload.reba_comparison_text(value))
-        self.assertIn('가정 포함',payload.reba_comparison_text(value))
+        text=payload.reba_comparison_text(value)
+        self.assertIn('현재 REBA는 8점',text)
+        self.assertIn('가정 포함',text)
+        self.assertIn('실제 점수는 이 점수보다 높거나 낮을 수 있습니다',text)
 
     def test_no_available_score_retains_the_previous_comparison_behavior(self):
         value=self.summary();value['reba']={}

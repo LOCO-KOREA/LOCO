@@ -34,7 +34,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     let revision = 1;
     const known = identity => facts.find(f => f.identity === identity);
     const rows = () => [lift, keyboard, days, ...(known('work_type.lift@default')?.value === 'YES' ? [mass] : []), ...(photo ? [context, load, ...(known('context@default') ? [seated, neck] : [])] : [])];
-    const snapshot = reason => ({contract, task: {task_id: 1, input_revision: revision, created_at: 't0'}, facts: structuredClone(facts), messages: [], questions: [], form_fields: structuredClone(rows()),
+    const snapshot = reason => ({contract, task: {task_id: 1, input_revision: revision, created_at: 't0'}, facts: structuredClone(facts), messages: [], questions: rows().filter(f=>!contract.policy.optional_photo_destinations.includes(f.destination.type)&&!known(f.identity)).slice(0,1), form_fields: structuredClone(rows()),
       remaining_count: 0, complete: false, reason: reason || null, preview: {score: {total: 2, risk: 'LOW', assumption: 'a'}}, progress: {completed_count: 0, total_count: 1, remaining_count: 1, percent: 0, dynamic: true}});
     const api = async (method, params) => {
       calls.push([method, structuredClone(params)]);
@@ -260,14 +260,15 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     assert.equal(empty.intake.hasOpenItems(), false);
     assert.equal(empty.intake.openPageOnce(), false, 'nothing to ask, nothing opens');
   });
-  await check('a photo question alone opens the page; a restored draft that showed it does not', async () => {
+  await check('photo data alone does not open a question page; explicit editing remains available', async () => {
     const answered = [user('work_type.lift@default', 'NO'), user('work_type.keyboard@default', 'NO'), user('annual_work_days@default', 220)];
     const t = await open(service({facts: answered}));
     assert.deepEqual(ids(t.intake.pendingFormFields()), [], 'nothing else is open');
-    assert.equal(t.intake.hasOpenItems(), true, 'the photo situation is');
+    assert.equal(t.intake.hasOpenItems(), false, 'optional photo metadata is not the question queue');
     Object.assign(t.intake, {dialogOpen: false, pageShown: false});
     t.intake.restorePage(false);
-    assert.equal(t.intake.dialogOpen, true, 'a draft that never showed the page may show it');
+    assert.equal(t.intake.dialogOpen, false, 'photo data alone never creates a restored question dialog');
+    t.intake.showPage();t.intake.photoEditor=true;assert.match(t.intake.dialog(false),/사진 사용 상황/,'the user can still open the data editor');
     t.intake.dialogOpen = false;
     t.intake.restorePage(true);
     assert.equal(t.intake.dialogOpen, false, 'a draft that already showed it does not ask again');
@@ -337,8 +338,8 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   await check('respondIntake: stays while something is open, finishes when nothing is', async () => {
     const open1 = await open(service({facts: [user('work_type.lift@default', 'NO'), user('work_type.keyboard@default', 'NO'), user('annual_work_days@default', 220)]}));
     await open1.flow.respondIntake('', [{target: 'annual_work_days', condition: 'default', value: 200}]);
-    assert.equal(open1.log.finished, 0, 'the photo situation is still open: no result yet');
-    assert.equal(open1.intake.dialogOpen, true);
+    assert.equal(open1.log.finished, 1, 'photo-only metadata does not delay the result');
+    assert.equal(open1.intake.dialogOpen, false);
     const done = await open(service({facts: [user('work_type.lift@default', 'NO'), user('work_type.keyboard@default', 'NO'), user('annual_work_days@default', 220), user('context@default', 'YES'), user('load@default', 'UNLOADED'),
       user('manual.COMMON.seated@photo:2', 'NO'), user('manual.COMMON.neck_base@photo:2', 1)]}));
     await done.flow.respondIntake('', [{target: 'annual_work_days', condition: 'default', value: 200}]);

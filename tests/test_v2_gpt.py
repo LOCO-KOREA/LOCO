@@ -21,7 +21,7 @@ def content_fixture(summary):
     return {'summary': '입력 근거를 기준별로 확인하세요.', 'reba_comparison': reba_comparison, 'posture_explanations': [
             {'photo_ref': item['photo_ref'], 'explanation': '사진 결과를 확인하세요.'}
             for item in summary.get('posture_results', [])],
-        'criteria': [{'criterion_no': n, 'explanation': '입력값을 다시 확인하세요.',
+        'criteria': [{'criterion_no': n, 'explanation': '입력값을 다시 확인하세요.','proposed_status':'UNDETERMINED',
                       'basis_refs': [item['item_code'] for item in summary['criteria'][n-1]['basis'][:1]]} for n in range(1, 12)],
         'check_items': ['현장 조건을 확인하세요.'],
         'improvement_options': [{'proposal': '작업 조건을 조사자와 함께 검토하세요.',

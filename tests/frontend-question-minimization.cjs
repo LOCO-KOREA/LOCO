@@ -15,7 +15,8 @@ const assert=require('node:assert/strict');
   return {intake,flow,calls,finished:()=>finished};
  }
  const a=setup(),before=structuredClone(a.intake.state.facts);
- const html=a.intake.dialog(false);assert.ok(html.indexOf('data-intake-form=')<html.indexOf('data-intake-natural-answer'),'the choices come first; the sentence box is only an option after them');assert.match(html,/<details class="intake-form-section" data-intake-natural-answer><summary>문장으로 더 적기<\/summary>/,'the sentence box is closed and is not a question');
+ a.intake.photoEditor=true;
+ const html=a.intake.dialog(false);assert.doesNotMatch(html,/data-intake-form=|data-intake-flag=|data-fill-kind=/,'editing metadata never turns into a fresh question or bulk fill');assert.equal((html.match(/data-intake-data=/g)||[]).length,11,'all data remains readable and explicitly editable');assert.match(html,/모름으로 저장/,'explicit unknown is a stored state');
  assert.equal(a.intake.formAnswers().filter(answer=>answer.value==='NO').length,0,'opening optional inputs must not turn unanswered work into NO');
  for(const {field,value,quote} of a.intake.fillPlan({kind:'no-work'}))a.intake.setFormValue(field.identity,value,quote);
  assert.equal(a.calls.length,0,'pressing "the rest is no" only fills the boxes; nothing is saved by it');

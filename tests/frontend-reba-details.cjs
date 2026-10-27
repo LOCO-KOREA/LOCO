@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict');
+(async()=>{
+ const {QuickFlow}=await import('../frontend/quick-flow.js');
+ const thin={snapshot:{capture:{slots:[{slot_no:1,photo_id:7,analysis_target:true}]}},reba:{summary:{current_score:{total:8,risk:'HIGH',kind:'WITH_ASSUMPTIONS',slot_no:1,assumed_count:4}},slots:[]}};
+ const flow=value=>Object.assign(Object.create(QuickFlow.prototype),{result:value,postureAction:()=>''});
+ const html=flow(thin).rebaPanel();
+ assert.match(html,/data-reba-score-basis>현재 REBA 8점/);assert.match(html,/미확인 항목 4개/);
+ assert.match(html,/가정 개수만 저장/);assert.match(html,/data-reba-components-missing/);
+ const withDetails=structuredClone(thin);withDetails.reba.slots=[{slot_no:1,photo_id:7,score_so_far:{total:8,left:8,right:7,selected_side:'LEFT',assumed:['left.coupling','right.coupling','left.wrist_base','right.wrist_base'],assumption:'같은 사진에 저장된 가정 근거입니다.'},left:{total:null},right:{total:null}}];
+ const full=flow(withDetails).rebaPanel();assert.match(full,/같은 사진에 저장된 가정 근거/);assert.match(full,/가정한 항목 4개/);
+ assert.match(full,/왼쪽 8점 · 오른쪽 7점/,'lowercase DTO side totals must remain visible');
+ assert.doesNotMatch(full,/가정 개수만 저장/);
+ const foreign=structuredClone(withDetails);foreign.reba.slots[0].photo_id=999;
+ assert.doesNotMatch(flow(foreign).rebaPanel(),/같은 사진에 저장된 가정 근거|왼쪽 8점 · 오른쪽 7점/,'another photo cannot provide the missing calculation evidence');
+ const complete=structuredClone(withDetails);complete.reba.summary.current_score={total:8,risk:'HIGH',kind:'CONFIRMED',slot_no:1};
+ complete.reba.slots[0].left={table_a:3,load_score:0,score_a:3,table_b:4,coupling_score:0,score_b:4,table_c:7,activity_score:1,total:8};
+ const before=JSON.stringify(complete),components=flow(complete).rebaPanel();
+ assert.doesNotMatch(components,/같은 사진에 저장된 가정 근거|가정한 항목 4개/,'a legacy assumed score with the same total must not decorate a confirmed current score');
+ assert.match(components,/Group A 점수/);assert.match(components,/Group B 점수/);assert.match(components,/<td>0<\/td>/);assert.match(components,/기록 없음/);
+ assert.equal(JSON.stringify(complete),before,'display must never calculate or rewrite stored scores');
+ const calculated=structuredClone(withDetails),parts={trunk:3,neck:1,legs:3,table_a:5,load_score:2,score_a:7,upper_arm:3,lower_arm:2,wrist:1,table_b:4,coupling_score:0,score_b:4,table_c:8,activity_score:0,total:8};
+ calculated.reba.summary.current_score.components={left:{...parts},right:{...parts}};
+ const frozen=JSON.stringify(calculated),breakdown=flow(calculated).rebaPanel();
+ assert.match(breakdown,/가정을 포함한 현재 점수의 좌우 구성/);assert.match(breakdown,/<td>표 A<\/td><td>5<\/td><td>5<\/td>/);
+ assert.match(breakdown,/<td>하중 가산<\/td><td>2<\/td><td>2<\/td>/);assert.match(breakdown,/<td>Group A 점수<\/td><td>7<\/td><td>7<\/td>/);
+ assert.match(breakdown,/<td>Group B 점수<\/td><td>4<\/td><td>4<\/td>/);assert.match(breakdown,/<td>표 C<\/td><td>8<\/td><td>8<\/td>/);
+ assert.match(breakdown,/<td>활동 가산<\/td><td>0<\/td><td>0<\/td>/);assert.doesNotMatch(breakdown,/data-reba-components-missing/);
+ assert.equal(JSON.stringify(calculated),frozen,'rendering an exact projected breakdown must not recalculate or mutate it');
+ let panel=null,markup='';const host={querySelector:selector=>selector==='#quick-score-calculation'?panel:null,querySelectorAll:()=>[],
+  set innerHTML(value){markup=value;const attrs=/<details\b([^>]*id="quick-score-calculation"[^>]*)>/.exec(value)?.[1];panel=attrs==null?null:{open:/\bopen\b/.test(attrs)};},get innerHTML(){return markup;}};
+ const view=Object.assign(flow(thin),{host,step:'result',intake:{dialogOpen:false,dialog:()=>'',mount:()=>{},reset:()=>{}},keepDraft:()=>{},viewResult(){return this.rebaPanel();},viewStart:()=>''});
+ view.render();assert.equal(panel.open,false);panel.open=true;view.render();assert.equal(panel.open,true,'rerender must retain an open calculation disclosure');
+ panel.open=false;view.render();assert.equal(panel.open,false,'manual close remains closed');
+ panel.open=true;view.reset();view.render();view.step='result';view.result=thin;view.render();assert.equal(panel.open,false,'a different task must not inherit the disclosure');
+ console.log('PASS nonempty condensed REBA details, owned fallback, lowercase side totals, stored zero/components, immutable scores and disclosure state');
+})().catch(error=>{console.error(error);process.exitCode=1});

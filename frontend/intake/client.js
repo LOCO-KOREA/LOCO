@@ -10,7 +10,7 @@ export const ABSENT_WORK_QUOTE = '표시된 남은 작업은 하지 않는다고
 
 export class AdaptiveIntake {
   constructor({api, changed, notify,drafts=null}) { Object.assign(this, {api, changed, notify,drafts}); this.reset(); }
-  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.pending=new Map(); this.pendingConflicts=new Set(); this.pendingVersion=0; this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.reviewThreshold = null; this.pageShown = false; this.formValues = new Map(); this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); this.fillNote = ''; }
+  reset() { for (const timer of this.timers?.values() || []) clearTimeout(timer.id); this.timers = new Map(); this.pending=new Map(); this.pendingConflicts=new Set(); this.pendingVersion=0; this.generation = (this.generation || 0) + 1; this.state = null; this.questions = []; this.text = ''; this.writingFor = null; this.pairValues = new Map(); this.focusPair = null; this.busyElapsedSeconds = 0; this.reviewThreshold = null; this.pageShown = false; this.formValues = new Map(); this.dataEditing = new Set(); this.photoEditor = false; this.editing = null; this.dialogOpen = false; this.values = new Map(); this.saving = false; this.saveError = ''; this.saveErrorKind = null; this.serial = Promise.resolve(); this.fillNote = ''; }
   persistPending(){if(this.drafts&&this.state)this.drafts.put('intake',intakeDraftKey(this.state.task),{taskId:this.state.task.task_id,createdAt:this.state.task.created_at,entries:[...this.pending]});}
   pendingValue(identity,value){const field=this.field(identity);if(!field)return;const old=this.pending.get(identity);this.pending.set(identity,{value,target:field.target,condition:field.condition,base:old?old.base:this.state.facts.find(f=>f.identity===identity)?.value??null,version:++this.pendingVersion});this.values.set(identity,value);this.persistPending();}
   async restorePending(){
@@ -31,7 +31,7 @@ export class AdaptiveIntake {
     const contract = await this.loadContract();
     const result = await this.api(contract.methods.session, {task_id: taskId, ...(views === undefined ? {} : {views})});
     if (generation !== this.generation) return null;
-    this.state = result; this.questions = result.questions; this.values.clear(); this.pairValues.clear(); this.focusPair = null; await this.restorePending(); return this.state;
+    this.state = result; this.questions = this.questionQueue(result); this.values.clear(); this.pairValues.clear(); this.focusPair = null; await this.restorePending(); return this.state;
   }
   async turn(text = '', answers = [], plan = true) {
     const generation = this.generation, taskId = this.state?.task.task_id;
@@ -49,7 +49,7 @@ export class AdaptiveIntake {
         this.state = result;
         this.dropAnsweredConfirmations();
         if (plan) {
-          this.questions = result.questions;
+          this.questions = this.questionQueue(result);
           if (!result.reason) {
             // Structured saves must keep a separate, unsent natural-language draft.
             if (!this.text.trim() || this.text === text) { this.text = ''; this.writingFor = null; }
@@ -75,6 +75,12 @@ export class AdaptiveIntake {
   formFields() {
     return this.state?.form_fields||[];
   }
+  questionQueue(state) {
+    const questions=state.questions||[];
+    if(!Array.isArray(state.form_fields))return questions;
+    const photo=state.contract.policy.optional_photo_destinations||['context','view','manual','load','load_kg','load_link'];
+    return questions.filter(field=>!photo.includes(field.destination?.type));
+  }
   formHandled(field) {
     if(field.photo_unused)return false;
     const saved=this.state?.facts.find(f=>f.identity===field.identity);
@@ -88,7 +94,7 @@ export class AdaptiveIntake {
     return this.formFields().filter(field=>!this.formHandled(field)&&(includePhoto||!this.optionalPhoto(field)));
   }
   /** Something on the page still waits for an answer, photo questions included: the page is worth opening. */
-  hasOpenItems() { return this.pendingFormFields(undefined,{includePhoto:true}).some(field=>field.destination.type!=='manual'); }
+  hasOpenItems() { return Array.isArray(this.state?.form_fields)?this.questions.length>0:this.pendingFormFields(undefined,{includePhoto:true}).some(field=>field.destination.type!=='manual'); }
   /** The page opens by itself at most once per analysis: only while nothing was shown yet and something is open. */
   openPageOnce() {
     if(this.pageShown||!this.hasOpenItems())return false;
@@ -288,6 +294,7 @@ export class AdaptiveIntake {
   field(identity) {
     const question = this.questions.flatMap(q => [q, ...this.answerFields(q)]).find(q => q.identity === identity);
     if (question) return question;
+    const form=this.formFields().find(field=>field.identity===identity);if(form)return form;
     const fact = this.state?.facts.find(f => f.identity === identity);
     const pending=this.pending.get(identity),field = this.state?.contract.fields.find(f => f.target === (fact?.target||pending?.target));
     return field && {...field, identity, condition: fact?.condition||pending.condition};
@@ -317,5 +324,5 @@ export class AdaptiveIntake {
   summary() { return renderSummary(this); }
   panel(busy) { return renderQuestions(this, busy); }
   dialog(busy) { return renderDialog(this,busy); }
-  mount(host,busy) { mountDialog(host,busy,this.focusPair); }
+  mount(host,busy) { mountDialog(host,busy,this.focusPair,this); }
 }

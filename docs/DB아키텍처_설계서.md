@@ -175,7 +175,7 @@ FOLLOWUP도 제안을 검증해 같은 기존 TASK JSON에 반영하며 재계�
 
 계산기가 이미 완료한 범위의 작업 특징은 후보와 묶음 서식 모두에서 제외한다. 원래 미확인 값을 NO로 저장하지 않는다. 작업 설명을 먼저 보이는 답변 칸에서 한 번에 정리하고, 개별 수정은 접힌 영역에서 제공한다. 화면에 열거된 남은 작업 특징은 사용자가 명시적으로 한 번 확인하여 NO로 저장할 수 있다. 먼저 작성 중 설명과 직접 선택을 저장하며 새로 알려진 YES, 이전 USER 모름, 이미 확인된 값은 일괄 확인으로 덮지 않는다.
 
-공통 intake POLICY.optional_photo_destinations는 사진 점수를 더 보완할 때의 항목을 정의하고 form_prompt_limit은 한 자연어 안내에 나열할 항목 수를 정의한다. 사진의 미확정 보완 항목만 남으면 기본 팝업을 강제하지 않고, 사용자가 선택해 더 확인할 수 있다. 해당 값은 미확인으로 보존하고 REBA 미완성/현재 정보 출력의 기존 의미를 유지한다. 작업 정보가 충분하거나 사용자가 모른다고 확인한 뒤에는 빈 단계를 건너뛴다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
+공통 intake POLICY.optional_photo_destinations는 사진 상황·방향·하중·자세를 결과의 선택 보완 서식에서 편집할 수 있음을 뜻하며, 그 자체로 모두 질문에서 제외한다는 뜻은 아니다. 사진 사용 여부·촬영 방향·하중 연결은 계산 또는 소유권에 필요한 경우 질문한다. MediaPipe/AI 사진 결과가 있는 동안 자세 수치·항목을 다시 묻지 않고 결과 단계에서 편집할 수 있게 한다. 사진을 사용하지 않기로 했거나 모름이면 필요한 자세 정보는 대체 입력으로 질문한다. 질문은 form_prompt_limit 범위에서 하나씩 보여준다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
 
 회귀는 test_question_minimization.py와 frontend-question-minimization.cjs에서 계산 완료 시 9개→0개, 남은 특징 한 번 확인, USER 모름/직접 YES 보호, 미전송 설명 우선 처리와 실패 보존을 검사한다. 실제 질문 수는 저장 필드 수 또는 접힌 사진 보완 수와 구분하여 사용자 답변 동작으로 검증한다.
 
@@ -215,3 +215,10 @@ FOLLOWUP도 제안을 검증해 같은 기존 TASK JSON에 반영하며 재계�
 원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
 
 context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.
+
+
+## 호별 비구속 제안과 사람 확정 트랜잭션 (2026-10-27)
+
+AI structured criteria의 proposed_status는 참고값이며 DB 원사실·computed_status·REBA·investigator에 자동 투영하지 않는다. confirm_criterion_review가 최신 result_json을 쓰기 트랜잭션 안에서 읽고 사람이 제출한 상태만 갱신한다. 해당/비해당은 investigator/effective에, 판단 보류는 criterion_review의 disposition에만 기록하며, null로 명시 해제한 경우에만 이전 binary를 제거한다. 기존 인간 결론의 carryforward와 제출 목록을 구분하고 이전 receipt를 JSON 이력으로 보존한다. 조사 검토 무효화도 같은 트랜잭션이다.
+
+receipt context_digest는 분석 ID·input_revision·snapshot·계산 필드·조사자 결론을 핀한다. 선택 출처 AI의 input_summary와 원문 digest도 핀하며 새 생성·편집·적용 이력은 덮어쓰지 않는다. source_current와 confirmation_current는 서로 다른 조회 projection이고, 전자를 임의로 true로 바꾸지 않는다. 현재 receipt에 연결된 출처 설명은 별도의 사람 적용으로 보고서에 반영할 수 있다. 보고서는 현재 사람 확정 결과만 호별 최종 상태로 출력한다. 데이터는 기존 ANALYSIS.result_json과 EXPORT_LOG.snapshot_json만 사용하며 입력 snapshot·점수·테이블·컬럼을 바꾸지 않는다.

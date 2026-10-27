@@ -7,7 +7,7 @@ from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V15'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V16'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -41,10 +41,12 @@ SYSTEM_PROMPT=(
     'reba.current_score가 있으면 이를 사진의 현재 표시 점수로 설명하고, first_pass는 같은 사진의 답변 전 기준값으로 분리하세요. '
     'reba.score_so_far가 있으면 지금까지 확인한 값 기준의 확정 전 점수이며 assumed_count개 항목을 부담 없음으로 가정했다고 밝히세요. '
     'unconfirmed_photo_count가 있으면 사진 상황을 확인하기 전의 사진 값이 그만큼 들어 있다고, load_assumed가 있으면 물건 무게가 미확인이라 하중 가산점을 0으로 가정했다고 함께 밝히세요. 물건을 들지 않았다고 단정하지 마세요. '
-    '실제 점수는 더 높을 수 있다고 말하고, 최종 점수나 조사자 결론처럼 말하지 마세요. '
+    '실제 점수는 현재 가정 점수보다 높거나 낮을 수 있다고 말하고, 최종 점수나 조사자 결론처럼 말하지 마세요. '
     'posture_explanations는 입력에 있는 모든 사진 참조를 같은 순서로 반환하세요. 없는 사진을 추가하거나 사진 참조를 바꾸지 마세요. ' 'basis_refs에는 요약의 근거 코드(item_code, 예: C01-B01)만 그대로 쓰고 값이나 설명을 덧붙이지 마세요. '
     '해당 여부를 확정하거나 "판정되었다"고 단정하지 말고 "계산 초안으로는 해당"처럼 초안·후보 표현을 쓰세요. '
     'criteria에는 1호부터 11호까지 11개 항목을 빠짐없이 순서대로 쓰세요. 입력이 없거나 해당 여부와 무관한 호도 한 문장으로 상태만 설명하세요. 한국어로 간결하게 답하세요. '
+    '각 criteria의 proposed_status는 사람이 검토할 비구속 참고 선택이며 최종 판정이 아닙니다. APPLICABLE·NOT_APPLICABLE·UNDETERMINED 중 하나로 쓰고 explanation과 basis_refs로 사유를 설명하세요. '
+    '중량·시간·횟수나 해당 기준의 증거가 부족하면 UNDETERMINED로 두세요. 모름이나 사진에서 안 보임을 NOT_APPLICABLE로 발명하지 마세요. 제안으로 계산·기존 조사자 결론·점수·입력값을 바꾸지 마세요. '
     '사용자에게 보이는 본문에는 상태 코드나 개발 용어를 쓰지 마세요. 아래 용어는 뜻에 맞는 한국어로 풀어 쓰세요. '
     + json.dumps(TERMS,ensure_ascii=False)
 )
@@ -127,7 +129,7 @@ def generate(summary, model, api_key, settings=None):
         # its text before validation while preserving missing/wrong-type errors.
         if isinstance(content,dict) and isinstance(content.get('reba_comparison'),str):
             content['reba_comparison']=reba_comparison_text(summary)
-        if not validate_content(content,summary): return None,'INVALID_STRUCTURED_CONTENT'
+        if not validate_content(content,summary,allow_legacy=False): return None,'INVALID_STRUCTURED_CONTENT'
         # Score direction is deterministic; never expose the model-authored comparison.
         content['reba_comparison']=reba_comparison_text(summary)
         content['_connection']=config.connection(response,model,settings)
@@ -197,13 +199,13 @@ def fallback_text(summary):
             photo=f" 사진 확인 전 값 {so_far['unconfirmed_photo_count']}개를 포함하고" if so_far.get('unconfirmed_photo_count') else ''
             assumed_count=so_far.get('assumed_count',current.get('assumed_count',0))
             load=' 물건 무게가 미확인이라 하중 가산점을 0으로 가정했으며,' if current.get('load_assumed') or so_far.get('load_assumed') else ''
-            text+=f" {source} 기준 REBA는 {current['total']}점({risk_text})이며,{photo} 확인하지 못한 {assumed_count}개 항목을 부담 없음으로 가정한 확정 전 점수입니다. 확정 점수가 아닙니다.{load} 실제 점수는 더 높을 수 있습니다."
+            text+=f" {source} 기준 REBA는 {current['total']}점({risk_text})이며,{photo} 확인하지 못한 {assumed_count}개 항목을 부담 없음으로 가정한 확정 전 점수입니다. 확정 점수가 아닙니다.{load} 실제 점수는 이 점수보다 높거나 낮을 수 있습니다."
     else:
         so_far=reba_summary.get('score_so_far')
         if so_far:
             photo=f" 사진 확인 전 값 {so_far['unconfirmed_photo_count']}개를 포함하고" if so_far.get('unconfirmed_photo_count') else ''
             load=' 물건 무게가 미확인이라 하중 가산점을 0으로 가정했으며,' if so_far.get('load_assumed') else ''
-            text+=f" 지금까지 확인한 값 기준 REBA는 {so_far['total']}점({risk_names.get(so_far['risk'],'위험수준 미확인')})이며,{photo} 확인하지 못한 {so_far['assumed_count']}개 항목을 부담 없음으로 가정한 확정 전 점수입니다.{load} 실제 점수는 더 높을 수 있습니다."
+            text+=f" 지금까지 확인한 값 기준 REBA는 {so_far['total']}점({risk_names.get(so_far['risk'],'위험수준 미확인')})이며,{photo} 확인하지 못한 {so_far['assumed_count']}개 항목을 부담 없음으로 가정한 확정 전 점수입니다.{load} 실제 점수는 이 점수보다 높거나 낮을 수 있습니다."
     quality=(summary.get('pose_quality') or {}) if isinstance(summary,dict) else {}
     if quality.get('total_points'):
         quality_names={'HIGH':'높음','MEDIUM':'보통','LOW':'낮음','MISSING':'측정 없음'}

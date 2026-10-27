@@ -25,7 +25,7 @@ export function createRebaView(ctx){
   const assumed=score.kind!=='CONFIRMED';
   const label=score.kind==='ASSUMED_REFERENCE'?'참고값 · 자세 측정값 없음':assumed?'확정 전 · 일부 값을 가정':'완성 사진 기준';
   const caution=assumed
-   ? `<p>${score.kind==='ASSUMED_REFERENCE'?'사용 가능한 자세 측정값이 없어 기준 자세를 가정한 참고 점수입니다.':'확정 점수가 아니며 실제 점수는 더 높을 수 있습니다.'}${Number.isFinite(assumedCount)&&assumedCount>0?` 가정한 항목 ${assumedCount}개.`:''}${photoCount?` 사진에서 읽었지만 확인하지 않은 값 ${photoCount}개가 포함됐습니다.`:''}${score.assumption?` ${e(score.assumption)}`:''}</p>`
+   ? `<p>${score.kind==='ASSUMED_REFERENCE'?'사용 가능한 자세 측정값이 없어 기준 자세를 가정한 참고 점수입니다.':'확정 점수가 아니며 실제 점수는 이 점수보다 높거나 낮을 수 있습니다.'}${Number.isFinite(assumedCount)&&assumedCount>0?` 가정한 항목 ${assumedCount}개.`:''}${photoCount?` 사진에서 읽었지만 확인하지 않은 값 ${photoCount}개가 포함됐습니다.`:''}${score.assumption?` ${e(score.assumption)}`:''}</p>`
    : `<p>완성 사진 ${score.slot_no??'—'}번 기준입니다. 다른 분석대상 사진이 미완성이면 전체 최대 점수는 아직 달라질 수 있습니다.</p>`;
   const measurement=quality?`<p>현재 점수 사진의 측정 랜드마크 ${quality.measured_points}/${quality.total_points}개 · 신뢰도 ${e(confidenceName)}${Number.isFinite(quality.mean_confidence)?` (${quality.mean_confidence.toFixed(2)})`:''}</p>`:'';
   const title=analysis?.currentness==='STALE'?'선택한 과거 분석의 REBA 점수':'REBA 현재 점수';

@@ -227,11 +227,14 @@ def _posture_results(analysis,targets):
         for angle in p.get('world_angles') or []:
             world_angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),display_value_deg=_display_angle(angle.get('value_deg')),
                 min_confidence=_safe_number(angle.get('min_confidence')),diagnostic=angle.get('diagnostic'),coordinate_space='INFERRED_WORLD_3D',used_for_reba=_world_angle_used(r,angle)))
+        current_score=r.get('current_score') or r.get('score_so_far') or {}
+        current_components=current_score.get('components') or {}
         sides={}
         for side in ('left','right'):
             source=r.get(side) or {}
+            components=current_components.get(side) or {}
             fields=('trunk','neck','legs','table_a','load_score','score_a','upper_arm','lower_arm','wrist','table_b','coupling_score','score_b','table_c','activity_score','total')
-            sides[side]={key:_safe_number(source.get(key)) for key in fields}
+            sides[side]={key:_safe_number(source.get(key) if source.get(key) is not None else components.get(key)) for key in fields}
             sides[side].update(risk=source.get('risk'),missing_fields=source.get('missing_fields') or [],review_reasons=source.get('review_reasons') or [])
         candidates=[]
         for item in r.get('candidates') or []:
@@ -412,7 +415,7 @@ def _current_reba_text(summary):
         return f"{label} 참조값은 {score['total']}점({risk}·부담 없음 가정)입니다. 측정·답변 근거가 부족한 참조값이며 측정값이나 확정 점수가 아닙니다."
     count=score.get('assumed_count')
     missing=f'미확인 {count}개 항목' if type(count) is int and count>=0 else '미확인 항목'
-    return f"{label}는 {score['total']}점({risk}·가정 포함)입니다. {missing}을 부담 없음으로 가정한 점수이며, 확정 점수가 아니고 실제 부담은 더 클 수 있습니다."
+    return f"{label}는 {score['total']}점({risk}·가정 포함)입니다. {missing}을 부담 없음으로 가정한 점수이며, 확정 점수가 아닙니다. 실제 점수는 이 점수보다 높거나 낮을 수 있습니다."
 
 
 def reba_comparison_text(summary):
@@ -449,12 +452,12 @@ def explanation_schema():
     posture={'type':'array','items':{'type':'object','additionalProperties':False,'required':['photo_ref','explanation'],'properties':{'photo_ref':string,'explanation':string}}}
     return {'type':'object','additionalProperties':False,'required':['summary','reba_comparison','posture_explanations','criteria','check_items','improvement_options'],'properties':{
         'summary':string,'reba_comparison':string,'posture_explanations':posture,
-        'criteria':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['criterion_no','explanation','basis_refs'],'properties':{'criterion_no':{'type':'integer'},'explanation':string,'basis_refs':refs}}},
+        'criteria':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['criterion_no','explanation','basis_refs','proposed_status'],'properties':{'criterion_no':{'type':'integer'},'explanation':string,'basis_refs':refs,'proposed_status':{'type':'string','enum':['APPLICABLE','NOT_APPLICABLE','UNDETERMINED']}}}},
         'check_items':refs,
         'improvement_options':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['proposal','basis_refs','needs_confirmation'],'properties':{'proposal':string,'basis_refs':refs,'needs_confirmation':{'type':'boolean'}}}}
     }}
 
-def validate_content(content,summary):
+def validate_content(content,summary,*,allow_legacy=True):
     if not isinstance(content,dict) or set(content)!={'summary','reba_comparison','posture_explanations','criteria','check_items','improvement_options'}: return False
     if not isinstance(summary,dict) or not isinstance(summary.get('criteria'),list): return False
     expected_photos=[item.get('photo_ref') for item in summary.get('posture_results') or []]
@@ -466,19 +469,28 @@ def validate_content(content,summary):
     criteria=content.get('criteria')
     if not isinstance(criteria,list) or len(criteria)!=11 or not all(isinstance(x,dict) for x in criteria): return False
     if [x.get('criterion_no') for x in criteria]!=list(range(1,12)): return False
-    basis_by_criterion={}
+    basis_by_criterion={};support_by_criterion={};computed_by_criterion={}
     try:
         for criterion in summary['criteria']:
             number=criterion['criterion_no']; basis=criterion['basis']
             if number not in range(1,12) or not isinstance(basis,list): return False
             basis_by_criterion[number]={item['item_code'] for item in basis if isinstance(item,dict) and isinstance(item.get('item_code'),str)}
+            support_by_criterion[number]={item['item_code'] for item in basis if isinstance(item,dict) and
+                (item.get('value') in ('YES','NO') or type(item.get('value')) in (int,float))}
+            computed_by_criterion[number]=criterion.get('computed_status')
     except (KeyError,TypeError): return False
     if set(basis_by_criterion)!=set(range(1,12)): return False
     references=set().union(*basis_by_criterion.values())
     refs=[]
     for item in criteria:
-        if set(item)!={'criterion_no','explanation','basis_refs'} or not isinstance(item.get('explanation'),str) or not isinstance(item.get('basis_refs'),list): return False
+        keys={'criterion_no','explanation','basis_refs','proposed_status'}
+        if set(item)!=keys and not (allow_legacy and set(item)==keys-{'proposed_status'}):return False
+        if 'proposed_status' in item and item['proposed_status'] not in ('APPLICABLE','NOT_APPLICABLE','UNDETERMINED'):return False
+        if not isinstance(item.get('explanation'),str) or not isinstance(item.get('basis_refs'),list): return False
         if any(not isinstance(ref,str) or ref not in basis_by_criterion[item['criterion_no']] for ref in item['basis_refs']): return False
+        if (item.get('proposed_status') in ('APPLICABLE','NOT_APPLICABLE') and
+                computed_by_criterion[item['criterion_no']] not in ('APPLICABLE','NOT_APPLICABLE','EXCLUDED') and
+                not set(item['basis_refs']) & support_by_criterion[item['criterion_no']]):return False
         refs.extend(item['basis_refs'])
     if not isinstance(content.get('improvement_options'),list): return False
     for item in content['improvement_options']:

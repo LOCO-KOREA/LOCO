@@ -33,7 +33,7 @@ def content_fixture(summary):
     return dict(summary='기록된 입력과 계산 초안을 설명합니다.',reba_comparison=payload.reba_comparison_text(summary),
                 posture_explanations=[dict(photo_ref=row['photo_ref'],explanation='사진의 측정 결과입니다.')
                                       for row in summary.get('posture_results',[])],
-                criteria=[dict(criterion_no=number,explanation='기록된 계산 초안입니다.',basis_refs=[])
+                criteria=[dict(criterion_no=number,explanation='기록된 계산 초안입니다.',basis_refs=[],proposed_status='UNDETERMINED')
                           for number in range(1,12)],check_items=[],improvement_options=[])
 
 

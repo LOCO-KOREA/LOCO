@@ -16,12 +16,15 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
       progress: {completed_count: 0, total_count: 1, remaining_count: 1, percent: 0, dynamic: true}};
     const intake = new AdaptiveIntake({changed() {}, notify() {}, api: async method => method === 'intake_contract' ? contract : structuredClone(state)});
     await intake.open(1);
-    intake.formStage = 1;
+    intake.photoEditor = true;
     intake.dialogOpen = true;
     return {intake, html: intake.dialog(false)};
   };
   const why = '사진 또는 측정 설정이 바뀌어 이전 확인을 쓸 수 없어요. 다시 확인해 주세요.';
-  assert.match((await form({...asked, reask: true, reason: why})).html, new RegExp(why), 'a returning photo question must show why it returns');
+  const changed=await form({...asked,reask:true,reason:why});
+  assert.equal(changed.intake.formFields()[0].reason,why,'invalidation metadata remains available without becoming a forced question');
+  assert.match(changed.html,/사진 사용 상황/);assert.match(changed.html,/미확인/);
+  assert.doesNotMatch(changed.html,/data-intake-form=|data-intake-question=|다시 확인해 주세요/,'photo changes expose data state and explicit edit, not a repeated question');
   assert.doesNotMatch((await form(asked)).html, /결과 계산에 필요한 정보가 아직 없어요/, 'a first-time question keeps its quiet look');
 
 
@@ -35,7 +38,9 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal(refused.intake.formValue(unused), undefined, 'the unused reading must not be preselected');
   assert.equal(refused.intake.pendingFormFields(1, {includePhoto: true}).length, 1);
   assert.doesNotMatch(refused.html, /data-intake-confirmed/, 'it must not be listed as already confirmed');
-  assert.match(refused.html, /사진 측정값은 쓰지 않기로 해서 직접 확인해 주세요/);
+  assert.match(refused.html,/사진 사용 안 함/);assert.doesNotMatch(refused.html,/현재 점수에 반영|data-intake-form=|직접 확인해 주세요/,'refused photo reading remains visible but unused and is never forced as a fresh answer');
+  assert.deepEqual(refused.intake.formAnswers(),[],'opening a refused photo must not rewrite its state');
+  refused.intake.dataEditing.add(unused.identity);assert.match(refused.intake.dialog(false),/data-intake-form="manual\.COMMON\.trunk_base@photo:2"/,'an explicit edit remains possible');
   const kept = await form({...unused, photo_unused: undefined}, read);
   assert.equal(kept.intake.formHandled({...unused, photo_unused: undefined}), true, 'the same reading stays confirmed while the photo is in use');
 
@@ -46,6 +51,6 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal(messages.length, 1);
   assert.doesNotMatch(messages[0], /이전 답변은 그대로 유지돼요/, 'photo-bound answers are not kept, so the promise must not say all answers are');
   assert.match(messages[0], /작업 종류·시간·횟수 답변은 그대로 유지/);
-  assert.match(messages[0], /사진 자세 확인은 새 사진 기준으로 다시 물어봐요/);
-  console.log('PASS returning photo questions say why they return; refused photo readings are asked, not listed as confirmed; improve-again wording matches what is kept');
+  assert.match(messages[0], /새 사진.*분석값.*확인.*수정/);
+  console.log('PASS invalidated photo metadata retained as read-only state, refusal unapplied, explicit correction and accurate improve-again wording');
 })().catch(error => { console.error(error); process.exitCode = 1; });

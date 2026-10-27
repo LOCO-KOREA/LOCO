@@ -297,17 +297,26 @@ def choose(candidates, proposed=()):
     return chosen[:POLICY['question_limit']]
 
 
+def choose_questions(candidates,proposed=(),photo_context=None):
+    """Do not re-ask posture already covered by an accepted photo; retain context/view/load questions and refusal fallback."""
+    optional_posture=(photo_context=='YES')
+    required=[candidate for candidate in candidates if not (optional_posture and candidate['destination']['type']=='manual')]
+    return choose(required,proposed)
+
+
 def form_fields(task, saved, views, candidates):
-    """Finite form metadata, including relevant saved values for correction."""
+    """Separate pending questions from relevant saved values kept for correction."""
     catalogue = fields()
     judgments=calculate_v2(task['conditions'],task['legal'])['judgments']
     by_target = {f['target']: f for f in catalogue}
-    result = {c['identity']: c for c in candidates if c['target'] != 'other_work'}
+    pending={candidate['identity'] for candidate in candidates}
+    result = {c['identity']: dict(c) for c in candidates}
+    other_work_open=(saved.get(key('other_work')) or {}).get('value')=='YES'
     for field in catalogue:
         if field['destination']['type'] == 'work_type':
             identity = key(field['target'])
-            if identity in saved or work_feature_needed(field,judgments):
-                result[identity] = dict(field, identity=identity, condition=POLICY['default_condition'])
+            if identity in saved or other_work_open and work_feature_needed(field,judgments):
+                result.setdefault(identity,dict(field, identity=identity, condition=POLICY['default_condition']))
     for identity, item in saved.items():
         if item.get('alias_of') or not photo_facts.active(item,views):continue
         field = by_target.get(item['target'])
@@ -321,4 +330,4 @@ def form_fields(task, saved, views, candidates):
             reason=item.get('measurement_reason') or WRIST_REASONS.get(item.get('measurement_diagnostic'))
             result.setdefault(identity,dict(field, identity=identity, condition=item['condition'],**metadata,
                 **(dict(measurement_applied=True,**(dict(reason=reason,photo_measurement_reason=True) if reason else {})) if applied else {})))
-    return list(result.values())
+    return [dict(field,pending_input=identity in pending) for identity,field in result.items()]

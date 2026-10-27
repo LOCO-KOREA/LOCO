@@ -167,7 +167,7 @@ AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바�
 
 계산기가 이미 완료한 범위의 작업 특징은 후보와 묶음 서식 모두에서 제외한다. 원래 미확인 값을 NO로 저장하지 않는다. 작업 설명을 먼저 보이는 답변 칸에서 한 번에 정리하고, 개별 수정은 접힌 영역에서 제공한다. 화면에 열거된 남은 작업 특징은 사용자가 명시적으로 한 번 확인하여 NO로 저장할 수 있다. 먼저 작성 중 설명과 직접 선택을 저장하며 새로 알려진 YES, 이전 USER 모름, 이미 확인된 값은 일괄 확인으로 덮지 않는다.
 
-공통 intake POLICY.optional_photo_destinations는 사진 점수를 더 보완할 때의 항목을 정의하고 form_prompt_limit은 한 자연어 안내에 나열할 항목 수를 정의한다. 사진의 미확정 보완 항목만 남으면 기본 팝업을 강제하지 않고, 사용자가 선택해 더 확인할 수 있다. 해당 값은 미확인으로 보존하고 REBA 미완성/현재 정보 출력의 기존 의미를 유지한다. 작업 정보가 충분하거나 사용자가 모른다고 확인한 뒤에는 빈 단계를 건너뛴다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
+공통 intake POLICY.optional_photo_destinations는 사진 상황·방향·하중·자세를 결과의 선택 보완 서식에서 편집할 수 있음을 뜻하며, 그 자체로 모두 질문에서 제외한다는 뜻은 아니다. 사진 사용 여부·촬영 방향·하중 연결은 계산 또는 소유권에 필요한 경우 질문한다. MediaPipe/AI 사진 결과가 있는 동안 자세 수치·항목을 다시 묻지 않고 결과 단계에서 편집할 수 있게 한다. 사진을 사용하지 않기로 했거나 모름이면 필요한 자세 정보는 대체 입력으로 질문한다. 질문은 form_prompt_limit 범위에서 하나씩 보여준다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
 
 회귀는 test_question_minimization.py와 frontend-question-minimization.cjs에서 계산 완료 시 9개→0개, 남은 특징 한 번 확인, USER 모름/직접 YES 보호, 미전송 설명 우선 처리와 실패 보존을 검사한다. 실제 질문 수는 저장 필드 수 또는 접힌 사진 보완 수와 구분하여 사용자 답변 동작으로 검증한다.
 
@@ -207,3 +207,12 @@ AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바�
 원문 인용·대상·단위·사진 소유권 검증을 통과한 현재 텍스트 제안은 이전 source=VISION의 KNOWN/CONFLICT 추정보다 우선해 source=AI,state=KNOWN으로 저장한다. 다른 값은 충돌 재질문으로 만들지 않고, 같은 값도 텍스트 근거로 승격하여 사진 삭제 때 명시한 작업 특징이 사라지지 않게 한다. 과거 원문 인용만으로는 이 승격을 하지 않는다. USER(직접 모름 포함), 기존 텍스트 AI/SAVED/유효 POSE 값과 사진 변경·지연 보호는 유지한다. 사진별 manual 정식 조건과 대표 호환 alias는 같은 사진의 AI 근거를 가리키며 원래 사진 관찰 raw/cache는 수정하지 않는다.
 
 context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추출용 known_visual_observations는 빈 목록이다. YES로 직접 정정하면 기존 사진 캐시를 다시 사용할 수 있다. 사진과 무관한 직접 설명값은 유지한다.
+
+
+### 호별 AI 참고 선택·사람 검토 JSON (2026-10-27)
+
+물리 여섯 테이블과 모든 컬럼은 그대로다. ANALYSIS.result_json.ai[].content.criteria[]의 신규 응답은 proposed_status(APPLICABLE/NOT_APPLICABLE/UNDETERMINED)를 포함하고 explanation/basis_refs를 사유로 재사용한다. 이전 세 필드 AI 콘텐츠는 변환하거나 제안을 합성하지 않는다.
+
+ANALYSIS.result_json.criterion_review는 version/review_id/analysis_id/input_revision/source_text_id/reviewer/reviewed_at/conclusions/submitted_criteria/context_digest와 선택 source_summary_digest/source_text_digest를 가진다. 이전 receipt는 criterion_review_history에 append한다. 판단 보류는 receipt에만 기록하고 기존 binary investigator를 지우지 않는다. 명시적 null 해제만 investigator.status를 지운다. 입력·계산·snapshot과 기존 AI 원문/편집/적용본은 보존한다.
+
+criteria_proposals와 confirmation_current는 저장 필드가 아닌 읽기 projection이다. 기존 source_current는 그대로 두며 현재 분석과 receipt의 계산·입력·인간 결론 및 출처 AI digest를 확인한다. ExportSnapshot은 현재 인간 검토 receipt와 출력한 결과를 보존한다. 새 테이블·trigger·물리 migration은 없다.

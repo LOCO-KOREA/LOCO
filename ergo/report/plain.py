@@ -433,6 +433,7 @@ def _posture(c):
             current = project_current_score(dict(slots=[r], summary=dict(
                 current_score=r.get('current_score'), total_slot_count=1,
                 complete_count=int(r.get('total') is not None))))
+            current_components=(current or {}).get('components') or (r.get('score_so_far') or {}).get('components') or {}
             if current:
                 basis = {'CONFIRMED': '확인 완료', 'WITH_ASSUMPTIONS': '확인 전 항목 포함', 'ASSUMED_REFERENCE': '가정 기준 · 측정 확인 필요'}.get(current.get('kind'), '확인 전')
                 score_rows.append([t['name'], label, f"{current['total']}점", basis, _measurement_text(a, no)])
@@ -440,6 +441,8 @@ def _posture(c):
                 s = r.get(side) or {}
                 if not s:
                     continue
+                components=current_components.get(side) or {}
+                value=lambda key: s.get(key) if s.get(key) is not None else components.get(key)
                 remarks = []
                 if no == representative:
                     remarks.append('대표 사진')
@@ -449,11 +452,11 @@ def _posture(c):
                     remarks.append('확인: ' + ', '.join(reason_label(x) for x in s['review_reasons']))
                 if r.get('score_so_far') and s.get('total') is None:
                     remarks.append(f"확정 전 {r['score_so_far'][side]}점 (가정 {len(r['score_so_far']['assumed'])}개 포함)")
-                side_total = s.get('total')
+                side_total = value('total')
                 if side_total is None:
                     side_total = (r.get('score_so_far') or {}).get(side)
-                reba_rows.append([t['name'], label, SIDE[side.upper()], s.get('trunk'), s.get('neck'), s.get('legs'), s.get('upper_arm'), s.get('lower_arm'), s.get('wrist'),
-                                  s.get('load_score'), s.get('coupling_score'), s.get('activity_score'), side_total if side_total is not None else '확인 전',
+                reba_rows.append([t['name'], label, SIDE[side.upper()], value('trunk'), value('neck'), value('legs'), value('upper_arm'), value('lower_arm'), value('wrist'),
+                                  value('load_score'), value('coupling_score'), value('activity_score'), side_total if side_total is not None else '확인 전',
                                   say(s.get('risk') or (reba_risk(side_total) if side_total is not None else None)), ' · '.join(remarks)])
         floor = ((a['snapshot'].get('settings') or {}).get('pose_model') or {}).get('confidence_min', 0.5)
         pose_rows_owned,rejected_pose=_owned_rows((a.get('pose') or {}).get('slots', []),t['source'])
@@ -558,7 +561,7 @@ def _explanations(c):
         if not analysis or currentness(t['task'], analysis) != 'CURRENT':
             continue
         for ai in analysis.get('ai') or []:
-            if ai.get('is_active') and ai.get('applied_text') and ai.get('applied_at') and ai.get('source_current') is True:
+            if ai.get('is_active') and ai.get('applied_text') and ai.get('applied_at') and (ai.get('source_current') is True or ai.get('confirmation_current') is True):
                 rows.append([t['name'], kinds.get(ai.get('applied_kind'), '설명'), kst(ai.get('applied_at')), user_text(ai['applied_text'])])
     if not rows:
         return None

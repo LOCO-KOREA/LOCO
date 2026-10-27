@@ -159,7 +159,8 @@ def _save(ctx, task, session, preview):
 def _response(task,session,preview,*,reason=None,proposed=(),dropped=()):
     assessment=planner.assess(task,session['facts'],session['views'])
     suggestions=proposed or session.get('suggestions',[])
-    questions=[planner.with_answer_questions(planner.with_paired_question(question,assessment['candidates']),assessment['candidates'],session['facts']) for question in planner.choose(assessment['candidates'],suggestions)]
+    photo_context=(session['facts'].get(contract.key('context')) or {}).get('value')
+    questions=[planner.with_answer_questions(planner.with_paired_question(question,assessment['candidates']),assessment['candidates'],session['facts']) for question in planner.choose_questions(assessment['candidates'],suggestions,photo_context)]
     catalogue={f['target']:f for f in contract.fields()}
     rows=[dict(f,identity=identity,label=(f.get('photo_label','')+' · ' if f['target'].startswith('manual.') and f.get('photo_label') else '')+catalogue[f['target']]['label'],unit=catalogue[f['target']]['unit'])
           for identity,f in session['facts'].items() if f['target'] in catalogue]

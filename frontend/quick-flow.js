@@ -185,7 +185,7 @@ export class QuickFlow {
     if(!preserveActivity) { clearInterval(this.busyTimer); this.busyTimer=null; this.busyStartedAt=null; }
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
-    this.criteriaReviewOpen=false;this.skipCriteriaReviewCapture=true;
+    this.criteriaReviewOpen=false;this.skipCriteriaReviewCapture=true;this.criteriaProposalSeen=new Set();this.scoreDetailsOpen=false;this.skipScoreDetailsCapture=true;this.reviewMessage='';this.revealPhotoRows=false;this.criteriaConfirming=false;
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
       result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, analysisTitle: null, intakeText: '', intakeReturnStep: null, laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
@@ -639,12 +639,51 @@ export class QuickFlow {
       if (this.reopened) this.saved = {task: (await this.api('get_task', {task_id: this.task.task_id})).task, survey: await this.api('get_survey', {survey_id: this.survey.survey_id})};
       this.baseline = this.result; this.comparison = null; this.exported = null; this.reopened = false;
       this.step = 'start'; this.preview = null; this.stale = true; this.result = null; this.excelPreview = null; this.overview = null; this.review = {reviewer: this.review.reviewer, note: ''};
-      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 작업 종류·시간·횟수 답변은 그대로 유지되고, 사진 자세 확인은 새 사진 기준으로 다시 물어봐요.');
+      this.notify('개선 후 사진으로 바꿔 넣고 "분석 시작"을 눌러 주세요. 작업 종류·시간·횟수 답변은 그대로 유지되고, 새 사진의 분석값을 확인·수정할 수 있어요.');
     });
   }
 
   // ================= step 5: review, AI explanation, Excel
-  openReview() { this.step = 'review'; this.render(); window.scrollTo({top: 0}); }
+  async prepareReviewAnalysis() {
+    const owner=this.task;
+    if(!Number.isInteger(owner?.task_id))throw Error('작업을 먼저 저장한 뒤 검토해 주세요.');
+    const bundle=await this.api('get_task_result',{task_id:owner.task_id});
+    if(bundle.task.task_id!==owner.task_id||(owner.created_at&&bundle.task.created_at!==owner.created_at))throw Error('검토할 작업이 바뀌었어요. 현재 작업을 다시 열어 주세요.');
+    let result=bundle.analysis;
+    const wait=async analysis=>{
+      while(analysis?.status==='RUNNING'){
+        await new Promise(resolve=>setTimeout(resolve,200));
+        analysis=await this.api('get_analysis',{analysis_id:analysis.analysis_id});
+      }
+      return analysis;
+    };
+    result=await wait(result);
+    const ready=analysis=>Number.isInteger(analysis?.analysis_id)&&analysis.currentness==='CURRENT'&&analysis.judgment?.judgments?.length===11;
+    if(!ready(result)){
+      result=await this.api('recalculate_judgments',{task_id:owner.task_id});
+      // A changed pose/load may prevent reusing other requested modules. Complete
+      // those from current inputs rather than presenting an old score as current.
+      if(['pose','reba','tags'].some(key=>result.snapshot?.analysis_scope?.[key]&&result.module_states?.[key]==='NOT_CALCULATED')){
+        const handle=await this.api('start_analysis',{task_id:owner.task_id});
+        result=await wait(await this.api('get_analysis',{analysis_id:handle.analysis_id}));
+      }
+      this.reviewMessage='현재 입력으로 새 계산 초안을 준비했어요. 이전 분석의 결론은 그대로 보관돼요.';
+    }
+    if(!ready(result))throw Error('입력이 바뀌었거나 계산 초안이 아직 준비되지 않았어요. 최신 결과에서 다시 확인해 주세요.');
+    const current=(await this.api('get_task',{task_id:owner.task_id})).task;
+    if(current.latest_analysis_id!==result.analysis_id||current.input_revision!==result.input_revision)throw Error('검토 중 입력이 바뀌었어요. 최신 결과를 다시 확인해 주세요.');
+    this.task=current;
+    this.result=result;
+    return result;
+  }
+
+  async openReview() {
+    if(this.busy){this.notify?.('진행 중인 작업이 끝나면 검토할 수 있어요.');return;}
+    await this.run('검토할 현재 결과를 준비하고 있어요…',async()=>{
+      await this.prepareReviewAnalysis();this.step='review';
+    });
+    window.scrollTo({top:0});
+  }
 
   // The check list and the preview are built from the same stored results the Excel file will use.
   async openExcel() {
@@ -700,13 +739,68 @@ export class QuickFlow {
       : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
   }
 
-  async conclude(number, status) {
-    await this.run('결론을 저장하고 있어요…', async () => {
-      const current = this.result.judgment.judgments.find(j => j.criterion_no === number)?.investigator?.status ?? null;
-      const next = current === status ? null : status;
-      const conclusion = {criterion_no: number, status: next, reason: null, evidence: evidence('빠른 분석 검토', 'DIRECT_OBSERVATION'), reviewer: this.review.reviewer || null, reviewed_at: new Date().toISOString()};
-      this.result = await this.api('set_investigator_conclusion', {analysis_id: this.result.analysis_id, conclusion});
-    });
+  criterionReviewKey() {
+    const a=this.result;
+    return Number.isInteger(a?.analysis_id)?JSON.stringify([this.task?.task_id,a.analysis_id,a.input_revision,this.task?.created_at,this.survey?.created_at]):null;
+  }
+
+  currentCriterionProposals() {
+    const a=this.result,ai=(a?.ai||[]).filter(item=>item.purpose==='TASK_EXPLANATION').at(-1);
+    const confirmedSource=a?.confirmation_current===true&&ai?.confirmation_current===true;
+    if(a?.currentness!=='CURRENT'||ai?.result!=='GENERATED'||!(ai.source_current===true||confirmedSource))return [];
+    const rows=(a.criteria_proposals||[]).filter(item=>(item.source_current===true||confirmedSource&&item.confirmation_current===true)&&item.source_text_id===ai.text_id&&
+      Number.isInteger(item.criterion_no)&&item.criterion_no>=1&&item.criterion_no<=11&&['APPLICABLE','NOT_APPLICABLE','UNDETERMINED'].includes(item.proposed_status));
+    return rows.length===11&&new Set(rows.map(item=>item.criterion_no)).size===11?rows:[];
+  }
+
+  criterionReviewDraft() {
+    this.criterionReviewDrafts ||= new Map();
+    const key=this.criterionReviewKey(),proposals=new Map(this.currentCriterionProposals().map(item=>[item.criterion_no,item]));
+    const receipt=this.result?.confirmation_current===true?this.result.criterion_review:null;
+    const confirmed=new Map((receipt?.conclusions||[]).map(item=>[item.criterion_no,item.status]));
+    let draft=this.criterionReviewDrafts.get(key);
+    if(!draft){draft={key,choices:new Map(),touched:new Set()};if(key)this.criterionReviewDrafts.set(key,draft);}
+    for(const item of this.result?.judgment?.judgments||[]){
+      if(draft.touched.has(item.criterion_no))continue;
+      const human=item.investigator?.status,proposal=proposals.get(item.criterion_no);
+      const hasHuman=['APPLICABLE','NOT_APPLICABLE'].includes(human);
+      const status=confirmed.has(item.criterion_no)?confirmed.get(item.criterion_no):hasHuman?human:proposal?.proposed_status??null;
+      if(status!==null||confirmed.has(item.criterion_no))draft.choices.set(item.criterion_no,{status:status===null?'CLEAR':status,origin:confirmed.has(item.criterion_no)||hasHuman?'CONFIRMED':proposal?'AI':'NONE'});
+      else draft.choices.delete(item.criterion_no);
+    }
+    draft.proposals=proposals;draft.sourceTextId=[...proposals.values()][0]?.source_text_id||receipt?.source_text_id||null;
+    return draft;
+  }
+
+  conclude(number,status) {
+    if(this.criteriaConfirming)return;
+    if(!['APPLICABLE','NOT_APPLICABLE','UNDETERMINED','CLEAR'].includes(status))return;
+    const item=this.result?.judgment?.judgments?.find(row=>row.criterion_no===number);
+    const hasCurrentConclusion=this.result?.confirmation_current===true&&this.result?.criterion_review?.conclusions?.some(row=>row.criterion_no===number);
+    if(!item||status==='CLEAR'&&!['APPLICABLE','NOT_APPLICABLE'].includes(item.investigator?.status)&&!hasCurrentConclusion)return;
+    const draft=this.criterionReviewDraft();
+    draft.choices.set(number,{status,origin:'MANUAL'});draft.touched.add(number);
+    this.render();
+  }
+
+  async confirmCriterionReview() {
+    if(this.busy||this.criteriaConfirming){this.notify?.('진행 중인 작업이 끝나면 검토 선택을 확정할 수 있어요.');return;}
+    const draft=this.criterionReviewDraft(),key=draft.key,sourceTextId=draft.sourceTextId;
+    const conclusions=[...draft.choices].filter(([,item])=>['APPLICABLE','NOT_APPLICABLE','UNDETERMINED','CLEAR'].includes(item.status))
+      .map(([criterion_no,item])=>({criterion_no,status:item.status==='CLEAR'?null:item.status})).sort((a,b)=>a.criterion_no-b.criterion_no);
+    if(!key||!conclusions.length)return;
+    this.criteriaConfirming=true;
+    try{
+      await this.run('선택한 호를 검토 결과로 확정하고 있어요…',async()=>{
+        await this.prepareReviewAnalysis();
+        if(this.criterionReviewKey()!==key||this.criterionReviewDraft().sourceTextId!==sourceTextId)
+          throw Error('입력이나 AI 제안이 바뀌었어요. 현재 화면의 선택을 확인한 뒤 다시 확정해 주세요.');
+        this.result=await this.api('confirm_criterion_review',{analysis_id:this.result.analysis_id,expected_input_revision:this.result.input_revision,
+          conclusions,source_text_id:sourceTextId,reviewer:this.review.reviewer||null});
+        draft.touched.clear();this.criterionReviewDraft();
+        this.reviewMessage='선택한 호의 검토를 확정했어요. 판단 보류는 별도 기록하며 기존 결론을 지우지 않아요.';
+      });
+    }finally{this.criteriaConfirming=false;this.render();}
   }
 
   reviewIsCurrent() {
@@ -732,7 +826,7 @@ export class QuickFlow {
   }
 
   explanationIsCurrent(ai) {
-    return Boolean(this.result?.currentness === 'CURRENT' && ai?.source_current === true);
+    return Boolean(this.result?.currentness === 'CURRENT' && (ai?.source_current === true||ai?.confirmation_current===true));
   }
 
   // Pressing "AI가 정리하기" is the opt-in; only the typed sentence is sent.
@@ -894,6 +988,7 @@ export class QuickFlow {
     else if (d.del) this.deleteSurvey(Number(d.del));
     else if (d.crit) this.critClick(d);
     else if (d.concl) this.conclude(Number(d.concl), d.status);
+    else if (d.quick === 'confirm-criteria') this.confirmCriterionReview();
     else if (d.quick === 'new') this.startNew();
     else if (d.quick === 'workspace-save') this.saveWorkspace();
     else if (d.quick === 'workspace-back') this.workspaceBack();
@@ -1028,8 +1123,8 @@ export class QuickFlow {
   async refreshIntakeForm(field,value) {
     const saved=this.intake.state?.facts.find(f=>f.identity===field.identity);
     if(saved?.state==='KNOWN'&&saved.value===value) { this.intake.clearFormValue(field.identity); return; }
-    const answers=this.intake.splitFormAnswers().direct, photo=field.target==='context', ui=this.captureDialogUi();
-    this.revealPhotoRows=photo;
+    const answers=this.intake.splitFormAnswers().direct, photo=field.target==='context', ui=this.captureDialogUi(),editing=this.revealPhotoRows;
+    this.revealPhotoRows=photo||editing;
     await this.run(photo?'사진 확인 내용을 저장하고 있어요…':'선택한 작업의 입력칸을 불러오고 있어요…',async()=>{
       await this.intake.flush();
       const state=await this.intake.turn('',answers,false);
@@ -1038,7 +1133,7 @@ export class QuickFlow {
       this.task=state.task;this.preview=state.preview;
       for(const answer of answers)this.intake.clearFormValue(answer.target+'@'+answer.condition);
     });
-    this.revealPhotoRows=false;
+    this.revealPhotoRows=Boolean(editing);
     this.restoreDialogUi(ui);
   }
 
@@ -1186,7 +1281,7 @@ export class QuickFlow {
       if (button && ai) {
         const currentText = ai.is_active ? (ai.applied_text ?? ai.generated_text ?? '') : (ai.generated_text ?? '');
         const changed = el.value !== currentText;
-        const canConfirm = this.result?.currentness === 'CURRENT' && ai.source_current === true && ai.result !== 'DISABLED';
+        const canConfirm = this.explanationIsCurrent(ai) && ai.result !== 'DISABLED';
         button.disabled = !canConfirm || !changed || Boolean(this.busy) || !el.value.trim();
         button.textContent = changed ? '수정한 설명 확인 후 Excel 반영' : '현재 설명 확정됨';
       }
@@ -1220,6 +1315,14 @@ export class QuickFlow {
     const criteriaPanel=this.host.querySelector?.('#quick-criteria-review');
     if(!this.skipCriteriaReviewCapture&&criteriaPanel)this.criteriaReviewOpen=criteriaPanel.open;
     this.skipCriteriaReviewCapture=false;
+    const proposals=this.step==='review'?this.currentCriterionProposals():[];
+    const proposalKey=proposals.length?JSON.stringify([this.criterionReviewKey(),proposals[0].source_text_id]):null;
+    this.criteriaProposalSeen ||= new Set();
+    if(proposalKey&&!this.criteriaProposalSeen.has(proposalKey)){this.criteriaReviewOpen=true;this.criteriaProposalSeen.add(proposalKey);}
+    const scoreDetails=this.host.querySelector?.('#quick-score-calculation');
+    if(!this.skipScoreDetailsCapture&&scoreDetails)this.scoreDetailsOpen=scoreDetails.open;
+    this.skipScoreDetailsCapture=false;
+    this.intake.photoEditor=Boolean(this.revealPhotoRows);
     this.onScreenChange?.(this.step === 'home' ? '홈' : STEPS.find(([id])=>id===this.step)?.[1] || '간편 분석');
     if (this.toolbar) {
       this.toolbar.hidden = false;
@@ -1530,21 +1633,33 @@ export class QuickFlow {
     const r = this.result || {}, reba = r.reba || {}, summary = reba.summary || {}, slots = reba.slots || [];
     const current = summary.current_score || null;
     const slotNo = current?.slot_no ?? summary.score_so_far?.slot_no ?? slots[0]?.slot_no;
-    const slot = slots.find(item => item.slot_no === slotNo) || slots[0] || null;
+    const owner=(r.snapshot?.capture?.slots||[]).find(item=>item.slot_no===slotNo);
+    const candidates=slots.filter(item=>item.slot_no===slotNo);
+    const owned=owner?.photo_id!=null?candidates.filter(item=>item.photo_id===owner.photo_id):candidates;
+    const slot=owned.length===1?owned[0]:!owned.length&&candidates.length===1&&candidates[0].photo_id==null?candidates[0]:null;
     const score = current || (slot?.total != null ? {...slot, kind: 'CONFIRMED'} : slot?.score_so_far ? {...slot.score_so_far, kind: slot.score_so_far.kind || 'WITH_ASSUMPTIONS'} : summary.score_so_far ? {...summary.score_so_far, kind: summary.score_so_far.kind || 'WITH_ASSUMPTIONS'} : null);
     if (!score || !Number.isFinite(score.total)) return `${compact ? '' : '<h2>REBA 현재 점수</h2>'}<p class="quick-note">아직 점수를 계산할 수 없어요.</p>${compact ? '' : this.postureAction()}`;
 
     const quality = (r.measurement_quality?.slots || []).find(item => item.slot_no === (score.slot_no ?? slot?.slot_no));
-    const assumed = Array.isArray(score.assumed) ? score.assumed : [];
+    const storedAssumedCount=Array.isArray(score.assumed)?score.assumed.length:Number.isInteger(score.assumed_count)?score.assumed_count:null;
+    const detailCandidates=[score,slot?.current_score,...(score.kind==='WITH_ASSUMPTIONS'||!score.kind?[slot?.score_so_far]:[])];
+    const detailScores=detailCandidates.filter(item=>{
+      const count=Array.isArray(item?.assumed)?item.assumed.length:item?.assumed_count;
+      const matchingKind=item===score||((score.kind==='CONFIRMED'||score.kind==='ASSUMED_REFERENCE')?item?.kind===score.kind:!item?.kind||!score.kind||item.kind===score.kind);
+      return item&&item.total===score.total&&matchingKind&&(storedAssumedCount==null||count==null||count===storedAssumedCount);
+    });
+    const assumedSource=detailScores.find(item=>Array.isArray(item.assumed));
+    const assumed = assumedSource?.assumed || [];
     const missing = [...new Set([...(slot?.left?.missing_fields || []), ...(slot?.right?.missing_fields || [])])];
     const status = score.kind === 'CONFIRMED' ? '확인된 점수' : score.kind === 'ASSUMED_REFERENCE' ? '측정 전 기준 점수' : '미확인 항목을 가정한 점수';
-    const assumedCount = Array.isArray(score.assumed) ? score.assumed.length : Number.isInteger(score.assumed_count) ? score.assumed_count : null;
+    const assumedCount = assumedSource?assumed.length:detailScores.find(item=>Number.isInteger(item.assumed_count))?.assumed_count??null;
     const statusNote = score.kind === 'ASSUMED_REFERENCE'
       ? '측정·확정 결과가 아닌 참고 점수예요.'
       : score.kind === 'WITH_ASSUMPTIONS'
         ? assumedCount == null ? '확인되지 않은 값이 포함된 현재 점수예요.' : `미확인 항목 ${assumedCount}개를 가정한 현재 점수예요.`
         : '입력과 자세 측정이 확인된 점수예요.';
-    const assumption = plainText(score.assumption);
+    const assumption = detailScores.map(item=>plainText(item.assumption)).find(Boolean)||
+      (score.kind==='CONFIRMED'?'저장된 입력과 자세 측정으로 완성한 계산 결과예요.':score.kind==='ASSUMED_REFERENCE'?'관측·답변 근거가 부족해 부담 없음으로 둔 참조값이며 측정값이나 확정 점수가 아니에요.':'확인한 입력으로 계산하고 미확인 항목은 부담 없음으로 가정했어요. 확정 점수가 아니며 실제 점수는 이 점수보다 높거나 낮을 수 있어요.');
     const photoAssumption = Array.isArray(score.unconfirmed_photo) && score.unconfirmed_photo.length
       ? `사진 상황 미확인으로 측정값 ${score.unconfirmed_photo.length}개를 임시 사용했어요.` : '';
     const firstPass = summary.first_pass;
@@ -1552,17 +1667,25 @@ export class QuickFlow {
     const firstPassNote = firstPass && Number.isFinite(firstPass.total)
       ? `<details class="quick-first-pass"><summary>처음 사진 기준 점수 보기</summary><div class="quick-big small"><strong class="${rebaScoreClass(firstPass.total)}">${firstPass.total}</strong><span>점 · ${esc(riskText(firstPass.risk))}</span></div><p class="quick-note">답변 반영 전 측정값이에요. 현재 점수와 별도예요.${firstPassAssumption ? ` ${esc(firstPassAssumption)}` : ''}</p></details>`
       : '';
-    const sideValue = key => [score[key], slot?.score_so_far?.[key], slot?.[key]?.total].find(value => typeof value === 'number' && Number.isFinite(value));
+    const sideValue = key => [...detailScores.map(item=>item[key.toLowerCase()]),slot?.[key.toLowerCase()]?.total].find(value => typeof value === 'number' && Number.isFinite(value));
     const sides = [['LEFT', '왼쪽'], ['RIGHT', '오른쪽']].map(([key, label]) => ({label, value: sideValue(key)})).filter(item => item.value !== undefined);
-    const selectedSide = (score.selected_side || slot?.selected_side) === 'LEFT' ? '왼쪽' : '오른쪽';
+    const selectedSideCode=detailScores.map(item=>item.selected_side).find(Boolean)||slot?.selected_side;
+    const selectedSide=selectedSideCode==='LEFT'?'왼쪽':selectedSideCode==='RIGHT'?'오른쪽':null;
     const sideNote = sides.length === 2
-      ? `왼쪽 ${sides[0].value}점 · 오른쪽 ${sides[1].value}점 중 높은 쪽(${selectedSide})`
+      ? `왼쪽 ${sides[0].value}점 · 오른쪽 ${sides[1].value}점${selectedSide?` 중 높은 쪽(${selectedSide})`:''}`
       : sides.length === 1 ? `${sides[0].label} ${sides[0].value}점` : '';
     const missingDetails = missing.length ? `<p class="quick-note">확인이 필요한 항목 ${missing.length}개: ${missing.map(field => FIELD_KO[String(field).split('.').pop()] || '자세 항목').join(' · ')}</p>` : '';
     const assumedDetails = assumed.length ? `<p class="quick-note">가정한 항목 ${assumed.length}개: ${assumed.map(field => FIELD_KO[String(field).split('.').pop()] || (field === 'observation.load_state' ? '물건 들기 여부' : '자세 항목')).join(' · ')}</p>` : '';
-    const technical = `${compact ? '<section class="quick-review-score-details">' : '<details class="quick-review-technical"><summary>점수 계산과 가정 자세히 보기</summary>'}
+    const componentFields=[['trunk','몸통'],['neck','목'],['legs','다리'],['table_a','표 A'],['load_score','하중 가산'],['score_a','Group A 점수'],['upper_arm','위팔'],['lower_arm','아래팔'],['wrist','손목'],['table_b','표 B'],['coupling_score','손잡이 가산'],['score_b','Group B 점수'],['table_c','표 C'],['activity_score','활동 가산'],['total','합계']];
+    const components=detailScores.find(item=>item.components?.left||item.components?.right)?.components;
+    const componentRows=componentFields.map(([key,label])=>[label,(components?.left||slot?.left)?.[key],(components?.right||slot?.right)?.[key]]);
+    const componentDetails=componentRows.some(row=>row.slice(1).some(value=>Number.isFinite(value)))
+      ? `<h4>${components&&score.kind==='WITH_ASSUMPTIONS'?'가정을 포함한 현재 점수의 좌우 구성':'저장된 좌우 구성점수'}</h4><table class="quick-table"><thead><tr><th>항목</th><th>왼쪽</th><th>오른쪽</th></tr></thead><tbody>${componentRows.map(row=>`<tr>${row.map((value,index)=>`<td>${index===0?esc(value):Number.isFinite(value)?value:'기록 없음'}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+      : '<p class="quick-note" data-reba-components-missing>Group A/B·하중·활동 등 좌우 구성점수의 세부값은 이 결과에 저장되어 있지 않아요. 현재 총점과 가정 내역을 확인해 주세요.</p>';
+    const technical = `${compact ? '<section class="quick-review-score-details">' : `<details id="quick-score-calculation" class="quick-review-technical"${this.scoreDetailsOpen?' open':''}><summary>점수 계산과 가정 자세히 보기</summary>`}
+      <p class="quick-note" data-reba-score-basis>현재 REBA ${score.total}점(${esc(riskText(score.risk))}) · ${esc(statusNote)}</p>
       ${assumption ? `<p class="quick-note">${esc(assumption)}</p>` : ''}${photoAssumption ? `<p class="quick-note">${esc(photoAssumption)}</p>` : ''}
-      ${assumedDetails}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${firstPassNote}${compact ? '</section>' : '</details>'}`;
+      ${assumedDetails}${!assumed.length&&assumedCount>0?'<p class="quick-note">이 결과는 가정 개수만 저장되어 있어 항목별 목록은 제공되지 않아요.</p>':''}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${componentDetails}${firstPassNote}${compact ? '</section>' : '</details>'}`;
     const heading = compact ? '' : '<h2>REBA 현재 점수</h2>';
     const scoreValue = compact
       ? `<div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>`
@@ -1573,15 +1696,29 @@ export class QuickFlow {
   }
 
   criteriaRows(editable) {
-    const rows = this.result.judgment?.judgments || [];
+    const rows = this.result?.judgment?.judgments || [];
+    const draft=editable?this.criterionReviewDraft():null;
     const line = j => {
       const inv = j.investigator?.status ?? null;
-      const conclude = editable ? `<td><div class="quick-choices small"><button type="button" class="${inv === 'APPLICABLE' ? 'selected' : ''}" data-concl="${j.criterion_no}" data-status="APPLICABLE">해당</button><button type="button" class="${inv === 'NOT_APPLICABLE' ? 'selected' : ''}" data-concl="${j.criterion_no}" data-status="NOT_APPLICABLE">비해당</button></div></td>` : '';
-      return `<tr id="quick-criterion-${j.criterion_no}" tabindex="-1"><td>${esc(CRIT_NAME[j.criterion_no])} <small>(법정 ${j.criterion_no}호)</small></td><td><span class="quick-status ${esc(j.computed_status)}">${esc(STATUS[j.computed_status] || j.computed_status)}</span>${(j.missing_fields || []).length ? ` <small>추가 입력 ${j.missing_fields.length}개</small>` : ''}</td>${conclude}</tr>`;
+      const selected=draft?.choices.get(j.criterion_no),proposal=draft?.proposals.get(j.criterion_no);
+      const hasCurrentConclusion=this.result?.confirmation_current===true&&this.result?.criterion_review?.conclusions?.some(item=>item.criterion_no===j.criterion_no);
+      const options=[['APPLICABLE','해당'],['NOT_APPLICABLE','비해당'],['UNDETERMINED','판단 보류'],...(['APPLICABLE','NOT_APPLICABLE'].includes(inv)||hasCurrentConclusion?[['CLEAR','계산 초안으로 되돌리기']]:[])];
+      const origin=selected?.origin==='AI'?'AI 제안 · 아직 미확정':selected?.origin==='CONFIRMED'?'사람 검토 확정':selected?.origin==='MANUAL'?'선택 수정 중 · 미확정':'아직 확정하지 않음';
+      const controls=editable?`<td data-review-origin="${esc(selected?.origin||'NONE')}"><div class="quick-choices small">${options.map(([value,label])=>`<button type="button" class="${selected?.status===value?'selected':''}" aria-pressed="${selected?.status===value}" data-concl="${j.criterion_no}" data-status="${value}"${this.criteriaConfirming||this.busy?' disabled':''}>${label}</button>`).join('')}</div><small class="quick-source-state">${origin}</small>${selected?.status==='CLEAR'?'<p class="quick-note">확정하면 기존 조사자 결론을 해제하고 계산 초안으로 돌아가요.</p>':''}${selected?.status==='UNDETERMINED'&&inv?`<p class="quick-note">판단 보류를 기록해도 이전 조사자 결론(${inv==='APPLICABLE'?'해당':'비해당'})은 유지돼요.</p>`:''}${proposal?`<p class="quick-note"><b>AI 제안: ${proposal.proposed_status==='APPLICABLE'?'해당':proposal.proposed_status==='NOT_APPLICABLE'?'비해당':'판단 보류'}</b> · ${esc(proposal.reason||'')}</p>`:''}</td>`:'';
+      const conflict=proposal?.conflicts_with_computed===true?'<p class="quick-warn">AI 제안이 계산 초안과 달라요. 근거를 확인해 직접 선택해 주세요. 점수는 바뀌지 않아요.</p>':'';
+      return `<tr id="quick-criterion-${j.criterion_no}" tabindex="-1"><td>${esc(CRIT_NAME[j.criterion_no])} <small>(법정 ${j.criterion_no}호)</small></td><td><span class="quick-status ${esc(j.computed_status)}">${esc(STATUS[j.computed_status] || j.computed_status)}</span>${(j.missing_fields || []).length ? ` <small>추가 입력 ${j.missing_fields.length}개</small>` : ''}${conflict}</td>${controls}</tr>`;
     };
     const table = list => `<table class="quick-table"><thead><tr><th>기준</th><th>계산 초안</th>${editable ? '<th>조사자 결론</th>' : ''}</tr></thead><tbody>${list.map(line).join('')}</tbody></table>`;
+    if(editable)return table(rows);
     const relevant = rows.filter(j => j.computed_status !== 'NOT_APPLICABLE'), none = rows.filter(j => j.computed_status === 'NOT_APPLICABLE');
     return `${relevant.length ? table(relevant) : '<p class="quick-note">해당하거나 더 확인할 기준이 없어요.</p>'}${none.length ? `<details class="quick-none"><summary>해당 없음 ${none.length}개 보기</summary>${table(none)}</details>` : ''}`;
+  }
+
+  criterionReviewFooter() {
+    const draft=this.criterionReviewDraft(),confirmed=this.result?.confirmation_current===true&&!draft.touched.size;
+    const selected=[...draft.choices.values()].some(item=>['APPLICABLE','NOT_APPLICABLE','UNDETERMINED','CLEAR'].includes(item.status));
+    const hint=draft.proposals.size?'AI 제안은 참고 선택이에요. 바꾸거나 판단 보류로 둔 뒤 한 번에 확정해요.':'현재 분석에 적용할 AI 제안이 없어요. 결과 설명 만들기로 AI 제안을 받거나 AI 없이 직접 선택해 확정할 수 있어요.';
+    return `<p class="quick-note">${hint}</p><p class="${confirmed?'quick-ok':'quick-note'}" data-criterion-review-state>${confirmed?'선택한 호의 검토가 확정됐어요.':selected?'버튼을 고른 것만으로 저장되지 않아요. 선택한 호를 한 번에 확정해 주세요.':'확정할 선택이 없어요. AI 제안을 받거나 필요한 호를 직접 선택해 주세요.'}</p><button type="button" class="primary" data-quick="confirm-criteria" ${this.busy||confirmed||!selected?'disabled':''}>${confirmed?'선택한 호 검토 확정됨':'선택한 호 검토 확정'}</button>`;
   }
 
   comparePanel() {
@@ -1641,6 +1778,7 @@ export class QuickFlow {
       let confirmation;
       if (ai.is_active && !currentAnalysis) confirmation = '이전 분석에서 확정된 설명이에요. 현재 Excel에는 포함되지 않아요.';
       else if (ai.is_active && edited) confirmation = '수정한 내용은 아직 미확정이에요. 현재 Excel에는 이전 확정 설명이 들어가 있어요.';
+      else if (ai.is_active && ai.confirmation_current === true) confirmation = '사람 검토 후 확정된 설명이에요. 현재 분석의 Excel에 반영돼요.';
       else if (ai.is_active && ai.source_current === false) confirmation = '확정된 설명의 근거가 현재 요약과 달라요. 최신 내용을 다시 확인해 주세요.';
       else if (ai.is_active && ai.source_current !== true) confirmation = '확정된 설명의 현재성을 확인할 수 없어요. 최신 분석에서 다시 확인해 주세요.';
       else if (ai.is_active) confirmation = '확정됨 · 현재 분석의 Excel에 반영돼요.';
@@ -1649,12 +1787,12 @@ export class QuickFlow {
       else if (active) confirmation = '새 설명은 미확정이에요. 이전 확정 설명의 현재성을 확인해 주세요.';
       else if (!currentAnalysis) confirmation = '미확정 초안이에요. 현재 입력과 일치하는 분석이 아니라 Excel에 포함되지 않아요.';
       else confirmation = '미확정 초안이에요. Excel에는 아직 포함되지 않아요.';
-      const canConfirm = currentAnalysis && ai.source_current === true && ai.result !== 'DISABLED';
-      const alreadyConfirmed = Boolean(ai.is_active && ai.source_current === true && !edited);
+      const canConfirm = this.explanationIsCurrent(ai) && ai.result !== 'DISABLED';
+      const alreadyConfirmed = Boolean(ai.is_active && this.explanationIsCurrent(ai) && !edited);
       const editorGuidance = canConfirm ? '필요하면 문장을 고친 뒤 아래의 확인 버튼을 누르세요. 확인한 문장만 Excel에 들어가요.' : '이 설명은 현재 Excel에 반영할 수 없어요. 최신 분석에서 다시 확인해 주세요.';
-      const staleNote = !currentAnalysis ? ' · 최신 입력과 다른 과거 분석이에요.' : ai.source_current === false ? ' · 현재 입력 근거와 일치하지 않아 다시 확인이 필요해요.' : ai.source_current !== true ? ' · 설명 근거의 현재성을 확인할 수 없어요.' : '';
+      const staleNote = !currentAnalysis ? ' · 최신 입력과 다른 과거 분석이에요.' : ai.confirmation_current===true&&ai.source_current!==true?' · AI 원근거와 사람의 결론을 구분하며, 호별 검토 확정 기록으로 연결돼요.':ai.source_current === false ? ' · 현재 입력 근거와 일치하지 않아 다시 확인이 필요해요.' : ai.source_current !== true ? ' · 설명 근거의 현재성을 확인할 수 없어요.' : '';
       body += `<p class="quick-note"><b>${esc(confirmation)}</b>${staleNote}</p>
-        <p class="quick-explanation-meta"><span class="quick-source-badge ${source === '조사자 수정' ? 'investigator' : ''}">${esc(source)}</span><span class="quick-source-state">${ai.is_active && ai.source_current === true && !edited ? '확정됨' : edited ? '수정본 미확정' : '확정 전'}</span>${ai.result !== 'GENERATED' && reason ? `<span class="quick-note">${esc(reason)}</span>` : ''}</p>
+        <p class="quick-explanation-meta"><span class="quick-source-badge ${source === '조사자 수정' ? 'investigator' : ''}">${esc(source)}</span><span class="quick-source-state">${alreadyConfirmed ? '확정됨' : edited ? '수정본 미확정' : '확정 전'}</span>${ai.confirmation_current===true?'<span class="quick-source-state">호별 사람 검토 확정</span>':''}${ai.result !== 'GENERATED' && reason ? `<span class="quick-note">${esc(reason)}</span>` : ''}</p>
         ${active && active.text_id !== ai.text_id ? `<details class="quick-explanation-details"><summary>Excel에 현재 확정되어 있는 설명 보기</summary><div class="quick-explanation-reading">${renderQuickExplanation(active, active.applied_text || '')}</div></details>` : ''}
         <div class="quick-explanation-reading">${renderQuickExplanation(ai, shown)}</div>
         <details class="quick-explanation-details quick-explanation-editor" data-ai-editor ${this.aiEditorOpen ? 'open' : ''}><summary>결과 설명 직접 수정</summary>
@@ -1669,6 +1807,7 @@ export class QuickFlow {
 
   // Review: the investigator's conclusions, the review mark and the easy explanation.
   viewReview() {
+    if(!this.result)return `<section class="panel"><h3>검토할 계산 초안을 준비해 주세요</h3><p>현재 입력으로 초안을 만든 뒤 해당 여부를 선택할 수 있어요.</p><button type="button" data-quick="review" ${this.busy?'disabled':''}>검토 초안 준비</button></section>`;
     const review = this.survey?.review || {};
     const reviewHistory = Boolean(review.reviewed && Array.isArray(review.reviewed_analysis_ids) && review.reviewed_analysis_ids.length);
     const reviewed = this.reviewIsCurrent();
@@ -1681,8 +1820,8 @@ export class QuickFlow {
       <section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}<button type="button" data-quick="questions" data-reveal-photo="1">자세 분석값 수정</button></section>
       ${this.aiPanel()}
       <details class="panel quick-review-more"><summary>사진 관찰·자세 측정·REBA 상세 보기</summary>${this.photoVisionPanel(true)}${renderPostureReview(this.result)}</details>
-      <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"${this.criteriaReviewOpen?' open':''}><summary>법정 기준 초안과 조사자 결론 보기 (11개)</summary>
-        <p class="quick-note">계산 초안과 다르게 판단한 항목만 직접 정해요. 입력과 판단 근거는 상세 결과에 보존돼요.</p>${this.criteriaRows(true)}</details>
+      <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"${this.criteriaReviewOpen?' open':''}><summary>호별 AI 제안과 검토 선택 (11개)</summary>
+        <p class="quick-note">계산 초안과 AI 제안을 비교해 직접 선택하고 한 번에 확정해요. AI 제안은 사람의 확정 결론이 아니에요.</p>${this.reviewMessage?`<p class="quick-note" role="status">${esc(this.reviewMessage)}</p>`:''}${this.busy?'<p class="quick-note" role="status">현재 선택은 임시 보관돼요. 진행 중인 작업이 끝나면 검토를 확정할 수 있어요.</p>':''}${this.criteriaRows(true)}${this.criterionReviewFooter()}</details>
       <details class="panel quick-review-more"><summary>검토자 표시 관리</summary>
         <p class="quick-note">${reviewStatus} 검토 표시는 설명 확정 및 REBA 계산과 별도예요.</p>
         <div class="quick-setting-row"><label>검토자<input type="text" data-rev="reviewer" value="${esc(this.review.reviewer)}" placeholder="이름"></label>

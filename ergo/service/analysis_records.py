@@ -3,6 +3,7 @@ import copy
 from ergo.engine.task_defaults import diagnostic
 from ergo.engine.reba_scoring import project_score_continuity
 from ergo.gpt import payload as gpt_payload
+from ergo.gpt import criterion_review
 from ergo.report import workbook as report
 from ergo.pose import engine as pose_engine
 
@@ -21,7 +22,7 @@ def analysis(ctx, identity):
                 item['source_current']=False
     except Exception:
         pass
-    return result
+    return criterion_review.project(result)
 
 def snapshot(ctx, task):
     value=dict(schema_version=task.get('schema_version', '1.3'), task_id=task['task_id'], input_revision=task['input_revision'], task_name=task['task_name'], task_kind=task.get('task_kind'), input_template=task.get('input_template'), worker_count=task.get('worker_count'), conditions=copy.deepcopy(task['conditions']), legal=copy.deepcopy(task['legal']), capture=copy.deepcopy(task['capture']), manual=copy.deepcopy(task['manual']), analysis_scope=copy.deepcopy(task.get('analysis_scope')), legacy_input=copy.deepcopy(task.get('legacy_input')), photos=ctx.store('list_photos', task['task_id']), settings=ctx.settings()['analysis'])

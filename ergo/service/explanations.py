@@ -61,4 +61,4 @@ def handle_generate_ai_text(ctx, method, p, *, prepared=None):
             ai = next((x for x in saved['ai'] if x['text_id'] == p['text_id']))
             currentness=report.currentness(ctx.require('task', saved['task_id']), saved)
             current=gpt_payload.build_numeric_summary(saved, ai['purpose'], provisional_reba=ai.get('provisional_reba_input'), analysis_currentness=currentness)
-            return dict(text=ai, source_current=currentness=='CURRENT' and current==ai.get('input_summary'))
+            return dict(text=ai, source_current=currentness=='CURRENT' and current==ai.get('input_summary'),confirmation_current=ai.get('confirmation_current',False))

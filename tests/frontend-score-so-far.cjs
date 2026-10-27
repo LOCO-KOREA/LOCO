@@ -18,7 +18,7 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
     return ui;
   };
   const soFar = {total: 3, risk: 'LOW', selected_side: 'RIGHT', left: 1, right: 3, assumed: ['common.neck_base', 'left.upper_arm_base', 'observation.load_state'],
-    assumption: '지금까지 확인한 값으로 계산하고, 확인하지 못한 항목은 부담 없음으로 가정한 점수입니다. 확정 점수가 아닙니다.'};
+    assumption: '지금까지 확인한 값으로 계산하고, 확인하지 못한 항목은 부담 없음으로 가정한 점수입니다. 실제 점수는 이 점수보다 높거나 낮을 수 있고 확정 점수가 아닙니다.'};
   const unfinished = {total: null, left: {total: 1, missing_fields: []}, right: {total: null, missing_fields: ['right.wrist_base']}};
 
   const shown = flow({...unfinished, score_so_far: soFar}).rebaPanel();
@@ -51,7 +51,7 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   assert.ok(!final.includes('확정 전'), 'a final score must not carry the not-final label');
 
   const compactUi = Object.create(QuickFlow.prototype);
-  const longAssumption = '확인한 입력과 사진 측정값으로 계산했으며 미확인 항목은 부담 없음으로 가정한 확정 전 점수입니다. 실제 점수는 더 높을 수 있습니다.';
+  const longAssumption = '확인한 입력과 사진 측정값으로 계산했으며 미확인 항목은 부담 없음으로 가정한 확정 전 점수입니다. 실제 점수는 이 점수보다 높거나 낮을 수 있습니다.';
   Object.assign(compactUi, {photos: {}, answers: {}, preview: null, intakeText: '', reopened: false, step: 'review', result: {
     reba: {summary: {complete_count: 0, total_slot_count: 1, current_score: {total: 11, risk: 'VERY_HIGH', kind: 'WITH_ASSUMPTIONS', slot_no: 2,
       assumed: Array.from({length: 6}, (_, index) => `right.item_${index + 1}`), assumption: longAssumption},
@@ -64,7 +64,7 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   assert.match(primary, /미확인 항목 6개/,'the compact count comes from canonical current_score.assumed');
   assert.match(primary, /측정된 관절 26\/33개/,'quality matches the score slot, not another photo');
   assert.doesNotMatch(primary, /0\/33개/);
-  assert.match(primary, /실제 점수는 더 높을 수 있습니다/,'the review score caveat is visible without a toggle');
+  assert.match(primary, /실제 점수는 이 점수보다 높거나 낮을 수 있습니다/,'the review score caveat is visible without a toggle');
   assert.doesNotMatch(compact, /\[object Object\]/,'structured first-pass notes never stringify as an object');
   assert.match(compact, /답변 전 사진 기준 가정/,'structured assumption text stays readable in details');
   assert.doesNotMatch(compact, /왼쪽 —점|오른쪽 —점/,'missing side totals are omitted instead of shown as dashes');

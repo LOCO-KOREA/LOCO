@@ -438,35 +438,32 @@ class PairedAdaptiveIntake(unittest.TestCase):
         return self.turn(answers, text=text or '다음 정보를 확인해 주세요.', raw=dict(answers=list(model_answers), questions=[
             dict(target=target, condition='default', text='이쪽 정보를 확인해 주세요.', reason='아직 확인하지 않았어요.')]))
 
-    def test_manual_sides_share_one_question_and_restore_without_storing_nested_suggestions(self):
+    def test_manual_sides_stay_editable_without_a_default_photo_question(self):
         self.photo_session()
         state = self.propose('manual.RIGHT.shoulder_raised', [answer('context', 'YES')])
-        self.assertEqual(len(state['questions']), 1)
-        question = state['questions'][0]
-        self.assertEqual(question['target'], 'manual.RIGHT.shoulder_raised')
-        self.assertTrue(question['text'].endswith('이쪽 정보를 확인해 주세요.'))
-        self.assertIn('왼쪽에서 찍은 사진',question['text'])
-        self.assertEqual(question['paired_question']['target'], 'manual.LEFT.shoulder_raised')
-        self.assertNotIn('paired_question', question['paired_question'])
+        self.assertFalse(any(q['destination']['type']=='manual' for q in state['questions']))
+        self.assertTrue(any(f['target']=='manual.RIGHT.shoulder_raised' and f['pending_input'] for f in state['form_fields']))
         session = state['task']['conditions'][contract.SESSION_KEY]
         self.assertTrue(all(set(suggestion) == {'target', 'condition', 'text', 'reason'} for suggestion in session['suggestions']))
         self.assertEqual(state['remaining_count'], len(self.candidates(state)))
         self.assertEqual(state['progress']['remaining_count'], state['remaining_count'])
         self.ctx = create_service(self.db)
-        restored = self.get()['questions'][0]
-        self.assertEqual(restored['paired_question']['identity'], question['paired_question']['identity'])
+        restored = self.get()
+        self.assertFalse(any(q['destination']['type']=='manual' for q in restored['questions']))
+        self.assertTrue(any(f['target']=='manual.RIGHT.shoulder_raised' for f in restored['form_fields']))
 
     def test_view_directions_pair_only_when_both_registered_views_are_unanswered(self):
         self.photo_session()
         state = self.propose('view_RIGHT')
-        self.assertEqual(state['questions'][0]['paired_question']['target'], 'view_LEFT')
+        self.assertEqual(state['questions'][0]['target'],'view_RIGHT')
+        self.assertEqual(state['questions'][0]['paired_question']['target'],'view_LEFT')
         saved = self.turn([answer('view_LEFT', 'SCREEN_LEFT'), answer('view_RIGHT', 'SCREEN_RIGHT')], plan=False)
         slots = {slot['camera_side']: slot for slot in saved['task']['capture']['slots']}
         self.assertEqual(slots['LEFT']['forward_direction'], 'SCREEN_LEFT')
         self.assertEqual(slots['RIGHT']['forward_direction'], 'SCREEN_RIGHT')
         self.assertFalse({'view_LEFT', 'view_RIGHT'} & {candidate['target'] for candidate in self.candidates(saved)})
         single = self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(LEFT=slots['LEFT']['photo_id'])))
-        self.assertFalse(any(question.get('paired_question', {}).get('target') == 'view_RIGHT' for question in single['questions']))
+        self.assertFalse(any(question['target'] in ('view_LEFT','view_RIGHT') for question in single['questions']))
         self.assertNotIn('view_RIGHT', {candidate['target'] for candidate in self.candidates(single)})
 
     def test_known_or_user_unknown_opposite_side_is_not_reasked(self):
@@ -474,9 +471,7 @@ class PairedAdaptiveIntake(unittest.TestCase):
         for value in ('YES', None):
             with self.subTest(value=value):
                 state = self.propose('manual.RIGHT.shoulder_raised', [answer('context', 'YES'), answer('manual.LEFT.shoulder_raised', value)])
-                question = state['questions'][0]
-                self.assertEqual(question['target'], 'manual.RIGHT.shoulder_raised')
-                self.assertNotIn('paired_question', question)
+                self.assertFalse(any(question['target'].startswith('manual.') for question in state['questions']))
                 self.assertNotIn('manual.LEFT.shoulder_raised', {candidate['target'] for candidate in self.candidates(state)})
                 fact = next(item for item in state['facts'] if item['target'] == 'manual.LEFT.shoulder_raised')
                 self.assertEqual(fact['value'], value)
@@ -489,17 +484,16 @@ class PairedAdaptiveIntake(unittest.TestCase):
             model('manual.RIGHT.shoulder_raised', text='YES', quote='오른쪽 어깨는 예')])
         state = self.propose('manual.LEFT.shoulder_raised', text='왼쪽 어깨는 예', model_answers=[
             model('manual.LEFT.shoulder_raised', text='YES', quote='왼쪽 어깨는 예')])
-        question = state['questions'][0]
-        self.assertEqual(question['target'], 'manual.LEFT.shoulder_raised')
-        self.assertEqual(question['priority'], 0)
-        self.assertNotIn('paired_question', question)
+        self.assertFalse(any(question['target'].startswith('manual.') for question in state['questions']))
+        conflict = next(candidate for candidate in self.candidates(state) if candidate['target']=='manual.LEFT.shoulder_raised')
+        self.assertEqual(conflict['priority'], 0)
+        self.assertEqual(next(item for item in state['facts'] if item['target']=='manual.LEFT.shoulder_raised')['state'],'CONFLICT')
         self.assertNotIn('manual.RIGHT.shoulder_raised', {candidate['target'] for candidate in self.candidates(state)})
 
     def test_one_answer_turn_saves_two_independent_sides_and_resolves_two_fields(self):
         self.photo_session()
         state = self.propose('manual.LEFT.shoulder_raised', [answer('context', 'YES')])
-        question = state['questions'][0]
-        self.assertEqual(question['paired_question']['target'], 'manual.RIGHT.shoulder_raised')
+        self.assertFalse(any(question['target'].startswith('manual.') for question in state['questions']))
         before = copy.deepcopy(state['progress'])
         messages = len(state['messages'])
         saved = self.turn([answer('manual.LEFT.shoulder_raised', 'YES'), answer('manual.RIGHT.shoulder_raised', 'NO')], raw=dict(answers=[], questions=[]))
@@ -558,45 +552,27 @@ class GroupedAdaptiveIntake(unittest.TestCase):
     photo_session = PairedAdaptiveIntake.photo_session
     propose = PairedAdaptiveIntake.propose
 
-    def test_related_manual_inputs_share_bounded_panels_without_changing_field_progress(self):
+    def test_related_manual_inputs_remain_optional_editable_fields_without_default_questions(self):
         self.photo_session()
         self.turn([answer('context', 'YES')], plan=False)
-        groups = (
-            ('manual.COMMON.trunk_base', 6, '몸통·목'),
-            ('manual.COMMON.legs_support', 3, '다리'),
-            ('manual.COMMON.static_over_1min', 4, '움직임과 힘'),
-            ('manual.RIGHT.shoulder_raised', 8, '양팔·손목'),
-        )
-        for target, size, title in groups:
+        targets = ('manual.COMMON.trunk_base','manual.COMMON.legs_support','manual.COMMON.static_over_1min','manual.RIGHT.shoulder_raised')
+        for target in targets:
             with self.subTest(target=target):
                 state = self.propose(target)
-                self.assertEqual(len(state['questions']), 1)
-                question = state['questions'][0]
-                self.assertEqual(question['target'], target)
-                self.assertIn(title, question['group_title'])
-                members = question['answer_questions']
-                self.assertEqual(len(members), size)
-                self.assertIn(target, {member['target'] for member in members})
-                self.assertEqual(len({member['identity'] for member in members}), size)
-                self.assertTrue(all(not ({'paired_question', 'answer_questions', 'group_title'} & set(member)) for member in members))
-                self.assertTrue(all(member['choices'] and member['condition'] == question['condition'] for member in members))
+                self.assertFalse(any(q['destination']['type']=='manual' for q in state['questions']))
+                self.assertTrue(any(field['target']==target and field['pending_input'] for field in state['form_fields']))
                 self.assertEqual(state['remaining_count'], len(self.candidates(state)))
                 self.assertEqual(state['progress']['remaining_count'], state['remaining_count'])
-        self.assertEqual(question['paired_question']['target'], 'manual.LEFT.shoulder_raised')
-        # Base arm categories retain the existing two-side card rather than entering the boolean group.
-        question = self.propose('manual.RIGHT.upper_arm_base')['questions'][0]
-        self.assertNotIn('answer_questions', question)
-        self.assertEqual(question['paired_question']['target'], 'manual.LEFT.upper_arm_base')
+        state = self.propose('manual.RIGHT.upper_arm_base')
+        self.assertFalse(any(q['destination']['type']=='manual' for q in state['questions']))
+        self.assertTrue(any(field['target']=='manual.RIGHT.upper_arm_base' and field['pending_input'] for field in state['form_fields']))
 
     def test_groups_exclude_known_and_user_unknown_but_keep_conflicts_recoverable(self):
         self.photo_session()
         self.turn([answer('context', 'YES'), answer('manual.COMMON.static_over_1min', None), answer('manual.COMMON.small_repeat_over_4min', 'NO')], plan=False)
         self.propose('manual.COMMON.shock_force', text='충격은 없어요.', model_answers=[model('manual.COMMON.shock_force', text='NO', quote='충격은 없어요')])
         state = self.propose('manual.COMMON.shock_force', text='충격이 있어요.', model_answers=[model('manual.COMMON.shock_force', text='YES', quote='충격이 있어요')])
-        question = state['questions'][0]
-        self.assertEqual(question['target'], 'manual.COMMON.shock_force')
-        self.assertEqual(question['priority'], 0)
-        self.assertEqual({member['target'] for member in question['answer_questions']}, {'manual.COMMON.shock_force', 'manual.COMMON.rapid_change_or_unstable'})
+        self.assertFalse(any(q['destination']['type']=='manual' for q in state['questions']))
         pending = {item['target']: item for item in state['facts']}
         self.assertEqual(pending['manual.COMMON.shock_force']['state'], 'CONFLICT')
         self.assertIsNone(pending['manual.COMMON.static_over_1min']['value'])

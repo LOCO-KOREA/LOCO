@@ -56,7 +56,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     const notes = [], log = {labels: [], reveal: [], errors: [], renders: 0, finished: 0};
     const intake = new AdaptiveIntake({changed() {}, notify: message => notes.push(message), api: svc.api});
     await intake.open(1);
-    Object.assign(intake, {dialogOpen: true, pageShown: true});
+    Object.assign(intake, {dialogOpen: true, pageShown: true, photoEditor: true});
     const note = {textContent: '', hidden: true}, flow = Object.create(QuickFlow.prototype);
     Object.assign(flow, {intake, busy: false, task: null, preview: null, host: {querySelectorAll: () => [], querySelector: selector => selector === '[data-intake-fill-note]' ? note : null},
       keepDraft() {}, render() { log.renders++; }, async ensureAiOn() {}, async finish() { log.finished++; }, onError(error) { log.errors.push(error.message); }, notify(message) { notes.push(message); },
@@ -134,8 +134,8 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     assert.deepEqual([trunk.value, trunk.source], ['YES', 'AI']);
   });
 
-  // 3. [one pass] The photo situation is answered inside the open dialog: it is saved there and the checklist appears in the same dialog.
-  await check('photo situation YES: the checklist appears in the same dialog', async () => {
+  // 3. An explicit context edit refreshes stored data without turning all posture metadata into new questions.
+  await check('photo situation YES: current posture data remains read-only', async () => {
     const svc = service(), t = await open(svc);
     assert.doesNotMatch(t.intake.dialog(false), /intake-checklist"|data-intake-flag/, 'before the answer there is no checklist');
     pick(t.flow, 'load@default', 'UNLOADED');
@@ -156,8 +156,9 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     assert.deepEqual(t.log.reveal, [true], 'the photo rows are shown opened while it saves');
     assert.equal(t.flow.revealPhotoRows, false, 'and only that once');
     const html = t.intake.dialog(false);
-    assert.equal((html.match(/<input type="checkbox" data-intake-flag/g) || []).length, flags.length, 'the checklist is there');
-    assert.match(html, /data-intake-form="manual\.COMMON\.neck_base@photo:2"/, 'and the angles the photo could not read');
+    assert.equal((html.match(/data-intake-data=/g)||[]).length,flags.length+3,'context, load and every posture value remain accessible');
+    assert.doesNotMatch(html,/data-intake-flag=|data-intake-form=|data-fill-kind=/,'refreshing context does not demand 18 posture answers');
+    assert.match(html,/목 굽힘/);assert.match(html,/미확인/,'an unobserved angle remains a data state');
     pick(t.flow, 'context@default', 'YES');
     await t.flow.refreshing;
     assert.equal(svc.turns().length, 1, 'saying the same thing again changes nothing');
@@ -169,7 +170,8 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
     await t.flow.refreshing;
     assert.equal(svc.turns().length, 1);
     assert.equal(svc.turns()[0].answers[0].value, 'NO');
-    assert.equal((t.intake.dialog(false).match(/<input type="checkbox" data-intake-flag/g) || []).length, flags.length, 'a refused photo is described by hand, in the same dialog');
+    assert.equal((t.intake.dialog(false).match(/data-intake-data=/g)||[]).length,flags.length+3,'the refused photo retains its explicit correction data');
+    assert.doesNotMatch(t.intake.dialog(false),/data-intake-flag=|data-intake-form=/,'refusing photo use does not create forced posture questions');
     assert.equal(t.log.errors.length, 0);
   });
   await check('a stale save keeps the answer and says why', async () => {

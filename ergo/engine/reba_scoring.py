@@ -20,6 +20,15 @@ NO_BURDEN = {
     'wrist_deviated_or_twisted': 'NO', 'coupling': 'NOT_APPLICABLE',
 }
 
+COMPONENT_FIELDS = ('trunk','neck','legs','table_a','load_score','score_a','upper_arm','lower_arm','wrist',
+                    'table_b','coupling_score','score_b','table_c','activity_score','total')
+
+
+def _score_components(result):
+    """Copy actual deterministic side scores; never infer absent saved components."""
+    sides={side:{field:(result.get(side) or {}).get(field) for field in COMPONENT_FIELDS} for side in ('left','right')}
+    return sides if all(type(value) is int for fields in sides.values() for value in fields.values()) else None
+
 def risk(total):
     return 'NEGLIGIBLE' if total == 1 else 'LOW' if total <= 3 else 'MEDIUM' if total <= 7 else 'HIGH' if total <= 10 else 'VERY_HIGH'
 
@@ -121,7 +130,7 @@ def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, 
         return None
     obs = dict(slot['observation'])
     assumed = sorted(path for path in open_paths if path.split('.')[0] in ('common', 'left', 'right') and path not in borrowed and path not in measured_paths)
-    note = '지금까지 확인한 값으로 계산하고, 확인하지 못한 항목은 부담 없음으로 가정한 점수입니다. 실제 점수는 더 높을 수 있고 확정 점수가 아닙니다.'
+    note = '지금까지 확인한 값으로 계산하고, 확인하지 못한 항목은 부담 없음으로 가정한 점수입니다. 실제 점수는 이 점수보다 높거나 낮을 수 있고 확정 점수가 아닙니다.'
     load_assumed=False
     if obs.get('load_state', 'UNKNOWN') == 'UNKNOWN' and obs.get('measured_load_kg') is None:
         load_assumed=True
@@ -153,7 +162,7 @@ def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, 
     if result['total'] is None:
         return None
     so_far = dict(total=result['total'], risk=result['risk'], selected_side=result['selected_side'], left=result['left']['total'],
-                  right=result['right']['total'], assumed=sorted(set(assumed)), assumption=note)
+                  right=result['right']['total'], assumed=sorted(set(assumed)), assumption=note, components=_score_components(result))
     if borrowed: so_far['unconfirmed_photo'] = sorted(borrowed)
     if measurement_refs:so_far['measurement_refs']=measurement_refs
     if measured_paths:
@@ -307,7 +316,7 @@ def assumed_reference_score(slot_no=1, photo_id=0):
     result=calculate_reba(dict(schema_version='2.0',capture=dict(slots=[slot]),manual=manual,settings={}),None,with_score_so_far=False)['slots'][0]
     assumed=sorted([f'{scope.lower()}.{field}' for scope,fields in (('COMMON',COMMON),('LEFT',ARM),('RIGHT',ARM)) for field in fields]+['observation.load_state'])
     return dict(total=result['total'],risk=result['risk'],kind='ASSUMED_REFERENCE',source='ASSUMED_REFERENCE',selected_side=result['selected_side'],left=result['left']['total'],right=result['right']['total'],
-                assumed=assumed,assumption='측정값이나 충분한 답변이 없어 모든 REBA 항목을 부담 없음으로 둔 참조용 가정 점수입니다. 측정·확정 점수가 아닙니다.')
+                assumed=assumed,assumption='측정값이나 충분한 답변이 없어 모든 REBA 항목을 부담 없음으로 둔 참조용 가정 점수입니다. 측정·확정 점수가 아닙니다.',components=_score_components(result))
 
 
 def _saved_photo_view(snapshot, photo_id):
@@ -365,7 +374,7 @@ def _slot_current_candidate(snapshot, slot, reba_slot, photo_measurements):
     if manual_conflict:
         ref=assumed_reference_score(slot['slot_no'],slot['photo_id'])
         ref['assumption']+=' 서로 다른 수동 입력이 충돌해 실제 입력을 임의로 고르지 않았습니다.'
-        return dict(total=ref['total'],risk=ref['risk'],kind='ASSUMED_REFERENCE',source='ASSUMED_REFERENCE',slot_no=slot['slot_no'],assumed=ref['assumed'],assumption=ref['assumption'])
+        return dict(total=ref['total'],risk=ref['risk'],kind='ASSUMED_REFERENCE',source='ASSUMED_REFERENCE',slot_no=slot['slot_no'],assumed=ref['assumed'],assumption=ref['assumption'],components=copy.deepcopy(ref['components']))
     observation=slot.get('observation') or {}
     load_state=observation.get('load_state','UNKNOWN');load_value=observation.get('measured_load_kg')
     load_conflict=_conflicting_load(observation)
@@ -377,7 +386,7 @@ def _slot_current_candidate(snapshot, slot, reba_slot, photo_measurements):
     if answer is None:
         ref=assumed_reference_score(slot['slot_no'],slot['photo_id'])
         ref['assumption']+=' 저장 입력이 유효한 점수로 계산되지 않아 원본을 유지하고 참조값을 표시합니다.'
-        return dict(total=ref['total'],risk=ref['risk'],kind='ASSUMED_REFERENCE',source='ASSUMED_REFERENCE',slot_no=slot['slot_no'],assumed=ref['assumed'],assumption=ref['assumption'])
+        return dict(total=ref['total'],risk=ref['risk'],kind='ASSUMED_REFERENCE',source='ASSUMED_REFERENCE',slot_no=slot['slot_no'],assumed=ref['assumed'],assumption=ref['assumption'],components=copy.deepcopy(ref['components']))
     has_load_answer=not load_conflict and (load_state=='UNLOADED' or load_state=='MEASURED' and load_value is not None)
     has_photo=bool(answer.get('photo_measurements') or answer.get('unconfirmed_photo'))
     has_manual=bool(current)
@@ -391,7 +400,7 @@ def _slot_current_candidate(snapshot, slot, reba_slot, photo_measurements):
     if kind=='ASSUMED_REFERENCE' and not has_manual and not has_photo and not has_load_answer:
         answer=assumed_reference_score(slot['slot_no'],slot['photo_id'])
     return dict(total=answer['total'],risk=answer['risk'],kind=kind,source=source,slot_no=slot['slot_no'],
-                assumed=answer.get('assumed') or [],assumption=answer.get('assumption') or '',
+                assumed=answer.get('assumed') or [],assumption=answer.get('assumption') or '',components=copy.deepcopy(answer['components']),
                 **(dict(measurement_refs=copy.deepcopy(answer['measurement_refs'])) if answer.get('measurement_refs') else {}))
 
 

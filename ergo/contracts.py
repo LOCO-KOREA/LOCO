@@ -37,6 +37,7 @@ SERVICE_METHODS = {
     'get_task_result': (('task_id',), ()),
     'select_representative': (('analysis_id','slot_no'), ()),
     'set_investigator_conclusion': (('analysis_id','conclusion'), ()),
+    'confirm_criterion_review': (('analysis_id','expected_input_revision','conclusions'), ('source_text_id','reviewer')),
     'generate_ai_text': (('analysis_id',), ('purpose','provisional_reba')),
     'edit_ai_text': (('analysis_id','text_id','text'), ()),
     'apply_ai_text': (('analysis_id','text_id','use_edited'), ()),
@@ -67,6 +68,22 @@ def validate_request(method, params):
             raise ValueError(f'{key}는 양의 정수여야 합니다')
     if 'expected_revision' in params and (type(params['expected_revision']) is not int or params['expected_revision']<0):
         raise ValueError('expected_revision은 0 이상 정수여야 합니다')
+    if method=='confirm_criterion_review':
+        if type(params['expected_input_revision']) is not int or params['expected_input_revision']<0:
+            raise ValueError('expected_input_revision은 0 이상 정수여야 합니다')
+        choices=params['conclusions']
+        if not isinstance(choices,list) or not 1<=len(choices)<=11:
+            raise ValueError('검토 결론은 1~11개 호의 선택 목록이어야 합니다')
+        seen=set()
+        for choice in choices:
+            if (not isinstance(choice,dict) or set(choice)!={'criterion_no','status'} or
+                    type(choice['criterion_no']) is not int or choice['criterion_no'] not in range(1,12) or
+                    choice['criterion_no'] in seen or choice['status'] not in ('APPLICABLE','NOT_APPLICABLE','UNDETERMINED',None)):
+                raise ValueError('호는 중복 없이 1~11, 선택은 해당·비해당·판단보류·명시해제여야 합니다')
+            seen.add(choice['criterion_no'])
+        for name in ('source_text_id','reviewer'):
+            if params.get(name) is not None and (not isinstance(params[name],str) or not params[name].strip()):
+                raise ValueError(name+'는 비어 있지 않은 문자열 또는 null이어야 합니다')
     if method in ('preview_photo_file','import_cropped_photo'):
         if not isinstance(params['file_path'],str) or not params['file_path'].strip():
             raise ValueError('사진 경로가 필요합니다')

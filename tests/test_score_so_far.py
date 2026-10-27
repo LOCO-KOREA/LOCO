@@ -61,7 +61,7 @@ class ScoreSoFar(unittest.TestCase):
         self.assertNotIn('common.trunk_base', so_far['assumed'])
         self.assertIn('left.upper_arm_base', so_far['assumed'])
         self.assertIn('확정 점수가 아닙니다', so_far['assumption'])
-        self.assertIn('실제 점수는 더 높을 수 있고', so_far['assumption'])
+        self.assertIn('실제 점수는 이 점수보다 높거나 낮을 수 있고', so_far['assumption'])
         self.assertEqual(reba['summary']['score_so_far'], dict(so_far, slot_no=slot['slot_no']))
         self.assertIsNone(reba['summary']['full_max'])
         self.assertIsNone(reba['summary']['available_max'])
@@ -222,8 +222,8 @@ class ScoreSoFarBeforePhotoConfirmation(unittest.TestCase):
         self.assertIn('확인하지 못한 25개 항목', sentence)
         self.assertIn('확정 점수가 아닙니다', sentence)
         self.assertIn('하중 가산점을 0으로 가정했으며', sentence)
-        self.assertIn('실제 점수는 더 높을 수 있습니다', sentence)
-        for name in ('unconfirmed_photo_count', 'load_assumed', '실제 점수는 더 높을 수 있다고'):
+        self.assertIn('실제 점수는 이 점수보다 높거나 낮을 수 있습니다', sentence)
+        for name in ('unconfirmed_photo_count', 'load_assumed', '실제 점수는 현재 가정 점수보다 높거나 낮을 수 있다고'):
             self.assertIn(name, client.SYSTEM_PROMPT)
         so_far.pop('unconfirmed_photo')
         so_far['assumed'] = ['a'] * 25

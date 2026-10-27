@@ -201,8 +201,10 @@ type RebaSideScore = {
   upper_arm:Count|null,lower_arm:Count|null,wrist:Count|null,table_b:Count|null,coupling_score:Count|null,score_b:Count|null,
   table_c:Count|null,activity_score:Count|null,total:Count|null,risk:Risk|null,missing_fields:string[],review_reasons:ReviewReason[]
 };
-type RebaScoreSoFar = {total:Count,risk:Risk,selected_side:Side,left:Count,right:Count,assumed:string[],unconfirmed_photo?:string[],assumption:string};
-type RebaCurrentScore = {total:Count,risk:Risk,kind:'CONFIRMED'|'WITH_ASSUMPTIONS'|'ASSUMED_REFERENCE',source:'COMPLETE'|'ANSWERS_SO_FAR'|'FIRST_PASS'|'ASSUMED_REFERENCE',slot_no:Count,complete_count:Count,total_slot_count:Count,assumed:string[],assumption:string};
+type RebaComponentSide = {trunk:Count,neck:Count,legs:Count,table_a:Count,load_score:Count,score_a:Count,upper_arm:Count,lower_arm:Count,wrist:Count,table_b:Count,coupling_score:Count,score_b:Count,table_c:Count,activity_score:Count,total:Count};
+type RebaScoreComponents = {left:RebaComponentSide,right:RebaComponentSide}; // 서버 REBA 계산 결과의 읽기 전용 상세
+type RebaScoreSoFar = {total:Count,risk:Risk,selected_side:Side,left:Count,right:Count,assumed:string[],unconfirmed_photo?:string[],assumption:string,components?:RebaScoreComponents|null};
+type RebaCurrentScore = {total:Count,risk:Risk,kind:'CONFIRMED'|'WITH_ASSUMPTIONS'|'ASSUMED_REFERENCE',source:'COMPLETE'|'ANSWERS_SO_FAR'|'FIRST_PASS'|'ASSUMED_REFERENCE',slot_no:Count,complete_count:Count,total_slot_count:Count,assumed:string[],assumption:string,components?:RebaScoreComponents|null};
 type PhotoMeasurementQuality = {slot_no:Count,photo_id:ID|null,measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING'};
 type MeasurementQuality = {measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING',slots:PhotoMeasurementQuality[]};
 type RebaSlotResult = {slot_no:Count,photo_id:ID|null,candidates:RebaCandidate[],load_state:LoadState,effective_load_kg:Number|null,status:'COMPLETE'|'INCOMPLETE',left:RebaSideScore,right:RebaSideScore,selected_side:Side|null,total:Count|null,risk:Risk|null,missing_fields:string[],score_so_far?:RebaScoreSoFar,current_score?:RebaCurrentScore};
@@ -212,11 +214,16 @@ type BasisItem = {item_code:string,value:Number|Truth|null,unit:'MIN_DAY'|'KG'|'
 type InvestigatorConclusion = {criterion_no:Count,status:FinalStatus|null,reason:string|null,evidence:Evidence,reviewer:string|null,reviewed_at:Timestamp|null};
 type Judgment = {criterion_no:Count,computed_status:JudgmentStatus,exclusion:'SHORT_TERM'|'INTERMITTENT'|'BOTH'|null,basis:BasisItem[],missing_fields:string[],review_reasons:ReviewReason[],source:string,investigator:InvestigatorConclusion,effective_status:JudgmentStatus};
 type JudgmentResult = {judgments:Judgment[]};
+type CriterionProposalStatus = 'APPLICABLE'|'NOT_APPLICABLE'|'UNDETERMINED';
+type CriterionReviewChoice = {criterion_no:Count,status:CriterionProposalStatus|null};
+type CriterionProposal = {criterion_no:Count,proposed_status:CriterionProposalStatus,reason:string,basis_refs:string[],source_text_id:string,source_current:boolean,confirmation_current:boolean,computed_status:JudgmentStatus,investigator_status:FinalStatus|null,conflicts_with_computed:boolean};
+type CriterionReviewReceipt = {version:'CRITERION_REVIEW_V1',review_id:string,analysis_id:ID,input_revision:Count,source_text_id:string|null,reviewer:string|null,reviewed_at:Timestamp,conclusions:CriterionReviewChoice[],submitted_criteria:Count[],context_digest:string,source_summary_digest?:string,source_text_digest?:string};
 type AnalysisV2 = {
   analysis_id:ID,task_id:ID,input_revision:Count,snapshot:TaskSnapshot,status:JobStatus,
   module_states:ModuleStates,pose:PoseResult|null,slot_tags:SlotTag[],tags:TagSummary[],
   reba:RebaResult|null,judgment:JudgmentResult|null,ai:AiText[],notes:Diagnostic[],measurement_quality?:MeasurementQuality,
-  created_at:Timestamp,finished_at:Timestamp|null,currentness:Currentness
+  created_at:Timestamp,finished_at:Timestamp|null,currentness:Currentness,
+  criteria_proposals?:CriterionProposal[],criterion_review?:CriterionReviewReceipt,criterion_review_history?:CriterionReviewReceipt[],confirmation_current?:boolean
 };
 type RunHandle = {analysis_id:ID,task_id:ID,status:JobStatus};
 type Warning = {criterion_no:Count,from:'COMPUTED'|'INVESTIGATOR',message:string};
@@ -246,20 +253,21 @@ type NumericSummary = {
   pose_quality:{target_count:Count,valid_count:Count|null,measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING'},
   reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null,current_score?:{total:Count,risk:Risk,kind:string,source:string,assumed_count:Count},first_pass?:{total:Count,risk:Risk,assumed_count:Count},score_so_far?:{total:Count,risk:Risk,assumed_count:Count,unconfirmed_photo_count?:Count,load_assumed?:boolean}},
   provisional_reba?:{assumption:string,analysis_currentness:'CURRENT'|'STALE',initial_total:Count,initial_risk:string,initial_photo_count:Count,final_photo_count:Count,same_photo_scope:boolean,final_complete:boolean,final_total:Count|null,final_risk:string|null,comparable:boolean,comparison_status:'COMPARABLE'|'STALE_ANALYSIS'|'FINAL_INCOMPLETE'|'DIFFERENT_PHOTO_SCOPE'|'MULTI_PHOTO_COMPOSITION',score_delta:Count|null},
-  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count|null,measurement_quality?:Omit<PhotoMeasurementQuality,'slot_no'|'photo_id'>,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:boolean}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
+  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count|null,measurement_quality?:Omit<PhotoMeasurementQuality,'slot_no'|'photo_id'>,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:boolean}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:Omit<RebaSideScore,'side'>,right:Omit<RebaSideScore,'side'>,missing_fields:string[],candidates:object[]}[],
   tag_counts:TagSummary[],criteria:NumericCriterion[],public_rule_text:string[]
 };
 type ExplanationContent = {
-  summary:string,reba_comparison:string,posture_explanations:{photo_ref:string,explanation:string}[],criteria:{criterion_no:Count,explanation:string,basis_refs:string[]}[],
+  summary:string,reba_comparison:string,posture_explanations:{photo_ref:string,explanation:string}[],criteria:{criterion_no:Count,explanation:string,basis_refs:string[],proposed_status?:CriterionProposalStatus}[],
   check_items:string[],improvement_options:{proposal:string,basis_refs:string[],needs_confirmation:boolean}[]
 };
 type AiText = {
+  source_current?:boolean,confirmation_current?:boolean,
   text_id:string,is_active:boolean,purpose:AiPurpose,result:'GENERATED'|'FALLBACK'|'DISABLED',
   generated_text:string|null,edited_text:string|null,applied_text:string|null,
   applied_kind:'MODEL'|'INVESTIGATOR'|'FALLBACK'|null,content:ExplanationContent|null,
   input_summary:NumericSummary,provisional_reba_input?:{total:Count,risk:string,photo_count:Count,photo_scope_sha256:string},model:string,reasoning_effort?:string,connection?:AiConnection|null,prompt_version:string,created_at:Timestamp,edited_at:Timestamp|null,applied_at:Timestamp|null,fallback_reason:string|null
 };
-type AiTextView = {text:AiText,source_current:boolean};
+type AiTextView = {text:AiText,source_current:boolean,confirmation_current?:boolean};
 type UiPreferences = {loco_visible:boolean,loco_mode:'normal'|'quiet'};
 type AiConnection = {response_id:string|null,model:string,reasoning_effort:string|null,requested_reasoning_effort:string};
 type AiSettingsContract = {version:string,fields:{key:string,label:string,kind:'boolean'|'text'|'choice'|'number'|'integer',default:boolean|string|number,env?:string,choices?:{value:string,label:string}[]}[],defaults:Record<string,boolean|string|number>};
@@ -321,6 +329,7 @@ AI 표시 정밀도(2026-10-27): 사진별 2D/3D 각도는 원래 `value_deg`와
 | get_task_result | task_id | TaskResult |
 | select_representative | analysis_id,slot_no | Analysis |
 | set_investigator_conclusion | analysis_id,conclusion:InvestigatorConclusion | Analysis |
+| confirm_criterion_review | analysis_id,expected_input_revision,conclusions:CriterionReviewChoice[],source_text_id?:string|null,reviewer?:string|null | Analysis |
 | generate_ai_text | analysis_id,purpose?:AiPurpose (기본 TASK_EXPLANATION),provisional_reba?:ProvisionalRebaInput | AiTextView |
 | edit_ai_text | analysis_id,text_id,text | AiTextView |
 | apply_ai_text | analysis_id,text_id,use_edited:boolean | AiTextView |
@@ -340,9 +349,9 @@ AI 표시 정밀도(2026-10-27): 사진별 2D/3D 각도는 원래 `value_deg`와
 
 적응형 입력의 DTO·상태·단위·조건별 연결·저장 의미는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다. `conditions.intake_session`은 선택 JSON 메타데이터이며 실제 입력은 기존 legal/capture/manual/conditions에도 기록한다. `intake_contract`가 내보내는 변수와 catalogue를 프론트·서비스·AI 응답 schema가 공유한다.
 
-추가 확인 질문은 선택적으로 `paired_question?:AdaptiveIntakeQuestion`을 포함한다(2026-10-23). 현재 누락 후보에 같은 manual 항목의 반대쪽(LEFT/RIGHT)이나 반대쪽 사진 방향(`view_LEFT`/`view_RIGHT`)이 있을 때 서비스가 기존 질문 DTO 형태로 붙이며, KNOWN·USER UNKNOWN인 쪽은 제외한다. 최상위 `questions` 길이 제한 1은 유지한다. 관련 필드 묶음은 `answer_questions?:AdaptiveIntakeQuestion[]`와 `group_title?:string`을 추가하며, member는 중첩 pair/group 없는 기존 질문 DTO다. 몸통·목 6개, 다리 3개, 움직임·힘 4개, 양팔·손목 추가 자세 8개, 작업 특징 최대 9개 범위에서 미확인 항목을 묶는다. `answer_questions`가 있으면 화면은 이 목록을 우선 사용하고 짝 질문을 중복 표시하지 않는다. 좌우 짝 질문은 양쪽 응답을 받은 뒤 `intake_turn.answers`에 두 `{target,condition,value,quote?}`를 함께 보내고 기존 revision 검사를 적용한다. 관련 그룹은 하나 이상 선택한 member만 함께 보내며 선택하지 않은 항목은 answers에 포함하지 않는다. 각 쪽의 UNKNOWN은 독립적이며 미선택 쪽을 0·NO나 반대쪽 값으로 추정하지 않는다.
+추가 확인 질문은 선택적으로 `paired_question?:AdaptiveIntakeQuestion`을 포함한다(2026-10-23). 현재 누락 후보에 같은 manual 항목의 반대쪽(LEFT/RIGHT)이나 반대쪽 사진 방향(`view_LEFT`/`view_RIGHT`)이 있을 때 서비스가 기존 질문 DTO 형태로 붙이며, KNOWN·USER UNKNOWN인 쪽은 제외한다. 최상위 `questions` 길이 제한 1은 유지한다. 관련 필드 묶음은 `answer_questions?:AdaptiveIntakeQuestion[]`와 `group_title?:string`을 추가하며, member는 중첩 pair/group 없는 기존 질문 DTO다. 몸통·목 6개, 다리 3개, 움직임·힘 4개, 양팔·손목 추가 자세 8개, 작업 특징 최대 9개 범위에서 미확인 항목을 묶는다. 현재 선택된 비사진 질문에 `answer_questions`가 있으면 화면은 이 목록을 우선 사용하고 짝 질문을 중복 표시하지 않는다. 단, 가상 질문 other_work는 자체 예/아니오/모름으로 답하며 하위 특징을 개별 질문으로 펼치지 않는다. manual/view/context/load 계열은 기본 질문에서 제외하고 별도 데이터 편집에서 읽는다. 좌우 짝 질문은 양쪽 응답을 받은 뒤 `intake_turn.answers`에 두 `{target,condition,value,quote?}`를 함께 보내고 기존 revision 검사를 적용한다. 관련 그룹은 하나 이상 선택한 member만 함께 보내며 선택하지 않은 항목은 answers에 포함하지 않는다. 각 쪽의 UNKNOWN은 독립적이며 미선택 쪽을 0·NO나 반대쪽 값으로 추정하지 않는다.
 
-AdaptiveIntakeState의 `progress={completed_count,total_count,remaining_count,percent,dynamic:true}`는 현재 필요한 추가 확인 항목의 진행률이다. 질문 배열은 한 번에 하나로 제한되므로 그 길이를 전체 질문 수로 사용하지 않는다. 좌우 짝 질문과 관련 항목 그룹도 원래 필드 수로 집계하며 묶음 화면 수로 진행률을 바꾸지 않는다. 남은 40개는 질문 화면 40개를 뜻하지 않는다. 퍼센트·처리/전체/남은 항목은 서버 값으로 표시하고 답변에 따른 대상 변화를 안내한다. USER 모름도 확인 처리에 포함하지만 계산 완성인 `complete`와 구분한다. 상세 집계·구버전 응답 표시는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다.
+AdaptiveIntakeState의 `progress={completed_count,total_count,remaining_count,percent,dynamic:true}`는 현재 필요한 추가 확인 항목의 진행률이다. 질문 배열은 한 번에 하나로 제한되므로 그 길이를 전체 질문 수로 사용하지 않는다. 좌우 짝 질문과 관련 항목 그룹도 원래 필드 수로 집계하며 묶음 화면 수로 진행률을 바꾸지 않는다. 남은 40개는 질문 화면 40개를 뜻하지 않는다. 이 집계는 후보 메타데이터로 보존하며 새 기본 추가 질문 화면에 전체 필드 진행률이나 수십 개 남은 질문으로 표시하지 않는다. 현재 표시한 질문 묶음은 questions에 따른다. USER 모름도 확인 처리에 포함하지만 계산 완성인 `complete`와 구분한다. 상세 집계·구버전 응답 표시는 [적응형 추가 확인 계약](adaptive-intake.md)을 따른다.
 
 AdaptiveIntakeState의 `ai`는 실제 마지막 요청의 상태·응답 모델·요청/응답 추론 강도·실패 사유·시각·응답 ID다. 설정/키 존재와 실제 응답 성공을 구분한다. 이 메타데이터는 내부 진단에 유지하며 사용자 팝업은 모델·추론 강도·연결 성공 상태를 숨기고 처리 중·실패만 일반 안내로 표시한다. 기본 질문 수는 정책 변수로 하나이며, 입력 추출을 반영한 뒤 남은 누락으로 후속 질문을 만든다. 응답 실패 시 저장한 입력/문장을 유지하고 팝업에서 재시도한다. `plan=true`이고 `answers`만 있으며 공백을 제거한 `text`가 비면 외부 AI를 재호출하지 않고 저장 후 다음 질문을 로컬 계획한다. 이 로컬 회차의 ai.status는 NOT_REQUESTED이며 이전 내부 AI 진단과 미처리 문장 초안을 새 성공으로 바꾸거나 삭제하지 않는다. 자유문장 추출과 answers/text 모두 없는 명시적 재시도는 기존 AI 경로를 유지한다.
 
@@ -476,9 +485,15 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 간편 추가 확인 정책의 `policy.quick_review_interval=5`는 결과를 먼저 볼 수 있도록 안내하는 화면 간격이다. 질문 후보나 계산 완성을 제한하는 값이 아니며 기존 미확인 필드와 `progress`/`complete` 의미는 유지한다.
 
 
-## 기본 간편 입력: 묶음 서식 (2026-10-23)
+## 기본 간편 입력: 현재 질문과 데이터 편집 (2026-10-27)
 
-새 서비스 응답의 `form_fields`가 있으면 간단 확인 횟수 제한/개별 질문 대신 작업 특징 → 작업 조건 → 결과의 고정 이동을 사용한다. 첫 화면에 작업 특징을 함께 표시하고 저장 후 해당 작업의 관련 조건을 선택·숫자 서식으로 묶어 표시한다. 관련된 KNOWN 값은 미리 표시하며 변경한 값만 기존 intake_turn.answers로 저장한다. 조건별 identity를 유지하고 서로 다른 중량·횟수를 합치지 않는다. 선택 보완인 사진 자세는 접을 수 있다. 미선택은 NO/0으로 자동 채우지 않으며 미확인 상태로 결과를 생성할 수 있다. 화면 단계 표시는 계산 완성률을 뜻하지 않는다. 결과 이동 후 개별 누락 질문을 자동으로 이어가지 않는다. 추가 설명은 선택 영역에서 AI로 정리할 수 있고 서식 선택·숫자 저장에는 AI 요청을 하지 않는다. 기존 응답의 questions/progress/complete는 호환·실제 계산 상태로 유지한다. form_fields가 없는 과거 초안은 기존 질문 화면으로 읽는다.
+`questions`가 기본 추가 질문의 정본이다. 기존 planner의 우선순위·1묶음 제한과 `answer_questions`·`paired_question`을 따르며 `form_fields` 전체나 `pending_input=true` 전체를 질문으로 나열하지 않는다. `other_work`는 기존 단일 예/아니오/모름 질문으로 받고 하위 작업 특징을 개별 선택칸으로 펼치지 않는다. 미확인 다른 작업을 일괄 존재 확인하기 전에는 개별 작업 특징을 다시 삽입하지 않는다.
+
+`form_fields`는 현재 값의 읽기·명시적 수정용 메타데이터다. 각 항목의 `pending_input:boolean`은 실제 assess 후보 여부이며 질문으로 선택됐다는 뜻이 아니다. 현재 기본 질문으로 고르지 않은 시간·횟수 항목은 별도 작업·조사 정보에서 필드명·현재 값·미확인 상태로 제공한다. 기본 추가 질문 화면에 수십 개 필수 항목처럼 열거하지 않는다. 저장 필드 수·후보 수·현재 질문 묶음 수를 구분한다.
+
+사진의 목·몸통·좌우 팔·손목·다리·잡는 상태는 추가 질문과 분리한다. ‘자세 분석값 수정’에서 사진별 값·출처(MediaPipe·AI 관찰·설명·사용자)·추정/충돌/미확인/사진 사용 안 함 상태를 먼저 읽는다. 이미 측정·관측된 값에 ‘직접 확인해 주세요’를 붙이지 않으며, 미확인 자세를 모름 선택 질문으로 만들지 않는다. 각 행의 ‘수정’을 사용자가 눌러야 그 행의 입력칸이 생긴다. 화면 열기나 편집칸 열기만으로 답변을 저장하거나 자동 추정을 USER로 바꾸지 않는다.
+
+현행 UI는 자세 체크리스트의 미체크 항목을 NO로 채우는 버튼, 반대팔 복사, 다른 사진 제안값 채우기 버튼을 제공하지 않는다. 미확인·명시적 사용자 모름·서로 다른 사진과 신체 부위의 소유권을 보존한다. 명시적으로 바꾼 항목만 기존 `intake_turn.answers`로 저장하며, 사용자 모름은 null이고 실제 0·NO와 구분한다. 작업 특징·사진 상황의 직접 변경은 기존 `plan=false` 즉시 저장 경로를 유지하고 그 밖의 수정은 ‘수정한 값 저장’으로 제출한다. 사진/서식 읽기와 직접 선택 저장은 외부 AI를 추가 호출하지 않는다.
 
 ### 하루 시간 합산 정정 (2026-10-22)
 
@@ -523,7 +538,7 @@ FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJE
 
 계산기가 이미 완료한 범위의 작업 특징은 후보와 묶음 서식 모두에서 제외한다. 원래 미확인 값을 NO로 저장하지 않는다. 작업 설명을 먼저 보이는 답변 칸에서 한 번에 정리하고, 개별 수정은 접힌 영역에서 제공한다. 화면에 열거된 남은 작업 특징은 사용자가 명시적으로 한 번 확인하여 NO로 저장할 수 있다. 먼저 작성 중 설명과 직접 선택을 저장하며 새로 알려진 YES, 이전 USER 모름, 이미 확인된 값은 일괄 확인으로 덮지 않는다.
 
-공통 intake POLICY.optional_photo_destinations는 사진 점수를 더 보완할 때의 항목을 정의하고 form_prompt_limit은 한 자연어 안내에 나열할 항목 수를 정의한다. 사진의 미확정 보완 항목만 남으면 기본 팝업을 강제하지 않고, 사용자가 선택해 더 확인할 수 있다. 해당 값은 미확인으로 보존하고 REBA 미완성/현재 정보 출력의 기존 의미를 유지한다. 작업 정보가 충분하거나 사용자가 모른다고 확인한 뒤에는 빈 단계를 건너뛴다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
+공통 intake POLICY.optional_photo_destinations는 사진 상황·방향·하중·자세를 결과의 선택 보완 서식에서 편집할 수 있음을 뜻하며, 그 자체로 모두 질문에서 제외한다는 뜻은 아니다. 사진 사용 여부·촬영 방향·하중 연결은 계산 또는 소유권에 필요한 경우 질문한다. MediaPipe/AI 사진 결과가 있는 동안 자세 수치·항목을 다시 묻지 않고 결과 단계에서 편집할 수 있게 한다. 사진을 사용하지 않기로 했거나 모름이면 필요한 자세 정보는 대체 입력으로 질문한다. 질문은 form_prompt_limit 범위에서 하나씩 보여준다. 미전송 설명/직접 수정은 결과 이동 전에 저장한다.
 
 회귀는 test_question_minimization.py와 frontend-question-minimization.cjs에서 계산 완료 시 9개→0개, 남은 특징 한 번 확인, USER 모름/직접 YES 보호, 미전송 설명 우선 처리와 실패 보존을 검사한다. 실제 질문 수는 저장 필드 수 또는 접힌 사진 보완 수와 구분하여 사용자 답변 동작으로 검증한다.
 
@@ -582,9 +597,9 @@ context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추
 
 기존 저장 분석에 현재 점수 필드가 없으면 서비스의 공통 읽기 투영으로 같은 snapshot·pose·사진별 근거에서 계산한다. `project_score_continuity(analysis)`는 원 객체·DB·불변 snapshot을 수정하지 않으며, 화면과 보고서는 같은 `current_score`를 사용한다.
 
-## 자세 체크리스트와 한 번에 채우기 보조 필드 (2026-10-26)
+## 과거 체크리스트 메타데이터 호환 (2026-10-27)
 
-`intake_contract.fields[]`의 manual 항목 중 선택지가 [예, 아니오]인 18개(COMMON `trunk_twisted`·`trunk_side_bent`·`neck_twisted`·`neck_side_bent`·`legs_support`·`seated`·`shock_force`·`static_over_1min`·`small_repeat_over_4min`·`rapid_change_or_unstable`, LEFT/RIGHT `shoulder_raised`·`arm_abducted_or_rotated`·`arm_supported_or_gravity_assisted`·`wrist_deviated_or_twisted`)에는 선택 필드 `checklist:{group:string,order:Count,label:string,yes:string,no:string}`이 붙는다. `yes`/`no`는 해당 항목 `choices`의 값이며(`legs_support`는 UNILATERAL_OR_UNSTABLE/BILATERAL_STABLE) 같은 항목을 담는 `form_fields[]`에도 그대로 실린다. 다른 항목에는 없다. 몸통·목의 네 항목은 `label`/`question`도 칸마다 다른 문구로 바뀌었다. 기준 사진의 manual 질문 후보와 `form_fields[]`에는 정면·후면 사진 판독이 있을 때만 `suggestion?:{value:string,estimated:boolean,quote:string,photo_label:string,reading:string}`이 붙는다(조건과 의미는 [적응형 추가 확인 계약](adaptive-intake.md)의 같은 날짜 절). `suggestion`은 입력값이 아니며 사실·manual 행·REBA 입력을 바꾸지 않는다. `intake_turn.answers[]`의 각 항목은 `{target,condition?,value,quote?}`이며 `quote`는 USER 사실의 근거 문구가 된다(없으면 “직접 입력”). 서식의 체크·채우기는 이 필드로 선택 경위를 보낸다. 요청·응답 메서드와 매개변수는 늘지 않는다. 모델 요청(EXTRACT_AND_PLAN·FOLLOWUP)의 `targets`·`missing`·`asked`에는 `checklist`·`suggestion`을 싣지 않는다.
+`intake_contract.fields[]`와 `form_fields[]`의 선택 `checklist:{group,order,label,yes,no}` 및 `suggestion:{value,estimated,quote,photo_label,reading}`은 과거 입력·초안 호환을 위해 보존한다. `legs_support`의 실제 값 UNILATERAL_OR_UNSTABLE/BILATERAL_STABLE 등 필드별 enum도 유지한다. 이 메타데이터가 현재 질문이나 일괄 NO/복사 버튼을 생성하지 않는다. 현재 UI는 앞의 현재 질문·데이터 편집 계약을 따른다. 과거에 명시적으로 저장한 USER 근거와 snapshot은 변경하지 않는다. `answers[].quote`는 기존 직접 입력 근거로 계속 읽으며 모델 요청에는 checklist/suggestion을 추가하지 않는다.
 
 
 ## 측정·사진 API 값의 재사용 (2026-10-27)
@@ -599,3 +614,12 @@ pose/reba/measurement_quality는 slot_no와 photo_id를 함께 대조한다. 다
 NumericSummary의 사진별 estimated_inputs는 `{scope,field,value,source,state:'ESTIMATED',measurement_method,confidence,display_confidence_percent,used_for_reba}`로 추정 입력을 전달한다. candidates는 angle_refs/measurement_method/estimated를 포함하고 inferred_world_angles는 diagnostic을 보존한다. 사용자 자유근거·사진 ID는 AI 요약에 넣지 않는다. 사진 API의 범주 추정은 해당 신체의 OBSERVED·유한한 양쪽 확신도 0.5 이상·양쪽 근거가 있을 때 ESTIMATED로 보존한다. boolean/작업 특징은 기존 높은 확신도 기준을 유지한다. 근거 문장의 표현이 다르다는 이유만으로 버리지 않고 두 근거를 원문대로 남긴다. 쥐기는 holding뿐 아니라 해당 쪽 손목의 가시성도 확인해 가려진 반대 손을 복사하지 않는다.
 
 병렬 사진 응답의 active request_id 집합과 각 record 전체 내용이 같으면 기존 photos 배열 순서를 보존한다. 조회가 완료 순서를 정렬하는 것만으로 입력 revision·분석 현재성·AI source_current를 변경하지 않는다. 실제 사진·서명·관찰 내용 변경은 기존대로 반영한다.
+
+
+### 호별 참고 선택과 명시 검토 확정 (2026-10-27)
+
+신규 strict 응답의 criteria 각 항목은 proposed_status를 필수로 포함한다. 이전 세 키 콘텐츠는 읽되 AI 참고 선택을 합성하지 않는다. criteria_proposals는 원본 AI 입력과 현재 분석이 일치하는 typed 응답에서만 처음 선택할 수 있다. 사람이 명시적으로 확정해 연결한 동일 원본은 source_current=false, confirmation_current=true로 사유 조회가 가능하며 새로운 자동 선택으로 사용하지 않는다. 계산과 제안이 다르면 conflicts_with_computed=true다. 근거가 모두 미확인인 기준에서 근거 없는 해당/비해당을 생성하면 신규 응답 검증에 실패한다.
+
+confirm_criterion_review는 현재 FINISHED 분석의 expected_input_revision을 확인하고 1~11개 중복 없는 conclusions를 원자 저장한다. APPLICABLE/NOT_APPLICABLE은 investigator/effective를 갱신한다. UNDETERMINED는 receipt에 판단 보류를 기록하며 이전 binary와 computed/effective를 보존한다. null은 명시적 해제다. 미전송 호의 기존 인간 결론은 보존하며 submitted_criteria가 이번에 직접 제출한 호를 구분한다. source_text_id가 없으면 AI 없이 확정한다. 있으면 같은 분석의 현재 typed 설명이어야 한다. 이 메서드는 설명 본문을 적용하지 않는다.
+
+criterion_review와 criterion_review_history는 기존 분석 JSON에 기록한다. context_digest는 해당 분석·revision·snapshot·계산·조사자 결론에 묶인다. 원래 AI input_summary/content/generated_text는 변경하지 않는다. source_current는 원래 입력 비교이고 confirmation_current는 검토 receipt와 출처 AI 원문 digest의 별도 비교다. 호 확정 후 입력·계산·최신 분석·조사자 결론이 바뀌면 receipt 현재성이 해제된다. 출처가 연결된 유효 confirmation_current는 별도의 명시적 apply_ai_text와 결과 설명 출력에 사용할 수 있다. Excel 호별 최종 결과에는 현재 인간 확정 해당/비해당/판단 보류만 표시하며 미확정 AI 제안과 명시 해제는 출력하지 않는다.

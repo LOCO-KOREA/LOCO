@@ -26,11 +26,11 @@ function progressPanel(state) {
 
 export function renderDialog(intake,busy) {
   if(!intake.dialogOpen||!intake.state)return '';
-  if(Array.isArray(intake.state.form_fields))return renderForm(intake,busy);
+  if(Array.isArray(intake.state.form_fields)&&intake.photoEditor)return renderForm(intake,busy);
   const state=intake.state,q=intake.questions[0];
   if(!busy&&intake.shouldReview?.())return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 간단 확인</span><h2 id="intake-dialog-title">결과를 먼저 확인해 볼까요?</h2></div><button type="button" data-quick="intake-close" aria-label="추가 질문 닫기">×</button></header><div class="intake-dialog-body"><article><h3>추가 질문을 끝까지 답하지 않아도 돼요.</h3><p class="quick-note">지금까지 입력한 내용으로 결과를 먼저 확인하세요. 아직 확인하지 않은 값은 입력 필요·미완성으로 남겨 두고, 필요한 부분만 나중에 보완할 수 있어요.</p></article><details class="intake-review-details"><summary>전체 상세 항목 진행 보기</summary>${progressPanel(state)}</details></div><footer class="intake-dialog-footer"><button type="button" data-quick="intake-continue">상세 항목 더 확인</button><button type="button" class="primary" data-quick="next">결과 먼저 보기 →</button></footer></dialog>`;
 
-  const hasAnswerGroup=Array.isArray(q?.answer_questions)&&q.answer_questions.length>0;
+  const hasAnswerGroup=q?.target!=='other_work'&&Array.isArray(q?.answer_questions)&&q.answer_questions.length>0;
   const members=hasAnswerGroup?(intake.answerFields?.(q)||q.answer_questions):[];
   const grouped=hasAnswerGroup&&members.length>0&&members.every(choicesFor);
   const hasChoices=grouped||!hasAnswerGroup&&choicesFor(q),paired=!hasAnswerGroup&&hasChoices&&choicesFor(q.paired_question)?q.paired_question:null;
@@ -62,7 +62,7 @@ export function renderDialog(intake,busy) {
   }).join('')}</div><div class="intake-dialog-actions"><button type="button" class="primary" data-quick="intake-group-save" ${busy||!groupReady?'disabled':''}>선택한 항목 저장</button></div>`;
   const send=()=>`<button type="button" class="primary" data-quick="adaptive-next" ${busy||!intake.text.trim()&&state.ai?.status!=='ERROR'?'disabled':''}>${busy?'답변을 정리하는 중…':state.ai?.status==='ERROR'?'다시 시도':'답변 보내기'}</button>`;
   return `<dialog class="intake-dialog" data-intake-dialog aria-labelledby="intake-dialog-title" aria-busy="${Boolean(busy)}"><header class="intake-dialog-header"><div><span class="intake-eyebrow">LOCO · 추가 확인</span><h2 id="intake-dialog-title">${q?'작업 정보를 확인해요':'추가 질문 확인을 마쳤어요'}</h2></div></header>
-    ${busy?renderActivity(typeof busy==='string'?busy:'답변을 정리하고 있어요',intake.busyElapsedSeconds):''}${progressPanel(state)}<div class="intake-dialog-body">${busy?'':connectionStatus(intake,false)}<p class="intake-auto-note">설명·사진에서 ${auto}개 정보를 자동으로 정리했어요. 이미 아는 것은 다시 묻지 않아요.</p>${renderIntakeHistory(state,{details:false})}
+    ${busy?renderActivity(typeof busy==='string'?busy:'답변을 정리하고 있어요',intake.busyElapsedSeconds):''}${Array.isArray(state.form_fields)?'':progressPanel(state)}<div class="intake-dialog-body">${busy?'':connectionStatus(intake,false)}<p class="intake-auto-note">이미 입력하거나 사진에서 얻은 값은 반영했어요. 추가 답변은 선택이에요.</p>${renderIntakeHistory(state,{details:false})}
 
     ${q?`<article data-intake-question="${esc(q.identity)}">${condition}<h3>${grouped?esc(q.group_title||'관련된 항목을 함께 확인해 주세요'):paired?'왼쪽과 오른쪽을 함께 확인해 주세요':esc(q.text)}</h3>${grouped?'':`<p class="quick-note">${paired?'양쪽의 값을 각각 선택하고 한 번에 저장해 주세요.':esc(q.reason)}</p>`}${coverage.length?`<p class="intake-auto-note">확인할 특징: ${coverage.map(esc).join(' · ')}</p>`:''}${grouped?groupPanel():paired?pairedPanel():details(q)+(hasChoices?replies(q):'')}</article>`:''}
     ${!writing?`<button type="button" class="intake-write-toggle" data-quick="intake-write" aria-expanded="false" aria-controls="intake-writing" ${busy?'disabled':''}>직접 설명하기</button>`:''}
@@ -73,12 +73,19 @@ export function renderDialog(intake,busy) {
     <footer class="intake-dialog-footer"><button type="button" data-quick="intake-close">나중에 확인</button><button type="button" data-quick="next" ${busy?'disabled':''}>현재 정보로 결과 보기</button></footer></dialog>`;
 }
 
-export function mountDialog(host,busy,focusPair=null) {
+export function mountDialog(host,busy,focusPair=null,intake=null) {
   const dialog=host.querySelector?.('[data-intake-dialog]');
   if(!dialog)return;
   // Keep the pending questions for the quick screen without blocking another mode.
   if(host.closest?.('[hidden]')) { if(dialog.open)dialog.close(); return; }
   if(!dialog.open)dialog.showModal();
+  for(const button of dialog.querySelectorAll('[data-intake-edit-field]'))button.addEventListener('click',event=>{
+    event.preventDefault();event.stopPropagation();if(busy||!intake)return;
+    const identity=button.dataset.intakeEditField,scroll=dialog.querySelector('.intake-dialog-body')?.scrollTop||0;
+    intake.dataEditing.add(identity);intake.changed();
+    const updated=host.querySelector('[data-intake-dialog]'),body=updated?.querySelector('.intake-dialog-body');if(body)body.scrollTop=scroll;
+    [...updated?.querySelectorAll('[data-intake-form]')||[]].find(control=>control.dataset.intakeForm===identity)?.focus({preventScroll:true});
+  });
   if(!busy) {
     const selected=focusPair&&[...dialog.querySelectorAll('[data-intake-pair-pick][aria-pressed="true"], [data-intake-group-value]')].find(control=>(control.dataset.intakePairPick||control.dataset.intakeGroupValue)===focusPair);
     (selected||dialog.querySelector('[data-intake-reply]')||dialog.querySelector('[data-intake-group-value]:not(:disabled)')||dialog.querySelector('.intake-quick-replies button:not(:disabled)'))?.focus({preventScroll:true});
