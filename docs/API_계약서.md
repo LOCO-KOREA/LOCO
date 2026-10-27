@@ -279,9 +279,13 @@ provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_id
 
 같은 작업 입력 연결(2026-10-27): fact의 선택 `origin='INPUT_LINK'`와 `input_link={rule,source_identity,source_condition,source_value,source_updated_at,source_message_id,photo_signature,photo_ids,relation_quote}`는 원문/직접 입력의 중량을 현재 사진 하중으로 연결한 근거다. 별도 사용자 답변을 만들지 않으며 동일 입력 재조회는 revision을 늘리지 않는다. 명시적 사진 중량·모름·무하중·비연결, 서로 다른 조건 및 사진별 직접 관찰값이 우선한다. 원본/사진 범위 변경 시 해당 파생값만 갱신하며 과거 분석 snapshot은 바꾸지 않는다. 새 메시지의 `source_photo_scope`와 기존 요청 수령증의 같은 필드로 원문과 사진 소유 범위를 대조한다.
 
-`NumericSummary.posture_results[*]`는 사진별 `current_score?:{total,risk,kind,source,assumed_count,load_assumed?}`와 `recorded_inputs:[{scope,field,value,source}]`를 포함한다. 후자는 같은 사진의 유효한 저장 REBA 항목만이며 원문·이름·경로·내부 ID는 포함하지 않는다. 확정 구성 점수가 null이어도 저장 입력이 사라진 것은 아니다. AI는 엔진 현재 점수와 저장 입력을 설명하며 점수를 다시 계산하지 않는다.
+`NumericSummary.posture_results[*]`는 사진별 `current_score?:{total,risk,kind,source,assumed_count,load_assumed?}`와 `recorded_inputs:[{scope,field,value,source}]`, `unknown_inputs:[{scope,field,value:null,state:'UNKNOWN',source:'USER'}]`를 포함한다. 후자는 같은 사진의 유효한 저장 REBA 항목과 명시 모름 응답만이며 원문·이름·경로·내부 ID는 포함하지 않는다. 확정 구성 점수가 null이어도 저장 입력이 사라진 것은 아니다. AI는 엔진 현재 점수와 저장 입력을 설명하며 점수를 다시 계산하지 않는다.
+
+`NumericSummary.recorded_work_inputs`는 실제 conditions/legal의 숫자·선택 입력을 `{field,label,value,unit,condition_ref,criterion_nos,source}`로 전달한다. label은 고정 입력 정의, condition_ref는 익명 작업 조건 번호다. 전체 작업시간·연간 일수·일회성 여부도 기준별 계산 근거에 우연히 나타나는 값으로 대신하지 않는다. `unknown_work_inputs`는 현재 revision의 명시적 USER 모름 응답만 value:null/state:'UNKNOWN'으로 전달하며, 미질문·사진 자동 추정의 빈 값이나 과거 세션의 모름을 만들지 않는다. 로컬 대체 설명도 같은 입력 목록을 한글 항목·단위로 표시한다. 입력 시각·원문·작업자·파일 경로·원시 조건 이름은 모델 요약에 포함하지 않는다.
 
 ## 7. 서비스 호출
+
+AI 표시 정밀도(2026-10-27): 사진별 2D/3D 각도는 원래 `value_deg`와 별도로 소수 한 자리 `display_value_deg`, 전체·사진별 측정 품질은 정수 백분율 `display_confidence_percent`를 전달한다. 표시용 반올림은 계산·원본 좌표·중량·시간·횟수를 바꾸지 않는다. 설명 검증은 이 표시값을 허용하며 임의 수치나 `%`가 붙었다는 이유만으로 허용하지 않는다. 모델의 비교 문자열은 기존 계약대로 엔진의 비교 설명으로 교체하며, 문자열인 경우 이 교체를 내용 검증 전에 수행해 실제로 사용하지 않을 비교문 때문에 정상 본문을 버리지 않는다. 누락·잘못된 타입·다른 필드의 수치 검증은 유지한다.
 
 반환은 Result<T>다. type LegacyAnalysisV13은 §10의 고정 이전 계약에서 가져오는 외부 별칭이며 아래 타입 예시와 함께 해석한다. 현재 코드에 같은 메서드명이 있어도 2.0 계약이 구현됐다는 뜻은 아니다.
 

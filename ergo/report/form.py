@@ -332,7 +332,7 @@ def _result(c, official=False):
         if summary.get('total_slot_count') or summary.get('full_max') is not None or summary.get('available_max') is not None:
             rows.append([task['name'], 'REBA 자세 점수', _reba_text(task['analysis'])])
             if summary.get('total_slot_count'):
-                rows.append([task['name'], '계산한 사진', f"{summary.get('complete_count', 0)}장 / {summary['total_slot_count']}장"])
+                rows.append([task['name'], '양쪽 확정 계산 완료 사진', f"{summary.get('complete_count', 0)}장 / {summary['total_slot_count']}장"])
     symptom = _symptom_summary(c['survey'])
     if symptom:
         rows.append(['조사 전체', '증상조사 기록', symptom])

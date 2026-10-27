@@ -26,6 +26,16 @@ def _safe_number(value):
     except OverflowError:return None
 
 
+def _display_angle(value):
+    value=_safe_number(value)
+    return round(value,1) if value is not None else None
+
+
+def _display_confidence(value):
+    value=_safe_number(value)
+    return round(value*100) if value is not None and 0<=value<=1 else None
+
+
 def _reba_risk(total):
     return 'NEGLIGIBLE' if total == 1 else 'LOW' if total <= 3 else 'MEDIUM' if total <= 7 else 'HIGH' if total <= 10 else 'VERY_HIGH'
 
@@ -144,6 +154,26 @@ def _recorded_photo_inputs(snapshot,slot):
     return output
 
 
+def _unknown_photo_inputs(snapshot,slot):
+    """An explicit unknown is an answer, distinct from an unasked photo field."""
+    from ergo.intake.contract import fields
+    from ergo.intake.photo_facts import photo_id
+    session=((snapshot.get('conditions') or {}).get('intake_session') or {})
+    if session.get('projected_revision') is not None and session.get('projected_revision')!=snapshot.get('input_revision'):return []
+    catalogue={field['target']:field for field in fields() if field['destination']['type']=='manual'}
+    known={(item['scope'],item['field']) for item in _recorded_photo_inputs(snapshot,slot)}
+    output=[];seen=set()
+    for item in (session.get('facts') or {}).values():
+        field=catalogue.get(item.get('target'))
+        if not field or item.get('alias_of') or item.get('source')!='USER' or item.get('state')!='UNKNOWN' or item.get('value') not in (None,'UNKNOWN'):continue
+        if photo_id(item,session.get('views') or {})!=slot.get('photo_id'):continue
+        destination=field['destination'];owner=(destination['scope'],destination['field'])
+        if owner in known or owner in seen:continue
+        seen.add(owner)
+        output.append(dict(scope=owner[0],field=owner[1],value=None,state='UNKNOWN',source='USER'))
+    return output
+
+
 def _posture_results(analysis,targets):
     pose=analysis.get('pose') or {};reba=analysis.get('reba') or {}
     pose_by_slot={item.get('slot_no'):item for item in pose.get('slots') or []}
@@ -154,11 +184,11 @@ def _posture_results(analysis,targets):
         number=slot.get('slot_no');p=pose_by_slot.get(number) or {};r=reba_by_slot.get(number) or {}
         angles=[]
         for angle in p.get('angles') or []:
-            angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),
+            angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),display_value_deg=_display_angle(angle.get('value_deg')),
                 min_confidence=_safe_number(angle.get('min_confidence')),diagnostic=angle.get('diagnostic')))
         world_angles=[]
         for angle in p.get('world_angles') or []:
-            world_angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),
+            world_angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),display_value_deg=_display_angle(angle.get('value_deg')),
                 min_confidence=_safe_number(angle.get('min_confidence')),coordinate_space='INFERRED_WORLD_3D',used_for_reba=False))
         sides={}
         for side in ('left','right'):
@@ -174,10 +204,11 @@ def _posture_results(analysis,targets):
         engine=p.get('engine') or {}
         output.append(dict(photo_ref=f'사진 {index}',pose_status=p.get('status'),pose_diagnostic_codes=[d.get('code') for d in p.get('diagnostics') or [] if d.get('code')],
             model=dict(name=engine.get('name') or engine.get('model_id'),version=engine.get('version'),provider=engine.get('provider')) if engine else None,
-            landmark_count=len(p.get('points') or []),measurement_quality={key:quality_by_slot.get(number,{}).get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},angles=angles,inferred_world_angles=world_angles,
+            landmark_count=len(p.get('points') or []),measurement_quality={**{key:quality_by_slot.get(number,{}).get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},'display_confidence_percent':_display_confidence(quality_by_slot.get(number,{}).get('mean_confidence'))},angles=angles,inferred_world_angles=world_angles,
             reba_status=r.get('status'),effective_load_kg=_safe_number(r.get('effective_load_kg')),selected_side=r.get('selected_side'),
             current_score=_current_score_summary(r.get('current_score')),
             recorded_inputs=_recorded_photo_inputs(analysis.get('snapshot') or {},slot),
+            unknown_inputs=_unknown_photo_inputs(analysis.get('snapshot') or {},slot),
             total=_safe_number(r.get('total')),risk=r.get('risk'),left=sides['left'],right=sides['right'],missing_fields=r.get('missing_fields') or [],
             candidates=candidates))
     return output
@@ -198,6 +229,89 @@ def _reba_overview(reba):
         if so_far.get('unconfirmed_photo'): overview['score_so_far']['unconfirmed_photo_count']=len(so_far['unconfirmed_photo'])
         if 'observation.load_state' in (so_far.get('assumed') or []): overview['score_so_far']['load_assumed']=True
     return overview
+
+
+def _recorded_work_inputs(snapshot):
+    """Read known numeric/enum inputs from canonical DTO fields, not stale prose."""
+    from ergo.intake.contract import fields, LIFT_FIELDS
+    conditions=snapshot.get('conditions') or {};legal=snapshot.get('legal') or {}
+    criteria={item.get('criterion_no',index):item for index,item in enumerate(legal.get('criteria') or [],1)}
+    session=conditions.get('intake_session') or {}
+    session_facts=(session.get('facts') or {}) if session.get('projected_revision') is None or session.get('projected_revision')==snapshot.get('input_revision') else {}
+    refs={};output=[];unknown=[];seen={}
+    safe_sources=('USER','AI','SAVED','POSE','MOVENET','VISION','INTERVIEW','DIRECT_OBSERVATION','DOCUMENT','OTHER')
+
+    def append(field,value,condition=None,criterion=None,evidence=None):
+        if field['kind']=='number':
+            if _safe_number(value) is None or value<0:return
+            if field.get('maximum') is not None and value>field['maximum']:return
+            if field.get('unit') in ('일','회/일','회/시간') and int(value)!=value:return
+        elif field['kind']=='choice':
+            if not isinstance(value,(str,int,float)) or isinstance(value,bool):return
+            if value not in [item['value'] for item in field.get('choices') or []]:return
+        else:return
+        ref=None
+        if condition is not None:
+            owner=(field.get('gate') or field['target'].split('.')[0],condition)
+            if owner not in refs:refs[owner]=f'작업 조건 {len(refs)+1}'
+            ref=refs[owner]
+        source=(evidence or {}).get('source')
+        identity=field['target']+'@'+(condition if isinstance(condition,str) else 'default')
+        fact=session_facts.get(identity) or {}
+        if fact.get('state')=='KNOWN' and type(fact.get('value')) is type(value) and fact.get('value')==value:
+            source=fact.get('source')
+        if source not in safe_sources:source=None
+        marker=(field['target'],ref,type(value),value,source)
+        if marker in seen:
+            if criterion is not None and criterion not in seen[marker]['criterion_nos']:seen[marker]['criterion_nos'].append(criterion)
+            return
+        row=dict(field=field['target'],label=field['label'],value=value,unit=field.get('unit') or '',
+                 condition_ref=ref,criterion_nos=[] if criterion is None else [criterion],source=source)
+        seen[marker]=row;output.append(row)
+
+    for field in fields():
+        destination=field['destination'];kind=destination['type']
+        if kind=='conditions':append(field,conditions.get(destination['field']))
+        elif kind in ('work_type','complete'):
+            name='condition_present' if kind=='work_type' else 'rows_complete'
+            for number in destination['criteria']:append(field,(criteria.get(number) or {}).get(name),criterion=number)
+        elif kind=='criterion':
+            mapping=destination['mapping']
+            if 'exposure' in mapping:
+                item=next((row for row in legal.get('exposures') or [] if row.get('condition_code')==mapping['exposure']),{})
+                append(field,item.get('minutes'),criterion=destination['criteria'][0],evidence=item.get('evidence'))
+            elif 'criterion' in mapping:
+                for number in destination['criteria']:
+                    item=criteria.get(number) or {};append(field,item.get(mapping['criterion']),criterion=number,evidence=item.get('evidence'))
+            else:
+                name=mapping.get('lift') or mapping.get('row')
+                for number in destination['criteria']:
+                    if 'lift' in mapping and name not in LIFT_FIELDS.get(number,()):continue
+                    for index,item in enumerate((criteria.get(number) or {}).get('rows') or []):
+                        condition=item.get('row_id')
+                        if not isinstance(condition,str):condition=('row',number,index)
+                        append(field,item.get(name),condition=condition,criterion=number,evidence=item.get('evidence'))
+    known_owners={(row['field'],row['condition_ref']) for row in output}
+    catalogue={field['target']:field for field in fields()}
+    for item in session_facts.values():
+        field=catalogue.get(item.get('target'))
+        if not field or item.get('alias_of') or item.get('source')!='USER' or item.get('state')!='UNKNOWN' or item.get('value') not in (None,'UNKNOWN'):continue
+        destination=field['destination']
+        if destination['type'] not in ('conditions','criterion','work_type','complete'):continue
+        ref=None
+        if field.get('conditioned'):
+            condition=item.get('condition') or 'default'
+            if not isinstance(condition,str):continue
+            owner=(field.get('gate') or field['target'].split('.')[0],condition)
+            if owner not in refs:refs[owner]=f'작업 조건 {len(refs)+1}'
+            ref=refs[owner]
+        if (field['target'],ref) in known_owners:continue
+        applicable=destination.get('criteria') or []
+        if destination.get('mapping',{}).get('lift'):
+            applicable=[number for number in applicable if destination['mapping']['lift'] in LIFT_FIELDS.get(number,())]
+        unknown.append(dict(field=field['target'],label=field['label'],value=None,state='UNKNOWN',
+            unit=field.get('unit') or '',condition_ref=ref,criterion_nos=applicable,source='USER'))
+    return dict(known=output,unknown=unknown)
 
 
 def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=None,analysis_currentness=None):
@@ -230,13 +344,14 @@ def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=N
     settings=snapshot.get('settings') or {}
     normalized=normalize_provisional_reba_input(analysis,provisional_reba)
     measurement_quality=analysis.get('measurement_quality') or {}
+    work_inputs=_recorded_work_inputs(snapshot)
     summary=dict(schema_version='2.0',purpose=purpose,rule_version='|'.join(str(x) for x in [settings.get('burden_rule'),settings.get('reba_rule'),(settings.get('posture_profile') or {}).get('version')]),module_states=analysis.get('module_states') or {},requested_scope=scope,
         pose_quality=dict(target_count=len(targets),valid_count=pose.get('valid_count') if pose else None,
             measured_points=measurement_quality.get('measured_points'),total_points=measurement_quality.get('total_points'),
-            mean_confidence=measurement_quality.get('mean_confidence'),confidence_level=measurement_quality.get('confidence_level')),
+            mean_confidence=measurement_quality.get('mean_confidence'),confidence_level=measurement_quality.get('confidence_level'),display_confidence_percent=_display_confidence(measurement_quality.get('mean_confidence'))),
         reba=_reba_overview(reba),
         posture_results=_posture_results(analysis,targets) if scope.get('pose') or scope.get('reba') else [],
-        tag_counts=tags,criteria=criteria,public_rule_text=PUBLIC_RULE_TEXT)
+        tag_counts=tags,criteria=criteria,recorded_work_inputs=work_inputs['known'],unknown_work_inputs=work_inputs['unknown'],public_rule_text=PUBLIC_RULE_TEXT)
     comparison=_provisional_reba_summary(analysis,normalized,targets,analysis_currentness)
     if comparison is not None: summary['provisional_reba']=comparison
     return summary
@@ -335,5 +450,5 @@ def numbers_in_text_are_allowed(sentences,payload):
             percent=token.endswith('%'); raw=token[:-1] if percent else token
             try: value=float(raw.replace(',','.'))
             except ValueError: return False
-            if round(value,6) not in allowed and not percent and round(value*100,6) not in allowed: return False
+            if round(value,6) not in allowed and (percent or round(value*100,6) not in allowed): return False
     return True
