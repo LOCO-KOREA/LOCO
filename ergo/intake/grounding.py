@@ -191,15 +191,46 @@ def calculation_schema(operations):
         terms=dict(type='array',items=term,minItems=2,maxItems=MAX_DURATION_TERMS)))])
 
 
+COUNT_VALUE=re.compile(r'(?<![\d.+\-−~～∼])'+NUMBER+r'(?:번|회)')
+COUNT_PERIOD=re.compile(r'(?P<word>하루(?:에|당)?|일일|일당|매일|매분|매시간|매주|매월|일주일에)|'
+                        r'(?<![\d.])(?P<factor>[+\-−]?'+TIME_NUMBER+r')?(?P<period>분|시간|일|주|월)(?:마다|당|에)')
+COUNT_SUFFIX=re.compile(r'(?:씩)?/(?P<factor>'+TIME_NUMBER+r')?(?P<period>분|시간|일|주|월)')
+COUNT_BOUNDARY=re.compile(r'[,;!?。]|(?<!\d)\.|\.(?!\d)')
+
+
+def _count_period(match):
+    word=match.groupdict().get('word')
+    if word:
+        period=('분' if word=='매분' else '시간' if word=='매시간' else
+                '주' if word in ('매주','일주일에') else '월' if word=='매월' else '일')
+        return period,1
+    try:return match['period'],_number(match['factor']) if match['factor'] else 1
+    except (KeyError,ValueError):return match['period'],None
+
+
+def _count_grounded(value,text,unit,*,bare):
+    """Bind a count to its local period, never to a rate elsewhere in the quote."""
+    periods=list(COUNT_PERIOD.finditer(text))
+    boundaries=list(COUNT_BOUNDARY.finditer(text))
+    other_period=any(_count_period(match)!=('일',1) for match in periods) or bool(re.search(r'/(?:'+TIME_NUMBER+r')?(?:분|시간|주|월)',text))
+    for match in COUNT_VALUE.finditer(text):
+        if re.search(r'\d,$',text[:match.start()]):continue  # Not the tail of a grouped number.
+        if not math.isclose(value,_number(match.group(1)),abs_tol=1e-6):continue
+        start=max((boundary.end() for boundary in boundaries if boundary.end()<=match.start()),default=0)
+        prefix=next((period for period in reversed(periods) if start<=period.start() and period.end()<=match.start()),None)
+        suffix=COUNT_SUFFIX.match(text,match.end())
+        linked=[_count_period(period) for period in (prefix,suffix) if period is not None]
+        if linked:
+            if all(period==(unit.removeprefix('회/'),1) for period in linked):return True
+        elif not other_period and (bare or unit=='회/일'):
+            return True
+    return bool(bare and re.fullmatch(r'\d+(?:\.\d+)?',text) and math.isclose(value,float(text)))
+
+
 def number_grounded(value, quote, unit, *, bare=False):
     def number(s): return NUMBER_WORDS[s] if s in NUMBER_WORDS else float(s)
     text = re.sub(r'\s+', '', quote).lower()
-    minute_rate=bool(re.search(r'분당|매분|(?<![\d.])(?:1|한)?분에|/분',text))
-    hour_rate=bool(re.search(r'시간당|매시간|(?<![\d.])(?:1|한)?시간에|/시간',text))
-    day_rate=bool(re.search(r'하루|일일|일당|/일',text))
-    if unit=='회/분' and not minute_rate and not bare: return False
-    if unit=='회/시간' and not hour_rate and not bare: return False
-    if unit=='회/일' and (minute_rate or hour_rate): return False
+    if unit in ('회/일','회/분','회/시간'):return _count_grounded(value,text,unit,bare=bare)
     if unit=='일' and re.search(r'주당|매주|주\d|월당|매월',text): return False
     if unit.startswith('분'):
         groups=_durations(quote)

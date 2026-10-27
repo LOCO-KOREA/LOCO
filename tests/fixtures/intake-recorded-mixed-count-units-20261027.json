@@ -1,0 +1,144 @@
+{
+  "provenance": {
+    "source": "Recorded real Responses API proposals; no new request during replay",
+    "source_commit": "5234f9be1b9d53be60d7bcace3078dfe6f3b2b08",
+    "turn_id": "3da9a2827cfc478a97d018c0eba9702e",
+    "request_ids": [
+      "resp_042b5506d4c235ab006ae03ac2848087d0b85520ede46a9584",
+      "resp_024bf9f0c192ef99006ae03af5ba7c87d08b64cf62c66566af"
+    ]
+  },
+  "text": "상자를 양손으로 들어 가까운 위치로 옮기는 작업입니다. 등록한 사진 세 장은 한 사람이 전신이 나오도록 찍은 평소 작업 모습이고, 사진에서 모두 같은 20kg 상자를 실제로 들고 있습니다. 이 작업의 하루 전체 작업시간은 60분이며 연간 200일 합니다. 20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다. 지금 말한 20kg 조건이 이 들기 작업의 모든 조건입니다. 일회성 작업이 아닙니다.",
+  "responses": [
+    {
+      "answers": [
+        {
+          "target": "work_type.lift",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "상자를 양손으로 들어 가까운 위치로 옮기는 작업입니다."
+        },
+        {
+          "target": "work_type.repeat",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        },
+        {
+          "target": "card.lift.load_mass_kg",
+          "condition": "20kg 상자",
+          "number": 20,
+          "text": null,
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        },
+        {
+          "target": "card.lift.lift_count_day",
+          "condition": "20kg 상자",
+          "number": 120,
+          "text": null,
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        },
+        {
+          "target": "card.lift.lift_rate_min",
+          "condition": "20kg 상자",
+          "number": 2,
+          "text": null,
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        },
+        {
+          "target": "card.lift.minutes",
+          "condition": "20kg 상자",
+          "number": 60,
+          "text": null,
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        },
+        {
+          "target": "complete.lift",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "지금 말한 20kg 조건이 이 들기 작업의 모든 조건입니다."
+        },
+        {
+          "target": "daily_work_min",
+          "condition": "default",
+          "number": 60,
+          "text": null,
+          "quote": "이 작업의 하루 전체 작업시간은 60분이며 연간 200일 합니다.",
+          "calculation": null
+        },
+        {
+          "target": "annual_work_days",
+          "condition": "default",
+          "number": 200,
+          "text": null,
+          "quote": "이 작업의 하루 전체 작업시간은 60분이며 연간 200일 합니다."
+        },
+        {
+          "target": "one_off",
+          "condition": "default",
+          "number": null,
+          "text": "NO",
+          "quote": "일회성 작업이 아닙니다."
+        },
+        {
+          "target": "context",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "등록한 사진 세 장은 한 사람이 전신이 나오도록 찍은 평소 작업 모습이고"
+        },
+        {
+          "target": "load",
+          "condition": "default",
+          "number": null,
+          "text": "MEASURED",
+          "quote": "사진에서 모두 같은 20kg 상자를 실제로 들고 있습니다."
+        },
+        {
+          "target": "load_kg",
+          "condition": "default",
+          "number": 20,
+          "text": null,
+          "quote": "사진에서 모두 같은 20kg 상자를 실제로 들고 있습니다."
+        },
+        {
+          "target": "load_link",
+          "condition": "default",
+          "number": null,
+          "text": "YES",
+          "quote": "사진에서 모두 같은 20kg 상자를 실제로 들고 있습니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "card.lift.below_knee_count_day",
+          "condition": "20kg 상자",
+          "text": "20kg 상자를 하루 120회 드는 중, 무릎 아래에서 드는 횟수는 하루 몇 회인가요?",
+          "reason": "무릎 아래에서 드는 횟수를 알아야 들기 작업의 조건을 더 정확히 기록할 수 있어요."
+        }
+      ]
+    },
+    {
+      "answers": [
+        {
+          "target": "card.lift.lift_count_day",
+          "condition": "20kg 상자",
+          "number": 120,
+          "text": null,
+          "quote": "20kg 상자를 하루 120회, 1분에 2회씩, 하루 총 60분 들어 옮깁니다."
+        }
+      ],
+      "questions": [
+        {
+          "target": "card.lift.below_knee_count_day",
+          "condition": "20kg 상자",
+          "text": "20kg 상자를 하루 120회 들 때, 무릎 아래에서 드는 횟수는 몇 회인가요?",
+          "reason": "무릎 아래에서 드는 하루 횟수가 들기 작업 조건을 기록하는 데 필요해요."
+        }
+      ]
+    }
+  ]
+}
