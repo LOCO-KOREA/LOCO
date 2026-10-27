@@ -76,6 +76,8 @@ export function renderDialog(intake,busy) {
 export function mountDialog(host,busy,focusPair=null) {
   const dialog=host.querySelector?.('[data-intake-dialog]');
   if(!dialog)return;
+  // Keep the pending questions for the quick screen without blocking another mode.
+  if(host.closest?.('[hidden]')) { if(dialog.open)dialog.close(); return; }
   if(!dialog.open)dialog.showModal();
   if(!busy) {
     const selected=focusPair&&[...dialog.querySelectorAll('[data-intake-pair-pick][aria-pressed="true"], [data-intake-group-value]')].find(control=>(control.dataset.intakePairPick||control.dataset.intakeGroupValue)===focusPair);
