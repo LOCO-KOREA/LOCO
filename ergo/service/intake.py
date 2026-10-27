@@ -138,7 +138,14 @@ def _save(ctx, task, session, preview):
         session['applied']={k:f['value'] for k,f in facts.read_values(projected).items()}
         projected['conditions'][contract.SESSION_KEY]=copy.deepcopy(session)
         incoming=ctx.task_input(projected)
-        if incoming==ctx.task_input(current): return current,True
+        previous=ctx.task_input(current)
+        # Provider preferences and connection display state are read-time cache
+        # metadata. Persist them with the next real turn, without staling a review.
+        for candidate in (incoming,previous):
+            metadata=candidate.get('conditions',{}).get(contract.SESSION_KEY)
+            if isinstance(metadata,dict):
+                metadata.pop('ai_settings',None);metadata.pop('last_ai',None)
+        if incoming==previous: return current,True
         session['projected_revision']=current['input_revision']+1
         projected['conditions'][contract.SESSION_KEY]=copy.deepcopy(session)
         ctx.validate_task_input_shape(ctx.task_input(projected))

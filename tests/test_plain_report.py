@@ -73,7 +73,7 @@ class PlainWorkbook(unittest.TestCase):
         book = self.export()
         sheet = book['부담작업 해당 여부']
         rows = list(sheet.iter_rows(values_only=True))
-        header = next(index for index, row in enumerate(rows) if row[:3] == ('작업', '기준', '계산 결과'))
+        header = next(index for index, row in enumerate(rows) if row[:3] == ('작업', '기준', '적용 결과'))
         rows = rows[header:]
         text = '\n'.join(str(value) for row in rows for value in row if value not in (None, ''))
         self.assertIn('키보드·마우스 집중 입력', text)

@@ -185,6 +185,7 @@ export class QuickFlow {
     if(!preserveActivity) { clearInterval(this.busyTimer); this.busyTimer=null; this.busyStartedAt=null; }
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
+    this.criteriaReviewOpen=false;this.skipCriteriaReviewCapture=true;
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
       result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, analysisTitle: null, intakeText: '', intakeReturnStep: null, laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
@@ -1216,6 +1217,9 @@ export class QuickFlow {
 
   // ================= views
   render() {
+    const criteriaPanel=this.host.querySelector?.('#quick-criteria-review');
+    if(!this.skipCriteriaReviewCapture&&criteriaPanel)this.criteriaReviewOpen=criteriaPanel.open;
+    this.skipCriteriaReviewCapture=false;
     this.onScreenChange?.(this.step === 'home' ? '홈' : STEPS.find(([id])=>id===this.step)?.[1] || '간편 분석');
     if (this.toolbar) {
       this.toolbar.hidden = false;
@@ -1677,7 +1681,7 @@ export class QuickFlow {
       <section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}<button type="button" data-quick="questions" data-reveal-photo="1">자세 분석값 수정</button></section>
       ${this.aiPanel()}
       <details class="panel quick-review-more"><summary>사진 관찰·자세 측정·REBA 상세 보기</summary>${this.photoVisionPanel(true)}${renderPostureReview(this.result)}</details>
-      <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"><summary>법정 기준 초안과 조사자 결론 보기 (11개)</summary>
+      <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"${this.criteriaReviewOpen?' open':''}><summary>법정 기준 초안과 조사자 결론 보기 (11개)</summary>
         <p class="quick-note">계산 초안과 다르게 판단한 항목만 직접 정해요. 입력과 판단 근거는 상세 결과에 보존돼요.</p>${this.criteriaRows(true)}</details>
       <details class="panel quick-review-more"><summary>검토자 표시 관리</summary>
         <p class="quick-note">${reviewStatus} 검토 표시는 설명 확정 및 REBA 계산과 별도예요.</p>
@@ -1688,11 +1692,10 @@ export class QuickFlow {
       <section class="panel"><div class="quick-nav"><button class="quick-back" data-quick="result">뒤로 가기</button><button class="primary" data-quick="preview">Excel 미리보기</button></div></section></div></div>`;
   }
 
-  // Excel: what is missing, a preview of the sheets exactly as the file will contain them, and the save button.
+  // Excel uses the saved review conclusions; input corrections belong to the earlier steps.
   viewExcel() {
     return `<div class="quick-excel-page">
       <section class="panel quick-excel"><h3>Excel 미리보기</h3>${this.excelPreviewPanel()}</section>
-      ${this.checklistPanel()}
       <section class="panel"><h3>Excel로 저장</h3>
         <p class="quick-note">위 미리보기와 같은 내용이 파일로 저장돼요.${this.comparison ? ' 개선 전후 비교도 함께 들어가요.' : ''}</p>
         ${this.exported ? `<p class="quick-ok">저장한 파일: ${esc(this.exported.file_path)}</p>` : ''}

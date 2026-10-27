@@ -362,7 +362,8 @@ def burden_sheet(c):
             continue
         for judgment in judgments:
             number = judgment.get('criterion_no')
-            if number not in CRITERIA or not _criterion_recorded(task['source'], number):
+            conclusion=(judgment.get('investigator') or {}).get('status') in ('APPLICABLE','NOT_APPLICABLE')
+            if number not in CRITERIA or not (conclusion or _criterion_recorded(task['source'], number)):
                 continue
             status = _final(judgment)
             if status not in ('APPLICABLE', 'NOT_APPLICABLE', 'EXCLUDED', 'NEEDS_REVIEW'):
@@ -370,8 +371,8 @@ def burden_sheet(c):
             rows.append([task['name'], f'{criterion_name(number)}({number}호)', FINAL[status]])
     if not rows:
         return None
-    sheet = _sheet('부담작업 해당 여부', '입력된 기준에 대해 계산된 결과만 표시해요.',
-                   [_table(['작업', '기준', '계산 결과'], rows, [36, 54, 30])],
+    sheet = _sheet('부담작업 해당 여부', '저장한 조사자 결론과 입력된 기준의 계산 결과를 표시해요.',
+                   [_table(['작업', '기준', '적용 결과'], rows, [36, 54, 30])],
                    [SHEET_NOTES[1]])
     return dict(sheet, tab_color=FORM_TAB)
 
