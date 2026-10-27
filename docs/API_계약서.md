@@ -279,9 +279,13 @@ provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_id
 
 같은 작업 입력 연결(2026-10-27): fact의 선택 `origin='INPUT_LINK'`와 `input_link={rule,source_identity,source_condition,source_value,source_updated_at,source_message_id,photo_signature,photo_ids,relation_quote}`는 원문/직접 입력의 중량을 현재 사진 하중으로 연결한 근거다. 별도 사용자 답변을 만들지 않으며 동일 입력 재조회는 revision을 늘리지 않는다. 명시적 사진 중량·모름·무하중·비연결, 서로 다른 조건 및 사진별 직접 관찰값이 우선한다. 원본/사진 범위 변경 시 해당 파생값만 갱신하며 과거 분석 snapshot은 바꾸지 않는다. 새 메시지의 `source_photo_scope`와 기존 요청 수령증의 같은 필드로 원문과 사진 소유 범위를 대조한다.
 
-`NumericSummary.posture_results[*]`는 사진별 `current_score?:{total,risk,kind,source,assumed_count,load_assumed?}`와 `recorded_inputs:[{scope,field,value,source}]`를 포함한다. 후자는 같은 사진의 유효한 저장 REBA 항목만이며 원문·이름·경로·내부 ID는 포함하지 않는다. 확정 구성 점수가 null이어도 저장 입력이 사라진 것은 아니다. AI는 엔진 현재 점수와 저장 입력을 설명하며 점수를 다시 계산하지 않는다.
+`NumericSummary.posture_results[*]`는 사진별 `current_score?:{total,risk,kind,source,assumed_count,load_assumed?}`와 `recorded_inputs:[{scope,field,value,source}]`, `unknown_inputs:[{scope,field,value:null,state:'UNKNOWN',source:'USER'}]`를 포함한다. 후자는 같은 사진의 유효한 저장 REBA 항목과 명시 모름 응답만이며 원문·이름·경로·내부 ID는 포함하지 않는다. 확정 구성 점수가 null이어도 저장 입력이 사라진 것은 아니다. AI는 엔진 현재 점수와 저장 입력을 설명하며 점수를 다시 계산하지 않는다.
+
+`NumericSummary.recorded_work_inputs`는 실제 conditions/legal의 숫자·선택 입력을 `{field,label,value,unit,condition_ref,criterion_nos,source}`로 전달한다. label은 고정 입력 정의, condition_ref는 익명 작업 조건 번호다. 전체 작업시간·연간 일수·일회성 여부도 기준별 계산 근거에 우연히 나타나는 값으로 대신하지 않는다. `unknown_work_inputs`는 현재 revision의 명시적 USER 모름 응답만 value:null/state:'UNKNOWN'으로 전달하며, 미질문·사진 자동 추정의 빈 값이나 과거 세션의 모름을 만들지 않는다. 로컬 대체 설명도 같은 입력 목록을 한글 항목·단위로 표시한다. 입력 시각·원문·작업자·파일 경로·원시 조건 이름은 모델 요약에 포함하지 않는다.
 
 ## 7. 서비스 호출
+
+AI 표시 정밀도(2026-10-27): 사진별 2D/3D 각도는 원래 `value_deg`와 별도로 소수 한 자리 `display_value_deg`, 전체·사진별 측정 품질은 정수 백분율 `display_confidence_percent`를 전달한다. 표시용 반올림은 계산·원본 좌표·중량·시간·횟수를 바꾸지 않는다. 설명 검증은 이 표시값을 허용하며 임의 수치나 `%`가 붙었다는 이유만으로 허용하지 않는다. 모델의 비교 문자열은 기존 계약대로 엔진의 비교 설명으로 교체하며, 문자열인 경우 이 교체를 내용 검증 전에 수행해 실제로 사용하지 않을 비교문 때문에 정상 본문을 버리지 않는다. 누락·잘못된 타입·다른 필드의 수치 검증은 유지한다.
 
 반환은 Result<T>다. type LegacyAnalysisV13은 §10의 고정 이전 계약에서 가져오는 외부 별칭이며 아래 타입 예시와 함께 해석한다. 현재 코드에 같은 메서드명이 있어도 2.0 계약이 구현됐다는 뜻은 아니다.
 
@@ -531,6 +535,8 @@ FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJE
 사진 자세 값은 같은 원본 사진·신체 부위에만 적용한다. `manual.<scope>.<field>@photo:<photo_id>`가 정식 식별자이며 `photo_id`, 사진 방향, 원래 각도·신뢰도·측정 정책·엔진 근거를 함께 보존한다. 대표가 아닌 사진에서 읽은 값도 저장하지만 대표 사진의 빈 자세를 대신 채우지 않는다. 같은 사진에서 이미 확인한 값과 직접 모름으로 남긴 값은 다시 묻지 않는다. 남은 질문·묶음 서식에는 ‘왼쪽에서 찍은 사진 · 오른팔’처럼 사진 방향과 신체 부위를 표시하고 내부 식별자는 노출하지 않는다.
 
 기존 `@default` 자세 값은 당시 대표 사진에만 연결하는 호환 별칭이다. 이미 저장된 사진별 USER 값·모름을 옛 자동 추정 별칭으로 덮지 않는다. 사진 교체·삭제 시 다른 사진의 사용자 값과 원문·시각을 보존하고 제거된 사진 값은 현재 계산에 투영하지 않는다. 동일 원본·모델 설정·근거를 반복 조회하거나 재시작하면 저장 JSON·revision·근거 시각은 변하지 않는다.
+
+모델 파일의 설치 경로만 바뀌고 실제 SHA-256·추론 설정·측정 정책이 같으면 같은 측정으로 취급한다. 이 경우 기존 입력 revision과 AI 설명의 현재성을 보존한다. 절대 경로를 포함한 과거 fingerprint는 저장된 분석 snapshot의 모델·설정으로 같은 digest와 의미를 검증할 수 있을 때만 유지한다. 모델 파일 미확인·내용 변경·추론 설정 변경·사진 변경은 이 호환 처리에 포함하지 않는다.
 
 정면·후면의 몸통·목 기울임과 팔 벌림 관측은 원래 사진·신체 좌우별로 보존한다. 한쪽 팔의 최대 각도를 양팔에 복사하지 않으며 확실한 양성 측정만 자동 변환한다. 낮은 신뢰도·점수 경계·손 가림·손바닥 방향 불명확은 확인 대상으로 남긴다. 참고용 목 각도와 추정 3D 좌표는 기존 REBA 확정값으로 승격하지 않는다. 하루 시간·하중 추정, 대표 사진 선택, 양팔 REBA 완성·최댓값 계산은 유지한다.
 

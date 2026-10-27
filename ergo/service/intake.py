@@ -23,6 +23,32 @@ from . import photo_vision
 FORM_ONLY = ('suggestion', 'checklist')
 
 
+def _fingerprint(ctx, task, session, photo_signature, settings):
+    """Model content and inference settings identify measurements, not install paths."""
+    model=pose_engine.fingerprint(settings['pose_model'])
+    def digest(configuration, artifact):
+        return hashlib.sha256((photo_signature+json.dumps(dict(settings=configuration,model=artifact),sort_keys=True)).encode()).hexdigest()
+    def semantic(configuration, artifact):
+        configuration=copy.deepcopy(configuration);artifact=copy.deepcopy(artifact)
+        artifact.pop('path',None)
+        return configuration,artifact
+    if not model.get('sha256'):
+        return digest(settings,model)  # An unreadable/unverified file is never equivalent.
+    configuration,identity=semantic(settings,model)
+    result=digest(configuration,identity)
+    previous=session.get('fingerprint')
+    if previous and previous!=result and task.get('latest_analysis_id'):
+        analysis=ctx.store('get_analysis',task['latest_analysis_id'])
+        frozen=(analysis or {}).get('snapshot') or {}
+        old_model=frozen.get('pose_artifact') or {};old_settings=frozen.get('settings') or {}
+        if old_model.get('sha256') and 'pose_model' in old_settings:
+            # Retain a proven legacy digest so a package move alone does not write
+            # intake metadata and make an immutable, applied analysis look stale.
+            if digest(old_settings,old_model)==previous and semantic(old_settings,old_model)==(configuration,identity):
+                return previous
+    return result
+
+
 def _for_model(rows):
     """Hints for the form stay on the form: the model gets the questions, not another photo's reading."""
     return [{name: value for name, value in row.items() if name not in FORM_ONLY} for row in rows]
@@ -44,7 +70,7 @@ def _prepare(ctx, task_id, requested_views=None):
             signatures.append([view,identity,digest,photo_identity.identity(photo)])
         settings=ctx.settings()['analysis']
     photo_signature=json.dumps(signatures,ensure_ascii=False,sort_keys=True)
-    fingerprint=hashlib.sha256((photo_signature+json.dumps(dict(settings=settings,model=pose_engine.fingerprint(settings['pose_model'])),sort_keys=True)).encode()).hexdigest()
+    fingerprint=_fingerprint(ctx,task,session,photo_signature,settings)
     current_facts=photo_facts.bind_aliases(session['facts'],session.get('views') or views)
     current_facts=photo_facts.bind_aliases(current_facts,views)
     catalogue={f['target']:f for f in contract.fields()}

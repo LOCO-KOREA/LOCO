@@ -13,7 +13,7 @@ from .display import SOURCE, STATUS, UNIT, VALUE
 from .labels import CRITERIA, EXPOSURES, MANUAL, RESULT_LABELS, criterion_name, input_label, reason_label, unit_for
 from .input_trace import InputTrace
 from ergo.user_language import user_text
-from ergo.intake.photo_facts import VIEW_LABELS
+from ergo.intake.photo_facts import VIEW_LABELS,photo_id as fact_photo_id
 from ergo.pose_contract import WRIST_POLICY
 from ergo.engine.reba_scoring import project_current_score, project_score_continuity, risk as reba_risk
 
@@ -284,7 +284,28 @@ def _manual_rows(name, source):
     names, groups, order = _slot_names(source), {}, []
     trace=InputTrace(source)
     primary=next((s for s in (source.get('capture') or {}).get('slots',[]) if s.get('analysis_target')),None)
-    for m in source.get('manual') or []:
+    manual=list(source.get('manual') or [])
+    owners={}
+    for slot in (source.get('capture') or {}).get('slots',[]):
+        if slot.get('photo_id') is not None:owners.setdefault(slot['photo_id'],[]).append(slot)
+    existing={(row.get('slot_no'),row.get('photo_id'),row.get('scope'),row.get('field')) for row in manual}
+    for item in trace.facts.values():
+        if item.get('alias_of') or item.get('source')!='USER' or item.get('state')!='UNKNOWN' or item.get('value') not in (None,'UNKNOWN') or item.get('photo_active') is False:
+            continue
+        destination=(trace.catalogue.get(item.get('target')) or {}).get('destination') or {}
+        if destination.get('type')!='manual':continue
+        owner=fact_photo_id(item,{'LEFT':primary['photo_id']} if primary else {})
+        if item.get('photo_id') is not None and item['photo_id']!=owner:continue
+        slots=owners.get(owner,[])
+        if len(slots)!=1:continue
+        identity=(slots[0]['slot_no'],owner,destination['scope'],destination['field'])
+        if identity in existing:continue
+        # A deliberate "unknown" is an answer even though the scoring projector
+        # removes its manual row. Restore display metadata only; unasked pose
+        # gaps and facts from stale/removed photo owners stay absent.
+        manual.append(dict(slot_no=identity[0],photo_id=owner,scope=identity[2],field=identity[3],value='UNKNOWN',source='INTERVIEW'))
+        existing.add(identity)
+    for m in manual:
         origin=trace.lookup('manual',m.get('value'),scope=m.get('scope'),field=m.get('field'),photo_id=m.get('photo_id'))
         if m.get('value') in (None, '', 'UNKNOWN') and not origin:
             continue

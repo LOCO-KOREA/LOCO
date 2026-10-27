@@ -6,7 +6,7 @@ from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V11'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V13'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -14,6 +14,11 @@ SYSTEM_PROMPT=(
     '기술태그나 REBA를 법적 판단으로 표현하지 마세요. 확인이 필요한 사실은 확인 항목으로 제시하세요. '
     '개선 제안은 일반적인 검토 선택지로 쓰고, 실제 적용 전 조사자 확인이 필요하다고 표시하세요. '
     '모든 수치는 입력 요약 안의 값만 사용하고, 근거 없는 수치는 쓰지 마세요. '
+    '각도는 display_value_deg의 소수 한 자리 표시값, 관절 신뢰도 백분율은 display_confidence_percent를 사용하세요. 원시 각도·신뢰도는 계산 근거이며 중량·시간·횟수 등 다른 입력을 임의 반올림하지 마세요. '
+    'recorded_work_inputs는 실제 저장된 작업시간·횟수·중량·작업조건 입력입니다. field와 고정 label/unit으로 뜻을 구분하고 익명 condition_ref가 다른 조건의 값을 합치지 마세요. '
+    '전체 작업시간·연간 작업일수·하루 횟수는 작업 맥락이며, 특정 자세 노출시간이나 REBA 활동 가산점으로 다시 환산하지 마세요. REBA 활동은 같은 사진의 recorded_inputs와 엔진 current_score를 그대로 설명하세요. '
+    '입력한 작업시간·횟수·연간 작업일수는 summary에 실제 값으로 짧게 반영하고, 기록된 값이 있는데도 미입력이라고 말하지 마세요. 알려진 0과 NO도 실제 응답입니다. '
+    'unknown_work_inputs와 사진별 unknown_inputs는 사용자가 모름으로 답한 항목이며 value=null은 0이나 아니오가 아닙니다. 아예 묻지 않은 항목과 구분하고 이미 답한 모름을 다시 입력하라고 하지 마세요. '
     'posture_results가 있으면 posture_explanations에 각 photo_ref를 입력 순서대로 빠짐없이 한 번씩 넣고 그 사진의 측정 관절 수/토폴로지 수, 신뢰도 수준, 좌우 REBA 결과·누락을 설명하세요. 관절 신뢰도는 검출 신뢰도일 뿐 REBA 정확도 보증이 아닙니다. '
     '각 사진의 current_score는 엔진이 계산한 그 사진의 현재 표시 점수입니다. 전체 최대 점수를 다른 사진의 점수로 쓰거나 기록된 입력으로 점수를 다시 계산하지 마세요. '
     'recorded_inputs는 같은 사진에 저장된 자세·잡기·충격·유지·반복 입력입니다. INTERVIEW는 설명에서 입력한 값, DIRECT_OBSERVATION은 조사자 관찰, AUTO_ACCEPTED는 사진 후보임을 구분하세요. '
@@ -97,6 +102,10 @@ def generate(summary, model, api_key, settings=None):
         raw=getattr(response,'output_text',None)
         if not raw: return None,'REFUSAL_OR_EMPTY_RESPONSE'
         content=json.loads(raw)
+        # This field is always replaced by the engine's comparison. Normalize
+        # its text before validation while preserving missing/wrong-type errors.
+        if isinstance(content,dict) and isinstance(content.get('reba_comparison'),str):
+            content['reba_comparison']=reba_comparison_text(summary)
         if not validate_content(content,summary): return None,'INVALID_STRUCTURED_CONTENT'
         # Score direction is deterministic; never expose the model-authored comparison.
         content['reba_comparison']=reba_comparison_text(summary)
@@ -108,6 +117,47 @@ def generate(summary, model, api_key, settings=None):
         if 'Timeout' in name: return None,'TIMEOUT'
         if name in ('JSONDecodeError',): return None,'INVALID_STRUCTURED_CONTENT'
         return None,'API_ERROR'
+
+def _recorded_input_text(summary):
+    """Local explanation of the same allowlisted inputs sent to the model."""
+    from ergo.intake.contract import fields
+    import re
+    catalogue={field['target']:field for field in fields()}
+    work_labels=dict(daily_work_min='하루 총 작업시간',annual_work_days='연간 작업일수',one_off='일회성 작업 여부',planned_duration_months='예정 작업기간')
+    work_labels.update({'card.trunk_neck.unsupported':'몸통·목 지지 없음','card.trunk_neck.posture_restricted':'자세 변경 제한',
+        'card.pinch.unsupported':'집기 작업의 손 지지 없음','card.grip.unsupported':'쥐기 작업의 손 지지 없음',
+        'card.impact.impact_verified':'실제 충격 여부','card.impact.impact_rate_hour':'시간당 충격 횟수',
+        'card.lift.lift_rate_min':'드는 빈도'})
+    pose_labels=dict(trunk_base='몸통 기본 자세',neck_base='목 기본 자세',knee_band='무릎 굽힘',
+        upper_arm_base='위팔 자세',lower_arm_base='아래팔 자세',wrist_base='손목 굽힘·폄',coupling='손잡이·잡는 상태')
+    def phrase(row,*,photo=False):
+        target=f"manual.{row.get('scope')}.{row.get('field')}" if photo else row.get('field')
+        field=catalogue.get(target)
+        if field is None:return None
+        value=row.get('value')
+        if row.get('state')=='UNKNOWN':rendered='모름으로 응답'
+        elif field['kind']=='number':
+            if type(value) not in (int,float):return None
+            rendered=f"{value:g}{field.get('unit') or ''}"
+        else:
+            rendered=next((item['label'] for item in field.get('choices') or [] if item['value']==value),None)
+            if rendered is None:return None
+        condition=row.get('condition_ref') or ''
+        prefix=condition+' · ' if isinstance(condition,str) and re.fullmatch(r'작업 조건 \d+',condition) else ''
+        label=field['label'].rstrip(' ?')
+        if photo and row.get('field') in pose_labels:
+            label=({'LEFT':'왼쪽 ','RIGHT':'오른쪽 '}.get(row.get('scope'),''))+pose_labels[row['field']]
+        elif target.startswith('complete.'):label='작업 조건 전체 기록 여부'
+        elif target in work_labels:label=work_labels[target]
+        return prefix+label+': '+rendered
+    work=[text for row in [*(summary.get('recorded_work_inputs') or []),*(summary.get('unknown_work_inputs') or [])] if (text:=phrase(row))]
+    paragraphs=['입력한 작업 정보: '+'; '.join(work)+'.'] if work else []
+    for photo in summary.get('posture_results') or []:
+        inputs=[text for row in [*(photo.get('recorded_inputs') or []),*(photo.get('unknown_inputs') or [])] if (text:=phrase(row,photo=True))]
+        label=photo.get('photo_ref')
+        if inputs and isinstance(label,str) and re.fullmatch(r'사진 \d+',label):paragraphs.append(label+'의 저장 입력: '+'; '.join(inputs)+'.')
+    return '\n\n'.join(paragraphs)
+
 
 def fallback_text(summary):
     text='수치 요약의 입력 누락과 추가 확인 항목을 검토하세요. 사진 표본 비율은 하루 노출시간이 아니며, 계산 결과와 조사자 결론은 별도로 확인해야 합니다.'
@@ -138,6 +188,8 @@ def fallback_text(summary):
         quality_names={'HIGH':'높음','MEDIUM':'보통','LOW':'낮음','MISSING':'측정 없음'}
         level=quality_names.get(quality.get('confidence_level'),'확인 중')
         text+=f" 관절 측정은 {quality.get('measured_points',0)}/{quality['total_points']}개이며 신뢰도 수준은 {level}입니다. 이는 모델 검출 신뢰도이지 REBA 정확도 보증이 아닙니다."
+    recorded=_recorded_input_text(summary) if isinstance(summary,dict) else ''
+    if recorded:text+='\n\n'+recorded
     comparison=summary.get('provisional_reba') if isinstance(summary,dict) else None
     if not comparison: return text
     parts=[f"미확인 자세 항목을 부담 없음으로 가정한 1차 REBA는 {comparison['initial_total']}점({risk_names.get(comparison['initial_risk'],'위험수준 미확인')})입니다."]
