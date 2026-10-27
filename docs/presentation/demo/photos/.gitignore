@@ -1,0 +1,5 @@
+# 시연 사진은 저장소에 넣지 않는다(출처·라이선스는 아래 PHOTO_CREDITS.md 참고). 꼭 넣어야 하면 git add -f 로 하나씩 넣는다.
+*.jpg
+*.jpeg
+*.png
+*.webp
