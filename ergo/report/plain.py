@@ -1,10 +1,11 @@
 """Plain-language workbook content for ordinary readers.
 
 The same sheet descriptions feed the Excel file and the in-app preview, so what people preview is what they get.
-Nothing is recalculated here: every value comes from the stored snapshot, and codes are shown as everyday Korean words.
+Confirmed results come from the stored snapshot. A read-only current-score projection preserves measured inputs and labels assumptions; stored inputs are unchanged. Codes are shown as everyday Korean words.
 A sheet is {name, title, lead, tables:[{heading, columns, rows, widths, ...}], notes}; form.py adds only data-backed survey and criterion results.
 """
 import json
+import math
 from datetime import datetime, timedelta, timezone
 
 from .common import currentness
@@ -14,6 +15,7 @@ from .input_trace import InputTrace
 from ergo.user_language import user_text
 from ergo.intake.photo_facts import VIEW_LABELS
 from ergo.pose_contract import WRIST_POLICY
+from ergo.engine.reba_scoring import project_current_score, project_score_continuity, risk as reba_risk
 
 KST = timezone(timedelta(hours=9))
 SIDE = {'LEFT': '왼쪽', 'RIGHT': '오른쪽', 'COMMON': '공통', 'BOTH': '양쪽', 'FRONT': '정면·후면'}
@@ -140,7 +142,7 @@ def _slot_names(source):
 
 
 def _context(snapshot, ov):
-    analyses = {a['task_id']: a for a in snapshot.get('analyses', [])}
+    analyses = {a['task_id']: project_score_continuity(a) for a in snapshot.get('analyses', [])}
     tasks = []
     for item in ov['tasks']:
         task = next(t for t in snapshot['tasks'] if t['task_id'] == item['task_id'])
@@ -152,6 +154,19 @@ def _context(snapshot, ov):
 
 
 # ----- 요약
+def _measurement_text(analysis, slot_no):
+    quality = (analysis or {}).get('measurement_quality') or {}
+    selected = next((item for item in quality.get('slots', []) if item.get('slot_no') == slot_no), None)
+    if selected is None:
+        selected = quality if len(quality.get('slots', [])) <= 1 else {}
+    if not selected or not selected.get('total_points'):
+        return ''
+    label = {'HIGH': '높음', 'MEDIUM': '보통', 'LOW': '낮음', 'MISSING': '측정값 없음'}.get(selected.get('confidence_level'), '확인 전')
+    confidence = selected.get('mean_confidence')
+    percent = f' ({confidence:.0%})' if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and math.isfinite(confidence) and 0 <= confidence <= 1 else ''
+    return f"측정 관절 {selected.get('measured_points', 0)}/{selected['total_points']}개 · 측정 신뢰도 {label}{percent}"
+
+
 def _reba_text(a):
     if not a:
         return '분석 없음'
@@ -159,19 +174,27 @@ def _reba_text(a):
     if not reba:
         return '계산하지 않았어요'
     summary = reba.get('summary') or {}
-    top, partial = summary.get('full_max'), False
-    if top is None and summary.get('available_max') is not None:
-        top, partial = summary['available_max'], True
-    if top is None:
-        so_far = summary.get('score_so_far')
-        if so_far:
-            photo = f" · 사진 확인 전 값 {len(so_far['unconfirmed_photo'])}개 포함" if so_far.get('unconfirmed_photo') else ''
-            load = ' · 들고 있는 물건 없음으로 가정' if 'observation.load_state' in (so_far.get('assumed') or []) else ''
-            return f"확정 전 {so_far['total']}점 ({say(so_far['risk'])}){photo} · 확인하지 못한 {len(so_far.get('assumed') or [])}개는 부담 없음으로 가정{load} · 실제 점수는 더 높을 수 있어요"
-        return '계산하지 못했어요'
-    slot = next((s for s in reba.get('slots', []) if s.get('total') == top), {})
-    text = f'{top}점' + (f" ({say(slot['risk'])})" if slot.get('risk') else '')
-    return f'일부 사진만 계산 · 최대 {text}' if partial else text
+    current = project_current_score(reba)
+    if not current:
+        return '분석대상 사진 없음' if not summary.get('total_slot_count') else '측정값 확인 필요'
+    kind = current.get('kind')
+    lines = [f"가정 기준 {current['total']}점 · 실제 측정 확인 필요" if kind == 'ASSUMED_REFERENCE'
+             else f"현재 {current['total']}점 ({say(current.get('risk'))})"]
+    quality = _measurement_text(a, current.get('slot_no'))
+    if quality:
+        lines.append(quality)
+    if kind != 'CONFIRMED':
+        assumed = current.get('assumed') or []
+        slot = next((item for item in reba.get('slots', []) if item.get('slot_no') == current.get('slot_no')), {})
+        partial = slot.get('score_so_far') or summary.get('score_so_far') or {}
+        notes = [f'확인 전 {len(assumed)}항목은 부담 없음으로 가정'] if assumed else []
+        if partial.get('unconfirmed_photo'):
+            notes.append(f"사진 확인 전 값 {len(partial['unconfirmed_photo'])}개 포함")
+        if 'observation.load_state' in assumed:
+            notes.append('들고 있는 물건 없음으로 가정')
+        if notes:
+            lines.append(' · '.join(notes))
+    return '\n'.join(lines)
 
 
 # ----- 입력한 값
@@ -320,7 +343,7 @@ def _inputs(c):
 
 # ----- 사진 자세
 def _posture(c):
-    reba_rows, angle_rows, tag_rows = [], [], []
+    score_rows, reba_rows, angle_rows, tag_rows = [], [], [], []
     for t in c['tasks']:
         a = t['analysis']
         if not a:
@@ -331,6 +354,12 @@ def _posture(c):
         for r in reba.get('slots', []):
             no = r.get('slot_no')
             label = names.get(no, f'사진 {no}')
+            current = project_current_score(dict(slots=[r], summary=dict(
+                current_score=r.get('current_score'), total_slot_count=1,
+                complete_count=int(r.get('total') is not None))))
+            if current:
+                basis = {'CONFIRMED': '확인 완료', 'WITH_ASSUMPTIONS': '확인 전 항목 포함', 'ASSUMED_REFERENCE': '가정 기준 · 측정 확인 필요'}.get(current.get('kind'), '확인 전')
+                score_rows.append([t['name'], label, f"{current['total']}점", basis, _measurement_text(a, no)])
             for side in ('left', 'right'):
                 s = r.get(side) or {}
                 if not s:
@@ -344,9 +373,12 @@ def _posture(c):
                     remarks.append('확인: ' + ', '.join(reason_label(x) for x in s['review_reasons']))
                 if r.get('score_so_far') and s.get('total') is None:
                     remarks.append(f"확정 전 {r['score_so_far'][side]}점 (가정 {len(r['score_so_far']['assumed'])}개 포함)")
+                side_total = s.get('total')
+                if side_total is None:
+                    side_total = (r.get('score_so_far') or {}).get(side)
                 reba_rows.append([t['name'], label, SIDE[side.upper()], s.get('trunk'), s.get('neck'), s.get('legs'), s.get('upper_arm'), s.get('lower_arm'), s.get('wrist'),
-                                  s.get('load_score'), s.get('coupling_score'), s.get('activity_score'), s.get('total') if s.get('total') is not None else '계산 못 함',
-                                  say(s.get('risk')), ' · '.join(remarks)])
+                                  s.get('load_score'), s.get('coupling_score'), s.get('activity_score'), side_total if side_total is not None else '확인 전',
+                                  say(s.get('risk') or (reba_risk(side_total) if side_total is not None else None)), ' · '.join(remarks)])
         floor = ((a['snapshot'].get('settings') or {}).get('pose_model') or {}).get('confidence_min', 0.5)
         for p in (a.get('pose') or {}).get('slots', []):
             label = names.get(p.get('slot_no'), f"사진 {p.get('slot_no')}")
@@ -417,6 +449,9 @@ def _posture(c):
                 tag_rows.append([t['name'], TAG.get(tag['tag'], tag['tag']), yes_count, observed_count,
                                  f"{round(100 * yes_count / observed_count)}%", method])
     tables = []
+    if score_rows:
+        tables.append(_table(['작업', '사진', 'REBA 현재 점수', '계산 기준', '측정 관절·신뢰도'], score_rows,
+                             [22, 24, 18, 32, 60], '사진별 현재 점수와 측정 신뢰도'))
     if reba_rows:
         tables.append(_table(['작업', '사진', '쪽', '몸통', '목', '다리', '위팔', '아래팔', '손목', '하중 가산', '손잡이 가산', '활동 가산', '합계 점수', '위험도', '비고'], reba_rows,
                              [22, 18, 10, 8, 8, 8, 8, 10, 8, 12, 12, 12, 12, 12, 40], '사진별 REBA 점수 (점수가 높을수록 몸에 부담이 커요)'))
@@ -442,7 +477,7 @@ def _explanations(c):
                 rows.append([t['name'], kinds.get(ai.get('applied_kind'), '설명'), kst(ai.get('applied_at')), user_text(ai['applied_text'])])
     if not rows:
         return None
-    return _sheet('쉬운 설명', '조사자가 확인해 확정한 설명이에요. 확정한 시각과 문장을 기록하며, 설명은 계산 결과와 판정을 바꾸지 않아요.', [_table(['작업', '설명 종류', '확정 시각', '확정한 설명'], rows, [24, 26, 24, 110])], [])
+    return _sheet('결과 설명', '조사자가 확인해 확정한 설명이에요. 확정한 시각과 문장을 기록하며, 설명은 계산 결과와 판정을 바꾸지 않아요.', [_table(['작업', '설명 종류', '확정 시각', '확정한 설명'], rows, [24, 26, 24, 110])], [])
 
 
 def _human_review(c):

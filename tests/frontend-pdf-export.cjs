@@ -8,6 +8,8 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
  const {previewPdf,exportPdf,renderPdfPreview}=await load('pdf-export.js');
  const {QuickFlow}=await load('quick-flow.js');
  const {createExportView}=await load('analysis/export-view.js');
+ const {createRebaView}=await load('analysis/reba-view.js');
+ const {createExplanationView}=await load('analysis/explanation-view.js');
  const params=()=>({survey_id:1,spec:{task_ids:[2],analysis_ids:[3],include_representative:false}});
  let calls=[];
  assert.equal(await exportPdf((...a)=>calls.push(a),async()=>null,params()),null);
@@ -90,10 +92,44 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
  assert.match(flow.viewExcel(),/data-quick="excel-tab"/,'Excel sheet tabs remain visible');
  const s={survey:{survey_id:1},tasks:[{task_id:2,task_name:'작업'}],comparisonPool:[],comparisonBefore:null,comparisonAfter:null,comparisonNote:'',
   exportSelections:{},pdfTaskSelections:{},overview:{tasks:[],comparisons:[],counts:{},state:{}}};
- const advanced=createExportView({s,LocoReview:{comparison:()=>'',nextInput:()=>''},inputLabel:x=>x,$:()=>null,e:String,fmt:String,badge:()=>'',field:()=>'',select:()=>'',metric:()=>'',
+ const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const advanced=createExportView({s,LocoReview:{comparison:()=>''},inputLabel:x=>x,$:()=>null,e:escape,fmt:String,badge:()=>'',field:()=>'',select:()=>'',
   card:(title,body)=>'<section><h3>'+title+'</h3>'+body+'</section>',empty:String,context:()=>''}).exportPage();
  noPdf(advanced,'advanced export');
- assert.match(advanced,/data-action="export">Excel 저장 위치 선택/);
+ assert.match(advanced,/data-action="export">저장 위치를 선택하고 Excel 저장/);
  assert.match(advanced,/id="include-representative"/,'Excel representative-image choice remains available');
- console.log('PASS internal PDF helpers; visible Excel preview/save/comparison/cancel and no PDF entry points');
+ assert.match(advanced,/실제로 입력하거나 분석한 값/,'primary export copy is data-only');
+ assert.doesNotMatch(advanced,/확인사항|다음 입력 안내|입력한 값|쉬운 설명|유형별 한글 Excel/,'advanced export avoids a stale sheet inventory or technical follow-up list');
+ assert.match(advanced,/<details class="export-options" data-export-section="analysis"/,'optional analysis selection is progressive');
+
+ const rebaState={selectedSlots:new Set(),history:[],bundle:{task:{capture:{slots:[]},manual:[]}}};
+ const rebaContext={s:rebaState,angleNames:{},tagNames:{},sideNames:{},statusNames:{},manualLabels:{},commonFields:[],armFields:[],reasonText:String,candidateValueText:String,manualOptions:()=>[],$:()=>null,e:escape,fmt:value=>value??'미계산',badge:value=>`<b>${value??'미계산'}</b>`,options:()=>'',field:()=>'',select:()=>'',card:(title,body)=>`<section><h2>${title}</h2>${body}</section>`,empty:String,metric:()=>'',context:()=>''};
+ const reba=createRebaView(rebaContext);
+ const reference={reba:{summary:{current_score:{total:1,risk:'NEGLIGIBLE',kind:'ASSUMED_REFERENCE',slot_no:4,assumed:[],assumption:'자세 측정값이 없어 기준 자세를 가정했습니다.'},score_so_far:null}},measurement_quality:{slots:[{slot_no:4,measured_points:0,total_points:33,mean_confidence:null,confidence_level:'MISSING'}]}};
+ const scoreHtml=reba.currentScoreCard(reference);
+ assert.match(scoreHtml,/REBA 현재 점수/);assert.match(scoreHtml,/1점/);assert.match(scoreHtml,/참고값/);assert.match(scoreHtml,/0\/33개/);assert.match(scoreHtml,/측정값 없음/);
+ const confirmedHtml=reba.currentScoreCard({reba:{summary:{current_score:{total:5,risk:'MEDIUM',kind:'CONFIRMED',slot_no:2}}},measurement_quality:{slots:[{slot_no:2,measured_points:22,total_points:33,mean_confidence:.71,confidence_level:'MEDIUM'}]}});
+ assert.match(confirmedHtml,/5점/);assert.match(confirmedHtml,/완성 사진 기준/);assert.match(confirmedHtml,/22\/33개/);assert.match(confirmedHtml,/보통 \(0\.71\)/);
+ const assumedHtml=reba.currentScoreCard({reba:{summary:{current_score:{total:4,risk:'MEDIUM',kind:'WITH_ASSUMPTIONS',slot_no:3,assumed:['common.neck_base'],assumption:'미확인 자세를 가정했습니다.'},score_so_far:{slot_no:3,total:4,assumed:['common.neck_base'],assumption:'미확인 자세를 가정했습니다.'}}},measurement_quality:{slots:[{slot_no:3,measured_points:22,total_points:33,mean_confidence:.71,confidence_level:'MEDIUM'}]}});
+ assert.match(assumedHtml,/4점/);assert.match(assumedHtml,/확정 전/);assert.match(assumedHtml,/가정한 항목 1개/);assert.match(assumedHtml,/실제 점수는 더 높을 수 있습니다/);
+ const rowAnalysis={snapshot:{schema_version:'2.0',capture:{slots:[{slot_no:4,photo_id:44,label:'사진 4',analysis_target:true}]}},pose:{slots:[{slot_no:4,status:'VALID'}]},reba:{slots:[{slot_no:4,status:'INCOMPLETE',total:null,score_so_far:{total:1},left:{total:null},right:{total:null},missing_fields:[]}],summary:reference.reba.summary},measurement_quality:{slots:[{slot_no:4,measured_points:22,total_points:33,mean_confidence:.71,confidence_level:'MEDIUM'}]}};
+ const rowHtml=reba.rebaTableRow(rowAnalysis.snapshot.capture.slots[0],rowAnalysis);
+ assert.match(rowHtml,/22\/33/);assert.match(rowHtml,/보통 \(0\.71\)/);assert.match(rowHtml,/1점/,'the per-photo reference score remains numeric');
+ const projectedRow=structuredClone(rowAnalysis);
+ projectedRow.reba.summary.current_score={total:11,risk:'VERY_HIGH',kind:'WITH_ASSUMPTIONS',slot_no:9};
+ projectedRow.reba.slots[0].score_so_far=null;
+ projectedRow.reba.slots[0].current_score={total:2,risk:'LOW',kind:'WITH_ASSUMPTIONS',slot_no:4};
+ const projectedRowHtml=reba.rebaTableRow(projectedRow.snapshot.capture.slots[0],projectedRow);
+ assert.match(projectedRowHtml,/<strong>2점<\/strong><small>확정 전 · 가정 포함/,'a projected per-photo score stays numeric even when raw partial scoring had no anchor');
+ assert.doesNotMatch(projectedRowHtml,/11점/,'the task-wide maximum must not be assigned to another photo');
+ projectedRow.reba.slots[0].current_score={total:1,risk:'NEGLIGIBLE',kind:'ASSUMED_REFERENCE',slot_no:4};
+ const projectedReferenceHtml=reba.rebaTableRow(projectedRow.snapshot.capture.slots[0],projectedRow);
+ assert.match(projectedReferenceHtml,/<strong>1점<\/strong><small>참고값/,'reference provenance belongs to the projected photo score');
+
+ const ai={text_id:3,purpose:'TASK_EXPLANATION',result:'GENERATED',created_at:'2026-10-27T00:00:00Z',source_current:true,is_active:false,generated_text:'전체 생성 문장',edited_text:null,content:{summary:'몸통 자세와 점수를 설명합니다.',reba_comparison:'현재 점수 설명',posture_explanations:[],criteria:[],check_items:['사진 자세를 확인하세요.'],improvement_options:[]}};
+ const explanationState={analysis:{analysis_id:10,currentness:'CURRENT',ai:[ai]},aiPurpose:'TASK_EXPLANATION',aiTextId:3};
+ const explanation=createExplanationView({s:explanationState,LocoReview:{evidence:()=>'<details class="evidence"><summary>세부 근거</summary></details>'},$:()=>null,e:escape,options:()=>'',select:(label,key)=>`<label>${label}<select data-field="${key}"></select></label>`,field:()=>'',drafts:{get:()=>null},card:()=>''}).explanationCard();
+ assert.match(explanation,/결과 설명 생성/);assert.match(explanation,/AI 작성 · 확정 전/);assert.match(explanation,/data-field="ai-purpose"/);assert.match(explanation,/AI는 수치와 사진 분석 요약/);assert.match(explanation,/data-explanation-editor/);assert.match(explanation,/AI 작성 문장 확정/);
+ assert.doesNotMatch(explanation,/AI 쉬운 설명/);
+ console.log('PASS Excel data-only wording, optional advanced choices, numeric per-photo score/coverage/confidence and result explanation provenance/confirmation');
 })().catch(error=>{console.error(error);process.exit(1);});

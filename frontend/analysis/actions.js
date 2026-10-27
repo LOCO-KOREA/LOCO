@@ -120,7 +120,7 @@ const actions={
   return ctx.write('survey:'+surveyId+':export',context,async()=>{
    const destination=await window.loco.choose_export_destination();if(!destination)return;
    const receipt=await api('export_excel',{survey_id:surveyId,spec:{...spec,destination}});
-   if(!ctx.current(context))return;toast('유형별 한글 Excel을 저장했습니다.\n'+receipt.file_path);
+   if(!ctx.current(context))return;toast('Excel 파일을 저장했습니다.\n'+receipt.file_path);
    if(await navigate('S08'))await populateExportChoices();
   });
  },

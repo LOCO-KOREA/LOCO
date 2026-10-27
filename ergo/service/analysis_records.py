@@ -1,12 +1,14 @@
 """LOCO 2.0 analysis records service. Dependencies are supplied by Runtime."""
 import copy
 from ergo.engine.task_defaults import diagnostic
+from ergo.engine.reba_scoring import project_score_continuity
 from ergo.gpt import payload as gpt_payload
 from ergo.report import workbook as report
 from ergo.pose import engine as pose_engine
 
 def analysis(ctx, identity):
-    result = ctx.require('analysis', identity)
+    # Display-only legacy projection; the stored analysis/snapshot remain immutable.
+    result = project_score_continuity(ctx.require('analysis', identity))
     task = ctx.require('task', result['task_id'])
     result['currentness'] = report.currentness(task, result)
     result.setdefault('module_states', dict(pose='NOT_CALCULATED' if result.get('pose') is None else 'COMPLETE' if result['pose'].get('status') == 'DONE' else 'INCOMPLETE', tags='NOT_CALCULATED' if result.get('tags') is None else 'COMPLETE', reba='NOT_CALCULATED' if result.get('reba') is None else 'COMPLETE' if result['reba'].get('status') == 'COMPLETE' else 'INCOMPLETE', judgment='NOT_CALCULATED' if result.get('judgment') is None else 'COMPLETE'))

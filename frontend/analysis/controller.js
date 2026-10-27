@@ -146,12 +146,12 @@ export function createController(ctx){
    if(el.id==='task-choice'&&el.value){await chooseTask(Number(el.value));return;}
    if(el.id==='history-choice'){selectHistory(Number(el.value)||null);return;}
    if(el.dataset.field==='ai-purpose'||el.dataset.field==='ai-choice'){s.aiEpoch++;if(el.dataset.field==='ai-purpose'){s.aiPurpose=el.value;s.aiTextId=null;}else s.aiTextId=el.value||null;render();return;}
-   if(el.dataset.field==='comparison-before'||el.dataset.field==='comparison-after'){if(el.dataset.field==='comparison-before')s.comparisonBefore=Number(el.value)||null;else s.comparisonAfter=Number(el.value)||null;if(await navigate('S08'))await populateExportChoices();return;}
+   if(el.dataset.field==='comparison-before'||el.dataset.field==='comparison-after'){const openSection=el.closest('[data-export-section]')?.dataset.exportSection;if(el.dataset.field==='comparison-before')s.comparisonBefore=Number(el.value)||null;else s.comparisonAfter=Number(el.value)||null;if(await navigate('S08')){await populateExportChoices();if(openSection){const section=$(`[data-export-section="${openSection}"]`);if(section)section.open=true;}}return;}
    if(el.dataset.slotAssignment){const capture=structuredClone(s.bundle.task.capture),taskId=t.taskId;const slot=capture.slots.find(x=>x.slot_no===Number(el.dataset.slotAssignment));if(slot)slot.photo_id=Number(el.value)||null;await write(`task:${taskId}:capture`,t,async()=>{await api('set_capture',{task_id:taskId,capture});if(current(t)&&await refreshTask(t))render();});}
    if(el.dataset.selectSlot){s.editEpoch++;if(el.checked)s.selectedSlots.add(Number(el.dataset.selectSlot));else s.selectedSlots.delete(Number(el.dataset.selectSlot));}
    if(el.dataset.manual){s.editEpoch++;const check=$(`[data-manual-use="${el.dataset.manual}"]`);if(check)check.checked=true;}
    if(el.dataset.manualUse!==undefined)s.editEpoch++;
-   if(el.dataset.exportTask){s.exportSelections[el.dataset.exportTask]=Number(el.value)||null;if(await navigate('S08'))await populateExportChoices();}
+   if(el.dataset.exportTask){const section=el.closest('[data-export-section]')?.dataset.exportSection;s.exportSelections[el.dataset.exportTask]=Number(el.value)||null;if(await navigate('S08')){await populateExportChoices();if(section){const details=$(`[data-export-section="${section}"]`);if(details)details.open=true;}}}
   }catch(error){if(current(t))toast(error.message);}
  });
   host.element.addEventListener('input',event=>{const el=event.target;if(el.dataset.field==='comparison-note')s.comparisonNote=el.value;if(el.id==='explanation-text'){const drafts=ctx.drafts||localDrafts();saveExplanationDraft(s.analysis,selectedExplanation(s),el.value,drafts);const status=$('[data-explanation-draft-status]');if(status){status.textContent=drafts.error;status.hidden=!drafts.error;}}if(el.dataset.field||el.dataset.manual||el.id==='explanation-text')s.editEpoch++;});

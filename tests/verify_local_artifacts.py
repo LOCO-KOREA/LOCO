@@ -154,7 +154,7 @@ def expected_sheets(snap):
         names.append('사람 검토')
 
     if any(ai.get('is_active') and ai.get('applied_text') for a in analyses.values() for ai in a.get('ai') or []):
-        names.append('쉬운 설명')
+        names.append('결과 설명')
     if snap.get('comparison_specs'):
         names.append('개선 전후 비교')
 

@@ -4,11 +4,11 @@ export const SCREENS = [
   {id:'S02', name:'조사 목록·생성', view:'survey', description:'조사 개요를 기록합니다.'},
   {id:'S03', name:'작업 목록·개요', view:'task', editor:'info', description:'작업 개요를 기록하고 입력할 기준을 선택합니다.'},
   {id:'S04', name:'작업 조건·11개 기준', view:'task', editor:'conditions', description:'관찰·면담으로 확인한 하루 시간·중량·힘·횟수를 입력합니다.'},
-  {id:'S05', name:'사진 등록·배정', view:'photo', description:'필요한 사진만 등록하고 분석대상과 관찰값을 선택합니다.'},
-  {id:'S06', name:'자세 결과·REBA', view:'analysis', description:'관절·각도 후보와 수동 확인값을 함께 검토합니다.'},
-  {id:'S07', name:'조사자 검토·GPT', view:'analysis', description:'계산 초안·조사자 결론·설명을 구분해 검토합니다.'},
-  {id:'S08', name:'출력·전후 비교', view:'analysis', description:'출력할 분석과 개선 전후 비교를 선택합니다.'},
-  {id:'S09', name:'분석 진행', view:'analysis', description:'요청한 분석 범위의 진행·완료·실패·취소를 확인합니다.'},
+  {id:'S05', name:'사진 등록·배정', view:'photo', description:'사진을 등록하고 분석할 사진과 확인한 관찰값을 고릅니다.'},
+  {id:'S06', name:'자세 결과·REBA', view:'analysis', description:'사진에서 읽은 자세와 점수, 직접 확인한 값을 살펴봅니다.'},
+  {id:'S07', name:'조사자 검토·결과 설명', view:'analysis', description:'11개 기준의 계산 결과와 조사자 결론·설명을 확인합니다.'},
+  {id:'S08', name:'Excel 저장·전후 비교', view:'analysis', description:'결과를 확인하고 Excel에 담을 내용을 선택합니다.'},
+  {id:'S09', name:'분석 상태', view:'analysis', description:'사진 처리 상태와 분석 결과를 확인합니다.'},
   {id:'S10', name:'설정', view:'analysis', navigation:false, description:'모델·규칙 버전과 GPT·로코 안내 설정을 확인합니다.'}
 ];
 export const SCREEN_INFO = Object.fromEntries(SCREENS.map(s=>[s.id,[s.name,s.id,s.description]]));

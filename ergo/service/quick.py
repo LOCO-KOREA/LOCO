@@ -3,6 +3,8 @@ import os
 
 from ergo.pose import engine as pose_engine
 from ergo.engine import quick_assess
+from ergo.engine.measurement_quality import from_points, from_pose_slots
+from ergo.engine.reba_scoring import assumed_reference_score
 from ergo.engine import quick_intake
 from ergo.gpt import client as gpt_client
 from ergo.engine.wrist_angles import angles as wrist_angles
@@ -16,6 +18,8 @@ def handle_quick_preview(ctx, method, p):
     confidence = settings['pose_model'].get('confidence_min', 0.5)
     views, rows_by_view, side_groups, front, diagnostics = {}, {}, [], [], []
     seated = overhead = False
+    quality_slots=[]
+    quality_inputs=[]
     measurement_issues=[]
     for view in VIEWS:
         if view not in p['views']:
@@ -27,6 +31,11 @@ def handle_quick_preview(ctx, method, p):
                 'side_view_verified': 'UNKNOWN', 'observation': {}}
         with ctx.analysis_lock:
             pose = pose_engine.process(slot, {'photos': [photo], 'settings': settings})
+        model=pose.get('engine') or settings.get('pose_model') or {}
+        view_quality=from_points(pose.get('points'),model,confidence)
+        slot_no=len(quality_slots)+1
+        quality_slots.append(dict(slot_no=slot_no,photo_id=photo['photo_id'],view=view,**view_quality))
+        quality_inputs.append(dict(slot_no=slot_no,photo_id=photo['photo_id'],points=pose.get('points') or [],engine=model))
         guess = quick_assess.guess_view(pose['points'], confidence) if pose['points'] else None
         rows=[];measured=[];front_here=[];front_measured=[];seated_here=False;signal_details={}
         notes = [d for d in pose['diagnostics'] if d['code'] != 'INVALID_CAMERA']
@@ -74,7 +83,7 @@ def handle_quick_preview(ctx, method, p):
         views[view] = dict(photo_id=photo['photo_id'], width_px=photo.get('width_px'), height_px=photo.get('height_px'),
                            points=pose['points'], angles=rows, measured=measured,front=front_here,front_measurements=front_measured,
                            signals=view_signals,signal_details=signal_details,guess=guess, diagnostics=notes,engine=pose.get('engine'),
-                           world_points=pose.get('world_points',[]),world_angles=pose.get('world_angles',[]),connections=pose.get('connections',[]),quality=pose.get('quality'))
+                           world_points=pose.get('world_points',[]),world_angles=pose.get('world_angles',[]),connections=pose.get('connections',[]),quality=pose.get('quality'),measurement_quality=view_quality)
     measured = quick_assess.merge_measured(*side_groups)
     signals = quick_assess.posture_signals(rows_by_view, settings['posture_profile'])
     if overhead:
@@ -82,7 +91,15 @@ def handle_quick_preview(ctx, method, p):
     if seated:
         signals.update(seated=True, knee_bent=False)
     score = quick_assess.provisional(measured, front, settings, seated) if measured or any(f['suggested'] for f in front) else None
-    return dict(views=views, measured=measured, front=front, score=score, signals=signals, diagnostics=diagnostics,measurement_issues=measurement_issues,
+    if score is None and views:
+        score=assumed_reference_score()
+    if score is not None:
+        score=dict(score,photo_count=len(views))
+    quality_summary=from_pose_slots(quality_inputs,settings.get('pose_model')) if quality_inputs else None
+    if quality_summary:
+        for item in quality_summary['slots']:
+            item['view']=next((view for view,data in views.items() if data.get('photo_id')==item['photo_id']),None)
+    return dict(views=views, measured=measured, front=front, score=score, measurement_quality=quality_summary or None,signals=signals, diagnostics=diagnostics,measurement_issues=measurement_issues,
                 questions=quick_assess.questions({v: views[v]['guess'] for v in views}, measured, signals, front))
 
 

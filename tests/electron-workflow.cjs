@@ -109,6 +109,7 @@ async function main(){
  await page.locator('[data-use-photo]').click();
  await page.locator('dialog[open]').waitFor({state:'detached'});
  await page.locator('[data-target-slot="1"]').check();
+ await page.locator('.photo-conditions summary').click();
  for(const [key,value] of [['camera_side','LEFT'],['forward_direction','SCREEN_RIGHT']])await page.locator(`[data-photo-field="${key}"]`).selectOption(value);
  // Commit changed photo/camera context before explicitly confirming observations.
  await page.locator('[data-photo-action="save"]').click();
@@ -164,9 +165,11 @@ async function main(){
  assert.equal(changed.analysis.reba.summary.full_max,1);assert.equal((await api('get_analysis',{analysis_id:a.analysis_id})).snapshot.legal.exposures[0].minutes,240);
  check('changed direct exposure produces a new result while the prior snapshot stays immutable');
  await navigate('S10');await page.locator('[data-field="gpt_enabled"]').selectOption('YES');await page.locator('[data-action="save-gpt-settings"]').click();
- await navigate('S06');await page.locator('[data-action="generate-explanation"]').click();
+ await navigate('S07');await page.locator('[data-action="generate-explanation"]').click();
  await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis?.ai?.length>0,'GPT fallback');
+ await page.locator('[data-explanation-editor] summary').click();
  await page.locator('[data-action="edit-explanation"]:not([disabled])').waitFor();await page.locator('#explanation-text').fill('조사자가 검토한 로컬 대체 설명');await page.locator('[data-action="edit-explanation"]').click();
+ await page.locator('[data-explanation-editor] summary').click();
  await page.locator('[data-action="apply-edited"]').click();
  const ai=(await api('get_task_result',{task_id:task.task_id})).analysis.ai.at(-1);assert.equal(ai.result,'FALLBACK');assert.equal(ai.applied_text,'조사자가 검토한 로컬 대체 설명');
  check('missing API key produces editable/applicable fallback without changing calculations');
@@ -186,7 +189,7 @@ async function main(){
  await electron.evaluate(({dialog},destination)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:destination});},destination);
  await page.locator('[data-action="export"]').click();await until(()=>fs.stat(destination).catch(()=>null),Boolean,'regular Excel');
  const exported=await until(()=>api('list_export_logs',{survey_id:survey.survey_id}),logs=>logs.some(log=>log.file_path===destination),'regular export receipt');
- const regularSheets=exported.find(log=>log.file_path===destination).receipt.sheets;assert.ok(regularSheets.includes('조사 결과'));assert.ok(regularSheets.includes('부담작업 해당 여부'));assert.ok(regularSheets.includes('자세 분석(REBA)'));assert.ok(regularSheets.includes('입력한 값'));assert.ok(regularSheets.includes('쉬운 설명'));assert.ok(regularSheets.includes('개선 전후 비교'));assert.ok(!regularSheets.includes('확인사항'));
+ const regularSheets=exported.find(log=>log.file_path===destination).receipt.sheets;assert.ok(regularSheets.includes('조사 결과'));assert.ok(regularSheets.includes('부담작업 해당 여부'));assert.ok(regularSheets.includes('자세 분석(REBA)'));assert.ok(regularSheets.includes('입력한 값'));assert.ok(regularSheets.includes('결과 설명'));assert.ok(regularSheets.includes('개선 전후 비교'));assert.ok(!regularSheets.includes('확인사항'));
  const reviewAtExport=await api('get_survey',{survey_id:survey.survey_id});assert.equal(reviewAtExport.review.reviewed,false);assert.ok(!regularSheets.includes('사람 검토'),'conclusion edits invalidated the earlier review before this export');
  check('data-only Excel exported by the UI (recorded values, analysis, confirmed explanation and chosen comparison)',{file:destination,sheets:regularSheets});
  await electron.close();await launch();
@@ -229,11 +232,12 @@ async function main(){
  await page.locator('[data-action="save-analysis-settings"]').click();
  await until(()=>api('get_settings'),s=>s.analysis.pose_model.confidence_min===.5,'restore analysis threshold');
  check('analysis settings UI invalidates affected results and preserves historical snapshots');
- await navigate('S06');await page.locator('[data-field="ai-purpose"]').selectOption('IMPROVEMENT_ADVICE');
+ await navigate('S07');await page.locator('[data-field="ai-purpose"]').selectOption('IMPROVEMENT_ADVICE');
  await page.locator('[data-action="generate-explanation"]').click();
  await until(()=>api('get_task_result',{task_id:task.task_id}),value=>value.analysis.ai.some(a=>a.purpose==='IMPROVEMENT_ADVICE'),'improvement explanation');
+ await page.locator('[data-explanation-editor] summary').click();
  await page.locator('#explanation-text').fill('현장 확인이 필요한 개선 검토 선택지');
- await page.locator('[data-action="edit-explanation"]').click();await page.locator('[data-action="apply-edited"]').click();
+ await page.locator('[data-action="edit-explanation"]').click();await page.locator('[data-explanation-editor] summary').click();await page.locator('[data-action="apply-edited"]').click();
  const purposeTexts=(await api('get_task_result',{task_id:task.task_id})).analysis.ai;
  assert.ok(purposeTexts.some(a=>a.purpose==='TASK_EXPLANATION'&&a.is_active));
  assert.ok(purposeTexts.some(a=>a.purpose==='IMPROVEMENT_ADVICE'&&a.is_active&&a.input_summary.purpose==='IMPROVEMENT_ADVICE'));
@@ -274,7 +278,7 @@ async function main(){
  assert.equal(await page.locator('.reba-results tbody tr').count(),2);
  check('historical result view retains snapshot photo rows after a current row is deleted');
  await navigate('S03');await page.locator('[data-do="new"]').click();
- await field('task_name').fill('복수 작업 · 삭제 검증');await field('analysis_scope.pose').check();
+ await field('task_name').fill('복수 작업 · 삭제 검증');await page.locator('.task-analysis-scope summary').click();await field('analysis_scope.pose').check();
  await page.locator('#task-info-form button[type="submit"]').click();
  const multiple=await api('list_tasks',{survey_id:survey.survey_id});assert.equal(multiple.length,2);
  const extra=multiple.find(t=>t.task_id!==task.task_id);assert.ok(extra);

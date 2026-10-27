@@ -1,7 +1,25 @@
-/* progress view; dependencies are composed by analysis-workspace.js. */
+/* Analysis progress stays readable; per-photo diagnostics are available on demand. */
 export function createProgressView(ctx){
- const {s, $, e, badge, card, empty, context}=ctx;
-function progressPage(){if(!s.bundle)return empty('작업을 선택하세요');const a=s.analysis;if(!a)return context()+empty('아직 분석이 없습니다','<button class="primary" data-action="start-analysis">분석 시작</button>');const slots=a.pose?.slots||[];const total=a.pose?.total_slot_count??slots.length;const processed=slots.filter(p=>p.status!=='PENDING').length;const percent=total?Math.min(100,processed/total*100):0;return context()+card('시작 입력 기준으로 분석',`<div class="toolbar">${badge(a.status)} ${badge(a.currentness)} <span class="input-guide">분석 #${a.analysis_id} · 입력 r${a.input_revision}</span></div><div class="progress-track"><div style="width:${percent}%"></div></div><h2>${processed} <span class="inline-count">/ ${total}개 분석대상 사진 처리 · ${total?'대상 있음':'대상 없음'}</span></h2><p>요청 처리 완료와 모듈별 계산 완전성은 별도 상태입니다.</p><div class="grid">${Object.entries(a.module_states||{}).map(([key,value])=>`<div class="sheet"><strong>${e({pose:'MoveNet',tags:'자세 기술태그',reba:'REBA',judgment:'11개 기준'}[key]||key)}</strong><p>${badge(value)}</p></div>`).join('')}</div><div class="toolbar section-actions"><button data-action="cancel-analysis" ${a.status==='RUNNING'?'':'disabled'}>취소 요청</button><button class="primary" data-page="S06">결과 살펴보기</button></div>`)+card('사진별 처리 상태',`<table><thead><tr><th>사진 행</th><th>상태</th><th>진단</th></tr></thead><tbody>${slots.map(p=>{const slot=a.snapshot.capture.slots.find(x=>x.slot_no===p.slot_no);return `<tr><td>${e(slot?.label||`사진 ${p.slot_no}`)} · 행 ${p.slot_no}</td><td>${badge(p.status)}</td><td>${(p.diagnostics||[]).map(d=>e(d.message)).join('<br>')}</td></tr>`;}).join('')||`<tr><td colspan="3">${total?'포즈 분석이 요청되지 않았습니다.':'분석대상 사진이 없습니다.'}</td></tr>`}</tbody></table>`);}
+ const {s, e, badge, card, empty, context}=ctx;
+ const moduleNames={pose:'사진 자세',tags:'자세 태그',reba:'REBA',judgment:'11개 기준'};
+
+ function progressPage(){
+  if(!s.bundle)return empty('작업을 선택하세요');
+  const analysis=s.analysis;
+  if(!analysis)return context()+empty('아직 분석 결과가 없습니다','<button class="primary" data-action="start-analysis">분석 시작</button>');
+  const slots=analysis.pose?.slots||[];
+  const total=analysis.pose?.total_slot_count??slots.length;
+  const processed=slots.filter(item=>item.status!=='PENDING').length;
+  const percent=total?Math.min(100,processed/total*100):0;
+  const rowDiagnostics=slots.filter(item=>(item.diagnostics||[]).length);
+  const modules=Object.entries(analysis.module_states||{}).map(([key,value])=>`<li><span>${e(moduleNames[key]||key)}</span> ${badge(value)}</li>`).join('');
+  const rows=slots.map(item=>{
+   const slot=analysis.snapshot.capture.slots.find(value=>value.slot_no===item.slot_no);
+   return `<tr><td>${e(slot?.label||`사진 ${item.slot_no}`)}</td><td>${badge(item.status)}</td><td>${(item.diagnostics||[]).map(diagnostic=>e(diagnostic.message)).join('<br>')||'추가 안내 없음'}</td></tr>`;
+  }).join('');
+  return context()+card('분석 진행',`<div class="toolbar">${badge(analysis.status)} ${badge(analysis.currentness)}<span class="input-guide">분석 #${analysis.analysis_id}</span></div><div class="progress-track" role="progressbar" aria-label="분석대상 사진 처리" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${processed}"><div style="width:${percent}%"></div></div><h3>${processed} / ${total}장 처리</h3><p>사진 처리 상태와 REBA·기준 계산 상태는 다를 수 있습니다.</p><div class="toolbar section-actions"><button data-action="cancel-analysis" ${analysis.status==='RUNNING'?'':'disabled'}>분석 취소 요청</button><button class="primary" data-page="S06">사진 자세·REBA 결과 보기</button></div><details class="progress-details"><summary>요청한 분석 항목 상태 보기</summary><ul class="progress-module-list">${modules||'<li>요청한 분석 항목이 없습니다.</li>'}</ul></details>`)
+   +`<details class="progress-details"><summary>사진별 상태와 진단 ${rowDiagnostics.length?`· 안내 ${rowDiagnostics.length}건`:''}</summary><div class="table-wrap"><table><thead><tr><th>사진</th><th>상태</th><th>안내</th></tr></thead><tbody>${rows||`<tr><td colspan="3">${total?'자세 분석을 요청하지 않았습니다.':'분석대상 사진이 없습니다.'}</td></tr>`}</tbody></table></div></details>`;
+ }
 
  return {progressPage};
 }

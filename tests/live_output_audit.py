@@ -122,7 +122,7 @@ def verify(directory):
         preview_file=directory/(label+'-preview.json')
         if preview_file.exists():audit_preview(label,read(preview_file)['sheets'],book,checks,defects)
         for ai in analysis.get('ai',[]):
-            if ai.get('is_active'):check('applied explanation is exact XLSX text',True,any(c['value']==user_text(ai['applied_text']) for c in cells.get('쉬운 설명',[])),export=label,text_id=ai['text_id'])
+            if ai.get('is_active'):check('applied explanation is exact XLSX text',True,any(c['value']==user_text(ai['applied_text']) for c in cells.get('결과 설명',[])),export=label,text_id=ai['text_id'])
         book.close()
     trace_file=directory/'openai.jsonl';trace=[json.loads(line) for line in trace_file.read_text(encoding='utf-8').splitlines()] if trace_file.exists() else []
     check('actual SDK requests recorded',True,any(t['kind']=='REQUEST' for t in trace))

@@ -2,6 +2,7 @@
 import hashlib
 import math
 import re
+from ergo.engine.reba_scoring import project_score_continuity, project_current_score
 
 PUBLIC_RULE_TEXT=[
  '1호: 집중 자료입력 키보드·마우스 조작이 하루 240분 이상인지 확인한다.',
@@ -96,6 +97,7 @@ def _posture_results(analysis,targets):
     pose=analysis.get('pose') or {};reba=analysis.get('reba') or {}
     pose_by_slot={item.get('slot_no'):item for item in pose.get('slots') or []}
     reba_by_slot={item.get('slot_no'):item for item in reba.get('slots') or []}
+    quality_by_slot={item.get('slot_no'):item for item in (analysis.get('measurement_quality') or {}).get('slots') or []}
     output=[]
     for index,slot in enumerate(targets,1):
         number=slot.get('slot_no');p=pose_by_slot.get(number) or {};r=reba_by_slot.get(number) or {}
@@ -121,7 +123,7 @@ def _posture_results(analysis,targets):
         engine=p.get('engine') or {}
         output.append(dict(photo_ref=f'사진 {index}',pose_status=p.get('status'),pose_diagnostic_codes=[d.get('code') for d in p.get('diagnostics') or [] if d.get('code')],
             model=dict(name=engine.get('name') or engine.get('model_id'),version=engine.get('version'),provider=engine.get('provider')) if engine else None,
-            landmark_count=len(p.get('points') or []),angles=angles,inferred_world_angles=world_angles,
+            landmark_count=len(p.get('points') or []),measurement_quality={key:quality_by_slot.get(number,{}).get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},angles=angles,inferred_world_angles=world_angles,
             reba_status=r.get('status'),effective_load_kg=_safe_number(r.get('effective_load_kg')),selected_side=r.get('selected_side'),
             total=_safe_number(r.get('total')),risk=r.get('risk'),left=sides['left'],right=sides['right'],missing_fields=r.get('missing_fields') or [],
             candidates=candidates))
@@ -131,6 +133,15 @@ def _posture_results(analysis,targets):
 def _reba_overview(reba):
     summary=reba.get('summary') or {}
     overview=dict(complete_count=summary.get('complete_count'),available_max=summary.get('available_max'),full_max=summary.get('full_max'))
+    current=project_current_score(reba)
+    if isinstance(current,dict) and type(current.get('total')) is int and 1<=current['total']<=15 and current.get('risk')==_reba_risk(current['total']):
+        overview['current_score']=dict(total=current['total'],risk=current['risk'],kind=current.get('kind'),source=current.get('source'),
+            assumed_count=len(current.get('assumed') or []))
+        if any(path in (current.get('assumed') or []) for path in ('observation.load_state','observation.measured_load_kg')):
+            overview['current_score']['load_assumed']=True
+    first=summary.get('first_pass')
+    if isinstance(first,dict) and type(first.get('total')) is int and 1<=first['total']<=15 and first.get('risk')==_reba_risk(first['total']):
+        overview['first_pass']=dict(total=first['total'],risk=first['risk'],assumed_count=len(first.get('assumed') or []))
     so_far=summary.get('score_so_far')
     if isinstance(so_far,dict) and type(so_far.get('total')) is int and 1<=so_far['total']<=15 and so_far.get('risk')==_reba_risk(so_far['total']):
         overview['score_so_far']=dict(total=so_far['total'],risk=so_far['risk'],assumed_count=len(so_far.get('assumed') or []))
@@ -140,6 +151,7 @@ def _reba_overview(reba):
 
 
 def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=None,analysis_currentness=None):
+    analysis=project_score_continuity(analysis)
     if analysis_currentness is None:
         analysis_currentness=analysis.get('currentness')
     if analysis_currentness not in ('CURRENT','STALE'):
@@ -167,8 +179,11 @@ def build_numeric_summary(analysis,purpose='TASK_EXPLANATION',provisional_reba=N
         tags.append(dict(tag=tag.get('tag'),yes_count=tag.get('yes_count'),observed_count=tag.get('observed_count'),valid_pose_count=tag.get('valid_pose_count'),total_slot_count=tag.get('total_slot_count')))
     settings=snapshot.get('settings') or {}
     normalized=normalize_provisional_reba_input(analysis,provisional_reba)
+    measurement_quality=analysis.get('measurement_quality') or {}
     summary=dict(schema_version='2.0',purpose=purpose,rule_version='|'.join(str(x) for x in [settings.get('burden_rule'),settings.get('reba_rule'),(settings.get('posture_profile') or {}).get('version')]),module_states=analysis.get('module_states') or {},requested_scope=scope,
-        pose_quality=dict(target_count=len(targets),valid_count=pose.get('valid_count') if pose else None),
+        pose_quality=dict(target_count=len(targets),valid_count=pose.get('valid_count') if pose else None,
+            measured_points=measurement_quality.get('measured_points'),total_points=measurement_quality.get('total_points'),
+            mean_confidence=measurement_quality.get('mean_confidence'),confidence_level=measurement_quality.get('confidence_level')),
         reba=_reba_overview(reba),
         posture_results=_posture_results(analysis,targets) if scope.get('pose') or scope.get('reba') else [],
         tag_counts=tags,criteria=criteria,public_rule_text=PUBLIC_RULE_TEXT)

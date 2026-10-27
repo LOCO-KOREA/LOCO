@@ -20,15 +20,15 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   const ai = {text_id: 'text-1', purpose: 'TASK_EXPLANATION', result: 'GENERATED',
     generated_text: generated, edited_text: null, content, is_active: false, source_current: true};
   const html = renderQuickExplanation(ai, generated);
-  assert.match(html, /핵심 요약/);
-  assert.match(html, /1차 가정 점수와 최종 REBA/);
+  assert.match(html, /한눈에 보기/);
+  assert.match(html, /첫 사진 점수와 현재 REBA 설명 보기/);
   assert.match(html, /data-evidence-posture/);
   assert.match(html, /data-evidence-criteria/);
   assert.match(html, /data-evidence-photo="1"/);
   assert.match(html, /data-evidence-criterion="1"/);
   assert.match(html, /data-evidence-criterion="7"/);
-  assert.match(html, /먼저 확인할/);
-  assert.match(html, /사진별 자세·REBA 설명/);
+  assert.match(html, /확인할 점 4개 보기/);
+  assert.match(html, /사진별 설명 1개 보기/);
   assert.match(html, /사진별 자세 설명/);
   for (let i = 1; i <= 11; i++) assert.ok(html.includes(`CRITERION_${i}_원문`), 'criterion explanation must remain accessible: ' + i);
   for (const check of ['CHECK_1', 'CHECK_2', 'CHECK_3', 'CHECK_4_추가확인']) assert.ok(html.includes(check), check);
@@ -50,6 +50,10 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   assert.ok(!editedHtml.includes('<img'));
   const fallback = renderQuickExplanation({...ai, content: null, result: 'FALLBACK', generated_text: '기본 설명입니다.'}, '기본 설명입니다.');
   assert.ok(fallback.includes('기본 설명입니다.'), 'plain/old records must remain readable');
+  const longPlain = '첫 문장입니다. ' + '같은 설명이 보존됩니다. '.repeat(80);
+  const longPlainHtml = renderQuickExplanation({...ai, content: null, generated_text: longPlain}, longPlain);
+  assert.ok(longPlainHtml.includes(longPlain), 'plain explanation text must remain whole instead of being shortened');
+  assert.doesNotMatch(longPlainHtml, /전체 설명 보기/, 'the user reads the complete human-facing explanation directly');
   const fallbackWithReba = renderQuickExplanation({...ai, content: null, input_summary: {provisional_reba: {initial_total: 7}}, generated_text: '1차 7점입니다.'}, '1차 7점입니다.');
   assert.match(fallbackWithReba, /data-evidence-posture="true"/, 'local fallback comparisons must still link to the REBA evidence');
   const editedWithReba = renderQuickExplanation({...ai, input_summary: {provisional_reba: {initial_total: 7}}, generated_text: 'AI 원문', edited_text: '내가 수정한 문장'}, '내가 수정한 문장');
@@ -70,6 +74,11 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   const panel = harness();
   panel.flow.settings = {gpt_key_present: true}; panel.flow.busy = false; panel.flow.aiEditorOpen = false;
   const panelHtml = panel.flow.aiPanel();
+  assert.match(panelHtml, /<h3>결과 설명<\/h3>/);
+  assert.match(panelHtml, /AI 작성/);
+  assert.match(panelHtml, /확정 전/);
+  assert.match(panelHtml, /data-quick="apply-explanation"/,'one action confirms either the original or edited text');
+  assert.doesNotMatch(panelHtml, /data-quick="apply-ai"|data-quick="apply-edited"/,'separate competing confirmation buttons are removed');
   const editor = /<details\b([^>]*\bdata-ai-editor[^>]*)>([\s\S]*?)<\/details>/.exec(panelHtml);
   assert.ok(editor, 'the complete source must remain available in a separate editor');
   assert.doesNotMatch(editor[1], /\bopen\b/, 'long source editor must start collapsed');
@@ -77,9 +86,11 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   assert.equal(decode(textarea[1]), generated, 'the editor must preserve the complete source without shortening it');
 
   let evidenceSelector = '';
-  const evidenceDetails = {open: false};
+  const outerEvidenceDetails = {open: false};
+  const outerContainer = {closest: selector => selector === 'details:not([open])' && !outerEvidenceDetails.open ? outerEvidenceDetails : null};
+  const innerEvidenceDetails = {open: false, parentElement: outerContainer};
   const evidenceTarget = {
-    closest: selector => selector === 'details:not([open])' ? evidenceDetails : null,
+    closest: selector => selector === 'details:not([open])' && !innerEvidenceDetails.open ? innerEvidenceDetails : null,
     focus: () => {},
     scrollIntoView: () => {},
   };
@@ -89,7 +100,8 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   const evidenceButton = {dataset: {evidenceCriterion: '11'}, disabled: false};
   evidenceFlow.click({target: {closest: selector => selector === 'button' ? evidenceButton : null}});
   assert.equal(evidenceSelector, '#quick-criterion-11');
-  assert.equal(evidenceDetails.open, true, 'evidence links must open a collapsed criterion group before scrolling');
+  assert.equal(innerEvidenceDetails.open, true, 'evidence links must open the nearest collapsed detail');
+  assert.equal(outerEvidenceDetails.open, true, 'evidence links must also open collapsed parent details');
   evidenceButton.dataset = {evidenceCriteria: 'true'};
   evidenceFlow.click({target: {closest: selector => selector === 'button' ? evidenceButton : null}});
   assert.equal(evidenceSelector, '#quick-criteria-review', 'summary and checks must reach the criterion table');
@@ -113,8 +125,7 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   const staleHtml = staleApplied.flow.aiPanel();
   assert.match(staleHtml, /이전 분석에서 확정된 설명이에요\. 현재 Excel에는 포함되지 않아요\./);
   assert.doesNotMatch(staleHtml, /Excel에 반영돼요/,'a stale applied explanation must not claim current Excel inclusion');
-  assert.match(staleHtml, /data-quick="apply-ai" disabled/);
-  assert.match(staleHtml, /data-quick="apply-edited" disabled/);
+  assert.match(staleHtml, /data-quick="apply-explanation"[^>]*disabled/);
   await staleApplied.flow.applyAi(false);
   assert.equal(staleApplied.calls.length, 0,'stale original apply must be guarded before any API write');
   const staleEdited = harness(ai, '오래된 입력에서 수정된 문장');
@@ -124,8 +135,8 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   const mismatchedApplied = harness({...ai, is_active: true, source_current: false, applied_text: '현재 요약과 다른 근거 설명'});
   const mismatchedHtml = mismatchedApplied.flow.aiPanel();
   assert.doesNotMatch(mismatchedHtml, /Excel에 반영돼요/,'a mismatched explanation must not claim current Excel inclusion');
-  assert.match(mismatchedHtml, /현재 요약과 달라요/);
-  assert.match(mismatchedHtml, /data-quick="apply-ai" disabled/);
+  assert.match(mismatchedHtml, /현재 입력 근거와 일치하지 않아 다시 확인이 필요해요/);
+  assert.match(mismatchedHtml, /data-quick="apply-explanation"[^>]*disabled/);
   await mismatchedApplied.flow.applyAi(false);
   assert.equal(mismatchedApplied.calls.length, 0,'a mismatched explanation cannot be newly applied');
 
@@ -157,5 +168,10 @@ const moduleUrl = name => pathToFileURL(path.resolve(__dirname, '..', 'frontend'
   snapshot.flow.run = async (_label, action) => { snapshot.flow.aiDraft = '렌더 중 달라진 값'; await action(); };
   await snapshot.flow.applyAi(true);
   assert.equal(snapshot.calls[0].params.text, '적용 버튼을 누른 순간의 수정문', 'a render must not change the target captured by apply');
+  const oneActionEdited = harness(ai, '단일 확인 버튼이 선택한 수정문');
+  await oneActionEdited.flow.applyAi();
+  assert.deepEqual(oneActionEdited.calls.map(x => x.method), ['edit_ai_text', 'apply_ai_text']);
+  assert.equal(oneActionEdited.calls[0].params.text, '단일 확인 버튼이 선택한 수정문');
+  assert.equal(oneActionEdited.calls[1].params.use_edited, true, 'the single action applies edited text when it differs from the generated source');
   console.log('PASS compact explanation details, escaped text, plain/edited records, and exact original/edited apply targets');
 })().catch(error => { console.error(error); process.exitCode = 1; });

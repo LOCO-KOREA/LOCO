@@ -104,8 +104,9 @@ const ASKING = ['참여', '증상', '작업설비', '작업량', '작업속도',
     badge: value => String(value ?? ''), field: () => '', select: () => '', card: (title, body) => `<section><h3>${title}</h3>${body}</section>`, empty: text => text,
     metric: (label, value) => `<b>${label}</b>${value}`, context: () => ''};
   const page = createExportView(stub).exportPage();
-  assert.match(page, /분석을 아직 하지 않았어요/, 'what the calculation lacks is still listed');
-  for (const label of ['선택 결과 전체 검토 여부', '검토 현재성', '미완전 포함', '과거 결과 포함']) assert.ok(page.includes(label), `the state box ${label} stays`);
+  assert.match(page, /분석 없음/, 'an unanalysed task remains identifiable in optional output status');
+  assert.doesNotMatch(page, /id="next-inputs"|다음 입력 안내/, 'export does not become another mandatory input checklist');
+  for (const label of ['조사자 검토 기록', '검토 현재성', '입력 또는 계산 미완료', '이전 분석 포함']) assert.ok(page.includes(label), `the optional state ${label} stays`);
   assert.ok(!page.includes('undefined'), 'a state key the page does not know is not drawn as an empty box');
   for (const word of [...old, '조사 단계 입력 보완', '별지1', '별지2', '서식 기반 추가']) assert.ok(!page.includes(word), `the Excel page does not show ${word}`);
   const placeholders = source('input-placeholders.js');

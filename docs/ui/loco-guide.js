@@ -3,13 +3,13 @@
    Listen for "loco-guide-action" to connect navigation, capture guide, and review actions. */
 const PET_GUIDES = Object.freeze({
   S01:{message:'저장한 조사를 열거나 새 조사를 시작해요. 작업의 근거를 차근차근 기록할 수 있어요.',cta:'조사 목록 열기',action:'S02'},
-  S02:{message:'조사 개요와 현장 상황을 기록해 주세요. 모르는 항목은 비워도 괜찮아요.',cta:'작업 개요 살펴보기',action:'S03'},
-  S03:{message:'작업 종류와 관계없이 같은 11개 기준을 확인해요. 입력 서식은 질문 순서만 바꿔요.',cta:'작업 조건 입력으로',action:'S04'},
+  S02:{message:'조사 제목과 날짜를 기록하고 작업을 시작해요. 이전 조사일은 선택 입력이에요.',cta:'작업 개요 살펴보기',action:'S03'},
+  S03:{message:'작업 정보를 적고 11개 기준을 확인해요. 모르는 값은 비워 둔 채 계속할 수 있어요.',cta:'작업 조건 입력으로',action:'S04'},
   S04:{message:'하루 시간·중량·힘·횟수는 관찰과 면담으로 기록해요. 사진 없이도 기준 초안을 계산할 수 있어요.',cta:'기준 초안 계산·검토',action:'calculate'},
   S05:{message:'사진은 필요한 만큼 선택해요. 각 사진의 촬영조건과 실제 관찰 하중을 확인해 주세요.',cta:'촬영 안내 다시 보기',action:'guide'},
   S06:{message:'각도는 후보이며 총점이 없는 사진은 0점이 아니에요. 누락된 관찰값을 확인해 주세요.',cta:'현재 사진 관찰값 보기',action:'manual'},
-  S07:{message:'계산 초안과 조사자의 결론은 별도로 남아요. 결론을 적어도 부족한 입력을 숨기지 않아요.',cta:'4호 합산 해석 살펴보기',action:'criterion4'},
-  S08:{message:'출력할 분석과 전후 비교를 선택해요. 다음 입력 안내에서 부족한 근거로 이동할 수 있어요.',cta:'다음 입력으로 이동',action:'next'},
+  S07:{message:'계산 결과와 조사자 결론을 확인하고, 결과 설명을 직접 수정해 확정할 수 있어요.',cta:'4호 합산 해석 살펴보기',action:'criterion4'},
+  S08:{message:'선택한 결과를 Excel로 저장해요. 실제 입력·분석된 값과 확정된 설명만 파일에 담아요.',cta:'결과 검토로 돌아가기',action:'S07'},
   S09:{message:'전체 처리 종료와 계산의 완전성은 달라요. 요청 범위와 사진별 진단을 확인해 주세요.',cta:'자세·REBA 결과 보기',action:'S06'},
   S10:{message:'분석 규칙과 모델·설명·안내 설정을 확인해요. 조용한 모드는 반복 안내를 줄여줘요.',cta:'조용한 모드 전환',action:'quiet'}
 });
