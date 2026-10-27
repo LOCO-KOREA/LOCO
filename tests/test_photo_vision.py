@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -126,12 +127,22 @@ class PhotoVision(unittest.TestCase):
     def test_three_photo_requests_start_concurrently_and_keep_each_owner(self):
         self.enable(('LEFT','RIGHT','FRONT'));barrier=threading.Barrier(3);seen=[]
         def vision(image,context,*args):
-            seen.append(context['photo_id']);barrier.wait(5);return response(),None
+            seen.append(context['photo_id']);barrier.wait(5)
+            time.sleep({'RIGHT':0,'FRONT':.02,'LEFT':.04}[context['photo_view']])
+            return response(),None
         with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             state=self.turn()
         self.assertEqual(len(seen),3);self.assertEqual(len(set(seen)),3)
         self.assertEqual({record['photo_id'] for record in state['photo_vision']['photos']},set(seen))
         for record in state['photo_vision']['photos']:self.assertEqual(record['owner']['photo_id'],record['photo_id'])
+        analysis=self.ctx.dispatch('recalculate_judgments',dict(task_id=self.identity))
+        before=self.ctx.require('task',self.identity)
+        order=[record['request_id'] for record in before['conditions']['intake_session']['photo_vision']['photos']]
+        for _ in range(2):
+            reopened=self.get()['task']
+            self.assertEqual(reopened['input_revision'],before['input_revision'],'a read must not stale an analysis by sorting completion-order receipts')
+            self.assertEqual([record['request_id'] for record in reopened['conditions']['intake_session']['photo_vision']['photos']],order)
+            self.assertEqual(self.ctx.analysis(analysis['analysis_id'])['currentness'],'CURRENT')
 
     def test_late_photo_replacement_keeps_old_result_in_history_only(self):
         self.enable();old=self.get()['task']['capture']['slots'][0]['photo_id']

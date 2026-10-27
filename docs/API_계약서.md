@@ -595,3 +595,5 @@ pose/reba/measurement_quality는 slot_no와 photo_id를 함께 대조한다. 다
 
 
 NumericSummary의 사진별 estimated_inputs는 `{scope,field,value,source,state:'ESTIMATED',measurement_method,confidence,display_confidence_percent,used_for_reba}`로 추정 입력을 전달한다. candidates는 angle_refs/measurement_method/estimated를 포함하고 inferred_world_angles는 diagnostic을 보존한다. 사용자 자유근거·사진 ID는 AI 요약에 넣지 않는다. 사진 API의 범주 추정은 해당 신체의 OBSERVED·유한한 양쪽 확신도 0.5 이상·양쪽 근거가 있을 때 ESTIMATED로 보존한다. boolean/작업 특징은 기존 높은 확신도 기준을 유지한다. 근거 문장의 표현이 다르다는 이유만으로 버리지 않고 두 근거를 원문대로 남긴다. 쥐기는 holding뿐 아니라 해당 쪽 손목의 가시성도 확인해 가려진 반대 손을 복사하지 않는다.
+
+병렬 사진 응답의 active request_id 집합과 각 record 전체 내용이 같으면 기존 photos 배열 순서를 보존한다. 조회가 완료 순서를 정렬하는 것만으로 입력 revision·분석 현재성·AI source_current를 변경하지 않는다. 실제 사진·서명·관찰 내용 변경은 기존대로 반영한다.

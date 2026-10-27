@@ -60,6 +60,13 @@ def refresh(task,session,settings,preview=None,photos=None):
         record=next((record for record in matching if record.get('status') in ('OBSERVED','UNCERTAIN')),
             next((record for record in reversed(matching) if record.get('status')=='ERROR'),None))
         if record:selected.append(copy.deepcopy(record))
+    previous=state.get('photos',[])
+    selected_by_id={record.get('request_id'):record for record in selected}
+    previous_ids=[record.get('request_id') for record in previous]
+    if (len(previous)==len(selected)==len(selected_by_id)==len(set(previous_ids))
+            and all(identity for identity in previous_ids)
+            and all(selected_by_id.get(record.get('request_id'))==record for record in previous)):
+        selected=[selected_by_id[identity] for identity in previous_ids]
     active_ids={record.get('request_id') for record in selected}
     history=[];seen=set()
     for record in records:
