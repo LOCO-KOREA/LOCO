@@ -186,7 +186,7 @@ export class QuickFlow {
     this.photoCropAbort?.abort();this.photoOperation=null;
     this.intake?.reset();
     Object.assign(this, {step: 'start', busy: preserveActivity?this.busy:false, survey: null, task: null, photos: {}, preview: null, stale: true, answers: {}, group: 0,
-      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, intakeText: '', intakeReturnStep: null, laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
+      result: null, exported: null, baseline: null, comparison: null, reopened: false, saved: null, review: {reviewer: '', note: ''}, draftId:null,draftOwnerId:null,aiDraft: null, aiEditorOpen: false, confirmDelete: null, ai: null, analysisTitle: null, intakeText: '', intakeReturnStep: null, laterOpen: false, excelPreview: null, excelTab: 0, selectedPhotoView: 'LEFT', overview: null});
   }
 
   async open() { if (this.step === 'home') await this.loadHome(); else this.render(); }
@@ -203,13 +203,14 @@ export class QuickFlow {
   // ================= home
   async saveWorkspace(announce = true) {
     if (this.busy || this.photoOperation || this.step === 'home') return false;
-    if (!this.task && !this.intakeText?.trim() && !this.intake?.text?.trim() && !Object.keys(this.photos || {}).length) {
+    if (!this.task && !this.analysisTitle?.trim() && !this.intakeText?.trim() && !this.intake?.text?.trim() && !Object.keys(this.photos || {}).length) {
       if (announce) this.notify('아직 작성한 내용이 없어요.');
       return true; // An untouched new screen must not replace a meaningful checkpoint.
     }
     let saved = false;
     await this.run('작성 중인 내용을 임시 저장하고 있어요…', async () => {
       await this.intake.flush();
+      await this.saveAnalysisTitle();
       if (this.task) {
         // Photo registration can advance the task revision without refreshing this screen's DTO.
         const fresh = (await this.api('get_task', {task_id: this.task.task_id})).task;
@@ -326,7 +327,7 @@ export class QuickFlow {
       }
       const settings = this.settings || await this.api('get_settings');
       this.reset({preserveActivity:true});
-      Object.assign(this, {survey, task, photos, result: bundle.analysis, reopened: true, stale: false, step: 'result', settings});
+      Object.assign(this, {survey, analysisTitle: null, task, photos, result: bundle.analysis, reopened: true, stale: false, step: 'result', settings});
       if (this.intake.hasSession(task)) { const restored = await this.intake.open(task.task_id); this.preview = restored.preview; this.task = restored.task;this.result=await this.api('get_analysis',{analysis_id:bundle.analysis.analysis_id}); }
     });
   }
@@ -350,11 +351,21 @@ export class QuickFlow {
   // ================= step 1: photos (any of three views, each replaceable)
   async ensureTask(isCurrent=()=>true) {
     if (this.task) return;
-    const survey = await this.api('create_survey', {draft: {investigator: '', department: '', process: ''}});
+    const survey = await this.api('create_survey', {draft: {investigator: '', department: '', process: '', ...(this.analysisTitle?.trim() ? {title: this.analysisTitle.trim()} : {})}});
     if(!isCurrent())return;
     this.survey=survey;
     const task = await this.api('create_task', {survey_id: survey.survey_id, draft: {task_name: '', input_template: 'GENERAL', conditions: {}}});
     if(isCurrent())this.task=task;
+  }
+
+  async saveAnalysisTitle() {
+    if (!this.survey || this.analysisTitle == null) return;
+    const title = this.analysisTitle.trim();
+    const current = await this.api('get_survey', {survey_id: this.survey.survey_id});
+    if (current.created_at !== this.survey.created_at) throw Error('제목을 저장할 조사가 변경됐어요. 다시 열어 주세요.');
+    this.survey = current.title === title ? current : await this.api('update_survey', {
+      survey_id: current.survey_id, draft: {...Object.fromEntries(SURVEY_KEYS.map(key=>[key,current[key]])), title}
+    });
   }
 
   async setPhoto(view, path) {
@@ -402,6 +413,11 @@ export class QuickFlow {
 
   async analyze() {
     if (!Object.keys(this.photos).length && !this.intakeText.trim()) return;
+    if (this.survey && this.analysisTitle != null && this.analysisTitle.trim() !== this.survey.title) {
+      let titleSaved = false;
+      await this.run('분석 제목을 저장하고 있어요…', async () => { await this.saveAnalysisTitle(); titleSaved = true; });
+      if (!titleSaved) return;
+    }
     if (!this.stale && this.preview && this.intake?.state) { this.step = 'provisional'; return this.render(); }
     await this.run(Object.keys(this.photos).length ? '사진에서 자세와 동작을 확인하고 있어요…' : '작업 설명을 정리하고 있어요…', async () => {
       await this.ensureTask();
@@ -1174,6 +1190,10 @@ export class QuickFlow {
         button.textContent = changed ? '수정한 설명 확인 후 Excel 반영' : '현재 설명 확정됨';
       }
     }
+    else if (d.quickTitle !== undefined) {
+      this.analysisTitle = el.value;
+      this.keepDraft();
+    }
     else if (d.quickIntake !== undefined) {
       // Typing does not re-render the page, so the button has to follow the text itself.
       this.intakeText = el.value;
@@ -1236,10 +1256,10 @@ export class QuickFlow {
   // Every unfinished record, including pre-task text, has its own durable bookmark.
   keepDraft() {
     if (!['start', 'provisional', 'questions'].includes(this.step) || this.result || this.reopened) return;
-    if(!this.task&&!this.intakeText?.trim()&&!this.intake?.text?.trim()&&!Object.keys(this.photos||{}).length){if(this.draftId)this.clearCurrentDraft();return;}
+    if(!this.task&&!this.analysisTitle?.trim()&&!this.intakeText?.trim()&&!this.intake?.text?.trim()&&!Object.keys(this.photos||{}).length){if(this.draftId)this.clearCurrentDraft();return;}
     this.drafts||=localDrafts();this.draftId||=newDraftId();this.draftOwnerId||=this.draftId;
     const draft={id:this.draftId,ownerId:this.draftOwnerId,scope:this.drafts.scope,
-      surveyId: this.survey?.survey_id, surveyTitle: this.survey?.title, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
+      surveyId: this.survey?.survey_id, surveyTitle: this.analysisTitle ?? this.survey?.title, analysisTitle: this.analysisTitle, createdAt: this.survey?.created_at, taskId: this.task?.task_id,taskCreatedAt:this.task?.created_at, taskRevision:this.task?.input_revision, step: this.step === 'start' ? 'start' : 'questions', group: this.group,
       photos: Object.fromEntries(Object.entries(this.photos).map(([view, item]) => [view, item.photo.photo_id])),
       pageShown:Boolean(this.intake?.pageShown), formValues:[...(this.intake?.formValues||[])], answers: this.answers, adaptive: Boolean(this.intake?.state), intakeText: this.intakeText, reply: this.intake?.text||'', ai: this.ai ? {text: this.intakeText, items: this.ai.items, dropped: this.ai.dropped} : null, savedAt: new Date().toISOString(), baseline: Boolean(this.baseline)};
     if(this.drafts.put('quick',this.draftId,draft)&&!writeDraft(draft))this.drafts.error='임시 저장 안내를 갱신하지 못했어요. 저장 공간을 확인해 주세요.';
@@ -1252,7 +1272,7 @@ export class QuickFlow {
   }
   async restoreDraft(draft){
       if(!workspaceScopeMatches(draft,this.drafts?.scope))throw Error('다른 저장 파일에서 작성한 내용이에요. 원래 저장 파일에서 이어 주세요.');
-      if(!draft.taskId){const settings=this.settings;this.reset({preserveActivity:true});Object.assign(this,{draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,settings,intakeText:draft.intakeText||'',step:'start'});this.intake.text=draft.reply||'';return;}
+      if(!draft.taskId){const settings=this.settings;this.reset({preserveActivity:true});Object.assign(this,{draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,settings,analysisTitle:draft.analysisTitle??draft.surveyTitle??null,intakeText:draft.intakeText||'',step:'start'});this.intake.text=draft.reply||'';return;}
       const survey = await this.api('get_survey', {survey_id: draft.surveyId});
       if (survey.created_at !== draft.createdAt) throw new Error('이 기록은 다른 데이터에서 작성하던 것이라 이어 갈 수 없어요.');
       const full = await this.api('get_task', {task_id: draft.taskId});
@@ -1266,7 +1286,7 @@ export class QuickFlow {
       }
       const settings = this.settings;
       this.reset({preserveActivity:true});
-      Object.assign(this, {draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,survey, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.intakeText??draft.ai?.text??'', stale: true, settings, step: 'start'});
+      Object.assign(this, {draftId:draft.id,draftOwnerId:draft.ownerId||draft.id,survey, analysisTitle:draft.analysisTitle??null, task: full.task, photos, answers: draft.answers || {}, ai: draft.ai?.items?.length ? {items: draft.ai.items, dropped: draft.ai.dropped || []} : null, intakeText: draft.intakeText??draft.ai?.text??'', stale: true, settings, step: 'start'});
       this.intake.text=draft.reply||'';
       const views = Object.fromEntries(Object.entries(photos).map(([view, item]) => [view, item.photo.photo_id]));
       if (draft.adaptive || this.intake.hasSession(full.task)) {
@@ -1335,6 +1355,7 @@ export class QuickFlow {
     return `${this.baseline ? '<p class="quick-ok">개선 전 결과를 기억하고 있어요. 개선 후 사진으로 넣으면 전후를 비교해 드려요.</p>' : ''}
       <p class="quick-lead">작업 사진과 설명을 입력하면 사진에서 잰 자세와 REBA 점수를 먼저 보여 드려요. 사진 한 장만 있어도 시작할 수 있어요.</p>
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
+      <section class="panel quick-title-field"><label for="quick-analysis-title">분석 제목 <small>선택</small></label><input id="quick-analysis-title" type="text" data-quick-title value="${esc(this.analysisTitle ?? this.survey?.title ?? '')}" placeholder="예: 포장 공정 상자 운반 작업" ${this.busy ? 'disabled' : ''}></section>
       <section class="panel intake-start"><h3>작업 설명 <small>선택</small></h3><p class="quick-note">알고 있는 작업 내용만 적어 주세요. 이미 사진이나 설명에서 파악한 내용은 다시 묻지 않아요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 선반으로 옮겨요.">${esc(this.intakeText)}</textarea><details class="quick-intake-example"><summary>질문을 줄이는 설명 예시</summary><p class="quick-note">가능하면 하루 작업시간, 물건 무게와 횟수, 반복·충격·자세 유지 여부도 적어 주세요. 모르면 비워도 돼요.</p></details></section>
       <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
   }
@@ -1389,15 +1410,17 @@ export class QuickFlow {
         ${s ? `<div class="quick-big"><strong class="${rebaScoreClass(s.total)}">${s.total}</strong><span>점 · ${esc(RISK[s.risk] || s.risk)}</span></div>
           ${renderRebaScale(s.total, {label: '현재 '})}
           <p class="quick-note">${esc(plainText(s.assumption))}</p>
-          ${s.kind === 'ASSUMED_REFERENCE' ? '<p class="quick-warn">이 점수는 자세 측정값이 아니라 비교를 위한 기준값이에요.</p>' : ''}
-          ${pv.measurement_quality ? `<h3>사진 전체 측정</h3>${renderMeasurementQuality(pv.measurement_quality)}` : ''}` : '<p class="quick-note">사진 측정 결과를 받지 못했어요. 사진을 다시 확인한 뒤 필요한 입력을 이어가세요.</p>'}
-        <details class="quick-review-technical"><summary>사진에서 읽은 값과 계산 근거 보기</summary>
-          <h3>사진에서 측정한 값</h3><ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
-          ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
-          ${spatial ? `<h3>3D 추정 각도 (참고)</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 사용하지 않아요.</p><ul>${spatial}</ul>` : ''}
-          ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
-        </details>
-        ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}${this.intakePanel()}
+          ${s.kind === 'ASSUMED_REFERENCE' ? '<p class="quick-warn">이 점수는 자세 측정값이 아니라 비교를 위한 기준값이에요.</p>' : ''}` : '<p class="quick-note">사진 측정 결과를 받지 못했어요. 사진을 다시 확인한 뒤 필요한 입력을 이어가세요.</p>'}
+        <div class="quick-provisional-evidence">
+          ${pv.measurement_quality ? `<h3>사진 전체 측정</h3>${renderMeasurementQuality(pv.measurement_quality)}` : ''}
+          <section class="quick-review-technical">
+            <h3>사진에서 측정한 값</h3><ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
+            ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
+            ${spatial ? `<h3>3D 추정 각도 (참고)</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. REBA에는 사용하지 않아요.</p><ul>${spatial}</ul>` : ''}
+            ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
+          </section>
+          ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}
+        </div>${this.intakePanel()}
         <div class="quick-nav"><button class="quick-back" data-quick="photos" ${this.busy ? 'disabled' : ''}>뒤로 가기</button><button class="primary" data-quick="next" ${this.busy ? 'disabled' : ''}>현재 점수로 결과 보기</button><button type="button" data-quick="questions" ${this.busy ? 'disabled' : ''}>점수 보완 (선택)</button></div>
       </section></div>`;
   }
@@ -1533,17 +1556,16 @@ export class QuickFlow {
       : sides.length === 1 ? `${sides[0].label} ${sides[0].value}점` : '';
     const missingDetails = missing.length ? `<p class="quick-note">확인이 필요한 항목 ${missing.length}개: ${missing.map(field => FIELD_KO[String(field).split('.').pop()] || '자세 항목').join(' · ')}</p>` : '';
     const assumedDetails = assumed.length ? `<p class="quick-note">가정한 항목 ${assumed.length}개: ${assumed.map(field => FIELD_KO[String(field).split('.').pop()] || (field === 'observation.load_state' ? '물건 들기 여부' : '자세 항목')).join(' · ')}</p>` : '';
-    const technical = `<details class="quick-review-technical"><summary>점수 계산과 가정 자세히 보기</summary>
-      ${compact ? renderRebaScale(score.total, {label: score.kind === 'CONFIRMED' ? '' : '확인 전 현재 '}) : ''}
+    const technical = `${compact ? '<section class="quick-review-score-details">' : '<details class="quick-review-technical"><summary>점수 계산과 가정 자세히 보기</summary>'}
       ${assumption ? `<p class="quick-note">${esc(assumption)}</p>` : ''}${photoAssumption ? `<p class="quick-note">${esc(photoAssumption)}</p>` : ''}
-      ${assumedDetails}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${firstPassNote}</details>`;
+      ${assumedDetails}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${firstPassNote}${compact ? '</section>' : '</details>'}`;
     const heading = compact ? '' : '<h2>REBA 현재 점수</h2>';
     const scoreValue = compact
-      ? `<div class="quick-score-line"><strong class="${rebaScoreClass(score.total)}">${score.total}점</strong><span>${esc(riskText(score.risk))}</span><span class="quick-score-status ${String(score.kind || 'WITH_ASSUMPTIONS').toLowerCase()}">${esc(status)}</span>${quality ? renderMeasurementQuality(quality,{compact:true}) : ''}</div>`
+      ? `<div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>`
       : `<div class="quick-score-status ${String(score.kind || 'WITH_ASSUMPTIONS').toLowerCase()}">${esc(status)}</div><div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>${quality ? renderMeasurementQuality(quality) : ''}`;
-    const fullBand = compact ? '' : renderRebaScale(score.total, {label: score.kind === 'CONFIRMED' ? '' : '확인 전 현재 '});
+    const fullBand = renderRebaScale(score.total, {label: score.kind === 'CONFIRMED' ? '' : '확인 전 현재 '});
     const needsRefinement = score.kind !== 'CONFIRMED' || missing.length > 0 || Number.isInteger(summary.total_slot_count) && summary.total_slot_count > (summary.complete_count || 0);
-    return `${heading}${scoreValue}${fullBand}<p class="quick-note">${esc(statusNote)}</p>${technical}${compact || !needsRefinement ? '' : this.postureAction()}`;
+    return `${heading}${scoreValue}${fullBand}<p class="quick-note">${esc(statusNote)}</p>${compact && quality ? renderMeasurementQuality(quality,{compact:true}) : ''}${technical}${compact || !needsRefinement ? '' : this.postureAction()}`;
   }
 
   criteriaRows(editable) {

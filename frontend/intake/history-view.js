@@ -11,10 +11,12 @@ const proposal=(state,item)=>{if(!Object.hasOwn(item,'proposed_value'))return ''
 export function renderIntakeHistory(state,{details=true}={}){
  if(!state)return '';
  const rejected=state.diagnostics??state.dropped??[];
- const notice=rejected.length?`<section class="intake-diagnostics" data-intake-diagnostics role="status"><h4>반영되지 않은 정보 ${rejected.length}개</h4><ul>${rejected.map(item=>`<li><strong>${esc(label(state,item.target))}</strong> · ${esc(REASONS[item.reason]||'입력 근거를 다시 확인해 주세요.')}${proposal(state,item)}${item.quote?`<small>근거: ${esc(item.quote)}</small>`:''}</li>`).join('')}</ul><p>원문은 보관했어요. 추가 설명이나 직접 수정으로 보완할 수 있어요.</p></section>`:'';
  const turns=state.history||[];
- if(!details||!turns.length)return notice;
- const outcome={ACCEPTED:'반영함',UNCHANGED:'기존 값 유지',USER_SAVED:'직접 입력 저장',REJECTED:'미반영',IGNORED:'질문 응답 참고'};
- const history=turns.map((turn,index)=>`<li><strong>${index+1}번째 입력 처리</strong><ul>${(turn.decisions||[]).map(item=>`<li>${esc(label(state,item.target))} · ${esc(outcome[item.outcome]||'처리 중')}${item.reason?' · '+esc(REASONS[item.reason]||'근거 확인 필요'):''}${item.quote?`<small>${esc(item.quote)}</small>`:''}</li>`).join('')||'<li>입력 문장을 보관했어요.</li>'}</ul>${turn.requests?.length?`<small>정보 정리 ${(turn.requests||[]).filter(r=>r.phase==='EXTRACT_AND_PLAN').length}회 · 후속 질문 ${(turn.requests||[]).filter(r=>r.phase==='FOLLOWUP').length}회</small>`:''}${turn.requests?.some(request=>request.context?.omitted_message_ids?.length)?'<p>일부 이전 설명은 이번 정리 범위에 포함되지 않았어요. 원문은 보관돼요.</p>':''}</li>`).join('');
- return notice+`<details class="intake-history" data-intake-history><summary>입력 처리 이력 ${turns.length}회</summary><ol>${history}</ol></details>`;
+ const notice=(rejected.length?`<section class="intake-diagnostics" data-intake-diagnostics role="status"><h4>반영되지 않은 정보 ${rejected.length}개</h4><ul>${rejected.map(item=>`<li><strong>${esc(label(state,item.target))}</strong> · ${esc(REASONS[item.reason]||'입력 근거를 다시 확인해 주세요.')}${proposal(state,item)}${item.quote?`<small>근거: ${esc(item.quote)}</small>`:''}</li>`).join('')}</ul><p>원문은 보관했어요. 추가 설명이나 직접 수정으로 보완할 수 있어요.</p></section>`:'')+
+  (turns.some(turn=>turn.requests?.some(request=>request.context?.omitted_message_ids?.length))?'<p class="intake-history-note">일부 이전 설명은 이번 정리 범위에 포함되지 않았어요. 원문은 보관돼요.</p>':'');
+ if(!details)return notice;
+ const changes=turns.flatMap(turn=>(turn.decisions||[]).filter(item=>item.outcome==='ACCEPTED'||item.outcome==='USER_SAVED'));
+ if(!changes.length)return notice;
+ const history=changes.reverse().map(item=>`<li><strong>${esc(label(state,item.target))}</strong><span>${item.outcome==='USER_SAVED'?'직접 입력':'설명·사진에서 반영'}</span>${item.quote?`<small>${esc(item.quote)}</small>`:''}</li>`).join('');
+ return notice+`<details class="intake-history" data-intake-history><summary>반영된 입력 내역 보기</summary><ul>${history}</ul></details>`;
 }
