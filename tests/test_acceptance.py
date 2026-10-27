@@ -16,7 +16,7 @@ class V2Acceptance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root, patch.object(application, 'DB', str(Path(root) / 'loco.db')):
             survey = application.dispatch('create_survey', {'draft': {
                 'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자',
-                'department': '팀', 'process': '공정', 'title': '직접입력 검증', 'occasional_reason': None}})
+                'department': '팀', 'process': '공정', 'title': '직접입력 검증'}})
             draft = task_input({'task_name': '=2+2', 'input_template': 'LIFTING'})
             task = application.dispatch('create_task', {'survey_id': survey['survey_id'], 'draft': draft})
             analysis = application.new_analysis(task, ['judgment'])
@@ -52,7 +52,7 @@ class V2Acceptance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root, patch.object(application, 'DB', str(Path(root) / 'compare.db')):
             survey = application.dispatch('create_survey', {'draft': {
                 'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자',
-                'department': '팀', 'process': '공정', 'title': '전후 비교', 'occasional_reason': None}})
+                'department': '팀', 'process': '공정', 'title': '전후 비교'}})
             task = application.dispatch('create_task', {
                 'survey_id': survey['survey_id'], 'draft': task_input({'task_name': '조립 작업'})})
             before = application.new_analysis(task, ['judgment'])

@@ -6,7 +6,7 @@
 |---|---|
 | `task-workspace.js`, `task/` | 작업 defaults·편집 상태·11개 기준 view·저장·이벤트 |
 | `photo-workspace.js`, `photo/` | 가변 사진·배정/관찰·재연결·상세 기록·단계 이동 |
-| `survey-intake.js`, `survey/` | 조사 상황·근로자 참여·익명 증상 응답의 입력/표시/이벤트 |
+| `survey-intake.js`, `survey/` | 이전 조사일 입력/표시(조사 구분의 최초 선택지 포함) |
 | `dashboard.js` | 저장된 조사 목록·현재성 요약과 이동 |
 | `analysis-workspace.js`, `analysis/` | workspace 조립·공유 labels/DOM/state·진행/REBA/판정/설명/출력/설정 view·canvas·actions·navigation |
 | `review-links.js` | 누락 필드 이동·GPT 계산 근거·상세 전후 비교 표시 |

@@ -72,16 +72,10 @@ null은 미입력이고 실제 0은 숫자 0이다. UI·Excel은 Asia/Seoul로 �
 
 ~~~typescript
 type SurveyType = 'INITIAL'|'REGULAR'|'OCCASIONAL';
-type OccasionalCause = 'DISEASE_CASE'|'NEW_TASK_OR_EQUIPMENT'|'WORK_ENVIRONMENT_CHANGE'|'OTHER';
-type WorkplaceSituation = {equipment_status:Truth,equipment_notes:string,workload_status:Truth,workload_notes:string,speed_status:Truth,speed_notes:string,work_pattern_status:Truth,work_pattern_notes:string};
-type WorkerParticipation = {status:Truth,role:'WORKER_REPRESENTATIVE'|'AFFECTED_WORKER'|'BOTH'|'UNKNOWN',participant_code:string,method:'INTERVIEW'|'MEETING'|'OBSERVATION'|'OTHER'|'UNKNOWN',date:Date|null,notes:string};
-type SymptomRegion = {side:'RIGHT'|'LEFT'|'BOTH'|'NONE'|'UNKNOWN',duration:'LT_1_DAY'|'DAY_TO_WEEK'|'WEEK_TO_MONTH'|'MONTH_TO_6_MONTHS'|'GE_6_MONTHS'|'UNKNOWN',severity:'MILD'|'MODERATE'|'SEVERE'|'VERY_SEVERE'|'UNKNOWN',last_week:Truth};
-type SymptomResponse = {response_code:string,name:string,age_years:Count|null,sex:'MALE'|'FEMALE'|'UNKNOWN',workplace_tenure_months:Count|null,department:string,job:string,current_work:string,current_work_months:Count|null,daily_work_hours:Count|null,rest_breaks:string,previous_work:string,previous_work_months:Count|null,leisure_activities:string,household_work:string,medical_history:Truth,injury_history:Truth,injury_sites:string[],physical_burden:1|2|3|4|5|null,work_related_symptoms_last_year:Truth,regions:Record<'neck'|'shoulder'|'arm_elbow'|'hand_wrist'|'back'|'leg_foot',SymptomRegion>};
-type SymptomSurvey = {method:'QUESTIONNAIRE'|'INTERVIEW'|'OTHER'|'NOT_DONE'|'UNKNOWN',date:Date|null,respondent_count:Count|null,summary:string,responses:SymptomResponse[]};
-type SurveyDraft = {survey_type:SurveyType,survey_date:Date,investigator:string,department:string,process:string,title:string,occasional_reason:string|null,occasional_cause:OccasionalCause|null,previous_survey_date:Date|null,workplace_situation:WorkplaceSituation,participation:WorkerParticipation,symptom_survey:SymptomSurvey};
+type SurveyDraft = {survey_type:SurveyType,survey_date:Date,investigator:string,department:string,process:string,title:string,previous_survey_date:Date|null};
 type ReviewRecord = {reviewed:boolean,reviewed_analysis_ids:ID[],reviewed_metadata_revision:Count|null,reviewer:string|null,reviewed_at:Timestamp|null,note:string|null};
 type ReviewMark = ReviewRecord & {history?: (ReviewRecord & {archived_at:Timestamp,reason:string})[]};
-type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp,survey_type_source:'USER'|'DEFAULT'|'UNKNOWN',occasional_cause_source:'USER'|'UNKNOWN'};
+type Survey = SurveyDraft & {survey_id:ID,metadata_revision:Count,review:ReviewMark,created_at:Timestamp,updated_at:Timestamp,survey_type_source:'USER'|'DEFAULT'|'UNKNOWN'};
 type SurveySummary = {survey_id:ID,title:string,survey_date:Date,task_count:Count,reviewed:boolean,review_current:boolean};
 type InputTemplate = 'GENERAL'|'OFFICE'|'REPETITION'|'POSTURE'|'HAND_FORCE'|'LIFTING'|'IMPACT';
 type TaskConditions = {
@@ -287,7 +281,7 @@ provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_id
 | method | params | value |
 |---|---|---|
 | list_surveys | 없음 | SurveySummary[] |
-| create_survey / update_survey | draft / survey_id,draft. OCCASIONAL은 occasional_cause 필수 | Survey |
+| create_survey / update_survey | draft / survey_id,draft. 수시조사 사유·작업장 상황·근로자 참여·증상조사 필드(occasional_reason, occasional_cause, workplace_situation, participation, symptom_survey)는 받아도 무시하고 저장하지 않는다(2026-10-27 소유자 지시: REBA 계산과 그 값을 Excel로 주는 것까지만 한다). OCCASIONAL도 사유 없이 저장한다. 옛 행에 남은 값은 읽을 때(get_survey·update_survey 응답·출력 snapshot) 뺀다 | Survey |
 | get_survey / delete_survey | survey_id | Survey / Ack |
 | set_survey_review | survey_id,review | Survey |
 | list_tasks | survey_id | Task[] |
@@ -352,7 +346,7 @@ delete_photo는 배정 해제·관찰 초기화·대상 manual 제거·PHOTO 삭
 ~~~typescript
 type ComparisonSpec = {before_analysis_id:ID,after_analysis_id:ID,note:string|null};
 type ExportSpec = {destination:string,analysis_ids:ID[],include_representative:boolean,comparisons:ComparisonSpec[]};
-type ReportState = {reviewed:boolean,review_current:boolean,has_incomplete:boolean,has_stale:boolean,survey_input_complete:boolean};
+type ReportState = {reviewed:boolean,review_current:boolean,has_incomplete:boolean,has_stale:boolean};
 type ReportCounts = {needs_input_count:Count|null,needs_review_count:Count|null,incomplete_reba_count:Count|null};
 type NextInputItem = {module:'ANALYSIS'|'POSE'|'TAGS'|'REBA'|'BURDEN'|'EXPLANATION',kind:'NOT_CALCULATED'|'MISSING_INPUT'|'REVIEW_REQUIRED',slot_no:Count|null,criterion_no:Count|null,field_paths:string[],reason_codes:string[],message:string};
 type ReportTaskOverview = {
@@ -366,7 +360,7 @@ type ComparisonOverview = {
   reba_max_delta:Number|null,criteria:{criterion_no:Count,before_computed_status:JudgmentStatus|null,before_investigator_status:FinalStatus|null,before_status:JudgmentStatus|null,after_computed_status:JudgmentStatus|null,after_investigator_status:FinalStatus|null,after_status:JudgmentStatus|null}[],
   condition_changes:{field_path:string,before:unknown,after:unknown}[],notes:string[]
 };
-type ReportOverview = {report_version:'2.0',state:ReportState,counts:ReportCounts,tasks:ReportTaskOverview[],comparisons:ComparisonOverview[],survey_followups:string[]};
+type ReportOverview = {report_version:'2.0',state:ReportState,counts:ReportCounts,tasks:ReportTaskOverview[],comparisons:ComparisonOverview[]};
 type ExportSnapshot = {
   schema_version:'2.0',report_version:'2.0',survey:Survey,tasks:Task[],analyses:Analysis[],unanalysed_task_ids:ID[],
   include_representative:boolean,comparison_specs:ComparisonSpec[],comparison_analyses:Analysis[],exported_at:Timestamp
@@ -380,13 +374,12 @@ type ExportLogItem = {export_id:ID,survey_id:ID,file_path:string,receipt:ExportR
 
 REBA 규칙·프로토콜·대상 수·전체 완성을 비교해 호환될 때만 full_max의 후−전을 reba_max_delta로 제공한다. 그 밖에는 null과 이유다. rule_compatible은 고시/REBA 규칙이 모두 같을 때 true다. REBA 차이에는 REBA 규칙 호환성과 sampling_compatible을 사용하고, 고시 버전 차이는 호별 비교 제한으로 별도 표시한다. sampling_compatible은 같은 프로토콜·동일한 양의 대상 수·양쪽 전 대상 REBA 완성이다. 조건 차이·사진 대표성 한계를 표시하며 질환/산재 감소의 증명으로 표현하지 않는다.
 
-출력 시트는 같은 snapshot으로 `plain_sheets`가 만드는 시트 정의 목록이며 Excel 파일과 `preview_excel_sheets` 미리보기가 같은 정의를 쓴다. 모든 조사 유형은 `조사 결과`에 실제 기록한 조사 개요·작업 입력과 계산 가능한 결과만 출력한다. 조사 유형은 사용자가 실제 선택한 경우에만 표시한다. 기본값·UNKNOWN provenance의 기존 조사 유형은 표시하지 않는다. 부담작업·증상조사·자세·입력값 시트는 실제 기록값이나 분석 결과가 있을 때만 생성하며, 빈 공식 양식·기본 UNKNOWN·미질문 기준·미입력 안내는 출력하지 않는다. 확인사항 시트는 만들지 않고 앱 조사화면의 다음 입력 안내는 유지한다. 사람이 확정한 설명과 선택한 비교 결과는 해당 데이터가 있을 때만 추가한다. 모든 시트는 참고 자료이며 공식 서식의 완성·서명/날인·조사자 검토를 대신한다. 사용자가 질환자 발생·업무상 질병 인정 사유의 수시조사를 선택하면 안전보건규칙 제657조제2항제1호의 최근 1년 내 조사·개선 예외를 포함한 확인 안내와, 해당 시 제658조·고시 제2020-12호 제4조의 방법 및 별지 제1·2호서식 활용 안내를 조사 결과 시트와 미리보기에 함께 표시한다. 출력 영수증의 sheets에는 실제 생성된 시트를 순서대로 저장한다.
+출력 시트는 같은 snapshot으로 `plain_sheets`가 만드는 시트 정의 목록이며 Excel 파일과 `preview_excel_sheets` 미리보기가 같은 정의를 쓴다. 모든 조사 유형은 `조사 결과`에 실제 기록한 조사 개요·작업 입력과 계산 가능한 결과만 출력한다. 조사 유형은 사용자가 실제 선택한 경우에만 표시한다. 기본값·UNKNOWN provenance의 기존 조사 유형은 표시하지 않는다. 부담작업·자세·입력값 시트는 실제 기록값이나 분석 결과가 있을 때만 생성하며, 빈 공식 양식·기본 UNKNOWN·미질문 기준·미입력 안내는 출력하지 않는다. 확인사항 시트는 만들지 않고 앱 조사화면의 다음 입력 안내는 유지한다. 사람이 확정한 설명과 선택한 비교 결과는 해당 데이터가 있을 때만 추가한다. 모든 시트는 참고 자료이며 공식 서식의 완성·서명/날인·조사자 검토를 대신한다. 출력 영수증의 sheets에는 실제 생성된 시트를 순서대로 저장한다.
 
 | 시트 | 조건 | 내용 |
 |---|---|---|
-| 조사 결과 | 항상 | 조사 구분·조사 개요·작업명·실제 입력한 작업장 상황과 계산 가능한 결과만 포함. 빈 항목과 선택하지 않은 선택지는 생략한다. 질환자 발생 수시조사도 별지 양식 형태를 만들지 않는다. |
+| 조사 결과 | 항상 | 조사 구분·조사 개요·작업명과 계산 가능한 결과만 포함. 빈 항목과 선택하지 않은 선택지는 생략한다. 수시조사도 별지 양식 형태를 만들지 않는다. |
 | 부담작업 해당 여부 | 기록된 기준의 결과가 있을 때 | 답변·입력 이력이 있는 기준 중 계산 결과가 정해진 행만 표시한다. 11개 전체 빈 행렬, 미질문 기준, 미입력 안내는 포함하지 않는다. |
-| 증상조사 요약 | 기록된 증상조사 값이 있을 때 | 실제 입력한 응답과 요약만 표시한다. 기본 UNKNOWN은 미응답이므로 제외하며, 응답이 없거나 비어 있으면 시트를 만들지 않는다. |
 | 자세 분석(REBA) | 자세/REBA/기술태그 데이터가 있을 때 | 사진별 REBA 구성점수, 읽은 각도, 자세 표시 |
 | 입력한 값 | 실제 계산 입력·사진 확인·자세 입력 근거가 있을 때 | 입력한 값과 AI가 정리한 입력 사실만 표시한다. 기본 UNKNOWN과 입력되지 않은 기본값은 숨긴다. |
 | 확인사항 | 사용하지 않음 | Excel에는 다음 입력·미입력·미질문 안내 시트를 만들지 않는다. 앱 조사화면의 보완 입력 안내는 유지한다. |
@@ -441,7 +434,7 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 - task_ids는 비어 있지 않은 중복 없는 양의 정수 목록, analysis_ids는 선택 Task당 최대 하나다. 타 조사/선택 밖 Task 분석은 거부한다. 명시 선택이 없으면 최신 분석, 분석이 없으면 출력 시점 입력을 사용한다. include_representative는 bool이다.
 - 분석이 있으면 그 분석 snapshot, 없으면 Task 입력을 읽는다. 과거 분석을 현재 입력으로 바꾸지 않는다. 조사 메타와 Task/분석 선택은 요청 순서대로 snapshot에 고정한 뒤 PDF 생성만 별도 스레드에서 처리한다.
 - 원본 칸의 부담작업 호는 조사자 APPLICABLE 결론만 표시한다. 계산 초안·조사자 결론 상세·미확정 상태는 앱에서 구분하며 PDF 별첨으로 나열하지 않는다. 공란을 비해당 확정으로 보지 않는다. worker_code는 실명으로 출력하지 않는다.
-- 작업장 상황 YES만으로 줄음/늘어남/기타를 추정하지 않는다. 원본에 대응할 수 없는 입력은 앱에 보존한다. 원본 칸에 대응하는 작성 내용이 칸을 넘을 때만 전체 원문을 별첨에 보존하고 해당 칸에 별첨 참조를 표시한다. 유해요인·발생 원인을 호 번호/GPT로 생성하거나 임의로 분해해 짝짓지 않는다.
+- 원본의 작업장 상황 칸은 채우지 않고 비워 둔다(작업장 상황은 더 이상 입력받지 않는다, 2026-10-27 소유자 지시: REBA 계산과 그 값을 Excel로 주는 것까지만 한다). 원본 칸에 대응하는 작성 내용이 칸을 넘을 때만 전체 원문을 별첨에 보존하고 해당 칸에 별첨 참조를 표시한다. 유해요인·발생 원인을 호 번호/GPT로 생성하거나 임의로 분해해 짝짓지 않는다.
 - 대표 사진을 요청한 경우 선택 snapshot의 대표 슬롯 사진만 포함한다. 누락·손상은 명시하고 다른 사진으로 대체하지 않는다. 사진 미포함 요청에서는 파일을 읽지 않는다.
 - 입력한 노출량·조건 행·수동 관찰값·REBA·적용한 설명·빈 사진 슬롯·내부 식별번호·보완사항은 PDF에 자동 별첨하지 않는다. 경고·완전성 상태는 기존 API 응답과 앱에 유지한다. 원본 서식 칸에 REBA나 AI 설명을 끼워 넣지 않는다. 전후 비교는 기존 화면/Excel 흐름을 유지하며 이번 PDF API는 비교 매개변수를 받지 않는다.
 - PDF 미리보기는 파일/이력을 만들지 않는다. 실제 저장은 새 snapshot을 사용하므로 미리보기 뒤 변경된 입력은 실제 영수증이 기준이다. 저장 창 취소는 서비스 저장 요청을 보내지 않는다.

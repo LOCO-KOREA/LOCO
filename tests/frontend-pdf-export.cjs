@@ -89,7 +89,7 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
  assert.match(flow.viewExcel(),/data-quick="excel">Excel로 저장/);
  assert.match(flow.viewExcel(),/data-quick="excel-tab"/,'Excel sheet tabs remain visible');
  const s={survey:{survey_id:1},tasks:[{task_id:2,task_name:'작업'}],comparisonPool:[],comparisonBefore:null,comparisonAfter:null,comparisonNote:'',
-  exportSelections:{},pdfTaskSelections:{},overview:{tasks:[],comparisons:[],counts:{},state:{},survey_followups:[]}};
+  exportSelections:{},pdfTaskSelections:{},overview:{tasks:[],comparisons:[],counts:{},state:{}}};
  const advanced=createExportView({s,LocoReview:{comparison:()=>'',nextInput:()=>''},inputLabel:x=>x,$:()=>null,e:String,fmt:String,badge:()=>'',field:()=>'',select:()=>'',metric:()=>'',
   card:(title,body)=>'<section><h3>'+title+'</h3>'+body+'</section>',empty:String,context:()=>''}).exportPage();
  noPdf(advanced,'advanced export');

@@ -12,7 +12,7 @@ from ergo.engine.task_defaults import ARM, COMMON, task_input
 from ergo.report import workbook
 from ergo.report.plain import _inputs, _legal_rows, _posture, _explanations
 from ergo.service import application
-from tests.report_helpers import CODE, lifting_input, make_survey, run_analysis, update_survey
+from tests.report_helpers import CODE, SURVEY_KEYS, lifting_input, make_survey, run_analysis, update_survey
 
 PLAIN_SHEETS = ['조사 결과', '부담작업 해당 여부', '입력한 값']
 
@@ -198,15 +198,16 @@ class PlainWorkbook(unittest.TestCase):
         self.assertNotIn('T', ' '.join(re.findall(r'\d{4}-\d\d-\d\dT\S+', text)))
 
 
-    def test_workbook_has_no_followup_sheet_and_keeps_only_recorded_worksite_answers(self):
+    def test_workbook_has_no_followup_sheet_and_does_not_take_worksite_answers(self):
         self.assertNotIn('확인사항', self.export().sheetnames)
-        update_survey(self.survey['survey_id'], workplace_situation=dict(
+        sent = {key: value for key, value in application.dispatch('get_survey', {'survey_id': self.survey['survey_id']}).items() if key in SURVEY_KEYS}
+        application.dispatch('update_survey', {'survey_id': self.survey['survey_id'], 'draft': dict(sent, workplace_situation=dict(
             equipment_status='YES', workload_status='YES', speed_status='YES', work_pattern_status='YES',
-            equipment_notes='', workload_notes='', speed_notes='', work_pattern_notes=''))
+            equipment_notes='', workload_notes='', speed_notes='', work_pattern_notes=''))})
         book = self.export()
         main = '\n'.join(str(value) for value in self.cells(book, '조사 결과'))
         for label in ('작업설비', '작업량', '작업속도', '업무형태'):
-            self.assertIn(label, main)
+            self.assertNotIn(label, main)
         self.assertNotIn('입력 필요', main)
         self.assertNotIn('MoveNet', main)
         self.assertNotIn('기술태그', main)

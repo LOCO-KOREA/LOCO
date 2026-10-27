@@ -7,12 +7,11 @@ from ergo.service import application
 
 # Words a reader of the workbook must never meet: stored codes, field paths, internal names.
 CODE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z_]+\.[a-z0-9_.-]+\b|MoveNet|기술태그|스키마|None|null|UNKNOWN')
-SURVEY_KEYS = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date',
-               'workplace_situation', 'participation', 'symptom_survey')
+SURVEY_KEYS = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'previous_survey_date')
 
 
 def make_survey(title='일반 보고서 검증', **changes):
-    draft = {'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자', 'department': '팀', 'process': '공정', 'title': title, 'occasional_reason': None}
+    draft = {'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자', 'department': '팀', 'process': '공정', 'title': title}
     draft.update(changes)
     return application.dispatch('create_survey', {'draft': draft})
 

@@ -34,7 +34,7 @@ ID는 양의 정수, 시각은 UTC ISO8601이다. UI·Excel은 Asia/Seoul로 표
 
 ### SURVEY
 
-metadata_json은 SurveyDraft의 최초/정기/수시 유형·수시 사유·이전 조사일, 작업장 상황의 설비/작업량/속도/업무형태 변화, 근로자 참여기록, 증상조사 방법·익명 응답·요약을 저장한다. 응답 이름은 선택사항이며 익명 코드를 권장한다. 건강 관련 정보는 로컬 SQLite와 내보낸 파일에 평문으로 포함될 수 있으므로 파일 접근을 제한해야 한다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note와 선택적 history다. history는 이전 검토 기록과 archived_at·무효화/변경 사유를 보존하며 기존 history 없는 자료도 읽는다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
+metadata_json은 SurveyDraft의 최초/정기/수시 유형·조사일·조사자·부서·공정·제목·이전 조사일과 유형 선택 출처를 저장한다. 수시조사 사유·작업장 상황·근로자 참여·증상조사는 저장하지 않는다(2026-10-27 소유자 지시: REBA 계산과 그 값을 Excel로 주는 것까지만 한다). 옛 행에 남은 값은 읽을 때 뺀다. review_json은 reviewed, reviewed_analysis_ids, reviewed_metadata_revision, reviewer, reviewed_at, note와 선택적 history다. history는 이전 검토 기록과 archived_at·무효화/변경 사유를 보존하며 기존 history 없는 자료도 읽는다. 메타 변경은 metadata_revision을 올리고 현재 검토 표시를 해제한다.
 
 ### TASK.input_json
 
@@ -90,7 +90,7 @@ snapshot_json은 ExportSnapshot 2.0 전체다. survey, 모든 현존 tasks, 작�
 
 비교 대상은 같은 조사의 서로 다른 분석이며 일반 출력의 “한 작업 한 분석” 선택과 별도로 복사한다. 같은 작업의 과거/현재 비교에서도 두 snapshot이 빠지지 않는다. 출력 파일을 나중에 삭제해도 로그의 수치 근거는 남으며 파일 존재를 보증하지 않는다.
 
-receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale, survey_input_complete다. 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 기록된 입력·계산 결과·사람이 확정한 설명이 있는 데이터 시트를 만들고, 증상조사 응답이나 요약이 있을 때만 관련 시트를 추가한다. 빈 공식 서식은 만들지 않는다.
+receipt_json은 report_version, sheets, reviewed, review_current, has_incomplete, has_stale다(옛 영수증에는 survey_input_complete가 남아 있을 수 있다). 나머지 ExportReceipt의 ID·경로·시각은 컬럼에서 구성한다. 미리보기는 파일과 EXPORT_LOG를 만들지 않는다. 출력 시점 snapshot을 기준으로 기록된 입력·계산 결과·사람이 확정한 설명이 있는 데이터 시트를 만든다. 빈 공식 서식은 만들지 않는다.
 
 ## 4. 불변성·현재성·트랜잭션
 

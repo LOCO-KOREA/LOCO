@@ -30,7 +30,7 @@ const VALUE_KO = {UNDER_30: '30° 미만', FROM_30_TO_60: '30~60°', OVER_60: '6
 const FIELD_KO = {trunk_base: '몸통 굽힘', trunk_twisted: '몸통 비틀림', trunk_side_bent: '몸통 옆 기울임', neck_base: '목 굽힘', neck_twisted: '목 비틀림', neck_side_bent: '목 옆 기울임', legs_support: '다리 지지', seated: '앉은 자세', knee_band: '무릎 굽힘', shock_force: '충격', static_over_1min: '1분 이상 유지', small_repeat_over_4min: '반복', rapid_change_or_unstable: '불안정 자세', upper_arm_base: '위팔', arm_abducted_or_rotated: '팔 벌림', shoulder_raised: '어깨 들림', arm_supported_or_gravity_assisted: '팔 받침', lower_arm_base: '팔꿈치', wrist_base: '손목', wrist_deviated_or_twisted: '손목 비틀림', coupling: '손잡이', effective_load_kg: '무게'};
 const CRIT_NAME = {1: '키보드·마우스 집중 입력', 2: '같은 동작 반복', 3: '손·팔의 부담 자세', 4: '목·허리 굽힘·비틀림', 5: '쪼그림·무릎 굽힘', 6: '한 손 손가락 집기', 7: '한 손 들기·쥐기', 8: '25kg 이상 들기', 9: '10kg 이상 불편한 위치 들기', 10: '반복 들기', 11: '손·무릎 충격'};
 const TASK_KEYS = ['schema_version', 'task_kind', 'task_name', 'input_template', 'worker_count', 'conditions', 'legal', 'capture', 'manual', 'analysis_scope', 'legacy_input'];
-const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation', 'participation', 'symptom_survey'];
+const SURVEY_KEYS = ['survey_type', 'survey_date', 'investigator', 'department', 'process', 'title', 'previous_survey_date'];
 const STEPS = [['start', '사진·작업 설명'], ['provisional', '자동 정리·1차 점수'], ['questions', '추가 확인'], ['result', '결과'], ['review', '검토·설명'], ['excel', 'Excel']];
 // Which ticked work type feeds which statutory criterion (numbers are never shown while answering).
 const GATES = {1: 'keyboard', 2: 'repeat', 3: 'arm_over', 4: 'trunk_neck', 5: 'knee', 6: 'pinch', 7: 'grip', 8: 'lift', 9: 'lift', 10: 'lift', 11: 'impact'};
@@ -77,9 +77,6 @@ export function savedAnswers(questions, task, survey) {
       if (value && !(t.field === 'task_name' && value === '사진 분석 작업')) a[q.id] = value;
     }
     else if (t.type === 'survey') { if (survey[t.field]) a[q.id] = survey[t.field]; }
-    else if (t.type === 'situation') { const v = survey.workplace_situation?.[t.field]; if (v && v !== 'UNKNOWN') a[q.id] = v; }
-    else if (t.type === 'participation') { const v = survey.participation?.[t.field]; if (v && v !== 'UNKNOWN') a[q.id] = v; }
-    else if (t.type === 'symptom') { const v = survey.symptom_survey?.method; if (v && v !== 'UNKNOWN') a[q.id] = v; }
     else if (t.type === 'work_types') {
       const present = Object.entries(GATE_CRITERIA).filter(([, numbers]) => numbers.some(n => task.legal.criteria[n - 1]?.condition_present === 'YES')).map(([gate]) => gate);
       const known = Object.values(GATE_CRITERIA).flat().some(n => task.legal.criteria[n - 1]?.condition_present && task.legal.criteria[n - 1].condition_present !== 'UNKNOWN');
@@ -107,7 +104,7 @@ export function savedAnswers(questions, task, survey) {
 // ----- AI intake: one sentence about the work fills question boxes. Every item arrives with its own quote from the sentence.
 const INTAKE_REASON = {...AI_REASON, NOTHING_FOUND: '문장에서 채울 수 있는 값을 찾지 못했어요. 작업 내용과 숫자(시간·횟수·무게)를 함께 적어 보세요.'};
 // Survey information that does not change any calculation: asked after the result, not before it, when the AI intake is used.
-export const LATER_GROUPS = ['조사 정보', '작업장 상황', '참여·증상'];
+export const LATER_GROUPS = ['조사 정보'];
 
 export function applyIntake(answers, questions, items) {
   const types = questions.find(q => q.id === 'work_types');
@@ -343,7 +340,7 @@ export class QuickFlow {
   // ================= step 1: photos (any of three views, each replaceable)
   async ensureTask(isCurrent=()=>true) {
     if (this.task) return;
-    const survey = await this.api('create_survey', {draft: {investigator: '', department: '', process: '', occasional_reason: ''}});
+    const survey = await this.api('create_survey', {draft: {investigator: '', department: '', process: ''}});
     if(!isCurrent())return;
     this.survey=survey;
     const task = await this.api('create_task', {survey_id: survey.survey_id, draft: {task_name: '', input_template: 'GENERAL', conditions: {}}});
@@ -560,15 +557,6 @@ export class QuickFlow {
   surveyDraft(survey) {
     const a = this.answers, draft = Object.fromEntries(SURVEY_KEYS.map(key => [key, structuredClone(survey[key])]));
     for (const key of ['investigator', 'department', 'process']) if (String(a[key] ?? '').trim()) draft[key] = String(a[key]).trim();
-    for (const key of ['equipment', 'workload', 'speed', 'work_pattern']) {
-      const value = a[`situation_${key}`];
-      if (value) draft.workplace_situation[`${key}_status`] = value;
-    }
-    if (a.participation) {
-      draft.participation.status = a.participation;
-      if (a.participation === 'YES' && a.participation_method) draft.participation.method = a.participation_method;
-    }
-    if (a.symptom) draft.symptom_survey.method = a.symptom;
     return draft;
   }
 
@@ -652,11 +640,6 @@ export class QuickFlow {
     this.step = 'questions'; this.group = index; this.render(); window.scrollTo({top: 0});
   }
 
-  followupTarget(message) {
-    const table = [[/참여/, 'participation'], [/증상/, 'symptom'], [/설비/, 'situation_equipment'], [/작업량/, 'situation_workload'], [/속도/, 'situation_speed'], [/업무형태|업무 형태/, 'situation_work_pattern']];
-    return table.find(([pattern]) => pattern.test(message))?.[1] || null;
-  }
-
   checklistPanel() {
     const overview = this.overview, item = overview?.tasks?.[0];
     if (!item) return '';
@@ -665,9 +648,10 @@ export class QuickFlow {
     const cardFor = n => { const id = `crit_${GATES[n]}`, shown = this.preview?.questions.find(q => q.id === id && this.visible(q)); return shown ? id : 'work_types'; };
     const jump = id => canJump && id ? `<button type="button" data-jump="${esc(id)}">입력하러 가기</button>` : '';
     const lines = [];
-    for (const message of overview.survey_followups || []) lines.push(`<li><span>${esc(message)}</span>${jump(this.followupTarget(message))}</li>`);
     for (const next of item.next_inputs || []) {
       if (next.kind !== 'MISSING_INPUT' && next.kind !== 'REVIEW_REQUIRED') continue;
+      // The posture-count table (자세 표시) is a side calculation no score uses: its "partly empty" note is neither shown nor asked (owner rule: what no score uses is not shown).
+      if (next.module === 'TAGS') continue;
       let content=esc(next.message);
       // Service messages already contain human labels; keep the original as a fallback.
       const match=next.kind==='MISSING_INPUT'&&next.message?.match(/^([^:]+): (.+) 입력 필요$/);
@@ -686,7 +670,7 @@ export class QuickFlow {
     const counts = item.counts || {};
     return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>Excel 만들기 전 확인</h3>
       <p class="quick-note">입력 필요 기준 <b>${counts.needs_input_count ?? 0}</b>개 · 검토 필요 <b>${counts.needs_review_count ?? 0}</b>개 · 조사자 결론 <b>${conclusions}</b>/11개</p>
-      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? '<p class="quick-note">답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.</p>' : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
+      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? `<p class="quick-note">${this.intake?.state ? '답을 고치면 입력 창에서 "저장하고 결과 보기"를 다시 눌러야 반영돼요.' : '답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.'}</p>` : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
       : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
   }
 
@@ -1409,7 +1393,7 @@ export class QuickFlow {
         <div class="quick-loco"><b>로코</b> 결과에 필요한 항목을 관련 내용끼리 묶어 보여드려요</div>
         ${this.intakeSummary()}
         ${todo.map(g => `<h4 class="quick-section">${esc(g.name)}</h4>${g.questions.map(q => this.question(q)).join('')}`).join('')}
-        ${later.length ? `<details class="quick-later" ${this.laterOpen ? 'open' : ''}><summary>조사 정보·작업장 상황 (나중에 입력해도 돼요)</summary>${later.map(g => g.questions.map(q => this.question(q)).join('')).join('')}</details>` : ''}
+        ${later.length ? `<details class="quick-later" ${this.laterOpen ? 'open' : ''}><summary>조사 정보 (나중에 입력해도 돼요)</summary>${later.map(g => g.questions.map(q => this.question(q)).join('')).join('')}</details>` : ''}
         ${ready ? '' : '<p class="quick-note">확인할 질문에 답해 주세요. 모르면 "모름"을 고르면 돼요. 숫자는 0 이상이고, 하루 시간은 1440분 이하예요.</p>'}
         <div class="quick-nav"><button data-quick="prev">이전</button>
           <button class="primary" data-quick="next" ${ready && !this.busy ? '' : 'disabled'}>최종 결과 계산</button></div>

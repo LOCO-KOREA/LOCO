@@ -12,7 +12,7 @@ POLICY = dict(question_limit=1, text_limit=2400, autosave_delay_ms=500, quick_re
 STATES = ('KNOWN', 'ESTIMATED', 'UNKNOWN', 'CONFLICT')
 AI_STATES = ('NOT_REQUESTED', 'CONNECTED', 'ERROR')
 SOURCES = ('USER', 'AI', 'POSE', 'MOVENET', 'SAVED', 'VISION')
-LATER_GROUPS = ('조사 정보', '작업장 상황', '참여·증상')
+LATER_GROUPS = ('조사 정보',)
 PHOTO_VIEWS = ('LEFT', 'RIGHT', 'FRONT')
 MOTION_FLAGS = ('shock_force', 'static_over_1min', 'small_repeat_over_4min', 'rapid_change_or_unstable')
 # The yes/no posture items one checklist can take, in display order: (group, fields). A box means "this applies"; the form fills the rest with the no value only when the user says so.

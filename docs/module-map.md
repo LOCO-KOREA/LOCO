@@ -6,7 +6,7 @@
 |---|---|---|
 | 서비스 조립 | `ergo/service/application.py`, `runtime.py` | 메서드 연결, DB 주입, 앱별 잠금·취소 상태. `create_service(path)`는 독립 앱 인스턴스다. |
 | 작업 입력 | `service/task_inputs.py` | 2.0 입력 검증·사진 배정 변경·revision·수동값 보존 |
-| 조사 검토 | `service/surveys.py` | 조사 CRUD·참여/증상 입력·검토 이력 |
+| 조사 검토 | `service/surveys.py` | 조사 CRUD·검토 이력 |
 | 사진 | `service/photos.py` | 등록·재연결·미리보기·삭제 |
 | 분석 기록/실행 | `service/analysis_records.py`, `analysis_jobs.py` | 불변 snapshot·부분 저장·결론·대표 선택 / 재사용·추론·취소 |
 | 설명 | `service/explanations.py`, `gpt/client.py`, `gpt/payload.py` | 생성/편집/적용 이력 / SDK 호출 / 비식별 허용 요약과 응답 검증 |

@@ -20,7 +20,7 @@ class AppCase(unittest.TestCase):
         self.db_patch.start()
         self.survey = application.dispatch('create_survey', {'draft': {
             'survey_type': 'REGULAR', 'survey_date': '2026-10-23', 'investigator': '조사자',
-            'department': '팀', 'process': '공정', 'title': '검증 조사', 'occasional_reason': None}})
+            'department': '팀', 'process': '공정', 'title': '검증 조사'}})
         self.task = application.dispatch('create_task', {'survey_id': self.survey['survey_id'], 'draft': task_input({})})
 
     def tearDown(self):

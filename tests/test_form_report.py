@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.report.form import CHECK_RULE, DISEASE_CASE_NOTICE, _next_input_text, _support_overview
+from ergo.report.form import CHECK_RULE, _next_input_text, _support_overview
 from ergo.report.labels import CRITERION_RULE
 from ergo.service import application
 from ergo.engine.task_defaults import task_input
@@ -41,7 +41,7 @@ class FormWorkbook(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self.temp.cleanup)
-        self.survey = make_survey('양식 검증', survey_type='OCCASIONAL', occasional_cause='DISEASE_CASE')
+        self.survey = make_survey('양식 검증', survey_type='OCCASIONAL')
         self.task = application.dispatch('create_task', {'survey_id': self.survey['survey_id'], 'draft': lifting_input()})
         self.analysis = run_analysis(self.task)
 
@@ -77,43 +77,8 @@ class FormWorkbook(unittest.TestCase):
 
     def test_unknown_legacy_survey_type_is_not_exported_as_user_answer(self):
         for survey_type in ('INITIAL', 'OCCASIONAL'):
-            sheet=_support_overview({'survey': {'survey_type': survey_type, 'survey_type_source': 'UNKNOWN',
-                'occasional_cause_source': 'UNKNOWN', 'occasional_cause': 'DISEASE_CASE', 'occasional_reason': 'legacy value'}, 'tasks': []})
+            sheet=_support_overview({'survey': {'survey_type': survey_type, 'survey_type_source': 'UNKNOWN'}, 'tasks': []})
             self.assertIsNone(sheet, f'{survey_type} without user provenance must not appear in Excel')
-
-    def test_quickflow_metadata_save_does_not_confirm_legacy_disease_case(self):
-        legacy = application.dispatch('get_survey', {'survey_id': self.survey['survey_id']})
-        legacy['survey_type_source'] = 'UNKNOWN'
-        legacy['occasional_cause_source'] = 'UNKNOWN'
-        fields = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title',
-                  'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation',
-                  'participation', 'symptom_survey', 'survey_type_source', 'occasional_cause_source')
-        application.store('update_survey_metadata', self.survey['survey_id'],
-                          {key: legacy[key] for key in fields}, '2026-10-24T00:00:00+00:00')
-
-        updated = update_survey(self.survey['survey_id'], title='다른 조사 정보 수정')
-        self.assertEqual(updated['survey_type_source'], 'UNKNOWN')
-        self.assertEqual(updated['occasional_cause_source'], 'UNKNOWN')
-        book = self.export()
-        text = '\n'.join(text_of(book['조사 결과']))
-        self.assertNotIn('수시조사 사유', text)
-        self.assertNotIn(DISEASE_CASE_NOTICE, text)
-        preview = next(sheet for sheet in self.preview() if sheet['name'] == '조사 결과')
-        self.assertNotIn(DISEASE_CASE_NOTICE, '\n'.join(preview.get('notes', [])))
-
-    def test_explicit_cause_change_confirms_the_cause_and_enables_its_notice(self):
-        legacy = application.dispatch('get_survey', {'survey_id': self.survey['survey_id']})
-        legacy['survey_type_source'] = 'UNKNOWN'
-        legacy['occasional_cause_source'] = 'UNKNOWN'
-        fields = ('survey_type', 'survey_date', 'investigator', 'department', 'process', 'title',
-                  'occasional_reason', 'occasional_cause', 'previous_survey_date', 'workplace_situation',
-                  'participation', 'symptom_survey', 'survey_type_source', 'occasional_cause_source')
-        application.store('update_survey_metadata', self.survey['survey_id'],
-                          {key: legacy[key] for key in fields}, '2026-10-24T00:00:00+00:00')
-
-        updated = update_survey(self.survey['survey_id'], occasional_cause='NEW_TASK_OR_EQUIPMENT')
-        self.assertEqual(updated['survey_type_source'], 'USER')
-        self.assertEqual(updated['occasional_cause_source'], 'USER')
 
     def test_backend_default_survey_type_is_not_exported_as_a_user_answer(self):
         survey = application.dispatch('create_survey', {'draft': {'title': '기본 유형 조사'}})
@@ -137,43 +102,10 @@ class FormWorkbook(unittest.TestCase):
         self.assertNotIn('유해요인조사표', book.sheetnames)
         text = '\n'.join(text_of(book['조사 결과']))
         self.assertIn('수시조사', text)
-        self.assertIn('질환자가 발생했거나', text)
         self.assertNotIn('☐', text)
         self.assertNotIn('입력 필요', text)
         self.assertNotIn('이전 조사일', text)
         self.assertNotIn('근로자 참여', text)
-
-    def test_disease_case_excel_and_preview_explain_the_prescribed_method(self):
-        book = self.export()
-        try:
-            text = '\n'.join(text_of(book['조사 결과']))
-            self.assertIn(DISEASE_CASE_NOTICE, text)
-        finally:
-            book.close()
-        preview = next(sheet for sheet in self.preview() if sheet['name'] == '조사 결과')
-        self.assertIn(DISEASE_CASE_NOTICE, '\n'.join(preview.get('notes', [])))
-
-    def test_other_occasional_reasons_do_not_claim_disease_case_forms_apply(self):
-        update_survey(self.survey['survey_id'], occasional_cause='NEW_TASK_OR_EQUIPMENT')
-        book = self.export()
-        try:
-            text = '\n'.join(text_of(book['조사 결과']))
-            self.assertNotIn(DISEASE_CASE_NOTICE, text)
-        finally:
-            book.close()
-
-    def test_unknown_worksite_fields_are_omitted_but_recorded_answers_remain(self):
-        update_survey(self.survey['survey_id'], workplace_situation=dict(
-            equipment_status='NO', workload_status='YES', workload_notes='물량 증가',
-            speed_status='UNKNOWN', work_pattern_status='YES', work_pattern_notes=''))
-        book = self.export()
-        main = '\n'.join(text_of(book['조사 결과']))
-        self.assertIn('작업설비', main)
-        self.assertIn('변경 없음', main)
-        self.assertIn('물량 증가', main)
-        self.assertIn('업무형태', main)
-        self.assertNotIn('작업속도', main)
-        self.assertNotIn('입력 필요', main)
 
     def test_partially_answered_scale_has_no_empty_unasked_column(self):
         self.rerun(work_intensity=3)
@@ -209,7 +141,7 @@ class FormWorkbook(unittest.TestCase):
         self.assertNotIn('입력 필요', '\n'.join(value for name in book.sheetnames for value in text_of(book[name])))
         self.assertNotIn('확인사항', book.sheetnames)
 
-    def test_disease_case_without_responses_has_no_blank_official_template(self):
+    def test_the_workbook_has_no_blank_official_template(self):
         book = self.export()
         self.assertNotIn('증상조사표', book.sheetnames)
         self.assertNotIn('유해요인조사표', book.sheetnames)

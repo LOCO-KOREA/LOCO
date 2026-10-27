@@ -22,11 +22,11 @@ function notify(text){clearError();$('#toast').textContent=text;$('#toast').hidd
 function showError(error){clearTimeout(notify.timer);$('#toast').hidden=true;$('#error').textContent=error.message||String(error);$('#error').hidden=false;if($('#survey-editor').open)$('#survey-editor-error').textContent=error.message||String(error);}
 function clearError(){$('#error').hidden=true;$('#survey-editor-error').textContent='';}
 async function api(method,params={}){if(!window.loco)throw new Error('브라우저 미리보기입니다. 저장·조회는 Electron 앱에서 실행하세요.');const result=await window.loco.call(method,params);if(!result.ok)throw new Error(`${result.error.code}: ${result.error.message}`);return result.value;}
-function blank(){return {survey_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}),investigator:'',department:'',process:'',title:'',occasional_reason:''};}
+function blank(){return {survey_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}),investigator:'',department:'',process:'',title:''};}
 function hasSurveyType(data){return ['INITIAL','REGULAR','OCCASIONAL'].includes(data.survey_type);}
 function surveyTypeWasSelected(data){return data.survey_type_source==='USER'||(!Object.prototype.hasOwnProperty.call(data,'survey_type_source')&&hasSurveyType(data));}
 function surveyTypeDraft(data,touched){return touched&&hasSurveyType(data)?{survey_type:data.survey_type}:{};}
-function draft(){const data=Object.fromEntries(new FormData($('#survey-form')));return {...surveyTypeDraft(data,$('#survey-form').dataset.surveyTypeTouched==='true'),survey_date:data.survey_date||null,investigator:data.investigator||'',department:data.department||'',process:data.process||'',title:data.title||'',occasional_reason:data.occasional_reason||null,...intakeUI.collect(data)};}
+function draft(){const data=Object.fromEntries(new FormData($('#survey-form')));return {...surveyTypeDraft(data,$('#survey-form').dataset.surveyTypeTouched==='true'),survey_date:data.survey_date||null,investigator:data.investigator||'',department:data.department||'',process:data.process||'',title:data.title||'',...intakeUI.collect(data)};}
 function remember(){state.drafts.set(state.editorId??'new',draft());}
 function fill(data){for(const key of Object.keys(blank()))$('#survey-form').elements.namedItem(key).value=data[key]??'';const selected=surveyTypeWasSelected(data)&&hasSurveyType(data)?data.survey_type:null;for(const radio of $('#survey-form').querySelectorAll('input[name="survey_type"]'))radio.checked=radio.value===selected;$('#survey-form').dataset.surveyTypeTouched=String(surveyTypeWasSelected(data));intakeUI.fill(data);$('#form-title').textContent=state.editorId?'조사개요 수정':'조사개요 입력';$('#save-survey').textContent=state.editorId?'조사 저장하고 작업 등록':'조사 만들고 작업 등록';}
 function status(s){return s.review_current?'current':s.reviewed?'history':'none';}
@@ -120,7 +120,7 @@ async function calculateCriteria(taskId){
   await openAnalysis('S07',taskId,analysis.analysis_id);
 }
 async function perform(action){try{clearError();await action();}catch(error){showError(error);}}
-const intakeUI=new SurveyIntake($('#survey-form'),error=>{if(error)showError(error);else remember();});
+const intakeUI=new SurveyIntake($('#survey-form'));
 const surveyEditor=new SurveyEditor($('#survey-form'),{remember,isBusy:()=>state.busy});
 $('#page-top').addEventListener('click',()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'}));
 $('#edit-survey').addEventListener('click',()=>{if(!state.selected)return notify('수정할 조사를 선택해 주세요.');clearError();surveyEditor.open();});

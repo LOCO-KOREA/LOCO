@@ -7,20 +7,7 @@ export async function createSampleSurvey(api) {
   const survey = await api('create_survey', {draft: {
     survey_type: 'REGULAR', survey_date: today(),
     investigator: '샘플 조사자', department: '총무팀', process: '문서 입력 공정',
-    title: '[샘플] 사무실 문서 입력 정기 조사', occasional_reason: '',
-    workplace_situation: {
-      equipment_status: 'NO', equipment_notes: '샘플: 설비 변경 없음',
-      workload_status: 'NO', workload_notes: '샘플: 작업량 변화 없음',
-      speed_status: 'NO', speed_notes: '', work_pattern_status: 'NO', work_pattern_notes: ''
-    },
-    participation: {
-      status: 'YES', role: 'AFFECTED_WORKER', participant_code: '샘플-001',
-      method: 'INTERVIEW', date: today(), notes: '샘플 면담'
-    },
-    symptom_survey: {
-      method: 'INTERVIEW', date: today(), respondent_count: 1,
-      summary: '샘플 응답입니다. 실제 건강자료가 아닙니다.', responses: []
-    }
+    title: '[샘플] 사무실 문서 입력 정기 조사'
   }});
   const created = await api('create_task', {survey_id: survey.survey_id, draft: {
     task_name: '[샘플] 키보드 문서 입력', input_template: 'OFFICE',

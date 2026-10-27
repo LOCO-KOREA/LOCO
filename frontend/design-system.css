@@ -152,7 +152,7 @@ dialog::backdrop, #analysis-workspace .modal-backdrop { background: var(--color-
 .task-basic > .task-pair { margin-top: var(--space-field); }
 .photo-observation > label { margin: 0 0 var(--space-field); }
 .photo-evidence-pair label { margin-top: var(--space-field); }
-.intake-panel, .questionnaire-form { gap: var(--space-field); }
+.intake-panel { gap: var(--space-field); }
 #analysis-workspace .card > .grid { margin-top: var(--space-field); }
 .filters :is(input, select), .photo-slot > input,
 #analysis-workspace .toolbar select { margin: 0; }
@@ -179,10 +179,6 @@ input[type=checkbox],
 #analysis-workspace .manual-grid label:has(> input[type=checkbox]) > select { grid-column: 1 / -1; }
 
 /* Complete form spacing in nested survey rows, condition cards and popups. */
-.situation-row { gap: var(--space-column); padding-top: var(--space-field); }
-.symptom-region { column-gap: var(--space-column); row-gap: var(--space-field); }
-.symptom-regions { gap: var(--space-field); }
-.questionnaire-form { padding-top: var(--space-field); }
 .criterion-evidence { row-gap: var(--space-field); }
 #task-workspace .condition-row > label,
 #task-workspace .condition-row > label + .task-pair,
@@ -223,8 +219,6 @@ input[type=checkbox],
 .survey-editor-basic { display: grid; gap: var(--space-field); }
 #survey-editor #survey-intake { gap: 0; }
 #survey-editor .intake-panel { padding: 0; border: 0; box-shadow: none; }
-#survey-editor .symptom-region { grid-template-columns: 88px repeat(4, minmax(0, 1fr)); }
-#survey-editor .symptom-region select { padding-left: 6px; padding-right: 4px; font-size: 12px; }
 .survey-editor-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--color-line); flex: none; }
 .survey-editor-footer span { margin-right: auto; color: var(--color-muted); font-size: 12px; max-width: 380px; }
 #survey-editor-error { color: var(--color-danger); margin: 0; padding: 0 24px; white-space: pre-wrap; }
@@ -291,7 +285,6 @@ dialog:not(#survey-editor) > h2 { margin: 0 0 var(--space-field); }
 #task-workspace .condition-rows { display: grid; gap: var(--space-field); }
 #task-workspace .condition-rows + button[data-add-row] { margin-top: var(--space-action-block); }
 #task-workspace .condition-row .task-pair > button { align-self: end; min-height: var(--height-control); }
-.symptom-response { gap: var(--space-action); }
 .survey-editor-nav { display: flex; flex-direction: column; gap: var(--space-action-compact); }
 .survey-editor-nav button { margin-bottom: 0; flex-shrink: 0; }
 #dialog #close-dialog { margin-top: var(--space-action-block); }

@@ -309,7 +309,6 @@ MINUTE_CHIPS = [0, 60, 120, 240]
 
 
 TEMPLATES = [('GENERAL', '일반'), ('OFFICE', '사무'), ('REPETITION', '반복 작업'), ('POSTURE', '자세 부담'), ('HAND_FORCE', '손·힘'), ('LIFTING', '들기'), ('IMPACT', '충격')]
-SITUATION = [('equipment', '설비'), ('workload', '작업량'), ('speed', '작업 속도'), ('work_pattern', '업무 형태')]
 
 
 def _text(qid, group, text, target, placeholder='', help_text='', required=False, maxlength=80):
@@ -318,9 +317,9 @@ def _text(qid, group, text, target, placeholder='', help_text='', required=False
 
 
 def work_info_questions():
-    """Who, what and the survey context the Excel report needs. Nothing is guessed or pre-filled."""
+    """Who and what the Excel header needs. Nothing is guessed or pre-filled."""
     group = '조사 정보'
-    q = [
+    return [
         _text('task_name', group, '어떤 작업을 조사하나요?', {'type': 'task', 'field': 'task_name'}, '예: 상자 포장 작업', required=True),
         _choice('template', group, '작업 종류에 가장 가까운 것은요?', {'type': 'task', 'field': 'input_template'},
                 [{'value': k, 'label': v} for k, v in TEMPLATES], '질문 순서만 정해요. 판정에는 영향이 없어요.'),
@@ -328,20 +327,6 @@ def work_info_questions():
         _text('department', group, '부서', {'type': 'survey', 'field': 'department'}, '예: 생산팀'),
         _text('process', group, '작업공정', {'type': 'survey', 'field': 'process'}, '예: 제품 포장 공정'),
     ]
-    for key, label in SITUATION:
-        q.append(_choice(f'situation_{key}', '작업장 상황', f'최근 {label}이(가) 바뀌었나요?', {'type': 'situation', 'field': f'{key}_status'},
-                         [{'value': 'YES', 'label': '바뀌었어요'}, {'value': 'NO', 'label': '그대로예요'}, {'value': 'UNKNOWN', 'label': '모름'}]))
-    q += [
-        _choice('participation', '참여·증상', '근로자대표 또는 해당 근로자가 조사에 참여했나요?', {'type': 'participation', 'field': 'status'},
-                [{'value': 'YES', 'label': '참여했어요'}, {'value': 'NO', 'label': '참여하지 않았어요'}, {'value': 'UNKNOWN', 'label': '모름'}]),
-        _choice('participation_method', '참여·증상', '어떤 방식으로 참여했나요?', {'type': 'participation', 'field': 'method'},
-                [{'value': 'INTERVIEW', 'label': '면담'}, {'value': 'MEETING', 'label': '회의'}, {'value': 'OBSERVATION', 'label': '현장 관찰'}, {'value': 'OTHER', 'label': '기타'}],
-                show_if={'participation': ['YES']}),
-        _choice('symptom', '참여·증상', '근골격계 증상조사는 했나요?', {'type': 'symptom', 'field': 'method'},
-                [{'value': 'QUESTIONNAIRE', 'label': '설문으로 했어요'}, {'value': 'INTERVIEW', 'label': '면담으로 했어요'}, {'value': 'NOT_DONE', 'label': '하지 않았어요'}, {'value': 'UNKNOWN', 'label': '모름'}],
-                '응답 내용은 이 흐름에서 받지 않고, 실시 여부만 기록해요.'),
-    ]
-    return q
 
 
 def _exposure(code, label, chips=None):

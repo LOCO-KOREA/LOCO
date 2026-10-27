@@ -100,7 +100,7 @@ class JsonLinesIntegration(unittest.TestCase):
             try:
                 survey = call("create_survey", {"draft": {
                     "survey_type": "REGULAR", "survey_date": "2026-10-23", "investigator": "조사자",
-                    "department": "팀", "process": "공정", "title": "JSON Lines 검증", "occasional_reason": None,
+                    "department": "팀", "process": "공정", "title": "JSON Lines 검증",
                 }})
                 draft = task_input({"task_name": "상자 들기", "input_template": "LIFTING"})
                 task = call("create_task", {"survey_id": survey["survey_id"], "draft": draft})
