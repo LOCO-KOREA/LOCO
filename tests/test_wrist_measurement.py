@@ -72,7 +72,7 @@ class WristGeometry(unittest.TestCase):
         self.assertEqual(angles(coco,800,800,camera_side='LEFT',orientation='SIDE'),[])
         rows=body_angles(coco,'SCREEN_RIGHT',800,800)
         self.assertEqual(len(rows),14)
-        self.assertEqual(len(candidates(_confirmed_slot('LEFT','SCREEN_RIGHT'),dict(angles=rows),'LEFT')),6)
+        self.assertEqual(len(candidates(_confirmed_slot('LEFT','SCREEN_RIGHT'),dict(angles=rows),'LEFT')),7)
 
     def test_angle_without_observability_proof_or_from_world_space_is_not_a_candidate(self):
         for proof in ({},dict(coordinate_space='INFERRED_WORLD_3D',auto_eligible=True,used_world_coordinates=True)):
@@ -130,6 +130,12 @@ class WristProjection(unittest.TestCase):
             saved=facts.add_photo_facts(facts.apply_answers({},[dict(target='context',value='YES')]),preview,dict(LEFT=7))
             projected=facts.project(task_input({}),saved,dict(LEFT=7),preview)
             candidates_=planner.assess(projected,saved,dict(LEFT=7))['candidates']
+            if code=='WRIST_BOUNDARY':
+                self.assertFalse(any(item['target']=='manual.LEFT.wrist_base' for item in candidates_))
+                form=next(item for item in planner.form_fields(projected,saved,dict(LEFT=7),candidates_) if item['target']=='manual.LEFT.wrist_base')
+                self.assertTrue(form['measurement_applied']);self.assertEqual(form['reason'],WRIST_REASONS[code])
+                self.assertFalse(any(item['field']=='wrist_base' for item in projected['manual']))
+                continue
             target='manual.LEFT.wrist_base';candidate=next(item for item in candidates_ if item['target']==target)
             self.assertEqual(candidate['reason'],WRIST_REASONS[code])
             chosen=planner.choose([candidate],[dict(target=target,reason='결과 계산 정보 없음')])

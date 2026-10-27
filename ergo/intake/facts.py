@@ -9,7 +9,6 @@ from .contract import fields, key, POLICY, PHOTO_VIEWS, PHOTO_DESTINATIONS, LIFT
 from .grounding import evidence_quote, number_grounded, number_proof, unknown_evidence
 from .photo_load import photo_load
 from . import photo_facts
-from ergo.vision.contract import SOURCE as VISION_SOURCE
 from ergo.engine.task_defaults import now
 
 TITLE_SENTENCE_END=re.compile(r'(?<!\d)\.|\.(?!\d)|[!?。\n]')
@@ -190,20 +189,46 @@ def project(task, facts, views, preview):
     context=known('context'); usable=context=='YES'
     load_state, load_kg = photo_load(facts)
     load_link=(facts.get(key('load_kg')) or {}).get('input_link') or {}
-    prior_link=(((task.get('conditions') or {}).get(SESSION_KEY) or {}).get('facts',{}).get(key('load_kg')) or {})
+    previous=(task.get('conditions',{}).get(SESSION_KEY) or {}).get('facts',{})
+    prior_link=previous.get(key('load_kg')) or {}
+    def changed(target):
+        item=facts.get(key(target))
+        return bool(item and item.get('source') not in ('SAVED',*PHOTO_SOURCES) and
+                    item.get('quote') not in ('저장된 입력','편집 화면에서 비움') and item!=previous.get(key(target)))
+    context_changed=changed('context')
+    load_changed=any(changed(target) for target in ('load','load_kg','load_link'))
     prior_slots={slot.get('photo_id'):slot for slot in (task.get('capture') or {}).get('slots',[]) if slot.get('photo_id') is not None}
+    next_slot=max((slot['slot_no'] for slot in (task.get('capture') or {}).get('slots',[])),default=0)
     slots=[]
     for i,view in enumerate(v for v in PHOTO_VIEWS if v in views):
+        old_slot=prior_slots.get(views[view]) or {}
+        if not old_slot:next_slot+=1
+        slot_no=old_slot.get('slot_no',next_slot)
         guess=(preview.get('views',{}).get(view) or {}).get('guess') or {}
         verified=usable and guess.get('orientation') in ('SIDE','OBLIQUE')
-        slots.append(dict(slot_no=i+1,photo_id=views[view],label=view,analysis_target=view==primary,
+        slots.append(dict(slot_no=slot_no,photo_id=views[view],label=old_slot.get('label',view),analysis_target=view==primary,
             camera_side='FRONT' if view=='FRONT' else guess.get('camera_side') or view,
             forward_direction=known('view_'+view),side_view_verified='YES' if verified else 'UNKNOWN',
             observation=dict(load_state=load_state,measured_load_kg=load_kg if load_state=='MEASURED' else None,
                 single_person=context or 'UNKNOWN',full_frame=context or 'UNKNOWN',normal_work=context or 'UNKNOWN',
                 evidence=dict(source='INTERVIEW',text='추가 확인: 사진과 작업 정보',observed_at=(facts.get(key('context')) or {}).get('updated_at')))))
+        old=old_slot.get('observation') or {}
+        if old_slot:
+            slots[-1]['analysis_target']=old_slot.get('analysis_target',view==primary)
+            if old_slot.get('camera_side') is not None:slots[-1]['camera_side']=old_slot['camera_side']
+            if not changed('view_'+view):
+                slots[-1]['forward_direction']=old_slot.get('forward_direction')
+            if not context_changed and not changed('view_'+view) and old_slot.get('side_view_verified') in ('YES','NO'):
+                slots[-1]['side_view_verified']=old_slot['side_view_verified']
+            if not context_changed:
+                for name in ('single_person','full_frame','normal_work'):
+                    if name in old:slots[-1]['observation'][name]=old[name]
+            if not load_changed and not load_link and prior_link.get('origin')!='INPUT_LINK':
+                for name in ('load_state','measured_load_kg'):
+                    if name in old:slots[-1]['observation'][name]=old[name]
+            if not context_changed and not load_changed and not load_link and prior_link.get('origin')!='INPUT_LINK':
+                slots[-1]['observation']['evidence']=copy.deepcopy(old.get('evidence') or slots[-1]['observation']['evidence'])
         if load_link or prior_link.get('origin')=='INPUT_LINK':
-            old=(prior_slots.get(views[view]) or {}).get('observation') or {}
             old_owned=prior_link.get('origin')=='INPUT_LINK' and views[view] in (prior_link.get('input_link') or {}).get('photo_ids',[]) and old.get('measured_load_kg')==prior_link.get('value')
             valid_mass=type(old.get('measured_load_kg')) in (int,float) and math.isfinite(old['measured_load_kg']) and old['measured_load_kg']>=0
             if not old_owned and (old.get('load_state')=='UNLOADED' or old.get('load_state')=='MEASURED' and valid_mass):
@@ -216,7 +241,6 @@ def project(task, facts, views, preview):
     manual={(m['slot_no'],m['scope'],m['field']):m for m in value['manual'] if any(s['slot_no']==m['slot_no'] and s['photo_id']==m['photo_id'] for s in slots)}
     # Removing a visual fact must also remove its still-owned projection. Otherwise
     # an old photo's YES would survive in the calculator after its fact disappeared.
-    previous=(task.get('conditions',{}).get(SESSION_KEY) or {}).get('facts',{})
     for identity,old in previous.items():
         if old.get('source')!=VISION_SOURCE or old.get('alias_of') or identity in facts:continue
         field=catalogue.get(old.get('target'))
@@ -236,6 +260,10 @@ def project(task, facts, views, preview):
     row_values={}
     for item in facts.values():
         if item.get('alias_of'):continue
+        # A shared intake field cannot represent differing advanced-form values.
+        # Its saved projection is already in the task; only a new explicit answer
+        # (which replaces this fact and its metadata) may unify those values.
+        if item.get('saved_criteria'):continue
         field=catalogue.get(item['target'])
         if not field: continue
         destination=field['destination']; kind=destination['type']; val=item['value']
@@ -252,7 +280,8 @@ def project(task, facts, views, preview):
             slot=next((slot for slot in slots if slot['photo_id']==owner),None)
             if slot is None:continue
             identity=(slot['slot_no'],destination['scope'],destination['field'])
-            if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not usable:
+            photo_usable=all(slot.get('observation',{}).get(name)=='YES' for name in ('single_person','full_frame','normal_work'))
+            if val is None or item['state']=='ESTIMATED' or item['source'] in PHOTO_SOURCES and not photo_usable:
                 manual.pop(identity,None); continue
             source='AUTO_ACCEPTED' if item['source'] in (*PHOTO_SOURCES,VISION_SOURCE) else 'INTERVIEW'
             ev=evidence(item)
@@ -275,15 +304,24 @@ def project(task, facts, views, preview):
     for n,rows in row_values.items():
         criterion=value['legal']['criteria'][n-1]
         prior={r['row_id']:r for r in criterion.get('rows',[])}
-        prior.update(rows); criterion['rows']=list(prior.values())
+        for identity,row in rows.items():
+            if identity not in prior:prior[identity]=row;continue
+            updates={name:val for name,val in row.items() if name not in ('row_id','label','evidence')}
+            if any(prior[identity].get(name)!=val for name,val in updates.items()):
+                prior[identity]['evidence']=row['evidence']
+            prior[identity].update(updates)
+        criterion['rows']=list(prior.values())
         # The user must state completeness; the presence of one extracted row is not proof.
-        criterion['rows_complete']=known('complete.'+next(f['gate'] for f in catalogue.values() if f['destination'].get('type')=='complete' and n in f['destination']['criteria'])) or criterion.get('rows_complete','UNKNOWN')
+        completion=facts.get(key('complete.'+next(f['gate'] for f in catalogue.values() if f['destination'].get('type')=='complete' and n in f['destination']['criteria']))) or {}
+        if not completion.get('saved_criteria'):
+            criterion['rows_complete']=completion.get('value') or criterion.get('rows_complete','UNKNOWN')
     if primary_id is not None and (load_state=='UNLOADED' or load_state=='MEASURED' and load_kg==0):
+        primary_no=next(slot['slot_no'] for slot in slots if slot['photo_id']==primary_id)
         load_fact=facts.get(key('load')) if load_state=='UNLOADED' else facts.get(key('load_kg'))
         if known('load_link')=='YES' and load_state=='MEASURED' and load_kg==0 and load_fact is None:
             load_fact=next(f for f in facts.values() if f['target']=='card.lift.load_mass_kg' and f['value']==0 and f['state']=='KNOWN')
         for side in ('LEFT','RIGHT'):
-            manual[(1,side,'coupling')]=dict(slot_no=1,photo_id=primary_id,scope=side,field='coupling',value='NOT_APPLICABLE',source='INTERVIEW',evidence=dict(source='INTERVIEW',text='물건 없음',observed_at=(load_fact or {}).get('updated_at')))
+            manual[(primary_no,side,'coupling')]=dict(slot_no=primary_no,photo_id=primary_id,scope=side,field='coupling',value='NOT_APPLICABLE',source='INTERVIEW',evidence=dict(source='INTERVIEW',text='물건 없음',observed_at=(load_fact or {}).get('updated_at')))
     value['manual']=list(manual.values())
     value['analysis_scope']=dict(judgment=True,pose=bool(slots),tags=bool(slots),reba=bool(slots))
     return value
@@ -294,10 +332,11 @@ def read_values(task):
     values={}; slots=task['capture'].get('slots',[]); primary=next((s for s in slots if s['analysis_target']),None)
     manual={(m['scope'],m['field']):m for m in task['manual'] if primary and m['photo_id']==primary['photo_id'] and m['slot_no']==primary['slot_no']}
     for field in fields():
-        d=field['destination']; kind=d['type']; rows=[]
+        d=field['destination']; kind=d['type']; rows=[]; split=None
         if kind=='work_type':
             states=[task['legal']['criteria'][n-1]['condition_present'] for n in d['criteria']]
             val='YES' if 'YES' in states else 'NO' if all(s=='NO' for s in states) else None
+            if len(set(states))>1:split={str(n):state for n,state in zip(d['criteria'],states)}
         elif kind=='conditions': val=task['conditions'].get(d['field'])
         elif kind=='task': val=task.get(d['field']); val=None if val=='사진 분석 작업' else val
         elif kind=='context':
@@ -311,6 +350,9 @@ def read_values(task):
         elif kind=='complete':
             states=[task['legal']['criteria'][n-1].get('rows_complete') for n in d['criteria']]
             val=states[0] if len(set(states))==1 else None
+            if len(set(states))>1:
+                split={str(n):state for n,state in zip(d['criteria'],states)}
+                val=next((state for state in states if state in ('YES','NO')),None)
         elif kind=='criterion':
             mapping=d['mapping']; val=None
             if 'exposure' in mapping: val=next((e['minutes'] for e in task['legal']['exposures'] if e['condition_code']==mapping['exposure']),None)
@@ -320,12 +362,25 @@ def read_values(task):
                 for n in d['criteria']:
                     if 'lift' in mapping and name not in LIFT_FIELDS[n]: continue
                     for row in task['legal']['criteria'][n-1]['rows']:
-                        if row.get(name) is not None: rows.append((row['row_id'],row[name]))
+                        if row.get(name) is not None: rows.append((row['row_id'],row[name],n))
         else: val=None
-        for condition,number in rows:
-            values[key(field['target'],condition)]=fact(field,number,'SAVED','저장된 입력',condition)
-        if val is not None and val not in ('UNKNOWN','NOT_APPLICABLE',''):
-            values[key(field['target'])]=fact(field,val,'SAVED','저장된 입력')
+        grouped={}
+        for condition,number,n in rows:grouped.setdefault(condition,[]).append((n,number))
+        for condition,entries in grouped.items():
+            numbers=[number for _,number in entries]
+            item=fact(field,numbers[0],'SAVED','저장된 입력',condition)
+            if d.get('mapping',{}).get('lift'):
+                saved={str(n):next((number for number_no,number in entries if number_no==n),None)
+                       for n in d['criteria'] if d['mapping']['lift'] in LIFT_FIELDS[n]}
+                if len(set(saved.values()))>1:item['saved_criteria']=saved
+            if len(set(numbers))>1:
+                item.update(state='CONFLICT',saved_criteria={str(n):number for n,number in entries},
+                            conflict=dict(value=next(number for number in numbers if number!=numbers[0]),quote='기준별로 다르게 저장된 입력'))
+            values[key(field['target'],condition)]=item
+        if split or val is not None and val not in ('UNKNOWN','NOT_APPLICABLE',''):
+            item=fact(field,val,'SAVED','저장된 입력')
+            if split:item['saved_criteria']=split
+            values[key(field['target'])]=item
     catalogue={field['target']:field for field in fields()}
     for row in task['manual']:
         target=f"manual.{row['scope']}.{row['field']}"

@@ -1652,7 +1652,7 @@ export class QuickFlow {
     return `<div class="quick-columns">${this.photoStrip()}
       <div><section class="panel quick-review-intro"><h3>5단계 · 결과 설명</h3>
         <p class="quick-note">점수와 설명을 확인하고, 필요한 문장을 고쳐 확정해요. 확정한 결과 설명은 현재 분석의 Excel에 반영돼요.</p></section>
-      <section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}</section>
+      <section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}<button type="button" data-quick="questions" data-reveal-photo="1">자세 분석값 수정</button></section>
       ${this.aiPanel()}
       <details class="panel quick-review-more"><summary>사진 관찰·자세 측정·REBA 상세 보기</summary>${this.photoVisionPanel(true)}${renderPostureReview(this.result)}</details>
       <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"><summary>법정 기준 초안과 조사자 결론 보기 (11개)</summary>

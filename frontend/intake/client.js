@@ -78,7 +78,8 @@ export class AdaptiveIntake {
   formHandled(field) {
     if(field.photo_unused)return false;
     const saved=this.state?.facts.find(f=>f.identity===field.identity);
-    return saved?.state==='KNOWN'||saved?.state==='UNKNOWN'&&saved.source==='USER';
+    return saved?.state==='KNOWN'||saved?.state==='UNKNOWN'&&saved.source==='USER'||
+      field.destination.type==='manual'&&saved?.state==='ESTIMATED'&&saved.value!=null&&['POSE','MOVENET','VISION'].includes(saved.source);
   }
   optionalPhoto(field) {
     return (this.state?.contract.policy.optional_photo_destinations||['manual','view']).includes(field.destination.type);
@@ -87,7 +88,7 @@ export class AdaptiveIntake {
     return this.formFields().filter(field=>!this.formHandled(field)&&(includePhoto||!this.optionalPhoto(field)));
   }
   /** Something on the page still waits for an answer, photo questions included: the page is worth opening. */
-  hasOpenItems() { return this.pendingFormFields(undefined,{includePhoto:true}).length>0; }
+  hasOpenItems() { return this.pendingFormFields(undefined,{includePhoto:true}).some(field=>field.destination.type!=='manual'); }
   /** The page opens by itself at most once per analysis: only while nothing was shown yet and something is open. */
   openPageOnce() {
     if(this.pageShown||!this.hasOpenItems())return false;
@@ -114,7 +115,7 @@ export class AdaptiveIntake {
   formValue(field) {
     if(this.formValues.has(field.identity))return this.formValues.get(field.identity);
     const saved=this.state.facts.find(f=>f.identity===field.identity);
-    return saved?.state==='KNOWN'&&!field.photo_unused?saved.value:undefined;
+    return this.formHandled(field)&&saved?.value!=null&&!field.photo_unused?saved.value:undefined;
   }
   formAnswers() {
     return this.formFields().filter(f=>this.formValues.has(f.identity)).map(f=>({target:f.target,condition:f.condition,value:this.formValues.get(f.identity),
@@ -177,7 +178,7 @@ export class AdaptiveIntake {
     if(plain)parts.push(`체크하지 않은 ${plain}개는 아직 비어 있어요. 해당 없으면 위 버튼을 눌러 주세요.`);
     if(asked)parts.push(`사진이 본 ${asked}개는 위에서 ‘맞아요, 체크’나 ‘아니에요’를 눌러 주세요.`);
     if(pick)parts.push(`사진 추정·충돌 ${pick}개는 아래에서 직접 골라 주세요.`);
-    return parts.length?parts.join(' '):'모든 항목을 확인했어요. 저장하면 반영돼요.';
+    return parts.length?parts.join(' '):'입력·사진 분석값을 채웠어요. 결과 설명에서 수정할 수 있어요.';
   }
   /** The user refused the photo (or never confirmed it): its measurements are not in use, so none of them is "already reflected". */
   photoUnused(condition) {

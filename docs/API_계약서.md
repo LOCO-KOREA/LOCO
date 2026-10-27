@@ -246,7 +246,7 @@ type NumericSummary = {
   pose_quality:{target_count:Count,valid_count:Count|null,measured_points:Count,total_points:Count,mean_confidence:Number|null,confidence_level:'HIGH'|'MEDIUM'|'LOW'|'MISSING'},
   reba:{complete_count:Count|null,available_max:Count|null,full_max:Count|null,current_score?:{total:Count,risk:Risk,kind:string,source:string,assumed_count:Count},first_pass?:{total:Count,risk:Risk,assumed_count:Count},score_so_far?:{total:Count,risk:Risk,assumed_count:Count,unconfirmed_photo_count?:Count,load_assumed?:boolean}},
   provisional_reba?:{assumption:string,analysis_currentness:'CURRENT'|'STALE',initial_total:Count,initial_risk:string,initial_photo_count:Count,final_photo_count:Count,same_photo_scope:boolean,final_complete:boolean,final_total:Count|null,final_risk:string|null,comparable:boolean,comparison_status:'COMPARABLE'|'STALE_ANALYSIS'|'FINAL_INCOMPLETE'|'DIFFERENT_PHOTO_SCOPE'|'MULTI_PHOTO_COMPOSITION',score_delta:Count|null},
-  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count,measurement_quality?:Omit<PhotoMeasurementQuality,'slot_no'|'photo_id'>,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:false}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
+  posture_results:{photo_ref:string,pose_status:string|null,pose_diagnostic_codes:string[],model:{name:string|null,version:string|null,provider:string|null}|null,landmark_count:Count|null,measurement_quality?:Omit<PhotoMeasurementQuality,'slot_no'|'photo_id'>,angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,diagnostic:string|null}[],inferred_world_angles:{side:string,angle_code:string,value_deg:Number|null,min_confidence:Number|null,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:boolean}[],reba_status:string|null,effective_load_kg:Number|null,selected_side:string|null,total:Number|null,risk:string|null,left:object,right:object,missing_fields:string[],candidates:object[]}[],
   tag_counts:TagSummary[],criteria:NumericCriterion[],public_rule_text:string[]
 };
 type ExplanationContent = {
@@ -434,7 +434,7 @@ AI 설정 필드·기본값·환경변수·선택값의 단일 계약은 `get_se
 
 ## MediaPipe 자세 엔진 개정 (2026-10-22)
 
-자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points/3D 분절각은 별도 추정 후보이며 점수에 자동 혼합하지 않는다.
+자세 엔진·설정·출력의 현행 계약은 [자세 엔진 계약](pose-engine.md)을 따른다. MoveNet 고정 입력/관절/해시 표기는 이전 엔진에 해당한다. 기본 엔진은 MediaPipe Heavy(33점), Full은 비교/선택 가능하며 과거 MoveNet snapshot의 의미는 보존한다. 설정과 프론트는 공통 registry를 소비하고 REBA/11개 계산은 기존 규칙을 유지한다. world_points는 원 좌표계를 유지하며, 현재 초안이 선택한 3D 팔꿈치·무릎 각도는 used_for_reba로 사용 여부를 표시한다. 2D와 중복 반영하지 않는다.
 
 ## 원본 별지 1 PDF 출력 계약 (2026-10-22 개정안)
 
@@ -583,3 +583,15 @@ context=NO이면 public 사진 관찰은 계속 보관·표시하되 계산·추
 ## 자세 체크리스트와 한 번에 채우기 보조 필드 (2026-10-26)
 
 `intake_contract.fields[]`의 manual 항목 중 선택지가 [예, 아니오]인 18개(COMMON `trunk_twisted`·`trunk_side_bent`·`neck_twisted`·`neck_side_bent`·`legs_support`·`seated`·`shock_force`·`static_over_1min`·`small_repeat_over_4min`·`rapid_change_or_unstable`, LEFT/RIGHT `shoulder_raised`·`arm_abducted_or_rotated`·`arm_supported_or_gravity_assisted`·`wrist_deviated_or_twisted`)에는 선택 필드 `checklist:{group:string,order:Count,label:string,yes:string,no:string}`이 붙는다. `yes`/`no`는 해당 항목 `choices`의 값이며(`legs_support`는 UNILATERAL_OR_UNSTABLE/BILATERAL_STABLE) 같은 항목을 담는 `form_fields[]`에도 그대로 실린다. 다른 항목에는 없다. 몸통·목의 네 항목은 `label`/`question`도 칸마다 다른 문구로 바뀌었다. 기준 사진의 manual 질문 후보와 `form_fields[]`에는 정면·후면 사진 판독이 있을 때만 `suggestion?:{value:string,estimated:boolean,quote:string,photo_label:string,reading:string}`이 붙는다(조건과 의미는 [적응형 추가 확인 계약](adaptive-intake.md)의 같은 날짜 절). `suggestion`은 입력값이 아니며 사실·manual 행·REBA 입력을 바꾸지 않는다. `intake_turn.answers[]`의 각 항목은 `{target,condition?,value,quote?}`이며 `quote`는 USER 사실의 근거 문구가 된다(없으면 “직접 입력”). 서식의 체크·채우기는 이 필드로 선택 경위를 보낸다. 요청·응답 메서드와 매개변수는 늘지 않는다. 모델 요청(EXTRACT_AND_PLAN·FOLLOWUP)의 `targets`·`missing`·`asked`에는 `checklist`·`suggestion`을 싣지 않는다.
+
+
+## 측정·사진 API 값의 재사용 (2026-10-27)
+
+사진 관찰 프롬프트 V2의 manual_candidates는 기존 boolean에 목·양팔·손목의 자세 범주와 좌우 coupling 범주를 추가한다. 허용 조합과 값 변환은 vision.contract.MANUAL_FIELDS/POSTURE_VALUES/manual_value에 있다. 후보의 해당 observation·status·evidence·confidence를 검증하고 USER/기존 측정 우선권을 유지한다. 과거 V1 응답도 계속 읽으며 새 요청은 V2 스키마를 사용한다. 최종 REBA 점수 필드는 없다.
+
+유효한 POSE/MOVENET 추정 후보는 pending 추가 질문에서 제외하고 form_fields에 measurement_applied를 보존해 수정 가능하게 한다. 무효화한 fact의 photo_proof가 새 측정과 같아도 UNKNOWN/reask이면 값·상태를 복구한다. 단순 재조회는 서로 다른 기준의 값이나 사진별 관찰·분석 선택을 공통값으로 덮지 않는다. 동일 중량 카드의 기준별 상이값은 fact.saved_criteria에 출처를 보존하고 중량 충돌은 CONFLICT로 자동 사진 하중 연결을 막는다. 새 직접 수정은 그 조건의 명시적 변경으로 적용한다.
+
+pose/reba/measurement_quality는 slot_no와 photo_id를 함께 대조한다. 다른 사진·중복·고아 결과는 현재 사진의 AI/Excel/검토값으로 표시하지 않고 PHOTO_OWNER_MISMATCH로 안내한다. 단일한 과거 photo_id 미기록 출력만 호환하며 snapshot은 변경하지 않는다. NumericSummary.inferred_world_angles.used_for_reba는 실제 초안이 선택한 근거와 직접 입력 우선권을 대조한다.
+
+
+NumericSummary의 사진별 estimated_inputs는 `{scope,field,value,source,state:'ESTIMATED',measurement_method,confidence,display_confidence_percent,used_for_reba}`로 추정 입력을 전달한다. candidates는 angle_refs/measurement_method/estimated를 포함하고 inferred_world_angles는 diagnostic을 보존한다. 사용자 자유근거·사진 ID는 AI 요약에 넣지 않는다. 사진 API의 범주 추정은 해당 신체의 OBSERVED·유한한 양쪽 확신도 0.5 이상·양쪽 근거가 있을 때 ESTIMATED로 보존한다. boolean/작업 특징은 기존 높은 확신도 기준을 유지한다. 근거 문장의 표현이 다르다는 이유만으로 버리지 않고 두 근거를 원문대로 남긴다. 쥐기는 holding뿐 아니라 해당 쪽 손목의 가시성도 확인해 가려진 반대 손을 복사하지 않는다.

@@ -174,14 +174,48 @@ def _unknown_photo_inputs(snapshot,slot):
     return output
 
 
+def _owned_measurement(rows,slot):
+    candidates=[row for row in rows if isinstance(row,dict) and row.get('slot_no')==slot.get('slot_no')]
+    exact=[row for row in candidates if row.get('photo_id')==slot.get('photo_id')]
+    if len(exact)==1:return exact[0],False
+    if not exact and len(candidates)==1 and candidates[0].get('photo_id') is None:
+        return candidates[0],False  # Unambiguous older DTO with no photo_id.
+    return {},bool(candidates)
+
+
+def _world_angle_used(reba_slot,angle):
+    current=reba_slot.get('current_score') or reba_slot.get('score_so_far') or {}
+    if current.get('kind')=='CONFIRMED' or _safe_number(angle.get('value_deg')) is None:return False
+    for measurement in current.get('measurement_refs') or []:
+        for ref in measurement.get('angles') or []:
+            if (ref.get('coordinate_space')=='INFERRED_WORLD_3D' and ref.get('used_for_reba') is True and
+                    ref.get('side')==angle.get('side') and ref.get('angle_code')==angle.get('angle_code') and
+                    _safe_number(ref.get('value_deg'))==_safe_number(angle.get('value_deg'))):return True
+    return False
+
+
+def _estimated_photo_inputs(snapshot,slot,reba_slot):
+    from ergo.intake.photo_facts import estimated_photo_inputs
+    current=reba_slot.get('current_score') or reba_slot.get('score_so_far') or {}
+    refs=current.get('measurement_refs') or [] if current.get('kind')!='CONFIRMED' else []
+    output=[]
+    for item in estimated_photo_inputs(snapshot,slot):
+        method=item.get('measurement_method') or (item.get('photo_proof') or {}).get('measurement_method')
+        confidence=item.get('vision_confidence') if item.get('source')=='VISION' else min((a.get('min_confidence') for a in item.get('angles') or [] if _safe_number(a.get('min_confidence')) is not None),default=None)
+        used=any(ref.get('scope')==item['scope'] and ref.get('field')==item['field'] and ref.get('value')==item['value'] and ref.get('measurement_method')==method for ref in refs)
+        output.append(dict(scope=item['scope'],field=item['field'],value=item['value'],source=item['source'],state='ESTIMATED',
+            measurement_method=method,confidence=_safe_number(confidence),display_confidence_percent=_display_confidence(confidence),used_for_reba=used))
+    return output
+
+
 def _posture_results(analysis,targets):
     pose=analysis.get('pose') or {};reba=analysis.get('reba') or {}
-    pose_by_slot={item.get('slot_no'):item for item in pose.get('slots') or []}
-    reba_by_slot={item.get('slot_no'):item for item in reba.get('slots') or []}
-    quality_by_slot={item.get('slot_no'):item for item in (analysis.get('measurement_quality') or {}).get('slots') or []}
     output=[]
     for index,slot in enumerate(targets,1):
-        number=slot.get('slot_no');p=pose_by_slot.get(number) or {};r=reba_by_slot.get(number) or {}
+        number=slot.get('slot_no')
+        p,pose_mismatch=_owned_measurement(pose.get('slots') or [],slot)
+        r,reba_mismatch=_owned_measurement(reba.get('slots') or [],slot)
+        quality,_=_owned_measurement((analysis.get('measurement_quality') or {}).get('slots') or [],slot)
         angles=[]
         for angle in p.get('angles') or []:
             angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),display_value_deg=_display_angle(angle.get('value_deg')),
@@ -189,7 +223,7 @@ def _posture_results(analysis,targets):
         world_angles=[]
         for angle in p.get('world_angles') or []:
             world_angles.append(dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),display_value_deg=_display_angle(angle.get('value_deg')),
-                min_confidence=_safe_number(angle.get('min_confidence')),coordinate_space='INFERRED_WORLD_3D',used_for_reba=False))
+                min_confidence=_safe_number(angle.get('min_confidence')),diagnostic=angle.get('diagnostic'),coordinate_space='INFERRED_WORLD_3D',used_for_reba=_world_angle_used(r,angle)))
         sides={}
         for side in ('left','right'):
             source=r.get(side) or {}
@@ -200,15 +234,21 @@ def _posture_results(analysis,targets):
         for item in r.get('candidates') or []:
             candidates.append(dict(scope=item.get('scope'),field=item.get('field'),proposed_value=item.get('proposed_value'),
                 angle_values_deg=[_safe_number(angle.get('value_deg')) for angle in item.get('angles') or []],
+                angle_refs=[dict(side=angle.get('side'),angle_code=angle.get('angle_code'),value_deg=_safe_number(angle.get('value_deg')),
+                    coordinate_space=angle.get('coordinate_space') or 'IMAGE_2D') for angle in item.get('angles') or []],
+                measurement_method=item.get('measurement_method'),estimated=item.get('estimated') is True,
                 min_confidence=_safe_number(item.get('min_confidence')),review_reasons=item.get('review_reasons') or []))
         engine=p.get('engine') or {}
-        output.append(dict(photo_ref=f'사진 {index}',pose_status=p.get('status'),pose_diagnostic_codes=[d.get('code') for d in p.get('diagnostics') or [] if d.get('code')],
+        diagnostics=[d.get('code') for d in p.get('diagnostics') or [] if d.get('code')]
+        if pose_mismatch or reba_mismatch:diagnostics.append('PHOTO_OWNER_MISMATCH')
+        output.append(dict(photo_ref=f'사진 {index}',pose_status=p.get('status'),pose_diagnostic_codes=diagnostics,
             model=dict(name=engine.get('name') or engine.get('model_id'),version=engine.get('version'),provider=engine.get('provider')) if engine else None,
-            landmark_count=len(p.get('points') or []),measurement_quality={**{key:quality_by_slot.get(number,{}).get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},'display_confidence_percent':_display_confidence(quality_by_slot.get(number,{}).get('mean_confidence'))},angles=angles,inferred_world_angles=world_angles,
+            landmark_count=len(p.get('points') or []) if p else None,measurement_quality={**{key:quality.get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},'display_confidence_percent':_display_confidence(quality.get('mean_confidence'))},angles=angles,inferred_world_angles=world_angles,
             reba_status=r.get('status'),effective_load_kg=_safe_number(r.get('effective_load_kg')),selected_side=r.get('selected_side'),
             current_score=_current_score_summary(r.get('current_score')),
             recorded_inputs=_recorded_photo_inputs(analysis.get('snapshot') or {},slot),
             unknown_inputs=_unknown_photo_inputs(analysis.get('snapshot') or {},slot),
+            estimated_inputs=_estimated_photo_inputs(analysis.get('snapshot') or {},slot,r),
             total=_safe_number(r.get('total')),risk=r.get('risk'),left=sides['left'],right=sides['right'],missing_fields=r.get('missing_fields') or [],
             candidates=candidates))
     return output

@@ -60,7 +60,7 @@ def handle_quick_preview(ctx, method, p):
                 other = quick_assess.VIEW_KO[near].replace(' 사진', '')
                 notes.append(dict(code='OTHER_SIDE', message=f'{label} 칸인데 {other} 몸이 더 잘 보여서 {other} 몸 기준으로 쟀어요. 칸이 맞는지 확인해 주세요.', field_path=None))
             rows, measured = quick_assess.side_measure(pose['points'], photo['width_px'], photo['height_px'], settings, near, guess['forward_direction'], view,
-                                                       oblique=guess['orientation'] == 'OBLIQUE')
+                                                       oblique=guess['orientation'] == 'OBLIQUE',world_angles=pose.get('world_angles'))
             seated_here=quick_assess.seated_signal(pose['points'],near,confidence)
             if seated_here:
                 refs=[point for point in pose['points'] if point['name'] in [near.lower()+'_'+joint for joint in ('hip','knee','ankle')]]

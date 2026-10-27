@@ -10,9 +10,10 @@ from copy import deepcopy
 from .joint_angles import angles as joint_angles
 from .reba_scoring import calculate_reba, candidates, NO_BURDEN
 from .task_defaults import ARM, COMMON
+from .angle_selection import selected_angle
 
 FIELD_LABELS = {
-    'trunk_base': '몸통 굽힘', 'knee_band': '무릎 굽힘', 'upper_arm_base': '위팔 들림',
+    'trunk_base': '몸통 굽힘', 'neck_base': '몸통 대비 목 굽힘 추정', 'knee_band': '무릎 굽힘', 'upper_arm_base': '위팔 들림',
     'lower_arm_base': '아래팔 굽힘', 'wrist_base': '손목 굽힘·폄',
 }
 YES_NO = [{'value': 'YES', 'label': '예'}, {'value': 'NO', 'label': '아니오'}, {'value': 'UNKNOWN', 'label': '모름'}]
@@ -113,7 +114,7 @@ def arm_overhead_signal(points, confidence_min=0.5):
 
 TRUNK_SIDE_DEG, NECK_SIDE_DEG, ARM_ABDUCTION_DEG = 10, 15, 30
 LOW_CONFIDENCE_FACTOR = 0.4
-SEVERITY = {'trunk_base': [1, 2, 3, 4], 'knee_band': ['UNDER_30', 'FROM_30_TO_60', 'OVER_60'],
+SEVERITY = {'trunk_base': [1, 2, 3, 4], 'neck_base': [1, 2, '2_EXTENSION'], 'knee_band': ['UNDER_30', 'FROM_30_TO_60', 'OVER_60'],
             'upper_arm_base': [1, 2, 3, 4], 'lower_arm_base': [1, 2], 'wrist_base': [1,2]}
 VIEW_KO = {'LEFT': '왼쪽 사진', 'RIGHT': '오른쪽 사진', 'FRONT': '정면·후면 사진'}
 
@@ -130,11 +131,11 @@ def _confirmed_slot(camera_side, forward):
 
 def _measured(scope, field, value, angle_rows, boundary, view, low_confidence=False):
     return {'scope': scope, 'field': field, 'value': value, 'label': FIELD_LABELS.get(field, field), 'view': view, 'low_confidence': low_confidence,
-            'angles': [dict(side=a['side'],angle_code=a['angle_code'],value_deg=round(a['value_deg'],1),**({'measurement':a['measurement']} if a.get('measurement') else {})) for a in angle_rows],
+            'angles': [dict(side=a['side'],angle_code=a['angle_code'],value_deg=round(a['value_deg'],1),**{key:a[key] for key in ('measurement','coordinate_space','used_for_reba','min_confidence') if key in a}) for a in angle_rows],
             'boundary_review': boundary}
 
 
-def side_measure(points, width, height, settings, camera_side, forward, slot_view=None, oblique=False):
+def side_measure(points, width, height, settings, camera_side, forward, slot_view=None, oblique=False,world_angles=None):
     """Near-side REBA categories from one side photo; the far arm and knee are usually occluded.
 
     camera_side is the body side facing the camera (not the slot the user chose), so a photo put in the
@@ -147,18 +148,22 @@ def side_measure(points, width, height, settings, camera_side, forward, slot_vie
     # MoveNet's own estimate is used even when its confidence is modest: it is shown as a pre-selected suggestion
     # tagged 'low confidence' for the person to confirm, instead of leaving the question blank.
     rows = joint_angles(points, forward, width, height, floor,camera_side=camera_side,orientation='OBLIQUE' if oblique else 'SIDE')
-    pose_slot = {'slot_no': 1, 'photo_id': 0, 'status': 'VALID', 'points': points, 'angles': rows}
+    pose_slot = {'slot_no': 1, 'photo_id': 0, 'status': 'VALID', 'points': points, 'angles': rows,'world_angles':world_angles or [],'world_confidence_min':confidence}
     measured = []
     for item in candidates(_confirmed_slot(camera_side, forward), pose_slot, camera_side, floor):
         if item['proposed_value'] is None or item['field'] == 'knee_band' or item['scope'] not in ('COMMON', camera_side):
             continue
         low = oblique or (item['min_confidence'] or 0) < confidence
-        measured.append(_measured(item['scope'], item['field'], item['proposed_value'], item['angles'], 'BOUNDARY_REVIEW' in item['review_reasons'], slot_view or camera_side, low))
-    knee = next((a for a in rows if a['side'] == camera_side and a['angle_code'] == 'KNEE_FLEX' and a['value_deg'] is not None), None)
-    if knee:
+        reading=_measured(item['scope'], item['field'], item['proposed_value'], item['angles'], 'BOUNDARY_REVIEW' in item['review_reasons'], slot_view or camera_side, low)
+        reading.update({key:item[key] for key in ('estimated','measurement_method') if key in item})
+        measured.append(reading)
+    knee = selected_angle(pose_slot,camera_side,'KNEE_FLEX',confidence)
+    if knee and knee.get('value_deg') is not None:
         v = knee['value_deg']
         band = 'UNDER_30' if v < 30 else 'FROM_30_TO_60' if v <= 60 else 'OVER_60'
-        measured.append(_measured('COMMON', 'knee_band', band, [knee], any(abs(v - b) <= 5 for b in (30, 60)), slot_view or camera_side, oblique or (knee['min_confidence'] or 0) < confidence))
+        reading=_measured('COMMON', 'knee_band', band, [knee], any(abs(v - b) <= 5 for b in (30, 60)), slot_view or camera_side, oblique or (knee['min_confidence'] or 0) < confidence)
+        if knee.get('coordinate_space')=='INFERRED_WORLD_3D':reading.update(estimated=True,measurement_method='INFERRED_WORLD_3D')
+        measured.append(reading)
     return rows, measured
 
 
@@ -434,7 +439,7 @@ def questions(views, measured, signals, front=()):
 
     views maps 'LEFT' / 'FRONT' / 'RIGHT' to that photo's guess (or None when no person was found).
     """
-    have = {(m['scope'], m['field']): m['value'] for m in measured if not m.get('low_confidence')}
+    have = {(m['scope'], m['field']): m['value'] for m in measured if m.get('value') is not None}
     guessed = {(m['scope'], m['field']): m for m in measured if m.get('low_confidence')}
     loaded = {'load': ['MEASURED']}
     q = [
@@ -484,9 +489,11 @@ def questions(views, measured, signals, front=()):
     q += [
         _choice('neck_base', '자세', '목은 어떤가요?', {'type': 'manual', 'scope': 'COMMON', 'field': 'neck_base'},
                 [{'value': 1, 'label': '똑바로·조금 숙임(20° 이내)'}, {'value': 2, 'label': '20° 넘게 숙임'}, {'value': '2_EXTENSION', 'label': '뒤로 젖힘'}],
-                '사진의 목 각도는 참고값이라 직접 골라 주세요.'),
+                '사진에서 추정한 목 자세를 현재 점수에 반영했어요. 결과에서 수정할 수 있어요.' if ('COMMON','neck_base') in have else '사진에서 목 자세를 확인하지 못했어요.',
+                show_if=photo_unusable if ('COMMON','neck_base') in have else None),
         _choice('wrist_base', '자세', '손목을 앞뒤로 얼마나 굽히거나 젖히나요?', {'type': 'manual', 'scope': 'BOTH', 'field': 'wrist_base'},
-                [{'value': 1, 'label': '15° 이내'}, {'value': 2, 'label': '15° 넘게'}]),
+                [{'value': 1, 'label': '15° 이내'}, {'value': 2, 'label': '15° 넘게'}],
+                show_if=photo_unusable if any((side,'wrist_base') in have for side in ('LEFT','RIGHT')) else None),
         _checklist('posture_flags', '자세', '해당하는 자세를 모두 골라 주세요.', [
             _flag('neck_turn', '목을 비틀거나 옆으로 기울임', ('COMMON', 'neck_twisted', 'YES', 'NO'), ('COMMON', 'neck_side_bent', None, 'NO')),
             _flag('trunk_turn', '몸통을 비틀거나 옆으로 기울임', ('COMMON', 'trunk_twisted', 'YES', 'NO'), ('COMMON', 'trunk_side_bent', None, 'NO')),

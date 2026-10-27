@@ -36,6 +36,7 @@ const assert=require('node:assert/strict');
   const currentReview={reviewed:true,reviewed_analysis_ids:[101],reviewed_metadata_revision:4};
   assert.match(reviewView(currentReview),/data-quick="unreview"/);
   assert.match(reviewView(currentReview),/검토 완료/);
+  assert.match(reviewView(currentReview),/data-quick="questions" data-reveal-photo="1">자세 분석값 수정/,'the result step exposes posture corrections without requiring another interview');
   const previousAnalysisReview={...currentReview,reviewed_analysis_ids:[100]};
   const previousHtml=reviewView(previousAnalysisReview);
   assert.doesNotMatch(previousHtml,/data-quick="unreview"/);
@@ -110,5 +111,42 @@ const assert=require('node:assert/strict');
   const firstPhoto=individual.split('id="quick-posture-photo-2"')[0];
   assert.match(firstPhoto,/REBA 2점/,'a nonrepresentative photo must use its own projected score');
   assert.doesNotMatch(firstPhoto,/REBA 11점|REBA 점수 미산출/);
+  const foreign={snapshot:{schema_version:'2.0',capture:{slots:[{slot_no:1,photo_id:7,label:'현재 사진',analysis_target:true}]}},
+    pose:{slots:[{slot_no:1,photo_id:999,angles:[{side:'LEFT',angle_code:'TRUNK_TILT_VERT',value_deg:111.1}],world_points:[{name:'nose',x_m:999.123}]}]},
+    reba:{summary:{current_score:{slot_no:1,total:14,risk:'VERY_HIGH'}},slots:[{slot_no:1,photo_id:999,total:14,risk:'VERY_HIGH'}]},
+    measurement_quality:{slots:[{slot_no:1,photo_id:999,measured_points:27,total_points:33,mean_confidence:.79,confidence_level:'HIGH'}]}};
+  const rejected=renderPostureReview(foreign);
+  assert.doesNotMatch(rejected,/111\.1°|999\.123|REBA 14점|27\/33/,'foreign measurements, coordinates, score, and quality must not be relabelled by slot');
+  assert.match(rejected,/사진 연결 정보가 맞지 않아/);
+  assert.match(rejected,/자세 측정 신뢰도 정보 없음/,'a rejected quality row must not manufacture zero measurements');
+  const exact=structuredClone(foreign);
+  exact.pose.slots.push({slot_no:1,photo_id:7,angles:[{side:'LEFT',angle_code:'TRUNK_TILT_VERT',value_deg:33.3}],world_points:[{name:'nose',x_m:.123}]});
+  const owned=renderPostureReview(exact);
+  assert.match(owned,/33\.3°/,'one exact owner wins over a different photo row');
+  assert.match(owned,/0\.123/,'owned raw coordinates remain available in human review');
+  exact.pose.slots.push(structuredClone(exact.pose.slots[1]));
+  assert.doesNotMatch(renderPostureReview(exact),/33\.3°|0\.123/,'ambiguous duplicate owned rows must not be arbitrarily selected');
+  const world={snapshot:{schema_version:'2.0',capture:{slots:[{slot_no:1,photo_id:7,label:'현재 사진',analysis_target:true}]}},
+    pose:{slots:[{slot_no:1,photo_id:7,world_angles:[{side:'LEFT',angle_code:'ELBOW_FLEX_3D',value_deg:57.2,min_confidence:.9}]}]},
+    reba:{slots:[{slot_no:1,photo_id:7,current_score:{total:6,risk:'MEDIUM',kind:'WITH_ASSUMPTIONS'},candidates:[{scope:'LEFT',field:'lower_arm_base',angles:[{side:'LEFT',angle_code:'ELBOW_FLEX_3D',value_deg:57.2,coordinate_space:'INFERRED_WORLD_3D',used_for_reba:true}]}]}]}};
+  assert.doesNotMatch(renderPostureReview(world),/현재 REBA 초안에 사용/,'candidate availability must not imply current score use');
+  world.reba.slots[0].current_score.measurement_refs=[{scope:'LEFT',field:'lower_arm_base',angles:world.reba.slots[0].candidates[0].angles}];
+  assert.match(renderPostureReview(world),/현재 REBA 초안에 사용/,'selected current draft refs must identify used 3D measurements');
+  world.reba.slots[0].current_score.kind='CONFIRMED';
+  assert.doesNotMatch(renderPostureReview(world),/현재 REBA 초안에 사용/,'automatic estimates must stay separate from human confirmed results');
+  world.snapshot.input_revision=3;
+  const estimate={target:'manual.COMMON.neck_base',condition:'photo:7',photo_id:7,state:'ESTIMATED',source:'VISION',value:2,measurement_method:'AI_PHOTO_CATEGORY',vision_confidence:.75,
+    vision_proof:{scope:'COMMON',field:'neck_base',value:'NECK_OVER_20',status:'OBSERVED',confidence:.75,evidence:'목을 숙인 사진 근거'}};
+  world.snapshot.conditions={intake_session:{projected_revision:3,facts:{estimate}}};
+  world.reba.slots[0].current_score={total:6,risk:'MEDIUM',kind:'WITH_ASSUMPTIONS',measurement_refs:[{scope:'COMMON',field:'neck_base',value:2,measurement_method:'AI_PHOTO_CATEGORY'}]};
+  const visionEstimate=renderPostureReview(world);
+  assert.match(visionEstimate,/사진에서 추정한 자세 · 사람 확인 전/);
+  assert.match(visionEstimate,/AI 사진 추정/);assert.match(visionEstimate,/75%/);assert.match(visionEstimate,/목을 숙인 사진 근거/);
+  assert.match(visionEstimate,/현재 REBA 초안에 사용/);
+  const badEstimate=mutate=>{const copy=structuredClone(world);mutate(copy,copy.snapshot.conditions.intake_session.facts.estimate);return renderPostureReview(copy);};
+  for(const mutate of [(v,f)=>f.photo_id=999,(v,f)=>f.condition='photo:999',(v,f)=>f.alias_of='other',(v,f)=>f.vision_proof.status='UNCERTAIN',(v,f)=>f.vision_proof.confidence=.49,
+    v=>v.snapshot.conditions.intake_session.projected_revision=2,(v,f)=>v.snapshot.conditions.intake_session.facts.answer={...f,source:'USER',state:'UNKNOWN',value:null},
+    v=>v.snapshot.manual=[{slot_no:1,photo_id:7,scope:'COMMON',field:'neck_base',value:1,source:'INTERVIEW'}],
+    (v,f)=>v.snapshot.conditions.intake_session.facts.duplicate=structuredClone(f)])assert.doesNotMatch(badEstimate(mutate),/목을 숙인 사진 근거/,'stale, foreign, duplicate, uncertain, and overridden estimates must remain excluded');
   process.stdout.write('Human review includes all anonymous pose, coordinate, candidate, REBA, and failure results.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -228,7 +228,7 @@ class GptBoundary(unittest.TestCase):
         self.assertIn('초안', client.SYSTEM_PROMPT)
         self.assertIn('단정하지', client.SYSTEM_PROMPT)
         self.assertIn('posture_results', client.SYSTEM_PROMPT)
-        self.assertIn('3D 추정각은 참고', client.SYSTEM_PROMPT)
+        self.assertIn('3D 추정각은 used_for_reba', client.SYSTEM_PROMPT)
         self.assertIn('posture_explanations', client.SYSTEM_PROMPT)
         self.assertIn('빠짐없이 한 번씩', client.SYSTEM_PROMPT)
         self.assertIn('provisional_reba',client.SYSTEM_PROMPT)

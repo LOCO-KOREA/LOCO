@@ -129,29 +129,41 @@ def _merge_candidates(session,record):
             values.setdefault((item['scope'],item['field']),set()).add(item['value'])
     for item in candidates:
         if not isinstance(item,dict) or not isinstance(item.get('scope'),str) or not isinstance(item.get('field'),str):continue
-        pair=(item.get('scope'),item.get('field'));observation=contract.MANUAL_FIELDS.get(pair)
+        pair=(item.get('scope'),item.get('field'));expected_observation=contract.MANUAL_FIELDS.get(pair)
+        observation=item.get('observation')
+        allowed_observation=observation in contract.MANUAL_OBSERVATION_ALIASES.get(pair,(expected_observation,))
+        if not isinstance(observation,str):observation=None
         visible=raw['observations'].get(observation,{})
         target=f"manual.{pair[0]}.{pair[1]}";identity=intake_contract.key(target,photo_facts.condition(record['photo_id']))
+        observed_value=contract.manual_value(pair[0],pair[1],item.get('value'))
+        posture=pair[1] in contract.POSTURE_VALUES
         confidence=item.get('confidence');seen_confidence=visible.get('confidence')
-        valid=(observation and item.get('observation')==observation and item.get('value') in ('YES','NO')
+        def usable_confidence(value):
+            return type(value) in (int,float) and math.isfinite(value) and (contract.policy()['posture_confidence'] if posture else threshold)<=value<=1
+        hand=raw['observations'].get('wrist_'+str(pair[0]).lower(),{}) if pair[1]=='coupling' else None
+        hand_visible=hand is None or hand.get('status')=='OBSERVED' and usable_confidence(hand.get('confidence'))
+        valid=(expected_observation and allowed_observation and observed_value is not None and hand_visible
             and item.get('status')==visible.get('status')=='OBSERVED' and isinstance(item.get('evidence'),str)
-            and bool(item['evidence'].strip()) and item['evidence']==visible.get('evidence') and confident(confidence)
-            and confident(seen_confidence) and target in catalogue
+            and bool(item['evidence'].strip()) and isinstance(visible.get('evidence'),str) and bool(visible['evidence'].strip())
+            and usable_confidence(confidence)
+            and usable_confidence(seen_confidence) and target in catalogue
             and len(values.get(pair,()))==1)
         if not valid:
             _diagnostic(record,'CANDIDATE_NOT_CONFIRMED','사진에서 분명히 확인하지 못한 값은 입력값으로 옮기지 않았어요.',target=target)
             continue
         previous=session['facts'].get(identity)
-        if previous and (previous.get('source') in ('USER','AI','SAVED') or previous.get('state')=='KNOWN' and previous.get('source') in ('POSE','MOVENET')
+        if previous and (previous.get('source') in ('USER','AI','SAVED') or previous.get('state') in ('KNOWN','ESTIMATED') and previous.get('value') is not None and previous.get('source') in ('POSE','MOVENET')
                 or previous.get('state')=='CONFLICT'):
-            if previous.get('value')!=item['value']:
+            if previous.get('value')!=observed_value:
                 _diagnostic(record,'EXISTING_INPUT_KEPT','사진 관찰과 다른 기존 입력·측정값을 유지했어요.',target=target,existing_source=previous.get('source'))
             continue
         if previous and previous.get('source')=='VISION' and previous.get('vision_signature')==record['signature']:continue
-        value=facts.fact(catalogue[target],item['value'],'VISION',item['evidence'],photo_facts.condition(record['photo_id']))
+        value=facts.fact(catalogue[target],observed_value,'VISION',item['evidence'],photo_facts.condition(record['photo_id']))
+        if posture:value['state']='ESTIMATED'
         value.update(photo_id=record['photo_id'],view=record['view'],photo_label=record['photo_label'],
             vision_signature=record['signature'],vision_observation=observation,
-            vision_proof=copy.deepcopy(item),vision_confidence=confidence)
+            vision_proof=copy.deepcopy(item),vision_confidence=confidence,vision_observation_evidence=visible['evidence'],
+            **(dict(estimated=True,measurement_method='AI_PHOTO_CATEGORY') if posture else {}))
         session['facts'][identity]=value
     for item in raw['work_candidates']:
         if not isinstance(item,dict) or not isinstance(item.get('target'),str) or not isinstance(item.get('observation'),str):continue
@@ -162,7 +174,7 @@ def _merge_candidates(session,record):
         valid=(target in catalogue and observation in keys and item.get('value')=='YES'
             and item.get('status')==visible.get('status')=='OBSERVED'
             and isinstance(item.get('evidence'),str) and bool(item['evidence'].strip())
-            and item['evidence']==visible.get('evidence') and confident(confidence) and confident(seen_confidence))
+            and isinstance(visible.get('evidence'),str) and bool(visible['evidence'].strip()) and confident(confidence) and confident(seen_confidence))
         if not valid:
             _diagnostic(record,'WORK_FEATURE_NOT_CONFIRMED','사진에서 분명히 확인한 작업 특징만 입력에 반영해요.',target=target)
             continue

@@ -72,15 +72,17 @@ class PhotoReplacement(unittest.TestCase):
 
 
 class EstimatedReading(unittest.TestCase):
-    def test_an_estimated_photo_reading_is_asked_but_not_as_a_repeat(self):
+    def test_an_estimated_photo_reading_is_used_for_draft_and_left_editable(self):
         views = dict(RIGHT=101)
         shaky = dict(observation('RIGHT', 'COMMON', 'trunk_base', 3, 40), low_confidence=True)
         data = preview([shaky], views)
         saved = facts.add_photo_facts(facts.apply_answers({}, [dict(target='context', value='YES'), dict(target='load', value='UNLOADED')]), data, views)
         task = facts.project(task_input({}), saved, views, data)
-        row = next(row for row in planner.assess(task, saved, views)['candidates'] if row['identity'] == 'manual.COMMON.trunk_base@photo:101')
-        self.assertFalse(row.get('reask'))
-        self.assertEqual(row['reason'], '결과 계산에 필요한 정보가 아직 없어요.')
+        candidates = planner.assess(task, saved, views)['candidates']
+        self.assertNotIn('manual.COMMON.trunk_base@photo:101',{row['identity'] for row in candidates})
+        row = next(row for row in planner.form_fields(task,saved,views,candidates) if row['identity']=='manual.COMMON.trunk_base@photo:101')
+        self.assertTrue(row['measurement_applied'])
+        self.assertEqual(saved[row['identity']]['state'],'ESTIMATED')
 
 
 if __name__ == '__main__':

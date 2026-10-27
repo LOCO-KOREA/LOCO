@@ -124,7 +124,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal(s.box(by('LEFT', 'arm_abducted_or_rotated')).checked, true);
   assert.match(s.statuses[0].textContent, /^사진이 본 1개는/);
   tick(s.flow, by('RIGHT', 'arm_abducted_or_rotated'), true);
-  assert.equal(s.statuses[0].textContent, '모든 항목을 확인했어요. 저장하면 반영돼요.');
+  assert.equal(s.statuses[0].textContent, '입력·사진 분석값을 채웠어요. 결과 설명에서 수정할 수 있어요.');
   assert.equal(s.button('decline', {fillIdentity: by('LEFT', 'arm_abducted_or_rotated')}).disabled, true, 'an answered reading cannot be declined by a stray press');
 
   // 3. [#5] A copy and the confirmation give the same result in either order, and a copy never replaces what the user chose on that side.
@@ -203,14 +203,15 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.doesNotMatch((await open(unusedRows, measured)).html, /intake-measured-note/, 'a row flagged as unused says the same without a context fact');
   assert.equal((await open([...flags(), ...angles()], [...measured, fact('context@default', 'UNKNOWN', 'USER', null)])).intake.measuredCount('photo:2'), 0, 'a "don\'t know" confirmation does not use the photo either');
 
-  // 7. [#8] "All confirmed" is only said when it is true: a photo estimate that is still blank is counted.
+  // 7. The photo estimate is already available; confirmation must preserve it without another selection.
   const seated = flags().find(f => f.identity === by('COMMON', 'seated'));
   const est = await open([...flags(), ...angles()], [fact(seated.identity, 'ESTIMATED', 'POSE', 'YES')]);
   press(est.flow, est.button('confirm'));
-  assert.doesNotMatch(est.statuses[0].textContent, /모든 항목을 확인했어요/);
-  assert.equal(est.statuses[0].textContent, '사진 추정·충돌 1개는 아래에서 직접 골라 주세요.');
+  assert.equal(est.intake.formValue(seated),'YES');
+  assert.equal(est.intake.checklistUndecided('photo:2'),0);
+  assert.ok(!est.intake.formAnswers().some(answer=>answer.target===seated.target),'automatic use does not rewrite photo provenance as a user confirmation');
   edit(est.flow, seated.identity, 'NO');
-  assert.equal(est.statuses[0].textContent, '모든 항목을 확인했어요. 저장하면 반영돼요.');
+  assert.equal(est.statuses[0].textContent, '입력·사진 분석값을 채웠어요. 결과 설명에서 수정할 수 있어요.');
   assert.equal(est.intake.checklistUndecided('photo:2'), 0);
 
   // 8. [#12] Pins for the counting rules: only what the photo measured and is still in use counts, from either engine; answered rows are not "open".

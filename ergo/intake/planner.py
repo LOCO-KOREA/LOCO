@@ -88,6 +88,7 @@ def _assess(task, facts, views, catalogue, only_identity=None):
             item=photo_facts.fact_for(facts,t,owner,views) if kind=='manual' else facts.get(key(t,condition))
             photo_value_unused=kind=='manual' and bool(item) and item['source'] in PHOTO_SOURCES and not photo_in_use
             if item and not photo_value_unused and (item['state']=='KNOWN' or item['state']=='UNKNOWN' and item['source']=='USER'): continue
+            if kind=='manual' and photo_in_use and photo_facts.is_measured_candidate(item): continue
             relevant=bool(set(paths(field,condition)) & missing)
             if kind=='manual':relevant=any(row['photo_id']==owner and bool(set(paths(field,condition)) & set(row['missing_fields'])) for row in (reba or {}).get('slots',[]))
             if kind=='criterion' and not relevant and not (item and item['state']=='CONFLICT'):
@@ -316,5 +317,8 @@ def form_fields(task, saved, views, candidates):
         relevant = _assess(_without_value(task, field, item['condition'], views), probe, views, catalogue, only_identity=identity)['candidates']
         if any(c['identity'] == identity for c in relevant):
             metadata=dict(photo_id=item['photo_id'],photo_label=item.get('photo_label'),display_condition=item.get('photo_label'),label=item.get('photo_label','등록한 사진')+' · '+field['label']) if field['destination']['type']=='manual' and item.get('photo_id') is not None else {}
-            result.setdefault(identity,dict(field, identity=identity, condition=item['condition'],**metadata))
+            applied=photo_facts.is_measured_candidate(item)
+            reason=item.get('measurement_reason') or WRIST_REASONS.get(item.get('measurement_diagnostic'))
+            result.setdefault(identity,dict(field, identity=identity, condition=item['condition'],**metadata,
+                **(dict(measurement_applied=True,**(dict(reason=reason,photo_measurement_reason=True) if reason else {})) if applied else {})))
     return list(result.values())

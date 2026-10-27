@@ -104,7 +104,7 @@ def _prepare(ctx, task_id, requested_views=None):
         if identity in invalidated: continue
         if identity not in current_facts and identity in session.get('applied',{}) and session['applied'][identity]==item['value']:
             continue  # A projected alias is not a newly entered fact; reads must remain stable.
-        if identity not in current_facts or externally_changed and current_facts[identity]['value']!=item['value']:
+        if identity not in current_facts or externally_changed and any(current_facts[identity].get(name)!=item.get(name) for name in ('value','state','conflict','saved_criteria')):
             item['source']='USER' if externally_changed else 'SAVED'; current_facts[identity]=item
     if externally_changed:
         for identity,old_value in session.get('applied',{}).items():

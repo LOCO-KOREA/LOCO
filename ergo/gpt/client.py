@@ -6,7 +6,7 @@ from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V13'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V14'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -23,7 +23,9 @@ SYSTEM_PROMPT=(
     '각 사진의 current_score는 엔진이 계산한 그 사진의 현재 표시 점수입니다. 전체 최대 점수를 다른 사진의 점수로 쓰거나 기록된 입력으로 점수를 다시 계산하지 마세요. '
     'recorded_inputs는 같은 사진에 저장된 자세·잡기·충격·유지·반복 입력입니다. INTERVIEW는 설명에서 입력한 값, DIRECT_OBSERVATION은 조사자 관찰, AUTO_ACCEPTED는 사진 후보임을 구분하세요. '
     '확인한 잡기·활동 입력은 결과 설명에 반영하고, 좌우 확정 구성점수가 미완성이어도 이 입력까지 없다고 말하지 마세요. recorded_inputs에 없는 항목은 다른 사진에서 빌리거나 추측하지 마세요. '
-    'summary에는 전체 자세 결과의 핵심을 짧게 설명하세요. 미측정·누락은 0으로 바꾸지 말고, 3D 추정각은 참고이며 REBA에 사용되지 않았다고 분리하세요. '
+    'summary에는 전체 자세 결과의 핵심을 짧게 설명하세요. 미측정·누락은 0으로 바꾸지 마세요. '
+    '3D 추정각은 used_for_reba가 true인 항목만 현재 점수 초안에 사용한 것으로 설명하고, false인 항목은 참고로 분리하세요. '
+    '3D 추정값 사용을 사람이 확정한 측정이나 정확도 보증으로 표현하지 마세요. '
     '사진 표본 결과를 하루 노출량이나 법적 해당 판단으로 바꾸지 마세요. '
     'provisional_reba가 있으면 reba_comparison에 1차 부담 없음 가정과 최종 저장 결과의 관계를 설명하세요. '
     'score_delta가 있을 때만 점수 차이를 말하세요. 사진 범위가 다르거나 여러 사진을 합친 1차 계산이면 답변만의 효과라고 설명하지 마세요. '

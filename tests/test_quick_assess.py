@@ -162,14 +162,12 @@ class Questions(unittest.TestCase):
         shown = ' '.join(q['text'] + ' ' + q.get('ask', '') + ' ' + ' '.join(i['label'] for i in q.get('items', [])) for q in plain if q['group'] in ('이 작업의 특징', '하루 시간·횟수'))
         self.assertIsNone(re.search(r'\d+호', shown), 'criterion numbers never appear in what the person reads')
 
-    def test_low_confidence_angle_is_asked_with_the_estimate_preselected(self):
+    def test_low_confidence_angle_is_used_without_a_repeated_selection(self):
         low = {'scope': 'COMMON', 'field': 'trunk_base', 'value': 3, 'low_confidence': True, 'angles': [{'value_deg': 33.0}]}
         sure = {'scope': 'COMMON', 'field': 'knee_band', 'value': 'OVER_60', 'low_confidence': False, 'angles': [{'value_deg': 71.0}]}
         ids = {q['id']: q for q in quick_assess.questions({}, [low, sure], {})}
         self.assertEqual(ids['trunk_base']['suggested'], 3)
-        self.assertIsNone(ids['trunk_base']['show_if'], 'a low-confidence estimate is always shown for confirmation')
-        self.assertIn('33.0', ids['trunk_base']['help'])
-        self.assertIn('신뢰도 낮음', ids['trunk_base']['help'])
+        self.assertEqual(ids['trunk_base']['show_if'], {'context': ['NO']})
         self.assertEqual(ids['knee_band']['show_if'], {'context': ['NO']}, 'a reliable value is not asked at all')
 
     def test_work_info_has_no_defaults(self):

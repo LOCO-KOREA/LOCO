@@ -66,7 +66,7 @@ export function renderForm(intake,busy) {
   const photoPrefix=intake.state.contract.photo_policy?.condition_prefix||'photo:';
   const titleOf=field=>{const photo=field.photo_label||field.display_condition;const condition=field.condition&&!field.condition.startsWith(photoPrefix)&&field.condition!=='default'?field.condition:'';return (field.group||'기본 작업 정보')+(photo||condition?' · '+(photo||condition):'');};
   const grouped=rows=>{const groups=new Map();for(const field of rows) {const key=titleOf(field);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(field);}return [...groups];};
-  const section=(name,title,body,{photo=false}={})=>`<details class="intake-form-section" data-intake-section="${name}"${photo?' data-intake-photo-optional':''} open><summary>${esc(title)}</summary>${body}</details>`;
+  const section=(name,title,body,{photo=false,expanded=true}={})=>`<details class="intake-form-section" data-intake-section="${name}"${photo?' data-intake-photo-optional':''}${expanded?' open':''}><summary>${esc(title)}</summary>${body}</details>`;
 
   const workRows=extra.filter(f=>f.destination.type==='work_type');
   const conditionRows=extra.filter(f=>f.destination.type!=='work_type');
@@ -88,13 +88,13 @@ export function renderForm(intake,busy) {
     const rows=manualRows.filter(f=>f.condition===condition), panel=checklist(rows,condition);
     return panel?photoBlock(condition,rows,`${measuredNote(condition)}${panel}${quickFill(rows)}`):'';
   }).join('');
-  const checklistPart=checklistBlocks?section('checklist','자세 체크리스트',checklistBlocks,{photo:true}):'';
+  const checklistPart=checklistBlocks?section('checklist','사진 자세 결과 수정 (선택)',checklistBlocks,{photo:true,expanded:false}):'';
   const angleBlocks=photos.map(condition=>{
     const rows=manualRows.filter(f=>f.condition===condition), rest=rows.filter(f=>!intake.checkable(f)), hasPanel=rows.some(f=>intake.checkable(f)), refused=intake.photoUnused(condition);
     if(!rest.length)return '';
     return photoBlock(condition,rows,`${hasPanel?'':`${measuredNote(condition)}${quickFill(rows)}`}${hasPanel&&!refused?'<h4 class="intake-angle-title">사진 측정 보완 (선택)</h4>':''}${rest.map(control).join('')}`);
   }).join('');
-  const angles=angleBlocks?section('angles','사진 자세·활동 보완',angleBlocks,{photo:true}):'';
+  const angles=angleBlocks?section('angles','측정·관찰 결과 수정 (선택)',angleBlocks,{photo:true,expanded:false}):'';
   const load=loadRows.length?section('load','물건 무게·힘 보완',grouped(loadRows).map(([title,rows])=>`<div class="intake-form-group"><h3>${esc(title)}</h3>${rows.map(control).join('')}</div>`).join('')):'';
 
   const sentence=`<details class="intake-form-section" data-intake-natural-answer${intake.text.trim()?' open':''}><summary>문장으로 더 적기</summary><p>아는 내용을 한 번에 적어 주세요. 설명에서 필요한 값을 정리해요.</p><textarea data-intake-reply maxlength="${intake.state.contract.policy.text_limit}" placeholder="예: 다른 작업은 없어요. 이 조건은 하루 30분, 1분에 1번 정도예요.">${esc(intake.text)}</textarea><button type="button" data-quick="adaptive-next" ${busy||!intake.text.trim()?'disabled':''}>답변 정리</button></details>`;

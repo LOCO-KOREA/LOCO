@@ -22,7 +22,8 @@ SIDE = {'LEFT': '왼쪽', 'RIGHT': '오른쪽', 'COMMON': '공통', 'BOTH': '양
 CAMERA = {'LEFT': '왼쪽 몸이 보이는 쪽에서', 'RIGHT': '오른쪽 몸이 보이는 쪽에서', 'FRONT': '정면 또는 후면에서'}
 FACING = {'SCREEN_LEFT': '사진의 왼쪽', 'SCREEN_RIGHT': '사진의 오른쪽'}
 ANGLE = {'TRUNK_TILT_VERT': '몸통 기울기', 'NECK_TILT_VERT_PROXY': '목 기울기(추정)', 'NECK_FLEX_TRUNK_PROXY': '목 굽힘(몸통 기준, 추정)', 'UPPER_ARM_RAISE_VERT': '위팔 들림',
-         'UPPER_ARM_FLEX_TRUNK': '위팔 굽힘(몸통 기준)', 'ELBOW_FLEX': '팔꿈치 굽힘', 'KNEE_FLEX': '무릎 굽힘'}
+         'UPPER_ARM_FLEX_TRUNK': '위팔 굽힘(몸통 기준)', 'ELBOW_FLEX': '팔꿈치 굽힘', 'KNEE_FLEX': '무릎 굽힘',
+         'ELBOW_FLEX_3D': '팔꿈치 굽힘', 'KNEE_FLEX_3D': '무릎 굽힘'}
 ANGLE[WRIST_POLICY['angle_code']]='손목 굽힘(사진에서 측정)'
 TAG = {'NECK_FORWARD_PROXY': '목을 앞으로 숙임', 'TRUNK_FLEX': '몸통을 앞으로 굽힘', 'TRUNK_EXT': '몸통을 뒤로 젖힘', 'UPPER_ARM_RAISE': '위팔을 들어 올림', 'HAND_ABOVE_HEAD': '손이 머리 위',
        'ELBOW_ABOVE_SHOULDER': '팔꿈치가 어깨 위', 'ELBOW_BEHIND_TRUNK': '팔꿈치가 몸통 뒤', 'NECK_TWIST': '목을 비틂', 'TRUNK_TWIST': '몸통을 비틂', 'SQUAT': '쪼그림', 'KNEEL': '무릎을 꿇음'}
@@ -141,6 +142,21 @@ def _slot_names(source):
     return {s.get('slot_no'): VIEW_LABELS.get(s.get('label'),s.get('label') or f"사진 {s.get('slot_no')}") for s in (source.get('capture') or {}).get('slots', [])}
 
 
+def _owned_measurement(rows,slot):
+    candidates=[row for row in rows if isinstance(row,dict) and row.get('slot_no')==slot.get('slot_no')]
+    exact=[row for row in candidates if row.get('photo_id')==slot.get('photo_id')]
+    if len(exact)==1:return exact[0]
+    if not exact and len(candidates)==1 and candidates[0].get('photo_id') is None:return candidates[0]
+    return None
+
+
+def _owned_rows(rows,source):
+    slots=[slot for slot in (source.get('capture') or {}).get('slots',[]) if slot.get('photo_id') is not None and slot.get('analysis_target',source.get('schema_version')!='2.0')]
+    if not slots and source.get('schema_version')!='2.0':return list(rows),0
+    selected=[row for slot in slots if (row:=_owned_measurement(rows,slot)) is not None]
+    return selected,max(0,len(rows)-len(selected))
+
+
 def _context(snapshot, ov):
     analyses = {a['task_id']: project_score_continuity(a) for a in snapshot.get('analyses', [])}
     tasks = []
@@ -156,8 +172,11 @@ def _context(snapshot, ov):
 # ----- 요약
 def _measurement_text(analysis, slot_no):
     quality = (analysis or {}).get('measurement_quality') or {}
-    selected = next((item for item in quality.get('slots', []) if item.get('slot_no') == slot_no), None)
+    owners=[slot for slot in ((analysis or {}).get('snapshot') or {}).get('capture',{}).get('slots',[]) if slot.get('slot_no')==slot_no]
+    rows=quality.get('slots',[])
+    selected = _owned_measurement(rows,owners[0]) if len(owners)==1 else next((item for item in rows if item.get('slot_no')==slot_no),None)
     if selected is None:
+        if rows and owners:return ''
         selected = quality if len(quality.get('slots', [])) <= 1 else {}
     if not selected or not selected.get('total_points'):
         return ''
@@ -349,7 +368,7 @@ def _inputs(c):
             if value not in (None, '', 'UNKNOWN') or origin:
                 shown=with_unit(value,unit) if value is not None else '모름'
                 rows.append([name, '작업 조건', label, shown, *(origin or (_source(ev),note(ev.get('text'))))])
-        rows += _legal_rows(name, source) + _capture_rows(name, source) + _manual_rows(name, source)
+        rows += _legal_rows(name, source) + _capture_rows(name, source) + _manual_rows(name, source) + _estimated_rows(name,source,t.get('analysis') or {})
     if not rows:
         return None
     has_provenance = any(any(isinstance(row[index], str) and row[index].strip() for index in (4, 5)) for row in rows)
@@ -363,6 +382,34 @@ def _inputs(c):
 
 
 # ----- 사진 자세
+def _estimated_rows(name,source,analysis):
+    from ergo.intake.photo_facts import estimated_photo_inputs
+    names=_slot_names(source);rows=[]
+    for slot in (source.get('capture') or {}).get('slots',[]):
+        reba=_owned_measurement((analysis.get('reba') or {}).get('slots') or [],slot) or {}
+        current=reba.get('current_score') or reba.get('score_so_far') or {}
+        refs=current.get('measurement_refs') or [] if current.get('kind')!='CONFIRMED' else []
+        for item in estimated_photo_inputs(source,slot):
+            method=item.get('measurement_method') or (item.get('photo_proof') or {}).get('measurement_method')
+            used=any(ref.get('scope')==item['scope'] and ref.get('field')==item['field'] and ref.get('value')==item['value'] and ref.get('measurement_method')==method for ref in refs)
+            confidence=item.get('vision_confidence')
+            notes=['추정값 · 사람이 확인한 입력과 구분', '현재 REBA 초안에 사용' if used else '현재 REBA 점수에 사용하지 않음']
+            if type(confidence) in (int,float) and math.isfinite(confidence):notes.append(f'사진 관찰 확신도 {round(confidence*100)}%')
+            proof=(item.get('vision_proof') or {}).get('evidence') or item.get('measurement_reason') or item.get('quote')
+            if proof:notes.append(note(proof))
+            label=names.get(slot.get('slot_no'),'등록한 사진')+' · '+('' if item['scope']=='COMMON' else SIDE[item['scope']]+' ')+MANUAL.get(item['field'],'자세 항목')
+            rows.append([name,'사진 자세 추정',label,value_label(item['field'],item['value']),'AI 사진 추정' if item['source']=='VISION' else '사진 자동 측정 추정',' · '.join(notes)])
+    return rows
+
+
+def _world_angle_used(reba_slot,angle):
+    current=reba_slot.get('current_score') or reba_slot.get('score_so_far') or {}
+    if current.get('kind')=='CONFIRMED' or angle.get('value_deg') is None:return False
+    return any(ref.get('coordinate_space')=='INFERRED_WORLD_3D' and ref.get('used_for_reba') is True and
+               ref.get('side')==angle.get('side') and ref.get('angle_code')==angle.get('angle_code') and ref.get('value_deg')==angle.get('value_deg')
+               for item in current.get('measurement_refs') or [] for ref in item.get('angles') or [])
+
+
 def _posture(c):
     score_rows, reba_rows, angle_rows, tag_rows = [], [], [], []
     for t in c['tasks']:
@@ -372,7 +419,10 @@ def _posture(c):
         names = _slot_names(t['source'])
         reba = a.get('reba') or {}
         representative = (reba.get('summary') or {}).get('representative_slot_no')
-        for r in reba.get('slots', []):
+        reba_rows_owned,rejected_reba=_owned_rows(reba.get('slots', []),t['source'])
+        if rejected_reba:
+            angle_rows.append([t['name'],'등록 사진','','사진 연결 확인 필요','','사진과 REBA 결과의 소유 정보가 맞지 않아 해당 결과를 표시하지 않았어요.'])
+        for r in reba_rows_owned:
             no = r.get('slot_no')
             label = names.get(no, f'사진 {no}')
             current = project_current_score(dict(slots=[r], summary=dict(
@@ -401,14 +451,23 @@ def _posture(c):
                                   s.get('load_score'), s.get('coupling_score'), s.get('activity_score'), side_total if side_total is not None else '확인 전',
                                   say(s.get('risk') or (reba_risk(side_total) if side_total is not None else None)), ' · '.join(remarks)])
         floor = ((a['snapshot'].get('settings') or {}).get('pose_model') or {}).get('confidence_min', 0.5)
-        for p in (a.get('pose') or {}).get('slots', []):
+        pose_rows_owned,rejected_pose=_owned_rows((a.get('pose') or {}).get('slots', []),t['source'])
+        if rejected_pose:
+            angle_rows.append([t['name'],'등록 사진','','사진 연결 확인 필요','','사진과 자세 측정 결과의 소유 정보가 맞지 않아 해당 측정값을 표시하지 않았어요.'])
+        for p in pose_rows_owned:
             label = names.get(p.get('slot_no'), f"사진 {p.get('slot_no')}")
+            owner=next((slot for slot in (t['source'].get('capture') or {}).get('slots',[]) if slot.get('slot_no')==p.get('slot_no')),p)
+            current_reba=_owned_measurement(reba_rows_owned,owner) or {}
             engine=p.get('engine') or {}
             if engine:
                 angle_rows.append([t['name'],label,'','자세 추론 모델',engine.get('name',''),f"관절 {len(p.get('points',[]))}개 · 모델 버전 {engine.get('version','')}"])
             for angle in p.get('world_angles',[]):
-                if angle.get('value_deg') is not None:
-                    angle_rows.append([t['name'],label,SIDE.get(angle.get('side'),''),'3D 추정 '+angle['label'],round(angle['value_deg'],1),'단안 사진에서 추정한 참고 각도 · REBA 점수에 사용하지 않음'])
+                used=_world_angle_used(current_reba,angle)
+                notes=['단안 사진에서 추정한 각도', '현재 REBA 초안에 사용' if used else '현재 REBA 점수에 사용하지 않음']
+                if angle.get('diagnostic'):notes.append(angle['diagnostic'])
+                if angle.get('value_deg') is not None and (angle.get('min_confidence') or 0)<floor:notes.append('관절이 잘 안 보여 참고용이에요')
+                angle_rows.append([t['name'],label,SIDE.get(angle.get('side'),''),'3D 추정 '+(ANGLE.get(angle.get('angle_code')) or angle.get('label') or '분절 각도'),
+                                   round(angle['value_deg'],1) if angle.get('value_deg') is not None else '측정 불가',' · '.join(notes)])
             unread = 0
             for angle in p.get('angles', []):
                 if angle.get('value_deg') is None:

@@ -1,10 +1,29 @@
 """Photo-owned intake observations. A view is a label; photo/body/field own the value."""
 import copy
+import math
 from .contract import PHOTO_VIEWS, POLICY, key
 from ergo.pose_contract import PHOTO_SOURCES
-from ergo.vision.contract import SOURCE as VISION_SOURCE
+from ergo.vision.contract import SOURCE as VISION_SOURCE, POSTURE_VALUES, manual_value
 
 PHOTO_POLICY=dict(version='PHOTO_OBSERVATIONS_V1',condition_prefix='photo:',front_boundary_deg=5)
+MEASURED_REBA_FIELDS=('trunk_base','neck_base','upper_arm_base','lower_arm_base','wrist_base','knee_band')
+
+
+def is_measured_candidate(item):
+    """A photo-owned numeric reading can feed the draft without another interview."""
+    if not item or item.get('source') not in ('POSE','MOVENET',VISION_SOURCE) or item.get('state') not in ('KNOWN','ESTIMATED') or item.get('value') is None or item.get('reask'):
+        return False
+    if item.get('source')==VISION_SOURCE:
+        proof=item.get('vision_proof') or {};field=proof.get('field');confidence=proof.get('confidence')
+        return (field in POSTURE_VALUES and proof.get('status')=='OBSERVED'
+            and item.get('condition')==condition(item.get('photo_id')) and item.get('photo_id') is not None
+            and item.get('target')==f"manual.{proof.get('scope')}.{field}"
+            and manual_value(proof.get('scope'),field,proof.get('value'))==item['value']
+            and type(confidence) in (int,float) and math.isfinite(confidence) and .5<=confidence<=1)
+    proof=item.get('photo_proof') or {}
+    return (proof.get('field') in MEASURED_REBA_FIELDS and proof.get('photo_id')==item.get('photo_id')
+        and item.get('target')==f"manual.{proof.get('scope')}.{proof.get('field')}"
+        and any(type(a.get('value_deg')) in (int,float) and math.isfinite(a['value_deg']) for a in proof.get('angles',[])))
 VIEW_LABELS={'LEFT':'왼쪽에서 찍은 사진','RIGHT':'오른쪽에서 찍은 사진','FRONT':'정면·후면 사진'}
 
 def condition(photo_id):return PHOTO_POLICY['condition_prefix']+str(photo_id)
@@ -97,14 +116,19 @@ def add(existing,preview,views):
         # A later reliable measurement can replace a visual fallback; uncertainty cannot erase it.
         measured_over_vision=bool(old and old['source']==VISION_SOURCE and measured.get('value') is not None
             and not measured.get('low_confidence') and not measured.get('boundary_review') and not measured.get('measurement_diagnostic'))
-        if target not in catalogue or old and not (old['state']=='UNKNOWN' and old['source'] in PHOTO_SOURCES or measured_over_vision):continue
-        if old and old.get('photo_proof')==measured:continue
+        upgraded_to_world=bool(old and old['source'] in PHOTO_SOURCES and measured.get('measurement_method')=='INFERRED_WORLD_3D'
+            and measured.get('value') is not None
+            and (old.get('photo_proof') or {}).get('measurement_method')!='INFERRED_WORLD_3D')
+        if target not in catalogue or old and not (old['state']=='UNKNOWN' and old['source'] in PHOTO_SOURCES or measured_over_vision or upgraded_to_world):continue
+        estimated=bool(measured.get('low_confidence') or measured.get('boundary_review') or measured.get('estimated'))
+        expected_state='ESTIMATED' if estimated else 'UNKNOWN' if measured.get('value') is None else 'KNOWN'
+        if old and old.get('photo_proof')==measured and old.get('value')==measured.get('value') and old.get('state')==expected_state and not old.get('reask'):continue
         data=preview.get('views',{}).get(measured['view'],{});source='POSE' if (data.get('engine') or {}).get('provider')=='mediapipe' else 'MOVENET'
         quote=' / '.join(str(angle['value_deg'])+'°' for angle in measured.get('angles',[]) if angle.get('value_deg') is not None)
         if not quote:quote=measured.get('measurement_reason') or ('사진에서 앉은 자세 감지' if measured.get('signal')=='seated' else '사진에서 이 자세를 확정하지 못했어요.')
         value=fact(catalogue[target],measured['value'],source,quote,condition(measured['photo_id']))
         value.update(photo_id=measured['photo_id'],view=measured['view'],photo_label=measured['photo_label'],angles=copy.deepcopy(measured.get('angles',[])),photo_proof=copy.deepcopy(measured))
-        if measured.get('low_confidence') or measured.get('boundary_review'):value['state']='ESTIMATED'
+        if estimated:value['state']='ESTIMATED'
         if measured.get('measurement_diagnostic'):value['measurement_diagnostic']=measured['measurement_diagnostic']
         elif measured['field']=='wrist_base' and measured.get('boundary_review'):value['measurement_diagnostic']='WRIST_BOUNDARY'
         if measured.get('measurement_reason'):value['measurement_reason']=measured['measurement_reason']
@@ -113,3 +137,31 @@ def add(existing,preview,views):
 
 def snapshot(preview,views):
     return dict(version=PHOTO_POLICY['version'],observations=observations(preview,views),views={str(owner):dict(photo_id=owner,view=view,photo_label=label(owner,views),engine=copy.deepcopy(preview.get('views',{}).get(view,{}).get('engine')),angles=copy.deepcopy(preview.get('views',{}).get(view,{}).get('angles',[])),world_angles=copy.deepcopy(preview.get('views',{}).get(view,{}).get('world_angles',[])),quality=copy.deepcopy(preview.get('views',{}).get(view,{}).get('quality')),signals=copy.deepcopy(preview.get('views',{}).get(view,{}).get('signals',{})),front=copy.deepcopy(preview.get('views',{}).get(view,{}).get('front',[]))) for view,owner in views.items()})
+def estimated_photo_inputs(snapshot,slot):
+    """Current, unambiguous photo estimates; never promote them to manual answers."""
+    from .contract import fields
+    session=((snapshot.get('conditions') or {}).get('intake_session') or {})
+    if snapshot.get('input_revision')!=session.get('projected_revision'):return []
+    assigned=[item for item in (snapshot.get('capture') or {}).get('slots',[]) if item.get('photo_id')==slot.get('photo_id')]
+    if len(assigned)!=1 or assigned[0].get('slot_no')!=slot.get('slot_no'):return []
+    catalogue={item['target']:item for item in fields() if item['destination']['type']=='manual'}
+    views=session.get('views') or {}
+    def owned(item):
+        owner=photo_id(item,views)
+        return owner==slot.get('photo_id') and item.get('photo_id',owner)==owner and item.get('photo_active') is not False
+    blocked={(item.get('scope'),item.get('field')) for item in snapshot.get('manual') or []
+             if item.get('slot_no')==slot.get('slot_no') and item.get('photo_id')==slot.get('photo_id') and item.get('value') not in (None,'UNKNOWN')}
+    for item in (session.get('facts') or {}).values():
+        definition=catalogue.get(item.get('target'))
+        if definition and not item.get('alias_of') and owned(item) and item.get('source') in ('USER','AI','SAVED') and item.get('state') in ('KNOWN','UNKNOWN','CONFLICT'):
+            destination=definition['destination'];blocked.add((destination['scope'],destination['field']))
+    grouped={}
+    for item in (session.get('facts') or {}).values():
+        definition=catalogue.get(item.get('target'))
+        if not definition or item.get('alias_of') or not owned(item) or item.get('state')!='ESTIMATED' or item.get('source') not in ('POSE','MOVENET','VISION') or item.get('reask'):continue
+        destination=definition['destination'];identity=(destination['scope'],destination['field'])
+        if identity in blocked or not any(type(choice['value']) is type(item.get('value')) and choice['value']==item.get('value') for choice in definition.get('choices') or []):continue
+        if not is_measured_candidate(item):continue
+        row=copy.deepcopy(item);row.update(scope=identity[0],field=identity[1],estimated=True)
+        grouped.setdefault(identity,[]).append(row)
+    return [items[0] for items in grouped.values() if len(items)==1]

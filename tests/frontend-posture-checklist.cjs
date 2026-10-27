@@ -109,7 +109,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal(answers.find(x => x.target === 'manual.COMMON.legs_support').value, 'BILATERAL_STABLE');
   assert.equal(answers.find(x => x.target === 'manual.RIGHT.shoulder_raised').value, 'NO');
   assert.match(a.note.textContent, /17개 항목을 채웠어요\. 저장하면 반영돼요/);
-  assert.equal(a.statuses[0].textContent, '모든 항목을 확인했어요. 저장하면 반영돼요.');
+  assert.equal(a.statuses[0].textContent, '입력·사진 분석값을 채웠어요. 결과 설명에서 수정할 수 있어요.');
   assert.equal(a.button('confirm').disabled, true, 'nothing left to confirm');
   assert.equal(a.boxes.filter(b => b.checked).length, 1, 'only the ticked box shows a tick');
   assert.equal(a.intake.formValue(angles()[0]), undefined, 'the angles the photo could not read are never filled by the checklist');
@@ -152,7 +152,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.match(b.html, /기존 설명과 다른 값이 있어 확인이 필요해요\./);
   assert.equal(b.statuses[0].textContent.startsWith('체크하지 않은 14개'), true);
   press(b.flow, b.button('confirm'));
-  assert.equal(b.intake.formValue(seated), undefined, 'the estimate is not replaced by "no"');
+  assert.equal(b.intake.formValue(seated), 'YES', 'the photo estimate is preserved for the draft and is not replaced by "no"');
   assert.equal(b.intake.formValue(shock), undefined, 'the conflict is not decided for the user');
   assert.equal(b.intake.formAnswers(1).filter(x => x.quote === CONFIRM).length, 14);
   edit(b.flow, seated.identity, 'NO');

@@ -3,6 +3,7 @@ import copy
 import math
 from .task_defaults import COMMON, ARM, AUXILIARY_CONDITION_KEYS, diagnostic
 from ergo.pose_contract import WRIST_POLICY, PHOTO_SOURCES
+from .angle_selection import selected_angle, WORLD_FOR_IMAGE
 
 TABLE_A = [[1,2,3,4,1,2,3,4,3,3,5,6],[2,3,4,5,3,4,5,6,4,5,6,7],[2,4,5,6,4,5,6,7,5,6,7,8],[3,5,6,7,5,6,7,8,6,7,8,9],[4,6,7,8,6,7,8,9,7,8,9,9]]
 TABLE_B = [[1,2,2,1,2,3],[1,2,3,2,3,4],[3,4,5,4,5,5],[4,5,5,5,6,7],[6,7,8,7,8,8],[7,8,8,8,9,9]]
@@ -29,12 +30,26 @@ def _conflicting_load(observation):
             state in ('UNLOADED','UNKNOWN') and value is not None or
             state=='MEASURED' and (not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value) or value<0))
 
+def _photo_measurements_refused(snapshot,slot):
+    saved=((snapshot.get('conditions') or {}).get(AUXILIARY_CONDITION_KEYS[0]) or {}).get('facts') or {}
+    context=saved.get('context@default') or {}
+    return (context.get('state')=='KNOWN' and context.get('value')=='NO'
+        or context.get('state')=='UNKNOWN' and context.get('source')=='USER'
+        or any((slot.get('observation') or {}).get(field)=='NO' for field in ('single_person','full_frame','normal_work')))
+
+
+def _measurement(row,value_key='value'):
+    return dict(scope=row['scope'],field=row['field'],value=row.get(value_key),
+        **{key:copy.deepcopy(row[key]) for key in ('angles','estimated','measurement_method','source','vision_proof','vision_confidence') if key in row})
+
+
 def _saved_photo_measurements(snapshot, slot):
     """Return only this target photo's persisted REBA posture observations."""
     session = ((snapshot.get('conditions') or {}).get(AUXILIARY_CONDITION_KEYS[0]) or {})
     observations = ((session.get('photo_observations') or {}).get('observations') or [])
     result = []
     seen = set()
+    if _photo_measurements_refused(snapshot,slot):return result
     for item in observations:
         scope, field, value = item.get('scope'), item.get('field'), item.get('value')
         key = (scope, field)
@@ -42,7 +57,13 @@ def _saved_photo_measurements(snapshot, slot):
             continue
         if value in (None, 'UNKNOWN') or key in seen:
             continue
-        result.append(dict(scope=scope, field=field, value=value))
+        result.append(_measurement(item))
+        seen.add(key)
+    from ergo.intake.photo_facts import estimated_photo_inputs
+    for item in estimated_photo_inputs(snapshot,slot):
+        key=(item['scope'],item['field'])
+        if item.get('source')!='VISION' or key in seen:continue
+        result.append(_measurement(dict(item,measurement_method=item.get('measurement_method') or 'AI_PHOTO_CATEGORY')))
         seen.add(key)
     return result
 
@@ -53,9 +74,13 @@ def _merge_photo_measurements(saved, candidates_for_slot):
     for item in candidates_for_slot:
         scope, field, value = item.get('scope'), item.get('field'), item.get('proposed_value')
         key = (scope, field)
-        if scope in ('COMMON', 'LEFT', 'RIGHT') and field in COMMON + ARM and value not in (None, 'UNKNOWN') and key not in seen:
-            result.append(dict(scope=scope, field=field, value=value))
-            seen.add(key)
+        if scope in ('COMMON', 'LEFT', 'RIGHT') and field in COMMON + ARM and value not in (None, 'UNKNOWN'):
+            if key in seen and any(a.get('coordinate_space')=='INFERRED_WORLD_3D' for a in item.get('angles',[])):
+                result=[row for row in result if (row['scope'],row['field'])!=key]
+                seen.discard(key)
+            if key not in seen:
+                result.append(_measurement(item,'proposed_value'))
+                seen.add(key)
     return result
 
 def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, require_anchor=True):
@@ -64,20 +89,23 @@ def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, 
     shortcut: arm support and sitting are assumed NO although YES scores lower, so this is not a strict minimum; upgrade if a lower bound is ever promised.
     """
     borrowed = []
+    measurement_refs=[]
     saved = ((snapshot.get('conditions') or {}).get(AUXILIARY_CONDITION_KEYS[0]) or {}).get('facts') or {}
     confirmation = saved.get('context@default') or {}
     # While the photo confirmation is unanswered, readings the task does not project yet are borrowed and named. They were already filtered by view and confidence.
-    if not (confirmation.get('state') == 'KNOWN' or confirmation.get('state') == 'UNKNOWN' and confirmation.get('source') == 'USER'):
+    photo_refused=_photo_measurements_refused(snapshot,slot)
+    if not photo_refused and not (confirmation.get('state') == 'KNOWN' or confirmation.get('state') == 'UNKNOWN' and confirmation.get('source') == 'USER'):
         for item in saved.values():
             parts = item.get('target', '').split('.')
             if (len(parts) == 3 and parts[0] == 'manual' and item.get('source') in PHOTO_SOURCES and item.get('state') == 'KNOWN' and not item.get('alias_of')
                     and item.get('photo_id') == slot['photo_id'] and item.get('value') is not None and current.get((parts[1], parts[2])) in (None, 'UNKNOWN')):
                 current = {**current, (parts[1], parts[2]): item['value']}
                 borrowed.append(f'{parts[1].lower()}.{parts[2]}')
+                proof=item.get('photo_proof') or {}
+                measurement_refs.append(_measurement(dict(proof,scope=parts[1],field=parts[2],value=item['value'],angles=item.get('angles') or proof.get('angles',[]))))
     # A confirmed or still-reviewable observation from this exact photo can
     # complete the preliminary score. It never replaces a saved answer.
     context = saved.get('context@default') or {}
-    photo_refused = context.get('state') == 'KNOWN' and context.get('value') == 'NO' or context.get('state') == 'UNKNOWN' and context.get('source') == 'USER'
     measured_paths = []
     if not photo_refused:
         for item in photo_measurements or ():
@@ -87,6 +115,7 @@ def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, 
             if current.get((scope, field)) in (None, 'UNKNOWN'):
                 current = {**current, (scope, field): value}
                 measured_paths.append(f'{scope.lower()}.{field}')
+                measurement_refs.append(_measurement(item))
     known = lambda scope, field: current.get((scope, field)) not in (None, 'UNKNOWN')
     if require_anchor and not (known('COMMON', 'trunk_base') and (known('LEFT', 'upper_arm_base') or known('RIGHT', 'upper_arm_base'))):
         return None
@@ -126,6 +155,7 @@ def score_so_far(snapshot, slot, current, open_paths, photo_measurements=(), *, 
     so_far = dict(total=result['total'], risk=result['risk'], selected_side=result['selected_side'], left=result['left']['total'],
                   right=result['right']['total'], assumed=sorted(set(assumed)), assumption=note)
     if borrowed: so_far['unconfirmed_photo'] = sorted(borrowed)
+    if measurement_refs:so_far['measurement_refs']=measurement_refs
     if measured_paths:
         so_far['photo_measurements'] = sorted(set(measured_paths))
         so_far['assumption'] += ' 같은 사진의 측정 후보를 반영했으며 사람이 확인한 값과 구분해야 합니다.'
@@ -138,12 +168,15 @@ def candidates(slot, pose, camera_side, confidence_min=0.5):
         slot.get('side_view_verified')=='YES' and observation.get('single_person')=='YES' and
         observation.get('full_frame')=='YES' and observation.get('normal_work')=='YES')
     specs = [('COMMON','trunk_base',[camera_side],'TRUNK_TILT_VERT'),('COMMON','knee_band',['LEFT','RIGHT'],'KNEE_FLEX')]
+    if any(a['angle_code']=='NECK_FLEX_TRUNK_PROXY' for a in angles):
+        specs.append(('COMMON','neck_base',[camera_side],'NECK_FLEX_TRUNK_PROXY'))
     specs += [(side,field,[side],code) for side in ['LEFT','RIGHT'] for field,code in [('upper_arm_base','UPPER_ARM_FLEX_TRUNK'),('lower_arm_base','ELBOW_FLEX')]]
     if any(a['angle_code']==WRIST_POLICY['angle_code'] for a in angles):
         specs += [(side,'wrist_base',[side],WRIST_POLICY['angle_code']) for side in ['LEFT','RIGHT']]
     result=[]
     for scope,field,sides,code in specs:
-        refs=[a for a in angles if a['side'] in sides and a['angle_code']==code]
+        refs=([a for side in sides if (a:=selected_angle(pose,side,code,confidence_min)) is not None] if code in WORLD_FOR_IMAGE
+            else [a for a in angles if a['side'] in sides and a['angle_code']==code])
         usable=context_ok and len(refs)==len(sides) and all(a['value_deg'] is not None and (a['min_confidence'] or 0)>=confidence_min for a in refs)
         if field=='wrist_base':
             usable=usable and all(a.get('measurement',{}).get('coordinate_space')=='ORIGINAL_IMAGE_2D' and
@@ -153,6 +186,7 @@ def candidates(slot, pose, camera_side, confidence_min=0.5):
         if usable:
             angle=max(a['value_deg'] for a in refs)
             if field=='trunk_base': value=1 if angle==0 else 2 if -20<=angle<=20 else 3 if angle<=60 else 4; bounds=[-20,0,20,60]
+            elif field=='neck_base': value='2_EXTENSION' if angle<0 else 1 if angle<=20 else 2; bounds=[0,20]
             elif field=='upper_arm_base': value=1 if -20<=angle<=20 else 2 if angle< -20 or angle<=45 else 3 if angle<=90 else 4; bounds=[-20,20,45,90]
             elif field=='lower_arm_base': value=1 if 60<=angle<=100 else 2; bounds=[60,100]
             elif field=='wrist_base': value=1 if angle<=WRIST_POLICY['category_boundary_deg'] else 2; bounds=[WRIST_POLICY['category_boundary_deg']]
@@ -162,7 +196,9 @@ def candidates(slot, pose, camera_side, confidence_min=0.5):
         if not context_ok: note=diagnostic('CAPTURE_CONTEXT_UNCONFIRMED','측면·전방·단일 작업자·전신·통상 작업 확인이 필요합니다','capture.observation')
         elif not usable: note=diagnostic('MISSING_ANGLE','후보에 필요한 관절·각도가 없습니다')
         else: note=None
-        result.append(dict(slot_no=slot['slot_no'],photo_id=slot['photo_id'],scope=scope,field=field,proposed_value=value,angles=refs,min_confidence=min(a['min_confidence'] for a in refs) if usable else None,review_reasons=reasons,diagnostics=[note] if note else []))
+        result.append(dict(slot_no=slot['slot_no'],photo_id=slot['photo_id'],scope=scope,field=field,proposed_value=value,angles=refs,min_confidence=min(a['min_confidence'] for a in refs) if usable else None,review_reasons=reasons,diagnostics=[note] if note else [],
+            **(dict(estimated=True,measurement_method='NECK_FLEX_TRUNK_PROXY') if field=='neck_base' else
+               dict(estimated=True,measurement_method='INFERRED_WORLD_3D') if any(a.get('coordinate_space')=='INFERRED_WORLD_3D' for a in refs) else {})))
     return result
 
 def calculate_reba(snapshot, pose, with_score_so_far=True, *, _coupling_with_assumed_load=False):
@@ -236,7 +272,7 @@ def calculate_reba(snapshot, pose, with_score_so_far=True, *, _coupling_with_ass
         complete=all(sides[s]['total'] is not None for s in ['left','right'])
         chosen=('LEFT' if sides['left']['total']>=sides['right']['total'] else 'RIGHT') if complete else None
         total=sides[chosen.lower()]['total'] if chosen else None
-        ps=next((p for p in (pose or {}).get('slots',[]) if p['slot_no']==number),None)
+        ps=next((p for p in (pose or {}).get('slots',[]) if p['slot_no']==number and p.get('photo_id')==slot['photo_id']),None)
         camera=slot.get('camera_side'); confidence=(snapshot.get('settings') or {}).get('pose_model',{}).get('confidence_min',0.5)
         candidate_rows=candidates(slot,ps,camera,confidence)
         entry=dict(slot_no=number,photo_id=slot['photo_id'],candidates=candidate_rows,load_state=obs.get('load_state','UNKNOWN'),effective_load_kg=load,status='COMPLETE' if complete else 'INCOMPLETE',**sides,selected_side=chosen,total=total,risk=risk(total) if total is not None else None,missing_fields=sorted(set(sides['left']['missing_fields']+sides['right']['missing_fields'])))
@@ -303,9 +339,9 @@ def _manual_for_slot(snapshot, slot):
 def _photo_baseline(snapshot, slot, reba_slot):
     """Reconstruct a same-photo baseline from immutable intake observations/candidates."""
     from . import quick_assess
-    measurements=_saved_photo_measurements(snapshot,slot)
-    if not measurements:
-        measurements=_merge_photo_measurements([],reba_slot.get('candidates') or [])
+    if _photo_measurements_refused(snapshot,slot):return None
+    measurements=_merge_photo_measurements(_saved_photo_measurements(snapshot,slot),reba_slot.get('candidates') or [])
+    measurements=[item for item in measurements if item['field']!='coupling']
     view=_saved_photo_view(snapshot,slot.get('photo_id'))
     front=copy.deepcopy(view.get('front') or [])
     if not front:
@@ -355,7 +391,8 @@ def _slot_current_candidate(snapshot, slot, reba_slot, photo_measurements):
     if kind=='ASSUMED_REFERENCE' and not has_manual and not has_photo and not has_load_answer:
         answer=assumed_reference_score(slot['slot_no'],slot['photo_id'])
     return dict(total=answer['total'],risk=answer['risk'],kind=kind,source=source,slot_no=slot['slot_no'],
-                assumed=answer.get('assumed') or [],assumption=answer.get('assumption') or '')
+                assumed=answer.get('assumed') or [],assumption=answer.get('assumption') or '',
+                **(dict(measurement_refs=copy.deepcopy(answer['measurement_refs'])) if answer.get('measurement_refs') else {}))
 
 
 def _valid_score(value):

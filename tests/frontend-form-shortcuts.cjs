@@ -53,7 +53,7 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
 
   // 1. What the section shows: a titled box with only the copy buttons that apply; one with nothing to copy yet is dimmed and says why.
   const a = await open();
-  const section = a.html.match(/<details class="intake-form-section" data-intake-section="angles" data-intake-photo-optional open>[\s\S]*?<\/details>/)[0];
+  const section = a.html.match(/<details class="intake-form-section" data-intake-section="angles" data-intake-photo-optional>[\s\S]*?<\/details>/)[0];
   assert.match(section, /<strong>한 번에 채우기<\/strong>/);
   assert.match(section, /왼쪽 팔·손목은 오른쪽과 같아요/);
   assert.match(section, /오른쪽 팔·손목은 왼쪽과 같아요/);
@@ -91,17 +91,18 @@ const url = name => pathToFileURL(path.join(__dirname, '../frontend', name)).hre
   assert.equal(a.intake.formValue(leftWrist), 2, 'a saved right value is copied');
   assert.equal(quoteOf(a.intake, leftWrist.identity), MIRROR_QUOTE);
   assert.equal(a.intake.formValue(leftLower), 2, 'a typed right value is copied');
-  assert.equal(a.intake.formValue(leftUpper), undefined, 'an estimated photo reading is not an answer to copy');
+  assert.equal(a.intake.formValue(leftUpper), 2, 'the user may explicitly copy the available estimated reading');
+  assert.equal(quoteOf(a.intake,leftUpper.identity),MIRROR_QUOTE,'copying still records the explicit human action');
   assert.equal(a.intake.formValue(rightLower), 2, 'the right side itself was not touched');
   assert.equal(quoteOf(a.intake, rightLower.identity), undefined);
-  assert.match(a.note.textContent, /2개 항목을 채웠어요\. 저장하면 반영돼요/, 'the message is shown inside the dialog');
+  assert.match(a.note.textContent, /3개 항목을 채웠어요\. 저장하면 반영돼요/, 'the message is shown inside the dialog');
   assert.equal(a.note.hidden, false);
   assert.equal(a.intake.fillNote, a.note.textContent);
   assert.equal(a.controls.find(c => c.dataset.intakeForm === leftWrist.identity).value, '2', 'the visible box follows the fill');
   // A box that carries a photo estimate is the user's decision: neither side fills it.
   edit(a.flow, leftUpper.identity, '1');
   press(a.flow, a.button('mirror', {fillSide: 'RIGHT'}));
-  assert.equal(a.intake.formValue(rightUpper), undefined, 'the estimate on the right upper arm is not replaced by a copy');
+  assert.equal(a.intake.formValue(rightUpper), 2, 'an existing photo estimate is preserved and is not replaced by a copy');
   edit(a.flow, leftUpper.identity, '');
   // 5. Changing a filled box makes it the user's own answer again.
   edit(a.flow, leftWrist.identity, '1');
