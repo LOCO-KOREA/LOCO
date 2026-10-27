@@ -9,7 +9,7 @@ from uuid import uuid4
 from pathlib import Path
 from ergo.intake import contract, facts, planner
 from ergo.intake import history as receipts
-from ergo.intake import source_coverage, photo_facts
+from ergo.intake import source_coverage, photo_facts, input_links
 from ergo.gpt import client
 from ergo import ai_config
 from ergo import pose_contract
@@ -107,6 +107,7 @@ def _save(ctx, task, session, preview):
         if current['input_revision']!=task['input_revision'] or current['created_at']!=task['created_at']: return current,False
         photo_vision.apply_context(session)
         session['facts']=photo_facts.bind_aliases(session['facts'],session['views'])
+        session['facts']=input_links.synchronize(session)
         projected=facts.project(current,session['facts'],session['views'],preview)
         session['applied']={k:f['value'] for k,f in facts.read_values(projected).items()}
         projected['conditions'][contract.SESSION_KEY]=copy.deepcopy(session)
@@ -202,7 +203,7 @@ def handle_intake_turn(ctx,method,p):
     if text and contract.key('task_name') not in session['facts'] and task['task_name'] in ('','사진 분석 작업'):
         title=facts.initial_title(text)
         if title: session['facts'][contract.key('task_name')]=facts.fact(by_target['task_name'],title,'SAVED',title)
-    message=dict(message_id=uuid4().hex,text=text,answers=p.get('answers',[])) if text or p.get('answers') else None
+    message=dict(message_id=uuid4().hex,text=text,answers=p.get('answers',[]),source_photo_scope=source_coverage.photo_scope(session,preview)) if text or p.get('answers') else None
     if message:session['messages'].append(message)
     turn=receipts.begin(session,message,task,p.get('answers',[]),focus)
     if stale_client:turn['rebased_from_revision']=p.get('expected_revision')
@@ -290,6 +291,7 @@ def handle_intake_turn(ctx,method,p):
         receipts.record_decisions(session,turn,outcomes)
         session['suggestions']=raw.get('questions',[])
     if not reconciled:session['last_dropped']=dropped
+    session['facts']=input_links.synchronize(session)
     projected=facts.project(task,session['facts'],session['views'],preview)
     assessment=planner.assess(projected,session['facts'],session['views'])
     admissible={q['identity'] for q in assessment['candidates']}
@@ -328,6 +330,7 @@ def handle_intake_turn(ctx,method,p):
             receipts.record_decisions(session,turn,outcomes,len(turn['requests'])-1)
             dropped.extend(additional);session['last_dropped']=dropped
             session['suggestions']=followup.get('questions',[])
+            session['facts']=input_links.synchronize(session)
             projected=facts.project(task,session['facts'],session['views'],preview)
             assessment=planner.assess(projected,session['facts'],session['views'])
     session['suggestions']=[dict(target=q['target'],condition=q['condition'],text=q['text'],reason=q['reason']) for q in planner.choose(assessment['candidates'],session.get('suggestions',[]))]

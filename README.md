@@ -251,6 +251,8 @@ GPT를 사용할 때는 실행 환경의 `OPENAI_API_KEY`와 설정 화면의 �
 
 `dist/LOCO-2.0-windows-x64-<빌드시각>` 폴더 전체를 유지하고 `LOCO.exe`를 실행한다. Electron·고정 Python 서비스·공식 모델이 포함된다. 패키지에는 사용자 DB·사진·키를 복사하지 않는다. `실행안내.txt`와 `build-manifest.json`에 기본 DB·소스 커밋·미커밋 여부·실행 소스 해시·모델 해시를 기록한다. 빌드 경로는 `.local/latest-package.txt`에도 남는다.
 
+빌드 중간 파일과 패키지 폴더를 다른 디스크에 만들려면 `LOCO_BUILD_WORK_ROOT`와 `LOCO_BUILD_OUTPUT_ROOT`를 지정한다. 생략하면 기존 `build/`와 `dist/` 경로를 사용한다. 앱의 DB 위치는 이 빌드 경로와 독립적이다.
+
 ### 검증
 
 ```powershell

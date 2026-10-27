@@ -277,6 +277,10 @@ Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모
 
 provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_ids 원문은 보존하지 않고 GPT에 보내지 않는다. ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교하고, 해당 분석이 최신 작업 입력·최신 계산 결과인지 확인해 source_current를 반환한다. 입력 또는 계산이 바뀐 과거 분석에는 source_current=false를 반환하고 REBA 차이를 계산하지 않으며, 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
+같은 작업 입력 연결(2026-10-27): fact의 선택 `origin='INPUT_LINK'`와 `input_link={rule,source_identity,source_condition,source_value,source_updated_at,source_message_id,photo_signature,photo_ids,relation_quote}`는 원문/직접 입력의 중량을 현재 사진 하중으로 연결한 근거다. 별도 사용자 답변을 만들지 않으며 동일 입력 재조회는 revision을 늘리지 않는다. 명시적 사진 중량·모름·무하중·비연결, 서로 다른 조건 및 사진별 직접 관찰값이 우선한다. 원본/사진 범위 변경 시 해당 파생값만 갱신하며 과거 분석 snapshot은 바꾸지 않는다. 새 메시지의 `source_photo_scope`와 기존 요청 수령증의 같은 필드로 원문과 사진 소유 범위를 대조한다.
+
+`NumericSummary.posture_results[*]`는 사진별 `current_score?:{total,risk,kind,source,assumed_count,load_assumed?}`와 `recorded_inputs:[{scope,field,value,source}]`를 포함한다. 후자는 같은 사진의 유효한 저장 REBA 항목만이며 원문·이름·경로·내부 ID는 포함하지 않는다. 확정 구성 점수가 null이어도 저장 입력이 사라진 것은 아니다. AI는 엔진 현재 점수와 저장 입력을 설명하며 점수를 다시 계산하지 않는다.
+
 ## 7. 서비스 호출
 
 반환은 Result<T>다. type LegacyAnalysisV13은 §10의 고정 이전 계약에서 가져오는 외부 별칭이며 아래 타입 예시와 함께 해석한다. 현재 코드에 같은 메서드명이 있어도 2.0 계약이 구현됐다는 뜻은 아니다.

@@ -142,9 +142,10 @@ class ReportedWeight(unittest.TestCase):
         self.photo_session(sides=('LEFT',))
         state=self.turn([answer('context','YES'),answer('load','MEASURED'),answer('manual.LEFT.coupling','UNACCEPTABLE')],
             text='20kg 상자를 옮겨요.',raw=dict(answers=[model('card.lift.load_mass_kg',number=20,quote='20kg 상자',condition='상자')],questions=[]))
-        self.assertIsNone(state['task']['capture']['slots'][0]['observation']['measured_load_kg'])
-        self.assertIn('load_link',{q['target'] for q in state['form_fields']},'a usable explicit connection must remain available')
-        linked=self.turn([answer('load_link','YES')],plan=False)
+        self.assertEqual(state['task']['capture']['slots'][0]['observation']['measured_load_kg'],20)
+        self.assertNotIn('load_link',{q['target'] for q in state['questions']},'the stated same-work mass must not require a second answer')
+        self.assertNotIn(contract.key('load_link'),state['task']['conditions'][contract.SESSION_KEY]['facts'],'automatic propagation must not fabricate a user confirmation')
+        linked=state
         observation=linked['task']['capture']['slots'][0]['observation']
         self.assertEqual((observation['load_state'],observation['measured_load_kg']),('MEASURED',20))
         manual=next(row for row in linked['task']['manual'] if row['scope']=='LEFT' and row['field']=='coupling')
@@ -153,9 +154,10 @@ class ReportedWeight(unittest.TestCase):
         restored=self.get()
         self.assertEqual(restored['task']['input_revision'],revision)
         self.assertEqual(restored['task']['capture']['slots'][0]['observation']['measured_load_kg'],20)
-        self.assertFalse({'load','load_kg'} & {q['target'] for q in restored['form_fields']})
+        self.assertFalse({'load','load_kg'} & {q['target'] for q in restored['questions']})
         session=restored['task']['conditions'][contract.SESSION_KEY]
-        self.assertNotIn('load_link',{q['target'] for q in planner.assess(restored['task'],session['facts'],session['views'])['candidates']})
+        self.assertFalse({'load','load_kg','load_link'} & {q['target'] for q in planner.assess(restored['task'],session['facts'],session['views'])['candidates']})
+        self.assertEqual(session['facts'][contract.key('load_kg')]['value'],20,'the known correction field must retain the linked weight')
 
     def test_ai_weight_confirmed_for_photo_is_not_asked_again_and_reads_stay_stable(self):
         self.photo_session()

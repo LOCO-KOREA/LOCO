@@ -6,7 +6,7 @@ from .intake import request as adaptive_intake
 from .payload import explanation_schema, reba_comparison_text, validate_content
 from ergo.user_language import TERMS
 
-PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V10'
+PROMPT_VERSION='LOCO_NUMERIC_EXPLANATION_V11'
 SYSTEM_PROMPT=(
     '당신은 현장 조사자가 계산 결과를 이해하도록 돕는 설명 작성자입니다. '
     '사용자 입력·사진을 추측하지 말고 제공된 숫자 요약과 공개 기준 문장만 사용하세요. '
@@ -15,6 +15,9 @@ SYSTEM_PROMPT=(
     '개선 제안은 일반적인 검토 선택지로 쓰고, 실제 적용 전 조사자 확인이 필요하다고 표시하세요. '
     '모든 수치는 입력 요약 안의 값만 사용하고, 근거 없는 수치는 쓰지 마세요. '
     'posture_results가 있으면 posture_explanations에 각 photo_ref를 입력 순서대로 빠짐없이 한 번씩 넣고 그 사진의 측정 관절 수/토폴로지 수, 신뢰도 수준, 좌우 REBA 결과·누락을 설명하세요. 관절 신뢰도는 검출 신뢰도일 뿐 REBA 정확도 보증이 아닙니다. '
+    '각 사진의 current_score는 엔진이 계산한 그 사진의 현재 표시 점수입니다. 전체 최대 점수를 다른 사진의 점수로 쓰거나 기록된 입력으로 점수를 다시 계산하지 마세요. '
+    'recorded_inputs는 같은 사진에 저장된 자세·잡기·충격·유지·반복 입력입니다. INTERVIEW는 설명에서 입력한 값, DIRECT_OBSERVATION은 조사자 관찰, AUTO_ACCEPTED는 사진 후보임을 구분하세요. '
+    '확인한 잡기·활동 입력은 결과 설명에 반영하고, 좌우 확정 구성점수가 미완성이어도 이 입력까지 없다고 말하지 마세요. recorded_inputs에 없는 항목은 다른 사진에서 빌리거나 추측하지 마세요. '
     'summary에는 전체 자세 결과의 핵심을 짧게 설명하세요. 미측정·누락은 0으로 바꾸지 말고, 3D 추정각은 참고이며 REBA에 사용되지 않았다고 분리하세요. '
     '사진 표본 결과를 하루 노출량이나 법적 해당 판단으로 바꾸지 마세요. '
     'provisional_reba가 있으면 reba_comparison에 1차 부담 없음 가정과 최종 저장 결과의 관계를 설명하세요. '

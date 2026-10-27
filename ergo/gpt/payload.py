@@ -3,6 +3,7 @@ import hashlib
 import math
 import re
 from ergo.engine.reba_scoring import project_score_continuity, project_current_score
+from ergo.engine.task_defaults import ARM, COMMON
 
 PUBLIC_RULE_TEXT=[
  '1호: 집중 자료입력 키보드·마우스 조작이 하루 240분 이상인지 확인한다.',
@@ -93,6 +94,56 @@ def _provisional_reba_summary(analysis, normalized, targets, analysis_currentnes
         score_delta=(final_total-normalized['total']) if comparable else None)
 
 
+def _current_score_summary(current):
+    """Public explanation fields only; score selection stays in the rule engine."""
+    if not isinstance(current,dict) or type(current.get('total')) is not int or not 1<=current['total']<=15:
+        return None
+    if current.get('risk')!=_reba_risk(current['total']) or current.get('kind') not in ('CONFIRMED','WITH_ASSUMPTIONS','ASSUMED_REFERENCE'):
+        return None
+    source=current.get('source')
+    if source not in ('COMPLETE','ANSWERS_SO_FAR','FIRST_PASS','ASSUMED_REFERENCE'):
+        source=None
+    result=dict(total=current['total'],risk=current['risk'],kind=current['kind'],source=source,
+                assumed_count=len(current.get('assumed') or []))
+    if any(path in (current.get('assumed') or []) for path in ('observation.load_state','observation.measured_load_kg')):
+        result['load_assumed']=True
+    return result
+
+
+def _recorded_photo_inputs(snapshot,slot):
+    """Expose this photo's valid stored REBA inputs, never prose or owner IDs."""
+    by_field={}
+    for item in snapshot.get('manual') or []:
+        if not isinstance(item,dict) or item.get('slot_no')!=slot.get('slot_no') or item.get('photo_id')!=slot.get('photo_id'):
+            continue
+        scope,field,value=item.get('scope'),item.get('field'),item.get('value')
+        if not isinstance(scope,str) or not isinstance(field,str) or scope not in ('COMMON','LEFT','RIGHT'):
+            continue
+        if field not in (COMMON if scope=='COMMON' else ARM):
+            continue
+        by_field.setdefault((scope,field),[]).append(item)
+    output=[]
+    numeric_limits=dict(trunk_base=4,neck_base=2,upper_arm_base=4,lower_arm_base=2,wrist_base=2)
+    options=dict(legs_support=('BILATERAL_STABLE','UNILATERAL_OR_UNSTABLE'),
+                 knee_band=('UNDER_30','FROM_30_TO_60','OVER_60'),
+                 coupling=('GOOD','FAIR','POOR','UNACCEPTABLE','NOT_APPLICABLE'))
+    for (scope,field),items in by_field.items():
+        value=items[0].get('value')
+        if any(type(other.get('value')) is not type(value) or other.get('value')!=value for other in items[1:]):
+            continue
+        if field in numeric_limits:
+            valid=field=='neck_base' and value=='2_EXTENSION' or type(value) is int and 1<=value<=numeric_limits[field]
+        else:
+            valid=isinstance(value,str) and value in options.get(field,('YES','NO'))
+        if not valid:
+            continue
+        source=items[0].get('source')
+        if source not in ('INTERVIEW','DIRECT_OBSERVATION','AUTO_ACCEPTED') or any(other.get('source')!=source for other in items[1:]):
+            source=None
+        output.append(dict(scope=scope,field=field,value=value,source=source))
+    return output
+
+
 def _posture_results(analysis,targets):
     pose=analysis.get('pose') or {};reba=analysis.get('reba') or {}
     pose_by_slot={item.get('slot_no'):item for item in pose.get('slots') or []}
@@ -125,6 +176,8 @@ def _posture_results(analysis,targets):
             model=dict(name=engine.get('name') or engine.get('model_id'),version=engine.get('version'),provider=engine.get('provider')) if engine else None,
             landmark_count=len(p.get('points') or []),measurement_quality={key:quality_by_slot.get(number,{}).get(key) for key in ('measured_points','total_points','mean_confidence','confidence_level')},angles=angles,inferred_world_angles=world_angles,
             reba_status=r.get('status'),effective_load_kg=_safe_number(r.get('effective_load_kg')),selected_side=r.get('selected_side'),
+            current_score=_current_score_summary(r.get('current_score')),
+            recorded_inputs=_recorded_photo_inputs(analysis.get('snapshot') or {},slot),
             total=_safe_number(r.get('total')),risk=r.get('risk'),left=sides['left'],right=sides['right'],missing_fields=r.get('missing_fields') or [],
             candidates=candidates))
     return output
@@ -133,12 +186,9 @@ def _posture_results(analysis,targets):
 def _reba_overview(reba):
     summary=reba.get('summary') or {}
     overview=dict(complete_count=summary.get('complete_count'),available_max=summary.get('available_max'),full_max=summary.get('full_max'))
-    current=project_current_score(reba)
-    if isinstance(current,dict) and type(current.get('total')) is int and 1<=current['total']<=15 and current.get('risk')==_reba_risk(current['total']):
-        overview['current_score']=dict(total=current['total'],risk=current['risk'],kind=current.get('kind'),source=current.get('source'),
-            assumed_count=len(current.get('assumed') or []))
-        if any(path in (current.get('assumed') or []) for path in ('observation.load_state','observation.measured_load_kg')):
-            overview['current_score']['load_assumed']=True
+    current=_current_score_summary(project_current_score(reba))
+    if current:
+        overview['current_score']=current
     first=summary.get('first_pass')
     if isinstance(first,dict) and type(first.get('total')) is int and 1<=first['total']<=15 and first.get('risk')==_reba_risk(first['total']):
         overview['first_pass']=dict(total=first['total'],risk=first['risk'],assumed_count=len(first.get('assumed') or []))
