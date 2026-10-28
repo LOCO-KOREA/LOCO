@@ -12,6 +12,9 @@ docs_src/.work/
 *.db
 *.db-wal
 *.db-shm
+loco.env
+.env
+.env.local
 ergo_assist_backup_*.db
 
 
