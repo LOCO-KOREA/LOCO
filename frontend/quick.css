@@ -127,13 +127,17 @@ body.quick-mode #photo-workspace, body.quick-mode #analysis-workspace, body.quic
 .quick-source-badge { background: #eef0ff; color: var(--color-primary); }
 .quick-source-badge.investigator { background: #e9f7ef; color: #236b43; }
 .quick-source-state { background: #f1f2f5; color: var(--color-secondary); }
+.quick-choices + .quick-source-state { margin-top: 13px; }
 .quick-explanation-meta .quick-note { margin: 0; font-size: 12px; }
 .quick-result-explanation .quick-nav.left { margin-top: 14px; }
 .quick-intake-example { margin-top: 8px; }
 .quick-intake-example summary { cursor: pointer; color: var(--color-primary); font-size: 13px; }
 .quick-review-technical { margin: 12px 0; padding: 12px 0; border-top: 1px solid var(--color-line); }
 .quick-table td { padding: 8px; border-bottom: 1px solid var(--color-line); }
-.quick-status { padding: 3px 10px; border-radius: 999px; font-size: 13px; background: var(--color-surface-soft); }
+.quick-criteria-table th:first-child, .quick-criteria-table td:first-child { width: 1%; white-space: nowrap; }
+.quick-criteria-table td:first-child small { display: block; }
+.quick-criteria-table td:nth-child(2) { min-width: 90px; }
+.quick-status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; background: var(--color-surface-soft); white-space: nowrap; }
 .quick-status.APPLICABLE { background: #fde8e8; color: #a12828; }
 .quick-status.NOT_APPLICABLE { background: var(--color-success-soft); color: var(--color-success); }
 .quick-status.NEEDS_INPUT, .quick-status.NEEDS_REVIEW { background: #fff3ea; color: #a5461a; }
