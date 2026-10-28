@@ -14,8 +14,8 @@ import threading
 
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from openpyxl import load_workbook
-from ergo.service.application import create_service
-from ergo.intake import contract,planner,photo_facts
+from backend.service.application import create_service
+from backend.intake import contract,planner,photo_facts
 
 def write(path,value):path.write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
 def rows(path,table):

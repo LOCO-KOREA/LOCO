@@ -11,11 +11,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from PIL import Image
-from ergo import ai_config
-from ergo.intake import contract as intake_contract, facts
-from ergo.service.application import create_service
-from ergo.service import photo_vision
-from ergo.vision import client,contract,images
+from backend import ai_config
+from backend.intake import contract as intake_contract, facts
+from backend.service.application import create_service
+from backend.service import photo_vision
+from backend.vision import client,contract,images
 from tests import test_adaptive_intake as fixtures
 
 def response():
@@ -79,7 +79,7 @@ class PhotoVision(unittest.TestCase):
         def text(payload,*args):
             payloads.append(payload)
             return dict(answers=[dict(target='context',condition='default',number=None,text='YES',quote='사진은 한 사람의 전신이 나온 평소 작업 모습입니다.')],questions=[]),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',side_effect=text):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',side_effect=text):
             first=self.turn('사진은 한 사람의 전신이 나온 평소 작업 모습입니다.')
             self.assertEqual(len(calls),1)
             record=first['photo_vision']['photos'][0]
@@ -106,7 +106,7 @@ class PhotoVision(unittest.TestCase):
         raw['work_candidates'] += [dict(target='work_type.lift',observation='holding',value='YES',status='OBSERVED',confidence=.99,evidence=raw['observations']['holding']['evidence']),
             dict(target='work_type.knee',observation='knees',value='NO',status='OBSERVED',confidence=.99,evidence=raw['observations']['knees']['evidence']),
             dict(target='work_type.keyboard',observation='activity',value='YES',status='OBSERVED',confidence=float('inf'),evidence=raw['observations']['activity']['evidence'])]
-        with patch('ergo.vision.client.observe',return_value=(raw,None)),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',return_value=(raw,None)),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             state=self.turn()
         accepted={item['target'] for item in state['facts'] if item['source']=='VISION'}
         self.assertEqual(accepted,{'manual.COMMON.trunk_twisted','work_type.trunk_neck'})
@@ -130,7 +130,7 @@ class PhotoVision(unittest.TestCase):
             seen.append(context['photo_id']);barrier.wait(5)
             time.sleep({'RIGHT':0,'FRONT':.02,'LEFT':.04}[context['photo_view']])
             return response(),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             state=self.turn()
         self.assertEqual(len(seen),3);self.assertEqual(len(set(seen)),3)
         self.assertEqual({record['photo_id'] for record in state['photo_vision']['photos']},set(seen))
@@ -150,7 +150,7 @@ class PhotoVision(unittest.TestCase):
         new=self.ctx.store('create_photo',self.identity,dict(file_path=str(file),file_name=file.name,width_px=80,height_px=100,consent='UNKNOWN',notes=[]))
         entered=threading.Event();release=threading.Event();results=[]
         def vision(*args):entered.set();self.assertTrue(release.wait(5));return response(),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             worker=threading.Thread(target=lambda:results.append(self.turn()));worker.start()
             try:
                 self.assertTrue(entered.wait(5))
@@ -165,7 +165,7 @@ class PhotoVision(unittest.TestCase):
 
     def test_removing_a_photo_reuses_other_current_positive_work_evidence(self):
         self.enable(('LEFT','RIGHT'))
-        with patch('ergo.vision.client.observe',return_value=(response(),None)),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',return_value=(response(),None)),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             state=self.turn()
         owner=next(item for item in state['facts'] if item['target']=='work_type.trunk_neck')['photo_id']
         other=next(slot['photo_id'] for slot in state['task']['capture']['slots'] if slot['photo_id']!=owner)
@@ -180,11 +180,11 @@ class PhotoVision(unittest.TestCase):
 
     def test_model_change_invalidates_owned_values_without_reviving_saved_projection(self):
         self.enable()
-        with patch('ergo.vision.client.observe',return_value=(response(),None)),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',return_value=(response(),None)),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             state=self.turn()
         self.assertTrue(any(item['field']=='trunk_twisted' for item in state['task']['manual']))
         settings=self.ctx.dispatch('get_settings',{});settings['gpt_model']='changed-model';self.ctx.dispatch('update_settings',dict(settings=settings))
-        with patch('ergo.vision.client.observe',side_effect=AssertionError('read must not call AI')):
+        with patch('backend.vision.client.observe',side_effect=AssertionError('read must not call AI')):
             state=self.get();self.assertFalse(state['photo_vision']['photos'])
             self.assertFalse(any(item['field']=='trunk_twisted' for item in state['task']['manual']))
             self.assertEqual(state['task']['legal']['criteria'][3]['condition_present'],'UNKNOWN')
@@ -193,7 +193,7 @@ class PhotoVision(unittest.TestCase):
     def test_late_user_unknown_keeps_ownership(self):
         self.enable();entered=threading.Event();release=threading.Event();results=[]
         def vision(*args):entered.set();self.assertTrue(release.wait(5));return response(),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             worker=threading.Thread(target=lambda:results.append(self.turn()));worker.start()
             try:
                 self.assertTrue(entered.wait(5))
@@ -208,7 +208,7 @@ class PhotoVision(unittest.TestCase):
         def run():
             try:self.turn()
             except Exception as error:errors.append(error)
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             worker=threading.Thread(target=run);worker.start()
             try:
                 self.assertTrue(entered.wait(5))
@@ -223,7 +223,7 @@ class PhotoVision(unittest.TestCase):
         self.enable();owner=self.get()['task']['capture']['slots'][0]['photo_id']
         entered=threading.Event();release=threading.Event();results=[]
         def vision(*args):entered.set();self.assertTrue(release.wait(5));return response(),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None)):
             worker=threading.Thread(target=lambda:results.append(self.turn()));worker.start()
             try:
                 self.assertTrue(entered.wait(5));self.ctx.dispatch('delete_photo',dict(photo_id=owner))
@@ -238,7 +238,7 @@ class PhotoVision(unittest.TestCase):
         def text(payload,*args):
             payloads.append(copy.deepcopy(payload))
             return dict(answers=[dict(target='context',condition='default',text='NO',number=None,quote='이 사진은 평소 작업이 아니에요.')],questions=[]),None
-        with patch('ergo.vision.client.observe',return_value=(response(),None)) as vision,patch('ergo.gpt.client.adaptive_intake',side_effect=text):
+        with patch('backend.vision.client.observe',return_value=(response(),None)) as vision,patch('backend.gpt.client.adaptive_intake',side_effect=text):
             state=self.turn('이 사진은 평소 작업이 아니에요.')
             self.assertEqual(vision.call_count,1)
             self.assertTrue(state['photo_vision']['photos']);self.assertTrue(state['photo_vision']['application_reason'])

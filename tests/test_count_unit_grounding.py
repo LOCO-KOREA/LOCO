@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ergo.intake.grounding import number_grounded
-from ergo.service.application import create_service
-from ergo.gpt.payload import build_numeric_summary
+from backend.intake.grounding import number_grounded
+from backend.service.application import create_service
+from backend.gpt.payload import build_numeric_summary
 
 
 FIXTURE=Path(__file__).parent/'fixtures/intake-recorded-mixed-count-units-20261027.json'
@@ -66,7 +66,7 @@ class CountUnitGrounding(unittest.TestCase):
             settings=ctx.settings();settings.update(gpt_enabled=True,gpt_model='fixture-only')
             ctx.dispatch('update_settings',dict(settings=settings))
             replies=[(copy.deepcopy(response),None) for response in recorded['responses']]
-            with patch('ergo.gpt.client.adaptive_intake',side_effect=replies) as provider:
+            with patch('backend.gpt.client.adaptive_intake',side_effect=replies) as provider:
                 state=ctx.dispatch('intake_turn',dict(task_id=task['task_id'],text=recorded['text']))
             self.assertEqual(provider.call_count,2,'replay extraction and source cross-check without a provider request')
             stored=state['task'];rows={row['criterion_no']:row for row in stored['legal']['criteria']}

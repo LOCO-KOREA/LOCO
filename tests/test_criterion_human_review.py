@@ -7,9 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from openpyxl import load_workbook
-from ergo.contracts import validate_request
-from ergo.gpt import client,payload
-from ergo.service.application import create_service
+from backend.contracts import validate_request
+from backend.gpt import client,payload
+from backend.service.application import create_service
 from test_v2_gpt import content_fixture
 
 
@@ -32,7 +32,7 @@ class CriterionHumanReview(unittest.TestCase):
                                  output_text=json.dumps(content,ensure_ascii=False))
         settings=self.ctx.settings();settings.update(gpt_enabled=True,gpt_model='fixture')
         self.ctx.dispatch('update_settings',dict(settings=settings))
-        with patch.dict('os.environ',OPENAI_API_KEY='fixture'),patch('ergo.gpt.client.create_response',return_value=response):
+        with patch.dict('os.environ',OPENAI_API_KEY='fixture'),patch('backend.gpt.client.create_response',return_value=response):
             result=self.ctx.dispatch('generate_ai_text',dict(analysis_id=self.identity))
         self.assertEqual(result['text']['result'],'GENERATED',result['text'].get('fallback_reason'))
         return result['text']

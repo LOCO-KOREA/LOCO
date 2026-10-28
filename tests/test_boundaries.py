@@ -1,10 +1,10 @@
 """Contract boundaries for the schema 2.0 application."""
 import unittest
 
-from ergo.engine.movenet import NAMES
-from ergo.engine.task_defaults import EXPOSURE_V2, legal_inputs, task_input
-from ergo.gpt.payload import explanation_schema
-from ergo.service.application import validate_task_input_shape
+from backend.engine.movenet import NAMES
+from backend.engine.task_defaults import EXPOSURE_V2, legal_inputs, task_input
+from backend.gpt.payload import explanation_schema
+from backend.service.application import validate_task_input_shape
 
 
 class V2ContractBoundaries(unittest.TestCase):

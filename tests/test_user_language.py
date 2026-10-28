@@ -1,7 +1,7 @@
 import copy
 import unittest
-from ergo.user_language import user_text
-from ergo.report.plain import _explanations
+from backend.user_language import user_text
+from backend.report.plain import _explanations
 
 
 class UserLanguage(unittest.TestCase):

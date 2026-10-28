@@ -6,11 +6,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ergo.db import storage
-from ergo.engine.burden_rules import calculate_v2
-from ergo.gpt.payload import build_numeric_summary
-from ergo.engine.task_defaults import evidence, task_input
-from ergo.service import application as app
+from backend.db import storage
+from backend.engine.burden_rules import calculate_v2
+from backend.gpt.payload import build_numeric_summary
+from backend.engine.task_defaults import evidence, task_input
+from backend.service import application as app
 from tests.test_v2_rules import qualifying_case
 
 
@@ -193,7 +193,7 @@ class PersistenceRegressions(unittest.TestCase):
 
     def test_export_uses_one_read_only_sqlite_transaction_for_all_rows(self):
         a = self.calculate()
-        with patch('ergo.db.storage_common.open_db', wraps=storage.open_db) as opened:
+        with patch('backend.db.storage_common.open_db', wraps=storage.open_db) as opened:
             exported = app.export_snapshot(self.survey['survey_id'], [])
         self.assertEqual(opened.call_count, 1)
         self.assertEqual(exported['analyses'][0]['snapshot'], a['snapshot'])

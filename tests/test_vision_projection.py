@@ -2,8 +2,8 @@
 import copy
 import unittest
 
-from ergo.engine.task_defaults import task_input
-from ergo.intake import contract, facts, photo_facts
+from backend.engine.task_defaults import task_input
+from backend.intake import contract, facts, photo_facts
 from tests.test_photo_fact_ownership import observation, preview
 
 

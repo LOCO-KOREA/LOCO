@@ -22,7 +22,7 @@ REPO = Path(__file__).resolve().parents[1]
 PACKAGE = Path(os.environ.get('LOCO_VERIFY_PACKAGE') or (REPO / '.local/latest-package.txt').read_text(encoding='utf-8').strip())
 EXE = PACKAGE / 'resources/backend/loco-service/loco-service.exe'
 sys.path.insert(0,str(REPO))
-from ergo.pose_contract import MODELS
+from backend.pose_contract import MODELS
 BUILT=json.loads((PACKAGE/'build-manifest.json').read_text(encoding='utf-8'))
 MODEL_ID=BUILT.get('default_pose_model','movenet-lightning')
 MODEL=PACKAGE/'resources'/MODELS[MODEL_ID]['model_path']

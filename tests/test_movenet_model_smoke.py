@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from ergo.engine import movenet
+from backend.engine import movenet
 
 MODEL = Path(__file__).resolve().parents[1] / "models" / "movenet_lightning.tflite"
 

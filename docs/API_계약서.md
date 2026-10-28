@@ -8,7 +8,9 @@
 
 ## 1. 모듈·버전·연결
 
-실행 계약은 `ergo/contracts.py`의 2.0 메서드 목록과 이 문서의 §7을 함께 검증한다. Electron과 개발 실행은 `ergo/service/json_lines.py`만 사용한다. 이전 0.3 Protocol/StubService, 별도 샘플 서버, 이전 프론트 저장 adapter는 실행 경로에서 제거한다. 알 수 없는 메서드·누락 매개변수·이전 DTO 버전은 저장 전에 거부한다. 1.3은 `ergo/legacy/v13.py`의 읽기 adapter와 저장된 snapshot 열람에 한정하며 이전 규칙으로 새 계산을 만들지 않는다.
+2026-10-28 소스 패키지 경로를 `backend/`로 통일했다. Python import는 `backend.*`, 개발 서비스 진입점은 `backend/service/json_lines.py`다. 배포 실행 파일 경로 `resources/backend/loco-service/loco-service.exe`와 서비스 메서드·DTO·DB 계약은 유지한다. 과거 검증 기록의 경로·파일 해시는 당시 상태를 보존한다.
+
+실행 계약은 `backend/contracts.py`의 2.0 메서드 목록과 이 문서의 §7을 함께 검증한다. Electron과 개발 실행은 `backend/service/json_lines.py`만 사용한다. 이전 0.3 Protocol/StubService, 별도 샘플 서버, 이전 프론트 저장 adapter는 실행 경로에서 제거한다. 알 수 없는 메서드·누락 매개변수·이전 DTO 버전은 저장 전에 거부한다. 1.3은 `backend/legacy/v13.py`의 읽기 adapter와 저장된 snapshot 열람에 한정하며 이전 규칙으로 새 계산을 만들지 않는다.
 
 모든 작업에 동일한 일반 작업 계약을 사용한다. 상자 들기도 조건별 직접입력, 가변 사진, 사진별 촬영조건·관찰 하중으로 처리한다. 신규 작업에는 15슬롯·3회차·5순간·사건별 자동 하중을 사용하지 않는다. 이전 상자 프로토콜은 §10의 호환 읽기에만 남긴다.
 
@@ -285,7 +287,7 @@ Python의 Responses API와 Structured Outputs 대응 모델을 사용한다. 모
 V15의 모델 전송용 사본에서는 계산이 확정되고 missing_fields·review_reasons가 모두 빈 기준의 미사용 null/UNKNOWN basis만 제외한다. 알려진 0·NO·실제 미완성 근거와 item_code는 보존하며, 저장한 input_summary와 기존 설명의 현재성 비교는 변경하지 않는다. 선택적 null을 필수 미입력으로 오해하거나 입력값·조사자 선택을 다시 요구하지 않도록 안내한다.
 [OpenAI 공식 문서](https://developers.openai.com/api/docs/guides/structured-outputs)
 
-입력 정리·후속 질문·설명·사진 관찰은 ergo/ai_config.py의 공통 AI 설정과 프로세스 공유 OpenAI client/HTTP 연결 풀을 쓴다. 모델·추론 강도·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / high / 32768토큰(추론 포함, 2026-10-26 소유자 지시로 xhigh에서 낮춤)이며, 저장된 설정이 환경 기본값보다 우선한다. 앱은 AI 요청에 임의 대기 제한을 두지 않고 한 번 보낸 요청의 응답을 기다린다(2026-10-27 사용자 지시). 같은 입력을 자동으로 재송신하지 않으며 SDK timeout=None/max_retries=0을 공통 적용한다. 외부 오류와 불완전 응답은 원인을 표시하고 자동 재송신하지 않는다. 구버전 gpt_timeout_seconds 저장값과 LOCO_AI_TIMEOUT_SECONDS 환경값은 호환을 위해 오류 없이 무시하며 새 Settings/gpt_contract 응답에는 포함하지 않는다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
+입력 정리·후속 질문·설명·사진 관찰은 backend/ai_config.py의 공통 AI 설정과 프로세스 공유 OpenAI client/HTTP 연결 풀을 쓴다. 모델·추론 강도·출력 토큰은 설정 화면 또는 환경변수로 지정한다. 공통 초기값은 gpt-6-luna / high / 32768토큰(추론 포함, 2026-10-26 소유자 지시로 xhigh에서 낮춤)이며, 저장된 설정이 환경 기본값보다 우선한다. 앱은 AI 요청에 임의 대기 제한을 두지 않고 한 번 보낸 요청의 응답을 기다린다(2026-10-27 사용자 지시). 같은 입력을 자동으로 재송신하지 않으며 SDK timeout=None/max_retries=0을 공통 적용한다. 외부 오류와 불완전 응답은 원인을 표시하고 자동 재송신하지 않는다. 구버전 gpt_timeout_seconds 저장값과 LOCO_AI_TIMEOUT_SECONDS 환경값은 호환을 위해 오류 없이 무시하며 새 Settings/gpt_contract 응답에는 포함하지 않는다. 키 없음/통신 실패/거절/불완전 응답은 FALLBACK과 이유, 설정 비활성은 DISABLED다. 로컬 계산은 유지한다. 키는 Python 환경 OPENAI_API_KEY에서 받고 DB/renderer/배포물에 넣지 않는다. 모델 ID는 설정으로 고정하고 실제 계정에서 접근을 확인한다.
 
 provisional_reba_input은 현재성 재계산용 내부 요약값이며 photo_ids 원문은 보존하지 않고 GPT에 보내지 않는다. ai는 생성 요청별 text_id를 가진 이력 배열이다. 생성은 새 레코드를 추가하며 기존 편집/적용본을 덮어쓰지 않는다. 생성/편집/적용본과 input_summary를 보존한다. 편집·적용은 text_id를 지정한다. 적용하면 같은 목적의 기존 is_active를 false, 대상 is_active를 true로 원자적으로 바꾸고 과거 applied_text는 보존한다. DISABLED 또는 텍스트 없는 레코드는 적용하지 않는다. 실패/비활성은 기존 활성 적용문을 지우지 않는다. 같은 목적의 현재 요약과 레코드의 input_summary를 값 비교하고, 해당 분석이 최신 작업 입력·최신 계산 결과인지 확인해 source_current를 반환한다. 입력 또는 계산이 바뀐 과거 분석에는 source_current=false를 반환하고 REBA 차이를 계산하지 않으며, 생성 후 계산이 바뀌면 이전 결과 설명으로 표시한다.
 
@@ -567,7 +569,7 @@ FOLLOWUP의 answers도 동일한 근거 검증을 거쳐 ACCEPTED/UNCHANGED/REJE
 
 ### 실제 사진의 AI 관찰 (2026-10-23)
 
-사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `backend.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
 

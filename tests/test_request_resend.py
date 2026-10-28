@@ -7,10 +7,10 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from ergo import ai_config as config
-from ergo.gpt import client, intake, client_pool
-from ergo.service.application import create_service
-from ergo.vision import client as vision_client
+from backend import ai_config as config
+from backend.gpt import client, intake, client_pool
+from backend.service.application import create_service
+from backend.vision import client as vision_client
 from tests.test_v2_gpt import summary_fixture,content_fixture
 
 

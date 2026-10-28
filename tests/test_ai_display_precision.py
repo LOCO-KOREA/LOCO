@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
-from ergo.gpt import client,payload
+from backend.gpt import client,payload
 from test_gpt_input_linkage import source_analysis
 from test_v2_gpt import content_fixture,summary_fixture
 
@@ -26,7 +26,7 @@ def measured_summary():
 class AiDisplayPrecision(unittest.TestCase):
     def generate(self,summary,content):
         response=SimpleNamespace(status='completed',output_text=json.dumps(content,ensure_ascii=False),id='fixture')
-        with patch('ergo.gpt.client.create_response',return_value=response):
+        with patch('backend.gpt.client.create_response',return_value=response):
             return client.generate(summary,'fixture','fixture-key')
 
     def test_model_comparison_is_normalized_before_validating_the_discarded_field(self):

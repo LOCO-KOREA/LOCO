@@ -1,7 +1,7 @@
 """One typed sentence about the work fills the question cards, but only with what the sentence really says."""
 import unittest
 
-from ergo.engine import quick_assess, quick_intake
+from backend.engine import quick_assess, quick_intake
 
 
 def answer(target, number=None, text=None, quote=''):
@@ -132,7 +132,7 @@ class ServiceIntake(unittest.TestCase):
 
     def setUp(self):
         import os, tempfile
-        from ergo.service.application import create_service
+        from backend.service.application import create_service
         self.ctx = create_service(os.path.join(tempfile.mkdtemp(), 'intake.db'))
 
     def enable(self, enabled=True, model='gpt-test'):
@@ -142,7 +142,7 @@ class ServiceIntake(unittest.TestCase):
         self.ctx.dispatch('update_settings', {'settings': settings})
 
     def test_request_shape_is_checked(self):
-        from ergo.contracts import validate_request
+        from backend.contracts import validate_request
         validate_request('quick_interpret', {'text': '하루 4시간 키보드를 쳐요'})
         for bad in ({}, {'text': ''}, {'text': '   '}, {'text': 5}, {'text': 'x' * 601}, {'text': '문장', 'extra': 1}):
             with self.assertRaises(ValueError):
@@ -165,7 +165,7 @@ class ServiceIntake(unittest.TestCase):
         fake = [answer('card.lift.load_mass_kg', 20, quote='20kg'), answer('card.lift.lift_count_day', 30, quote='하루 30번'),
                 answer('card.keyboard.C1_KEYBOARD_FOCUSED', 240, quote='4시간 키보드'), answer('card.keyboard.C1_KEYBOARD_FOCUSED', 999, quote='4시간'),
                 answer('annual_work_days', 220, quote='연 220일')]
-        with mock.patch('ergo.gpt.client.interpret', return_value=(fake, None)) as call:
+        with mock.patch('backend.gpt.client.interpret', return_value=(fake, None)) as call:
             result = self.ctx.dispatch('quick_interpret', {'text': text})
         sent_text, targets, schema_, model, _key, selected_settings = call.call_args.args
         self.assertEqual(selected_settings['gpt_model'], model)
@@ -180,15 +180,15 @@ class ServiceIntake(unittest.TestCase):
     def test_model_failure_or_nothing_usable_is_reported_not_raised(self):
         from unittest import mock
         self.enable()
-        with mock.patch('ergo.gpt.client.interpret', return_value=(None, 'TIMEOUT')):
+        with mock.patch('backend.gpt.client.interpret', return_value=(None, 'TIMEOUT')):
             self.assertEqual(self.ctx.dispatch('quick_interpret', {'text': '하루 4시간 키보드를 쳐요'})['reason'], 'TIMEOUT')
-        with mock.patch('ergo.gpt.client.interpret', return_value=([], None)):
+        with mock.patch('backend.gpt.client.interpret', return_value=([], None)):
             self.assertEqual(self.ctx.dispatch('quick_interpret', {'text': '그냥 일해요'})['reason'], 'NOTHING_FOUND')
 
     def test_nothing_is_saved(self):
         from unittest import mock
         self.enable()
         before = self.ctx.dispatch('list_surveys', {})
-        with mock.patch('ergo.gpt.client.interpret', return_value=([answer('daily_work_min', 240, quote='4시간')], None)):
+        with mock.patch('backend.gpt.client.interpret', return_value=([answer('daily_work_min', 240, quote='4시간')], None)):
             self.ctx.dispatch('quick_interpret', {'text': '하루 4시간 일해요'})
         self.assertEqual(self.ctx.dispatch('list_surveys', {}), before)

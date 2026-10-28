@@ -9,10 +9,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from PIL import Image
-from ergo import pose_contract as contract
-from ergo.pose import engine
-from ergo.pose.providers import mediapipe as mp_provider
-from ergo.service.application import create_service
+from backend import pose_contract as contract
+from backend.pose import engine
+from backend.pose.providers import mediapipe as mp_provider
+from backend.service.application import create_service
 
 ROOT=Path(__file__).resolve().parents[1]
 PHOTO=ROOT/'.local/fixtures/tensorflow-movenet-example.jpeg'
@@ -70,21 +70,21 @@ class PoseValidation(unittest.TestCase):
             if change=='names':output['points'][0]['name']='left_wrist'
             if change=='world':output['world_points'].pop()
             if change=='visibility':output['points'][0]['visibility']=2
-            with self.subTest(change=change),patch('ergo.pose.engine._provider',return_value=SimpleNamespace(infer=lambda *args:output)):
+            with self.subTest(change=change),patch('backend.pose.engine._provider',return_value=SimpleNamespace(infer=lambda *args:output)):
                 result=engine.process(self.slot,self.snapshot)
             self.assertEqual(result['status'],'ERROR');self.assertFalse(result['points']);self.assertFalse(result['world_points'])
 
     def test_file_change_after_snapshot_cannot_be_mistaken_for_the_frozen_model(self):
         self.snapshot['pose_artifact']=engine.fingerprint(self.selected)
         self.model.write_bytes(b'changed-file');self.selected['model_sha256']=''
-        with patch('ergo.pose.engine._provider') as load:
+        with patch('backend.pose.engine._provider') as load:
             result=engine.process(self.slot,self.snapshot)
         self.assertEqual(result['status'],'ERROR');load.assert_not_called()
 
     def test_missing_model_and_checksum_mismatch_have_no_provider_fallback(self):
         for path in (str(self.folder/'missing.task'),str(self.model)):
             self.selected.update(model_path=path,model_sha256='a'*64)
-            with patch('ergo.pose.engine._provider') as load:result=engine.process(self.slot,self.snapshot)
+            with patch('backend.pose.engine._provider') as load:result=engine.process(self.slot,self.snapshot)
             self.assertEqual(result['diagnostics'][0]['code'],'MODEL_ERROR');load.assert_not_called()
 
     def test_selected_full_configuration_reaches_provider_and_provenance(self):
@@ -93,7 +93,7 @@ class PoseValidation(unittest.TestCase):
         self.snapshot['settings']['pose_model']=selected
         calls=[]
         def infer(image,data,settings,digest):calls.append((data,settings,digest));return self.output()
-        with patch('ergo.pose.engine._provider',return_value=SimpleNamespace(infer=infer)):
+        with patch('backend.pose.engine._provider',return_value=SimpleNamespace(infer=infer)):
             result=engine.process(self.slot,self.snapshot)
         self.assertNotEqual(result['status'],'ERROR',result['diagnostics'])
         self.assertEqual(result['engine']['model_id'],'mediapipe-full')

@@ -9,9 +9,9 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from ergo.engine.task_defaults import task_input
-from ergo.service.application import create_service
-from ergo.service import photo_crops
+from backend.engine.task_defaults import task_input
+from backend.service.application import create_service
+from backend.service import photo_crops
 
 
 class PhotoCropTests(unittest.TestCase):
@@ -65,7 +65,7 @@ class PhotoCropTests(unittest.TestCase):
             self.assertEqual([cropped.getpixel((0,y)) for y in range(2)],[(0,90,0),(40,90,0)])
 
     def test_pdf_uses_cropped_pixels_when_this_photo_is_selected_as_representative(self):
-        from ergo.service import pdf_exports
+        from backend.service import pdf_exports
         from pypdf import PdfReader
         photo=self.ctx.dispatch('import_cropped_photo',self.params())
         mapper=pdf_exports.map_snapshot

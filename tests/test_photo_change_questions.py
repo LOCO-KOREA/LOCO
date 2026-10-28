@@ -2,8 +2,8 @@
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from ergo.engine.task_defaults import task_input
-from ergo.intake import facts, planner
+from backend.engine.task_defaults import task_input
+from backend.intake import facts, planner
 import test_adaptive_intake as fixtures
 import test_context_refusal_path as refusal
 from test_photo_fact_ownership import observation, preview
@@ -20,7 +20,7 @@ class PhotoReplacement(unittest.TestCase):
         photo = Path(self.temp.name) / name
         photo.write_bytes(name.encode())
         identity = self.ctx.store('create_photo', self.identity, dict(file_path=str(photo), file_name=name, width_px=1, height_px=1, consent='UNKNOWN', notes=[]))
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=preview(ROWS, dict(RIGHT=identity)))
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=preview(ROWS, dict(RIGHT=identity)))
         inference.start(); self.addCleanup(inference.stop)
         return self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(RIGHT=identity)))
 

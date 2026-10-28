@@ -2,7 +2,7 @@
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from ergo.intake import planner
+from backend.intake import planner
 import test_adaptive_intake as fixtures
 from test_form_shortcuts import build, FLAGS
 from test_photo_fact_ownership import observation, preview
@@ -52,7 +52,7 @@ class ThroughTheService(unittest.TestCase):
         photo.write_bytes(b'RIGHT-v1')
         pid = self.ctx.store('create_photo', self.identity, dict(file_path=str(photo), file_name=photo.name, width_px=1, height_px=1, consent='UNKNOWN', notes=[]))
         data = preview([observation('RIGHT', 'COMMON', 'trunk_base', 3, 40)], dict(RIGHT=pid))
-        with patch('ergo.service.intake.handle_quick_preview', return_value=data):
+        with patch('backend.service.intake.handle_quick_preview', return_value=data):
             self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(RIGHT=pid)))
             state = self.turn(CONFIRMED, plan=False)
             quote = '자세 체크리스트에서 체크하지 않은 항목을 해당 없음으로 직접 확인'

@@ -7,10 +7,10 @@ from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from ergo.gpt import client, intake, client_pool
-from ergo.vision import client as vision_client, contract as vision_contract
-from ergo import ai_config as config
-from ergo.service.application import create_service
+from backend.gpt import client, intake, client_pool
+from backend.vision import client as vision_client, contract as vision_contract
+from backend import ai_config as config
+from backend.service.application import create_service
 from tests.test_v2_gpt import summary_fixture, content_fixture
 
 
@@ -134,7 +134,7 @@ class AiSettings(unittest.TestCase):
             survey=ctx.dispatch('create_survey',dict(draft=dict(survey_type='REGULAR',survey_date='2026-10-22')))
             task=ctx.dispatch('create_task',dict(survey_id=survey['survey_id'],draft=dict(task_name='합성 작업')))
             raw=dict(answers=[],questions=[],_connection=dict(model=selected['gpt_model'],reasoning_effort='xhigh',response_id='resp_old'))
-            with patch('ergo.gpt.client.adaptive_intake',return_value=(raw,None)):
+            with patch('backend.gpt.client.adaptive_intake',return_value=(raw,None)):
                 result=ctx.dispatch('intake_turn',dict(task_id=task['task_id']))
             self.assertEqual(result['ai']['status'],'CONNECTED')
             selected['gpt_reasoning_effort']='low';ctx.dispatch('update_settings',dict(settings=selected))

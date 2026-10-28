@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from ergo.pose_contract import MODELS
+from backend.pose_contract import MODELS
 
 
 def main():

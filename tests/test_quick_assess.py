@@ -3,9 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ergo.engine import quick_assess
-from ergo.engine.task_defaults import task_input
-from ergo.service.application import create_service
+from backend.engine import quick_assess
+from backend.engine.task_defaults import task_input
+from backend.service.application import create_service
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / '.local' / 'fixtures' / 'tensorflow-movenet-example.jpeg'
@@ -141,7 +141,7 @@ class Questions(unittest.TestCase):
 
     def test_one_checklist_replaces_eleven_cards_and_the_photo_pre_checks_what_it_shows(self):
         import re
-        from ergo.engine.task_defaults import EXPOSURE_V2
+        from backend.engine.task_defaults import EXPOSURE_V2
         plain = quick_assess.questions({}, [], {})
         checklist = next(q for q in plain if q['id'] == 'work_types')
         self.assertFalse(any(i['suggested'] for i in checklist['items']))
@@ -218,7 +218,7 @@ class MultiView(unittest.TestCase):
         self.assertFalse(next(i for i in flags['items'] if i['key'] == 'seated')['suggested'])
 
     def test_contract_accepts_only_known_views(self):
-        from ergo.contracts import validate_request
+        from backend.contracts import validate_request
         validate_request('quick_preview', {'task_id': 1, 'views': {'LEFT': 1, 'FRONT': 2}})
         for bad in ({}, {'BACK': 1}, {'LEFT': 0}, {'LEFT': '1'}):
             with self.assertRaises(ValueError):

@@ -25,7 +25,7 @@
 - AI 호출용 공유 클라이언트를 추가하고 SDK 요청 timeout을 무제한으로 설정했으며 SDK 자동 재시도는 끄도록 바꿨다. 기존 timeout 설정은 호환성 때문에 받아도 요청 중단값으로 쓰지 않는다. 실제 응답시간 개선은 측정하지 않았다.
 - 빠른 입력 흐름과 질문 선택, 설명·분석 화면을 수정했다. MediaPipe 자세·REBA 상세를 검토하는 `frontend/quick-review.js`와 화면 연결을 추가했다.
 - AI 설명의 1차 REBA 요약, 설명 편집, 조사자 적용 경로와 Excel 출력 매핑을 수정했다.
-- 보고서 provenance 추적에 `InputTrace.criterion_presence_recorded()`를 추가했다. 현재 코드에서 메서드는 `ergo/report/input_trace.py:43`에 있고 `ergo/report/form.py`, `ergo/report/plain.py`에서 호출한다.
+- 보고서 provenance 추적에 `InputTrace.criterion_presence_recorded()`를 추가했다. 현재 코드에서 메서드는 `backend/report/input_trace.py:43`에 있고 `backend/report/form.py`, `backend/report/plain.py`에서 호출한다.
 - 계약·요구사항·화면·사진 문서와 회귀 테스트를 함께 갱신했다.
 
 ## 실제 저장 데이터에서 확인된 불일치
@@ -41,8 +41,8 @@
 ## 현재 오류와 미수용 경계
 
 - **`criterion_presence_recorded` 오류:** 브랜치 소스에는 메서드가 들어 있다. 독립 재점검에서는 현재 체크아웃의 Python worker 3개가 해당 파일 수정 시각보다 먼저 시작되어 구버전 클래스를 메모리에 유지했을 가능성이 가장 높다고 판단했다. 프로세스를 재시작하지 않았고 실제 IPC/Excel 요청으로 오류가 해소됐는지 확인하지 않았다. 새 코드의 통합 증거로 주장하지 않는다.
-- **오래된 AI 설명 확정 위험:** 읽기 전용 리뷰에서 `ergo/service/explanations.py`의 적용 분기는 저장 후 `source_current`를 계산한다. 입력이 바뀐 설명의 확정을 서비스 계층에서 차단하는지 추가 검증이 필요하다. 화면의 현재성 확인만으로 서버와 Excel 경로까지 보장된다고 판정하지 않는다.
-- **P1 — AI 생성 입력의 현재성 누락:** 프롬프트는 `analysis_currentness`가 `CURRENT`가 아니면 과거 분석임을 밝히라고 하지만, `ergo/gpt/payload.py`의 일반 numeric summary에는 이 필드가 없다. `_provisional_reba_summary()`는 1차 REBA 값이 없으면 즉시 `None`을 반환하고, currentness가 든 비교 요약은 그 결과가 있을 때만 추가된다 (`payload.py:63–65, 159–165`; 프롬프트 `client.py:22`). 따라서 1차 REBA 없이 오래된 분석으로 AI 설명을 만들 때 모델이 입력만으로 과거 분석임을 구분하지 못할 수 있다. 실제 provider 요청·응답으로 재현하지 않았다.
+- **오래된 AI 설명 확정 위험:** 읽기 전용 리뷰에서 `backend/service/explanations.py`의 적용 분기는 저장 후 `source_current`를 계산한다. 입력이 바뀐 설명의 확정을 서비스 계층에서 차단하는지 추가 검증이 필요하다. 화면의 현재성 확인만으로 서버와 Excel 경로까지 보장된다고 판정하지 않는다.
+- **P1 — AI 생성 입력의 현재성 누락:** 프롬프트는 `analysis_currentness`가 `CURRENT`가 아니면 과거 분석임을 밝히라고 하지만, `backend/gpt/payload.py`의 일반 numeric summary에는 이 필드가 없다. `_provisional_reba_summary()`는 1차 REBA 값이 없으면 즉시 `None`을 반환하고, currentness가 든 비교 요약은 그 결과가 있을 때만 추가된다 (`payload.py:63–65, 159–165`; 프롬프트 `client.py:22`). 따라서 1차 REBA 없이 오래된 분석으로 AI 설명을 만들 때 모델이 입력만으로 과거 분석임을 구분하지 못할 수 있다. 실제 provider 요청·응답으로 재현하지 않았다.
 - **Human review → 실제 Excel:** 화면에 검토 단계와 편집·적용·미리보기 경로가 있다. 동일 분석 ID에 대해 설명 편집·확정 후 저장된 실제 Excel 내용까지 이어지는 전체 실행은 이 handoff 작성 시점에 검증되지 않았다.
 - **자세·REBA 0건:** 기록된 한 분석에서는 유효한 자세 자료와 완성 REBA가 없었다. 결과가 없는 상태를 자세 없음 또는 REBA 0점으로 해석하지 않는다.
 - **AI 무제한 대기:** timeout을 두지 말라는 사용자 결정을 따른 상태다. 공급자 응답이 오지 않을 때 진행 상태·취소·복구가 어떻게 동작하는지 별도 확인이 필요하다. 임의 hard timeout을 다시 넣지 않는다.

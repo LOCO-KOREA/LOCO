@@ -2,7 +2,7 @@
 import copy
 import unittest
 from unittest.mock import patch
-from ergo.intake import contract,facts
+from backend.intake import contract,facts
 from tests import test_photo_vision as fixtures
 
 QUOTE='무릎은 굽히지 않아요.'
@@ -86,7 +86,7 @@ class DurableVisionTextPriority(unittest.TestCase):
         self.enable();raw=fixtures.response()
         raw['work_candidates']=[dict(target='work_type.knee',observation='knees',value='YES',status='OBSERVED',confidence=.97,evidence=raw['observations']['knees']['evidence'])]
         def text(payload,*args):return dict(answers=[proposal()] if payload['text']==QUOTE else [],questions=[]),None
-        with patch('ergo.vision.client.observe',return_value=(raw,None)) as vision,patch('ergo.gpt.client.adaptive_intake',side_effect=text):
+        with patch('backend.vision.client.observe',return_value=(raw,None)) as vision,patch('backend.gpt.client.adaptive_intake',side_effect=text):
             first=self.turn('사진의 작업 모습을 정리해 주세요.');original=copy.deepcopy(first['photo_vision'])
             self.assertEqual(next(item for item in first['facts'] if item['target']=='work_type.knee')['source'],'VISION')
             state=self.turn(QUOTE)
@@ -105,7 +105,7 @@ class DurableVisionTextPriority(unittest.TestCase):
         def text(payload,*args):
             return dict(answers=[dict(target=target,condition='default',number=None,text='YES',quote=quote)
                 for target in ('work_type.knee','manual.COMMON.trunk_twisted')] if payload['text']==quote else [],questions=[]),None
-        with patch('ergo.vision.client.observe',return_value=(raw,None)) as vision,patch('ergo.gpt.client.adaptive_intake',side_effect=text):
+        with patch('backend.vision.client.observe',return_value=(raw,None)) as vision,patch('backend.gpt.client.adaptive_intake',side_effect=text):
             first=self.turn('사진을 정리해 주세요.');owner=first['task']['capture']['slots'][0]['photo_id']
             original=copy.deepcopy(first['photo_vision']['photos'][0]['raw_response'])
             state=self.turn(quote);self.assertEqual(vision.call_count,1)

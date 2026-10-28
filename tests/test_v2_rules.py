@@ -2,8 +2,8 @@
 import copy
 import unittest
 
-from ergo.engine.burden_rules import calculate_v2
-from ergo.engine.task_defaults import legal_inputs
+from backend.engine.burden_rules import calculate_v2
+from backend.engine.task_defaults import legal_inputs
 
 
 def baseline():

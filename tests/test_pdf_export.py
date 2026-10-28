@@ -11,11 +11,11 @@ from unittest.mock import patch
 
 import pdfplumber
 from pypdf import PdfReader
-from ergo.contracts import validate_request
-from ergo.engine.task_defaults import task_input
-from ergo.service.application import create_service
-from ergo.service import pdf_exports
-from ergo.report.form_mapping import map_snapshot
+from backend.contracts import validate_request
+from backend.engine.task_defaults import task_input
+from backend.service.application import create_service
+from backend.service import pdf_exports
+from backend.report.form_mapping import map_snapshot
 
 
 class PdfExportTests(unittest.TestCase):
@@ -179,7 +179,7 @@ class PdfExportTests(unittest.TestCase):
         self.assertEqual(self.ctx.store('list_export_logs',replacement['survey_id']),[])
 
     def test_pdf_json_lines_worker_does_not_block_following_lookup(self):
-        from ergo.service import json_lines
+        from backend.service import json_lines
         import io,json
         started,release=threading.Event(),threading.Event()
         threads=[];real_thread=threading.Thread;original_render=pdf_exports.pdf.render
@@ -204,7 +204,7 @@ class PdfExportTests(unittest.TestCase):
         self.assertTrue(all(r['result']['ok'] for r in responses))
 
     def test_pdf_thread_start_failure_and_invalid_input_error_boundary(self):
-        from ergo.service import json_lines
+        from backend.service import json_lines
         import io,json
         output=io.StringIO()
         with patch.object(json_lines,'prepare_dispatch',self.ctx.prepare_dispatch),patch.object(json_lines.threading.Thread,'start',side_effect=RuntimeError('start failed')),patch('sys.stdout',output):

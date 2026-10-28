@@ -10,14 +10,14 @@ from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
 
-from ergo.db import storage
-from ergo.engine import movenet
-from ergo.engine.images import read_image
-from ergo.engine.reba_scoring import calculate_reba
-from ergo.service.application import create_service
+from backend.db import storage
+from backend.engine import movenet
+from backend.engine.images import read_image
+from backend.engine.reba_scoring import calculate_reba
+from backend.service.application import create_service
 from tests.test_v2_reba import snapshot
-from ergo.report.comparisons import build_comparisons
-from ergo.engine.task_defaults import default_settings
+from backend.report.comparisons import build_comparisons
+from backend.engine.task_defaults import default_settings
 
 
 class RuntimeEdges(unittest.TestCase):
@@ -95,7 +95,7 @@ class RuntimeEdges(unittest.TestCase):
         def work():
             try:self.app.dispatch('generate_ai_text',{'analysis_id':a['analysis_id']})
             except Exception as error:errors.append(error)
-        with patch('ergo.gpt.client.generate',side_effect=generate):
+        with patch('backend.gpt.client.generate',side_effect=generate):
             thread=threading.Thread(target=work);thread.start()
             try:
                 self.assertTrue(entered.wait(5));self.app.dispatch('delete_task',{'task_id':self.task['task_id']})

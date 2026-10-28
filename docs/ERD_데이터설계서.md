@@ -120,7 +120,7 @@ get_task는 메모리상 편집 DTO 2.0과 source_schema_version을 반환한다
 
 `intake_session.last_ai`는 실제 마지막 요청의 상태·모델·응답 ID·진단을 담는 선택 객체다. 이전 자료에는 없을 수 있으며 설정 존재와 응답 성공을 구분한다. 인증정보는 포함하지 않는다.
 
-AI 입력 정리·후속 질문·설명·사진 관찰은 공통 설정 계약(ergo/ai_config.py, API 계약서 §6)과 같은 프로세스의 OpenAI client/HTTP 연결 풀을 공유한다. 모델·추론 강도·토큰 한도는 변수이며, 설정 화면은 서버 필드 정의로 렌더링한다. 앱은 AI 요청 한 번을 120초까지만 기다리고 답이 없으면 같은 요청을 다시 보낸다(처음 포함 최대 3번). 시간 초과가 아닌 오류는 다시 보내지 않는다. 구버전 timeout 값은 무시하며, APP_SETTINGS의 기존 JSON·테이블·이전 분석 snapshot 형식은 변경하지 않는다.
+AI 입력 정리·후속 질문·설명·사진 관찰은 공통 설정 계약(backend/ai_config.py, API 계약서 §6)과 같은 프로세스의 OpenAI client/HTTP 연결 풀을 공유한다. 모델·추론 강도·토큰 한도는 변수이며, 설정 화면은 서버 필드 정의로 렌더링한다. 앱은 AI 요청 한 번을 120초까지만 기다리고 답이 없으면 같은 요청을 다시 보낸다(처음 포함 최대 3번). 시간 초과가 아닌 오류는 다시 보내지 않는다. 구버전 timeout 값은 무시하며, APP_SETTINGS의 기존 JSON·테이블·이전 분석 snapshot 형식은 변경하지 않는다.
 
 ## MediaPipe 자세 엔진 개정 (2026-10-22)
 
@@ -192,7 +192,7 @@ AI 응답 answers의 target/condition/number/text/quote와 DB TaskInput은 바�
 
 ### 실제 사진의 AI 관찰 (2026-10-23)
 
-사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `backend.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
 

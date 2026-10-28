@@ -3,7 +3,7 @@
 ## 현재 기준과 사용자 제약
 
 - 작업 브랜치: `feat/luna-photo-observation-20261023`, 작업 폴더: `work/LOCO-luna-vision-20261023`.
-- origin/main a7ba406은 1213c9d에서 통합했다. main의 사진 탭·등록 크롭·Excel 출력 흐름을 유지하며 우리 수정만 추가한다. frontend/photo-crop.js와 ergo/service/photo_crops.py는 a7ba406과 동일하다.
+- origin/main a7ba406은 1213c9d에서 통합했다. main의 사진 탭·등록 크롭·Excel 출력 흐름을 유지하며 우리 수정만 추가한다. frontend/photo-crop.js와 backend/service/photo_crops.py는 a7ba406과 동일하다.
 - PR은 사용자 확인 전 만들지 않는다. 이번 작업의 추가 push·원격 main 변경·배포는 하지 않았다.
 - 실제 검증은 별도 SQLite/profile을 사용한 숨긴 Electron에서 진행한다. 사용자의 OS 마우스·키보드는 사용하지 않는다.
 

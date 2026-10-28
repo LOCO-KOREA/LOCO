@@ -15,9 +15,9 @@ from pathlib import Path
 from PIL import Image,ImageDraw
 
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from ergo import pose_contract as contract
-from ergo.pose import engine
-from ergo.engine.joint_angles import angles
+from backend import pose_contract as contract
+from backend.pose import engine
+from backend.engine.joint_angles import angles
 
 SOURCE='https://raw.githubusercontent.com/open-mmlab/mmpose/main/tests/data/coco/'
 SOURCES={'test_coco.json':'6dbaa1cc67f0bbe7a761abbaeb7e639c91aacbfc7e34dba146352303a528628f',

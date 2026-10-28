@@ -19,7 +19,7 @@ class ChecklistFlow(unittest.TestCase):
         photo.write_bytes(b'R')
         pid = self.ctx.store('create_photo', self.identity, dict(file_path=str(photo), file_name=photo.name, width_px=1, height_px=1, consent='UNKNOWN', notes=[]))
         data = preview([observation('RIGHT', 'COMMON', 'trunk_base', 3, 40)], dict(RIGHT=pid))
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=data)
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=data)
         inference.start()
         self.addCleanup(inference.stop)
         self.session = self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(RIGHT=pid)))

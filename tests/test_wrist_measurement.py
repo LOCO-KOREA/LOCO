@@ -3,13 +3,13 @@ import copy
 import math
 import unittest
 from unittest.mock import patch
-from ergo.engine.wrist_angles import angles
-from ergo.engine.joint_angles import angles as body_angles
-from ergo.engine.reba_scoring import candidates
-from ergo.engine.quick_assess import _confirmed_slot, side_measure
-from ergo.engine.task_defaults import task_input, default_settings
-from ergo.pose_contract import MEDIAPIPE_NAMES, COCO_NAMES, WRIST_POLICY, WRIST_REASONS
-from ergo.intake import facts, planner, contract
+from backend.engine.wrist_angles import angles
+from backend.engine.joint_angles import angles as body_angles
+from backend.engine.reba_scoring import candidates
+from backend.engine.quick_assess import _confirmed_slot, side_measure
+from backend.engine.task_defaults import task_input, default_settings
+from backend.pose_contract import MEDIAPIPE_NAMES, COCO_NAMES, WRIST_POLICY, WRIST_REASONS
+from backend.intake import facts, planner, contract
 
 
 def points(degrees=0,spread=2,hand=80,forearm=200):
@@ -88,7 +88,7 @@ class WristGeometry(unittest.TestCase):
         self.assertEqual(len(rows),16)
         self.assertIsNotNone(next(row for row in rows if row['angle_code']=='ELBOW_FLEX' and row['side']=='LEFT')['value_deg'])
         for values in ([float('nan')],[30,float('inf')]):
-            with patch('ergo.engine.wrist_angles._bend',side_effect=values):
+            with patch('backend.engine.wrist_angles._bend',side_effect=values):
                 row=angles(points(30),800,800,camera_side='LEFT',orientation='SIDE')[0]
                 self.assertIsNone(row['value_deg']);self.assertEqual(row['diagnostic_code'],'WRIST_UNSTABLE')
 

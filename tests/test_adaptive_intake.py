@@ -8,8 +8,8 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
-from ergo.service.application import create_service
-from ergo.intake import contract, facts, planner
+from backend.service.application import create_service
+from backend.intake import contract, facts, planner
 
 
 def answer(target,value,condition='default'):
@@ -34,7 +34,7 @@ class AdaptiveIntake(unittest.TestCase):
         if raw is not None:
             setting=self.ctx.dispatch('get_settings',{}); setting.pop('gpt_key_present',None)
             setting.update(gpt_enabled=True,gpt_model='fixture'); self.ctx.dispatch('update_settings',dict(settings=setting))
-        with patch('ergo.gpt.client.adaptive_intake',return_value=(raw,None)):
+        with patch('backend.gpt.client.adaptive_intake',return_value=(raw,None)):
             return self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=text,answers=list(answers),**extra))
 
     def candidates(self,state):
@@ -144,7 +144,7 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertEqual(self.get()['task']['conditions']['daily_work_min'],480)
 
     def test_daily_sum_checks_arithmetic_and_accepts_compound_units(self):
-        from ergo.intake.grounding import number_proof
+        from backend.intake.grounding import number_proof
         field=next(f for f in contract.fields() if f['target']=='daily_work_min')
         text='팔 드는 작업 1시간 30분 하고 키보드 작업 여섯시간 해요'
         proof=number_proof(field,450,text,context=text)
@@ -154,7 +154,7 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertIsNone(number_proof(field,480,text,context=text))
 
     def test_daily_sum_does_not_add_overlaps_breaks_ranges_or_other_periods(self):
-        from ergo.intake.grounding import number_proof
+        from backend.intake.grounding import number_proof
         field=next(f for f in contract.fields() if f['target']=='daily_work_min')
         quote='팔 들기 2시간 하고 키보드 작업 6시간'
         for qualifier in ('두 작업은 동시에 해요','두 시간은 여섯 시간에 포함돼요','그중 두 시간은 쉬는 시간이야',
@@ -220,7 +220,7 @@ class AdaptiveIntake(unittest.TestCase):
 
     def test_ai_failure_keeps_direct_answers_and_provides_editable_questions(self):
         settings=self.ctx.dispatch('get_settings',{}); settings.pop('gpt_key_present',None); settings.update(gpt_enabled=True,gpt_model='fixture'); self.ctx.dispatch('update_settings',dict(settings=settings))
-        with patch('ergo.gpt.client.adaptive_intake',return_value=(None,'TIMEOUT')):
+        with patch('backend.gpt.client.adaptive_intake',return_value=(None,'TIMEOUT')):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 전체 8시간입니다.',answers=[answer('daily_work_min',480)]))
         self.assertEqual(state['reason'],'TIMEOUT'); self.assertEqual(state['task']['conditions']['daily_work_min'],480)
         self.assertTrue(state['questions'])
@@ -247,7 +247,7 @@ class AdaptiveIntake(unittest.TestCase):
             self.assertEqual(self.ctx.require('task',self.identity)['conditions']['daily_work_min'],480)
             self.assertNotIn('daily_work_min',{q['target'] for q in payload['missing']})
             return dict(answers=[],questions=[dict(target='annual_work_days',condition='default',text='1년에 며칠 작업하나요?',reason='연간 일수만 몰라요.')]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=respond):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 8시간'))
         self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP'])
         self.assertEqual(state['questions'][0]['text'],'1년에 며칠 작업하나요?')
@@ -267,8 +267,8 @@ class AdaptiveIntake(unittest.TestCase):
                 self.assertTrue(photo_started.wait(3),'photo observation must start while text extraction is in flight')
             return dict(answers=[],questions=[]),None
 
-        with patch('ergo.service.intake.photo_vision.request_turn',side_effect=request), \
-             patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+        with patch('backend.service.intake.photo_vision.request_turn',side_effect=request), \
+             patch('backend.gpt.client.adaptive_intake',side_effect=respond):
             result=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 전체 8시간입니다.'))
         self.assertEqual(result['history'][0]['requests'][0]['phase'],'EXTRACT_AND_PLAN')
 
@@ -278,7 +278,7 @@ class AdaptiveIntake(unittest.TestCase):
         def respond(payload,*args):
             seen.append(payload['prior_user_text'])
             return dict(answers=[model('daily_work_min',number=480,quote='8시간')],questions=[dict(target='annual_work_days',condition='default',text='연간 작업일수?',reason='누락')]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=respond):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=respond):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=''))
         self.assertIn('하루 전체 8시간',seen[0]);self.assertEqual(state['task']['conditions']['daily_work_min'],480)
 
@@ -288,7 +288,7 @@ class AdaptiveIntake(unittest.TestCase):
         def slow(*args):
             entered.set(); release.wait(10)
             return dict(answers=[model('daily_work_min',number=480,quote='8시간')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=slow):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=slow):
             thread=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 8시간'))))
             thread.start(); self.assertTrue(entered.wait(5))
             self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[answer('daily_work_min',360)],plan=False))
@@ -364,7 +364,7 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertEqual((task, session['facts']), before)
 
     def test_progress_counts_only_usable_photo_fields_and_keeps_review_items_pending(self):
-        from ergo.engine.task_defaults import task_input
+        from backend.engine.task_defaults import task_input
         views = dict(LEFT=1)
         known = facts.apply_answers({}, [answer('context', 'YES'), answer('view_LEFT', 'SCREEN_LEFT'), answer('load', 'UNLOADED'), answer('manual.COMMON.trunk_base', 2)])
         results = {}
@@ -388,7 +388,7 @@ class AdaptiveIntake(unittest.TestCase):
         self.assertIn('other_work', {q['target'] for q in self.candidates(state)})
 
     def test_progress_photo_probe_follows_contract_primary_when_capture_order_changes(self):
-        from ergo.engine.task_defaults import task_input
+        from backend.engine.task_defaults import task_input
         views = dict(RIGHT=2, LEFT=1)
         values = facts.apply_answers({}, [answer('context', 'YES'), answer('manual.COMMON.trunk_base', 2)])
         task = facts.project(task_input({}), values, views, dict(views={}))
@@ -424,7 +424,7 @@ class PairedAdaptiveIntake(unittest.TestCase):
     def photo_session(self, sides=('LEFT', 'RIGHT')):
         # Real SQLite/capture ownership; photo inference alone is an empty fixture.
         preview = dict(views={}, measured=[], front=[], signals={}, score=None, questions=[], diagnostics=[])
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=preview)
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=preview)
         inference.start(); self.addCleanup(inference.stop)
         views = {}
         for side in sides:
@@ -603,7 +603,7 @@ class GroupedAdaptiveIntake(unittest.TestCase):
         self.turn([answer('context', 'YES')], plan=False)
         before = self.propose('manual.COMMON.shock_force')
         last_ai = copy.deepcopy(before['task']['conditions'][contract.SESSION_KEY]['last_ai'])
-        with patch('ergo.gpt.client.adaptive_intake', side_effect=AssertionError('structured answers must not call AI')) as ai:
+        with patch('backend.gpt.client.adaptive_intake', side_effect=AssertionError('structured answers must not call AI')) as ai:
             saved = self.ctx.dispatch('intake_turn', dict(task_id=self.identity, answers=[answer('manual.COMMON.shock_force', 'YES')]))
         ai.assert_not_called()
         self.assertIsNone(saved['reason'])
@@ -620,11 +620,11 @@ class GroupedAdaptiveIntake(unittest.TestCase):
     def test_local_save_after_ai_error_clears_current_error_but_preserves_history_and_retry(self):
         settings = self.ctx.dispatch('get_settings', {}); settings.pop('gpt_key_present', None)
         settings.update(gpt_enabled=True, gpt_model='fixture'); self.ctx.dispatch('update_settings', dict(settings=settings))
-        with patch('ergo.gpt.client.adaptive_intake', return_value=(None, 'TIMEOUT')):
+        with patch('backend.gpt.client.adaptive_intake', return_value=(None, 'TIMEOUT')):
             failed = self.ctx.dispatch('intake_turn', dict(task_id=self.identity, text='하루 전체 8시간입니다.'))
         old_ai = copy.deepcopy(failed['task']['conditions'][contract.SESSION_KEY]['last_ai'])
         self.assertEqual(failed['ai']['status'], 'ERROR')
-        with patch('ergo.gpt.client.adaptive_intake', side_effect=AssertionError('local save must not use AI')) as ai:
+        with patch('backend.gpt.client.adaptive_intake', side_effect=AssertionError('local save must not use AI')) as ai:
             saved = self.ctx.dispatch('intake_turn', dict(task_id=self.identity, answers=[answer('one_off', 'NO')]))
         ai.assert_not_called()
         self.assertIsNone(saved['reason'])
@@ -634,7 +634,7 @@ class GroupedAdaptiveIntake(unittest.TestCase):
         self.assertEqual(self.get()['ai']['status'], 'NOT_REQUESTED')
         # A blank retry still sends saved text to the model and restores actual connection reporting.
         raw = dict(answers=[model('daily_work_min', number=480, quote='8시간')], questions=[dict(target='annual_work_days', condition='default', text='연간 일수?', reason='누락')])
-        with patch('ergo.gpt.client.adaptive_intake', return_value=(raw, None)) as ai:
+        with patch('backend.gpt.client.adaptive_intake', return_value=(raw, None)) as ai:
             retried = self.ctx.dispatch('intake_turn', dict(task_id=self.identity, text=''))
         self.assertEqual(ai.call_count, 1)
         self.assertIn('하루 전체 8시간입니다.', ai.call_args.args[0]['prior_user_text'])
@@ -648,7 +648,7 @@ class GroupedAdaptiveIntake(unittest.TestCase):
         settings = self.ctx.dispatch('get_settings', {}); settings.pop('gpt_key_present', None)
         settings.update(gpt_enabled=True, gpt_model='fixture'); self.ctx.dispatch('update_settings', dict(settings=settings))
         raw = dict(answers=[model('manual.LEFT.shoulder_raised', text='NO', quote='양쪽 어깨를 올리지 않아요')], questions=[dict(target='annual_work_days', condition='default', text='연간 일수?', reason='누락')])
-        with patch('ergo.gpt.client.adaptive_intake', return_value=(raw, None)) as ai:
+        with patch('backend.gpt.client.adaptive_intake', return_value=(raw, None)) as ai:
             saved = self.ctx.dispatch('intake_turn', dict(task_id=self.identity, text='양쪽 어깨를 올리지 않아요.', answers=[answer('manual.LEFT.shoulder_raised', 'YES'), answer('manual.RIGHT.shoulder_raised', 'NO')]))
         ai.assert_called()
         stored = saved['task']['conditions'][contract.SESSION_KEY]['facts']
@@ -675,7 +675,7 @@ class GroupedAdaptiveIntake(unittest.TestCase):
         self.assertNotIn('answer_questions', planner.with_answer_questions(primary, [different, unrelated], {}))
 
     def test_grouped_panels_reduce_screen_rounds_while_retaining_all_43_fields(self):
-        from ergo.engine.task_defaults import task_input
+        from backend.engine.task_defaults import task_input
         known = facts.apply_answers({}, [answer('context', 'YES')])
         views = dict(LEFT=1, RIGHT=2)
         task = facts.project(task_input({}), known, views, {})

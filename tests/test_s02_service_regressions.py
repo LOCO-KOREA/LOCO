@@ -17,9 +17,9 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from ergo.engine.task_defaults import evidence
-from ergo.service import analysis_jobs, json_lines
-from ergo.service.application import create_service
+from backend.engine.task_defaults import evidence
+from backend.service import analysis_jobs, json_lines
+from backend.service.application import create_service
 
 
 class S02ServiceRegressions(unittest.TestCase):
@@ -33,7 +33,7 @@ class S02ServiceRegressions(unittest.TestCase):
         })
         self.task = self.new_task()
         # An unexpected external request must fail the check, never use an account.
-        no_external = patch('ergo.gpt.client.generate', side_effect=AssertionError(
+        no_external = patch('backend.gpt.client.generate', side_effect=AssertionError(
             'External GPT must not be called by S02 regressions'))
         no_external.start()
         self.addCleanup(no_external.stop)

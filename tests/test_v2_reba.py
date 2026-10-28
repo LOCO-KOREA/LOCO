@@ -1,7 +1,7 @@
 """REBA missing-input semantics and numeric boundary checks for schema 2.0."""
 import unittest
 
-from ergo.engine.reba_scoring import calculate_reba
+from backend.engine.reba_scoring import calculate_reba
 
 
 def snapshot(load_state="UNLOADED", measured=None):

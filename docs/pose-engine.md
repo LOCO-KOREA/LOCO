@@ -1,6 +1,6 @@
 # 자세 추론 엔진 계약
 
-현재 기본 엔진은 MediaPipe Pose Landmarker Heavy이며 Full과 MoveNet Lightning은 같은 추론 인터페이스의 선택 가능한 provider/variant다. `ergo/pose_contract.py`가 모델 목록·파일·해시·입력/출력 차원·랜드마크 이름·연결선·수치 설정·환경변수의 단일 정의다. 서비스/프론트/내보내기는 공급자를 직접 import하지 않고 이 계약을 소비한다.
+현재 기본 엔진은 MediaPipe Pose Landmarker Heavy이며 Full과 MoveNet Lightning은 같은 추론 인터페이스의 선택 가능한 provider/variant다. `backend/pose_contract.py`가 모델 목록·파일·해시·입력/출력 차원·랜드마크 이름·연결선·수치 설정·환경변수의 단일 정의다. 서비스/프론트/내보내기는 공급자를 직접 import하지 않고 이 계약을 소비한다.
 
 `analysis.pose_model`은 model_id/provider/variant/name/version/preprocess_version/input_size/point_count/confidence_kind/model_path/model_sha256와 confidence_min/detection_min/presence_min을 포함한다. 선택 모델별 메타데이터는 registry에서 생성하며 수치·경로·해시는 설정할 수 있다. `get_settings.pose_contract={version,models,fields,defaults,landmarks,connections}`는 읽기 전용 메타데이터다. 환경변수 LOCO_POSE_MODEL_ID, LOCO_POSE_MODEL_PATH, LOCO_POSE_MODEL_SHA256, LOCO_POSE_CONFIDENCE_MIN, LOCO_POSE_DETECTION_MIN, LOCO_POSE_PRESENCE_MIN으로 초기값을 지정하고 저장된 명시값이 우선한다. 예전 MoveNet 설정은 그 엔진 의미를 유지해 읽고 이전 분석/출력 snapshot은 재작성하지 않는다.
 

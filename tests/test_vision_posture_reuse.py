@@ -2,8 +2,8 @@
 import copy
 import unittest
 from unittest.mock import patch
-from ergo.vision import contract
-from ergo.service import photo_vision
+from backend.vision import contract
+from backend.service import photo_vision
 from tests import test_photo_vision as fixtures
 
 

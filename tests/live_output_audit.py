@@ -8,7 +8,7 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from openpyxl import load_workbook
-from ergo.user_language import user_text
+from backend.user_language import user_text
 
 def read(path):return json.loads(path.read_text(encoding='utf-8'))
 def write(path,value):path.write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -102,7 +102,7 @@ def verify(directory):
         if stage:check('submitted natural reply is stored',True,submitted_message(stage['session']['messages'],action['text']) is not None,stage=action['stage'])
     # Further semantic and exact-cell checks are independent of application calculations.
     final_db=stages[-1][2];contract=stages[-1][1]['session']['contract'];catalogue={f['target']:f for f in contract['fields']}
-    from ergo.intake.contract import response_schema
+    from backend.intake.contract import response_schema
     frozen_contract=directory.parent/'baseline-intake-contract.json'
     expected_schema=read(frozen_contract)['response_schema'] if frozen_contract.exists() else response_schema()
     for stage,api,db in stages:
@@ -194,7 +194,7 @@ def verify(directory):
 
 def audit_source(directory,label,source,catalogue,cells,checks,defects,ledger):
     # Independent paths and expected display values; do not call facts.project/read_values or report formatters.
-    from ergo.report.labels import CRITERIA,EXPOSURES,INPUTS,MANUAL,RESULT_LABELS
+    from backend.report.labels import CRITERIA,EXPOSURES,INPUTS,MANUAL,RESULT_LABELS
     words={'YES':'예','NO':'아니오','UNKNOWN':'모름','GOOD':'좋음','FAIR':'보통','POOR':'나쁨','UNACCEPTABLE':'잡을 곳 없음','NOT_APPLICABLE':'해당 없음','BILATERAL_STABLE':'두 발 안정','UNILATERAL_OR_UNSTABLE':'한 발·불안정','UNDER_30':'거의 안 굽힘(30° 미만)','FROM_30_TO_60':'30~60°','OVER_60':'60° 초과'}
     choices={'trunk_base':{1:'똑바로',2:'조금(20° 이내)',3:'많이(20~60°)',4:'아주 많이(60° 초과)'},'neck_base':{1:'똑바로·조금 숙임(20° 이내)',2:'20° 넘게 숙임','2_EXTENSION':'뒤로 젖힘'},'upper_arm_base':{1:'몸 옆(20° 이내)',2:'20~45°',3:'45~90°',4:'90° 초과'},'lower_arm_base':{1:'60~100°',2:'그 밖(60° 미만·100° 초과)'},'wrist_base':{1:'15° 이내',2:'15° 넘게'}}
     names={'daily_work_min':'하루 실제 작업시간','annual_work_days':'1년에 작업하는 날 수','one_off':'한 번만 하고 끝나는 일회성 작업인가','planned_duration_months':'예정 작업기간'}

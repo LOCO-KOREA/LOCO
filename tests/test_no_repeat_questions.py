@@ -2,9 +2,9 @@
 import copy
 import unittest
 from itertools import product
-from ergo.engine.task_defaults import task_input
-from ergo.intake import contract, facts, planner
-from ergo.intake.photo_load import photo_load
+from backend.engine.task_defaults import task_input
+from backend.intake import contract, facts, planner
+from backend.intake.photo_load import photo_load
 import test_adaptive_intake as fixtures
 from test_adaptive_intake import answer, model
 

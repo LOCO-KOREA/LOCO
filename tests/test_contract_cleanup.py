@@ -7,15 +7,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ergo import CONTRACT_VERSION
-from ergo.contracts import validate_request
-from ergo.db import storage
-from ergo.engine import burden_rules
-from ergo.engine.joint_angles import angles
-from ergo.engine.movenet import NAMES
-from ergo.engine.reba_scoring import calculate_reba, candidates
-from ergo.engine.task_defaults import task_input
-from ergo.service import application as app
+from backend import CONTRACT_VERSION
+from backend.contracts import validate_request
+from backend.db import storage
+from backend.engine import burden_rules
+from backend.engine.joint_angles import angles
+from backend.engine.movenet import NAMES
+from backend.engine.reba_scoring import calculate_reba, candidates
+from backend.engine.task_defaults import task_input
+from backend.service import application as app
 from scripts.audit_contract import audit
 
 
@@ -33,8 +33,8 @@ class ContractCleanup(unittest.TestCase):
     def test_document_registry_dispatch_and_renderer_use_one_contract(self):
         self.assertEqual(CONTRACT_VERSION,'2.0')
         self.assertEqual(audit()['documented_methods'],audit()['implemented_methods'])
-        import ergo.service
-        self.assertFalse(hasattr(ergo.service,'get_service'))
+        import backend.service
+        self.assertFalse(hasattr(backend.service,'get_service'))
 
     def test_retired_methods_and_parameter_aliases_are_rejected(self):
         for method in ('create_unit_task','attach_still','confirm_survey','save_task_inputs'):
@@ -120,7 +120,7 @@ class ContractCleanup(unittest.TestCase):
         with self.assertRaises(ValueError): calculate_reba({'schema_version':'1.3'},None)
 
     def test_photo_ratio_legacy_minutes_are_not_promoted_to_a_direct_measurement(self):
-        from ergo.legacy.v13 import upgrade_task
+        from backend.legacy.v13 import upgrade_task
         legacy=dict(schema_version='1.3',task_id=7,survey_id=1,input_revision=0,task_name='legacy',conditions={},manual=[],capture={'slots':[]},legal={'exposures':[dict(condition_code='C1_KEYBOARD_FOCUSED',minutes=240,source='PHOTO_RATIO')]})
         original=copy.deepcopy(legacy)
         converted=upgrade_task(legacy)
@@ -156,7 +156,7 @@ class ContractCleanup(unittest.TestCase):
         self.assertEqual(storage.list_export_logs(self.survey['survey_id'],db_path=self.db),[])
 
     def test_retired_relational_database_is_rejected_before_creating_new_tables(self):
-        from ergo.db.connection import open_db
+        from backend.db.connection import open_db
         path=Path(self.temp.name)/'retired.db'
         db=sqlite3.connect(path);db.execute('CREATE TABLE unit_task (unit_task_id INTEGER)');db.commit();db.close()
         before=path.read_bytes()

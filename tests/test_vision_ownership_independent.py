@@ -8,9 +8,9 @@ import threading
 import unittest
 from unittest.mock import patch
 from PIL import Image
-from ergo.service.application import create_service
-from ergo import photo_identity
-from ergo.vision import contract
+from backend.service.application import create_service
+from backend import photo_identity
+from backend.vision import contract
 
 def response(marker='원래 사진'):
     observations={key:dict(status='OBSERVED',value=marker+'의 '+label,evidence=marker+'에서 해당 부분이 보여요.',confidence=.99,reason='') for key,label in contract.CATALOGUE}
@@ -22,10 +22,10 @@ class VisionOwnership(unittest.TestCase):
         survey=self.ctx.dispatch('create_survey',dict(draft=dict(survey_type='REGULAR',survey_date='2026-10-23',title='사진 응답 소유권 시험')));task=self.ctx.dispatch('create_task',dict(survey_id=survey['survey_id'],draft=dict(task_name='사진 시험')));self.task_id=task['task_id']
         self.original=self.directory/'original.png';Image.new('RGB',(80,100),'navy').save(self.original)
         self.photo=self.ctx.dispatch('import_photos',dict(task_id=self.task_id,file_paths=[str(self.original)]))['added'][0];self.owner=self.photo['photo_id'];self.condition='photo:'+str(self.owner)
-        inference=patch('ergo.service.intake.handle_quick_preview',return_value=dict(views={},measured=[],signals={},measurement_issues=[],diagnostics=[]));inference.start();self.addCleanup(inference.stop)
+        inference=patch('backend.service.intake.handle_quick_preview',return_value=dict(views={},measured=[],signals={},measurement_issues=[],diagnostics=[]));inference.start();self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session',dict(task_id=self.task_id,views=dict(RIGHT=self.owner)))
         settings=self.ctx.dispatch('get_settings',{});settings.pop('gpt_key_present',None);settings.update(gpt_enabled=True,gpt_model='fixture',gpt_reasoning_effort='xhigh');self.ctx.dispatch('update_settings',dict(settings=settings))
-        text=patch('ergo.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None));text.start();self.addCleanup(text.stop)
+        text=patch('backend.gpt.client.adaptive_intake',return_value=(dict(answers=[],questions=[]),None));text.start();self.addCleanup(text.stop)
 
     def get(self):return self.ctx.dispatch('intake_session',dict(task_id=self.task_id))
     def turn(self):return self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,text='사진을 보고 자세를 확인해 주세요.'))
@@ -35,7 +35,7 @@ class VisionOwnership(unittest.TestCase):
         def work():
             try:results.append(self.turn())
             except Exception as error:errors.append(error)
-        with patch('ergo.vision.client.observe',side_effect=vision):
+        with patch('backend.vision.client.observe',side_effect=vision):
             thread=threading.Thread(target=work);thread.start()
             try:self.assertTrue(entered.wait(5));change()
             finally:release.set();thread.join(10)
@@ -75,9 +75,9 @@ class VisionOwnership(unittest.TestCase):
         def work():
             try:results.append(self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,text='이 사진은 몸통이 크게 굽었어요.')))
             except Exception as error:errors.append(error)
-        with patch('ergo.service.intake.ThreadPoolExecutor',CompletionObservedExecutor), \
-             patch('ergo.gpt.client.adaptive_intake',side_effect=respond), \
-             patch('ergo.vision.client.observe',side_effect=vision):
+        with patch('backend.service.intake.ThreadPoolExecutor',CompletionObservedExecutor), \
+             patch('backend.gpt.client.adaptive_intake',side_effect=respond), \
+             patch('backend.vision.client.observe',side_effect=vision):
             thread=threading.Thread(target=work);thread.start()
             try:
                 self.assertTrue(photo_started.wait(5),'photo request did not start')
@@ -113,7 +113,7 @@ class VisionOwnership(unittest.TestCase):
         def replace():self.ctx.dispatch('update_photo',dict(photo_id=self.owner,file_path=str(replacement),consent='UNKNOWN'));self.get()
         state=self.pending(replace);self.assertFalse(state['photo_vision']['photos']);self.assertFalse(any(row['source']=='VISION' for row in state['facts']))
         old=next(row for row in state['photo_vision']['history'] if row['photo_id']==self.owner);self.assertEqual(old['status'],'STALE');self.assertEqual(old['source_sha256'],hashlib.sha256(self.original.read_bytes()).hexdigest());self.assertEqual(old['raw_response']['summary'],response()['summary'])
-        with patch('ergo.vision.client.observe',return_value=(response('새 사진'),None)) as call:current=self.turn()
+        with patch('backend.vision.client.observe',return_value=(response('새 사진'),None)) as call:current=self.turn()
         self.assertEqual(call.call_count,1);self.assertEqual(current['photo_vision']['photos'][0]['source_sha256'],hashlib.sha256(replacement.read_bytes()).hexdigest());self.assertEqual(current['photo_vision']['photos'][0]['summary'],response('새 사진')['summary']);self.assertTrue(current['photo_vision']['history'])
 
     def test_photo_deleted_during_pending_observation_is_never_resurrected(self):
@@ -132,12 +132,12 @@ class VisionOwnership(unittest.TestCase):
             self.ctx.dispatch('intake_session',dict(task_id=self.task_id,views=dict(RIGHT=self.owner)))
         state=self.pending(replace);self.assertFalse(state['photo_vision']['photos']);self.assertFalse(any(row['source']=='VISION' for row in state['facts']))
         self.assertTrue(any(row['photo_id']==self.owner and row['status']=='STALE' for row in state['photo_vision']['history']))
-        with patch('ergo.vision.client.observe',return_value=(response('재등록 사진'),None)) as call:current=self.turn()
+        with patch('backend.vision.client.observe',return_value=(response('재등록 사진'),None)) as call:current=self.turn()
         self.assertEqual(call.call_count,1);self.assertEqual(current['photo_vision']['photos'][0]['summary'],response('재등록 사진')['summary'])
         self.assertEqual(current['photo_vision']['photos'][0]['owner']['photo_generation'],created[0][photo_identity.REGISTRATION_KEY])
 
     def test_negative_context_clears_projection_but_yes_reuses_cache_and_preserves_user_unknown(self):
-        with patch('ergo.vision.client.observe',return_value=(response(),None)) as call:
+        with patch('backend.vision.client.observe',return_value=(response(),None)) as call:
             initial=self.turn();self.assertTrue(any(row['source']=='VISION' for row in initial['facts']))
             negative=self.ctx.dispatch('intake_turn',dict(task_id=self.task_id,answers=[dict(target='context',value='NO')],plan=False))
             self.assertFalse(any(row['source']=='VISION' and row['state']=='KNOWN' for row in negative['facts']));self.assertFalse(negative['task']['manual'])

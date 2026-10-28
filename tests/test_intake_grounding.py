@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from ergo.intake import contract, facts
-from ergo.intake.grounding import DURATION_SUM, number_grounded, number_proof
-from ergo.service.application import create_service
+from backend.intake import contract, facts
+from backend.intake.grounding import DURATION_SUM, number_grounded, number_proof
+from backend.service.application import create_service
 
 
 def calculation(*terms):
@@ -155,7 +155,7 @@ class DurableDurationGrounding(unittest.TestCase):
                 proposal=dict(target='daily_work_min',condition='default',number=total,text=None,quote=text)
                 if proof is not None:proposal['calculation']=proof
                 raw=dict(answers=[proposal],questions=[])
-                with patch('ergo.gpt.client.adaptive_intake',return_value=(raw,None)):
+                with patch('backend.gpt.client.adaptive_intake',return_value=(raw,None)):
                     state=ctx.dispatch('intake_turn',dict(task_id=task['task_id'],text=text))
                 self.assertEqual(state['task']['conditions']['daily_work_min'],total)
                 self.assertNotIn('daily_work_min',{question['target'] for question in state['questions']})
@@ -165,7 +165,7 @@ class DurableDurationGrounding(unittest.TestCase):
                 analysis=ctx.new_analysis(ctx.require('task',task['task_id']),['judgment'])
                 self.assertEqual(analysis['snapshot']['conditions']['daily_work_min'],total)
                 state=ctx.dispatch('intake_turn',dict(task_id=task['task_id'],answers=[dict(target='daily_work_min',value=420)],plan=False))
-                with patch('ergo.gpt.client.adaptive_intake',return_value=(raw,None)):
+                with patch('backend.gpt.client.adaptive_intake',return_value=(raw,None)):
                     state=ctx.dispatch('intake_turn',dict(task_id=task['task_id'],text=text))
                 self.assertEqual(state['task']['conditions']['daily_work_min'],420)
                 self.assertEqual(analysis['snapshot']['conditions']['daily_work_min'],total)

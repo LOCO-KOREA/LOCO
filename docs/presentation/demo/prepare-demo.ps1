@@ -34,7 +34,7 @@ if (Test-Path -LiteralPath $DatabasePath) { Remove-Item -LiteralPath $DatabasePa
 New-Item -ItemType Directory -Force (Split-Path $DatabasePath) | Out-Null
 $seed = @'
 import sys
-from ergo.service.application import create_service
+from backend.service.application import create_service
 db, model = sys.argv[1], sys.argv[2]
 ctx = create_service(db)
 settings = ctx.dispatch('get_settings', {})
@@ -54,7 +54,7 @@ if (-not $SkipAiCheck -and $key) {
         if (-not $previous.url -and $source -like 'AI_GATEWAY*') { $env:OPENAI_BASE_URL = 'https://ai-gateway.vercel.sh/v1' }
         $probe = @'
 import os, sys, time
-from ergo.gpt.client_pool import create_response
+from backend.gpt.client_pool import create_response
 start = time.time()
 try:
     create_response(os.environ['OPENAI_API_KEY'], model=sys.argv[1], input='Reply with: ok', max_output_tokens=64, reasoning=dict(effort='low'))

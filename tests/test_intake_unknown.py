@@ -8,10 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests import test_adaptive_intake as fixtures
-from ergo.intake import contract, facts, planner
-from ergo.intake.grounding import unknown_evidence
-from ergo.intake.photo_load import photo_load
-from ergo.service.application import create_service
+from backend.intake import contract, facts, planner
+from backend.intake.grounding import unknown_evidence
+from backend.intake.photo_load import photo_load
+from backend.service.application import create_service
 
 RECORDED=json.loads((Path(__file__).parent/'fixtures'/'intake-recorded-unknown-20261023.json').read_text(encoding='utf-8'))
 FORMAL='사진 물건과 두 중량의 연결은 모릅니다.'
@@ -87,7 +87,7 @@ class UnknownEvidence(unittest.TestCase):
         self.assertFalse(dropped)
         state=facts.apply_answers(state,[dict(target='card.lift.load_mass_kg',value=20),dict(target='work_type.lift',value='YES')])
         self.assertEqual(photo_load(state),('UNKNOWN',None))
-        from ergo.engine.task_defaults import task_input
+        from backend.engine.task_defaults import task_input
         task=facts.project(task_input({}),state,dict(RIGHT=1),{})
         candidates=planner.assess(task,state,dict(RIGHT=1))['candidates']
         self.assertNotIn('load_link',{item['target'] for item in candidates})
@@ -108,7 +108,7 @@ class DurableFormalUnknown(unittest.TestCase):
         def provider(payload,*args):
             calls.append(payload['phase'])
             return copy.deepcopy(RECORDED['responses'][payload['phase']]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=RECORDED['statement']))
         item=next(item for item in state['facts'] if item['target']=='load_link')
         self.assertEqual((item['value'],item['state'],item['source'],item['origin'],item['quote']),

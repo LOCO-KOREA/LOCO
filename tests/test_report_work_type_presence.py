@@ -2,8 +2,8 @@
 import copy
 import unittest
 
-from ergo.intake.contract import SESSION_KEY
-from ergo.report.plain import _legal_rows
+from backend.intake.contract import SESSION_KEY
+from backend.report.plain import _legal_rows
 
 
 class WorkTypePresenceLabels(unittest.TestCase):

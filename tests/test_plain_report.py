@@ -7,11 +7,11 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.engine.quick_assess import NO_BURDEN
-from ergo.engine.task_defaults import ARM, COMMON, task_input
-from ergo.report import workbook
-from ergo.report.plain import _inputs, _legal_rows, _posture, _explanations
-from ergo.service import application
+from backend.engine.quick_assess import NO_BURDEN
+from backend.engine.task_defaults import ARM, COMMON, task_input
+from backend.report import workbook
+from backend.report.plain import _inputs, _legal_rows, _posture, _explanations
+from backend.service import application
 from tests.report_helpers import CODE, SURVEY_KEYS, lifting_input, make_survey, run_analysis, update_survey
 
 PLAIN_SHEETS = ['조사 결과', '부담작업 해당 여부', '입력한 값']
@@ -114,7 +114,7 @@ class PlainWorkbook(unittest.TestCase):
         self.assertEqual(sheet['lead'], '계산에 쓴 값이에요.')
 
     def test_only_exact_user_or_ai_unknown_answers_survive_excel_projection(self):
-        from ergo.intake.contract import SESSION_KEY
+        from backend.intake.contract import SESSION_KEY
 
         for origin in ('USER', 'AI'):
             with self.subTest(origin=origin):
@@ -171,7 +171,7 @@ class PlainWorkbook(unittest.TestCase):
         self.assertIn('조사자가 이 기준을 직접 확인해 아니오로 선택', row[5])
 
     def test_explicit_user_and_ai_work_type_facts_remain_in_excel(self):
-        from ergo.intake.contract import SESSION_KEY
+        from backend.intake.contract import SESSION_KEY
 
         for origin in ('USER', 'AI'):
             with self.subTest(origin=origin):
@@ -301,7 +301,7 @@ class PlainWorkbook(unittest.TestCase):
         settings = application.dispatch('get_settings', {})
         settings.update(gpt_enabled=True, gpt_model='test-model')
         application.dispatch('update_settings', {'settings': settings})
-        with patch('ergo.gpt.client.generate', return_value=(None, 'NO_API_KEY')):
+        with patch('backend.gpt.client.generate', return_value=(None, 'NO_API_KEY')):
             generated = application.dispatch('generate_ai_text', {
                 'analysis_id': self.analysis['analysis_id'], 'purpose': 'TASK_EXPLANATION'})
         application.dispatch('edit_ai_text', {'analysis_id': self.analysis['analysis_id'],
@@ -400,7 +400,7 @@ class PlainWorkbook(unittest.TestCase):
         settings.pop('gpt_key_present', None)
         settings.update(gpt_enabled=True, gpt_model='test-model')
         application.dispatch('update_settings', {'settings': settings})
-        with patch('ergo.gpt.client.generate', return_value=(None, 'NO_API_KEY')):
+        with patch('backend.gpt.client.generate', return_value=(None, 'NO_API_KEY')):
             generated = application.dispatch('generate_ai_text', {'analysis_id': self.analysis['analysis_id'], 'purpose': 'TASK_EXPLANATION'})
         self.assertNotIn('결과 설명', self.export().sheetnames, 'a generated draft must not appear in Excel')
         application.dispatch('edit_ai_text', {'analysis_id': self.analysis['analysis_id'], 'text_id': generated['text']['text_id'], 'text': '조사자가 확인하고 확정한 문장입니다.'})

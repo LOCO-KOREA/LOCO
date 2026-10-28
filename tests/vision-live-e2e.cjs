@@ -7,7 +7,7 @@ const directory=path.resolve(process.argv[2]),photoRoot=path.resolve(process.arg
 const receipt={source_head:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),scope:'actual UI image/crop + unmodified Luna SDK + isolated SQLite/analysis/Excel',native_input:false,checks:[],photos:[],errors:[]};
 const check=(name,value,context={})=>{receipt.checks.push({name,pass:Boolean(value),...context});assert.ok(value,name);};
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
-async function manifest(){const names=execFileSync('git',['ls-files','ergo','frontend'],{cwd:root,encoding:'utf8'}).trim().split(/\r?\n/);const files={};for(const name of names)files[name]=hash(await fs.readFile(path.join(root,name)));return files;}
+async function manifest(){const names=execFileSync('git',['ls-files','backend','frontend'],{cwd:root,encoding:'utf8'}).trim().split(/\r?\n/);const files={};for(const name of names)files[name]=hash(await fs.readFile(path.join(root,name)));return files;}
 async function write(name,value){await fs.writeFile(path.join(directory,name),JSON.stringify(value,null,2));}
 async function api(method,params={}){const response=await page.evaluate(p=>window.loco.call(p.method,p.params),{method,params});if(!response.ok)throw Error(method+': '+JSON.stringify(response.error));return response.value;}
 async function idle(){await page.waitForFunction(()=>!document.querySelector('#quick-workspace .quick-busy'),{},{timeout:0});}

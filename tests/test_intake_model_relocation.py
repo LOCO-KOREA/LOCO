@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from ergo.service.intake import _fingerprint
-from ergo import pose_contract
+from backend.service.intake import _fingerprint
+from backend import pose_contract
 from tests import test_adaptive_intake as fixtures
 from tests import test_photo_fact_ownership as photo_fixtures
 
@@ -33,7 +33,7 @@ class ModelIdentityBoundaries(unittest.TestCase):
         new_settings=copy.deepcopy(settings)
         moved=copy.deepcopy(artifact);moved['path']='D:/new/resources/models/model.task'
         before=copy.deepcopy((settings,artifact,new_settings,moved))
-        with patch('ergo.service.intake.pose_engine.fingerprint',return_value=moved):
+        with patch('backend.service.intake.pose_engine.fingerprint',return_value=moved):
             result=_fingerprint(context,dict(latest_analysis_id=7),dict(fingerprint=previous),signature,new_settings)
         self.assertEqual(result,previous,'a proven legacy fingerprint must survive installation-path relocation')
         self.assertEqual((settings,artifact,new_settings,moved),before)
@@ -48,13 +48,13 @@ class ModelIdentityBoundaries(unittest.TestCase):
                 elif fault=='photos':signature='changed-photo-content'
                 elif fault=='configured_path':settings['pose_model']['model_path']='models/user-selected.task';changed['settings']['model_path']='models/user-selected.task'
                 else:changed.pop('sha256');changed.pop('path');changed['artifact_error']='model is missing or has wrong hash'
-                with patch('ergo.service.intake.pose_engine.fingerprint',return_value=changed):
+                with patch('backend.service.intake.pose_engine.fingerprint',return_value=changed):
                     result=_fingerprint(context,dict(latest_analysis_id=7),dict(fingerprint=previous),signature,settings)
                 self.assertNotEqual(result,previous)
 
     def test_unproven_legacy_digest_is_not_retained_even_if_model_content_is_the_same(self):
         settings,artifact,signature,previous,context=self.seed()
-        with patch('ergo.service.intake.pose_engine.fingerprint',return_value=artifact):
+        with patch('backend.service.intake.pose_engine.fingerprint',return_value=artifact):
             result=_fingerprint(context,dict(latest_analysis_id=7),dict(fingerprint='not-the-recorded-snapshot-hash'),signature,settings)
         self.assertNotEqual(result,'not-the-recorded-snapshot-hash')
         self.assertNotEqual(result,previous,'without legacy proof the stable semantic digest is used')
@@ -66,14 +66,14 @@ class ModelRelocationSqlite(unittest.TestCase):
         self.model_root='C:/old-install/resources'
         self.model_sha='a'*64
         self.wrist_policy=copy.deepcopy(pose_contract.WRIST_POLICY)
-        model=patch('ergo.service.intake.pose_engine.fingerprint',side_effect=self.artifact)
+        model=patch('backend.service.intake.pose_engine.fingerprint',side_effect=self.artifact)
         model.start();self.addCleanup(model.stop)
         photo=Path(self.temp.name)/'LEFT.fixture';photo.write_bytes(b'synthetic photo bytes')
         self.photo_id=self.ctx.store('create_photo',self.identity,dict(file_path=str(photo),file_name=photo.name,
             width_px=1,height_px=1,consent='UNKNOWN',notes=[]))
         views=dict(LEFT=self.photo_id)
         data=photo_fixtures.preview([photo_fixtures.observation('LEFT','COMMON','trunk_base',3,40)],views)
-        inference=patch('ergo.service.intake.handle_quick_preview',return_value=data)
+        inference=patch('backend.service.intake.handle_quick_preview',return_value=data)
         inference.start();self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session',dict(task_id=self.identity,views=views))
         self.ctx.dispatch('intake_turn',dict(task_id=self.identity,plan=False,answers=[

@@ -17,7 +17,7 @@ LocalDrafts 키는 `DRAFT_POLICY.prefix`와 열린 DB 경로 및 종류로 구�
 
 ## 늦은 응답과 원문 문맥
 
-`ergo/intake/history.py`는 순수 회차·문맥 모듈이다. 구조화한 수정 메시지와 자연어 문장을 먼저 분리한다. 기본 `POLICY.history_context_chars=None`은 저장된 모든 자연어 원문을 문맥에 포함한다. 한 항목을 추출했다고 같은 문장의 나머지 정보까지 처리 완료로 판단하지 않는다. 최근 회수나 경과 시간으로 원문을 만료시키지 않는다. 운영에서 명시적으로 글자 예산을 지정한 경우 요청별 포함/미포함 메시지 ID를 기록하고 미포함 안내를 표시하며, 원문은 삭제하지 않는다. 공급자의 요청 실패도 원문을 지우지 않는다.
+`backend/intake/history.py`는 순수 회차·문맥 모듈이다. 구조화한 수정 메시지와 자연어 문장을 먼저 분리한다. 기본 `POLICY.history_context_chars=None`은 저장된 모든 자연어 원문을 문맥에 포함한다. 한 항목을 추출했다고 같은 문장의 나머지 정보까지 처리 완료로 판단하지 않는다. 최근 회수나 경과 시간으로 원문을 만료시키지 않는다. 운영에서 명시적으로 글자 예산을 지정한 경우 요청별 포함/미포함 메시지 ID를 기록하고 미포함 안내를 표시하며, 원문은 삭제하지 않는다. 공급자의 요청 실패도 원문을 지우지 않는다.
 
 네트워크 대기 중 DB 잠금을 유지하지 않는다. revision이 바뀐 동안 도착한 응답도 `RECONCILED` 회차로 현재 작업에 다시 병합한다. 비충돌 새 정보는 저장하고, 최신 직접 값·모름·수정된 값을 지키며 충돌 제안과 근거를 남긴다. 과거의 UNKNOWN 제안은 최신 확인값을 비우지 못한다. 과거 결정이 있으면 `decision_history`에 보존하고 현재 결정과 구별한다. 삭제·재생성된 다른 작업에 응답을 붙이거나 삭제 행을 복원하지 않는다. 시간 제한으로 제안을 폐기하는 유효기간은 없다.
 
@@ -44,7 +44,7 @@ AUD-01/02/03/05/06/07/08의 회귀 기준은 `tests/test_intake_persistence.py`,
 
 ## 출력 값과 근거 (실호출 10회 후 정정)
 
-`ergo/report/input_trace.py`는 선택된 snapshot의 공통 catalogue와 fact를 기준으로 출력 항목별 출처와 근거를 찾는다. 조건 행 전체의 대표 근거를 각 중량·횟수·시간에 복제하지 않는다. 값·조건·사진 소유권이 맞지 않거나 input_revision과 projected_revision이 다르면 과거 메타데이터로 새 값을 설명하지 않고 기존 입력 근거로 돌아간다. 과거 snapshot/DB 행은 재작성하지 않는다.
+`backend/report/input_trace.py`는 선택된 snapshot의 공통 catalogue와 fact를 기준으로 출력 항목별 출처와 근거를 찾는다. 조건 행 전체의 대표 근거를 각 중량·횟수·시간에 복제하지 않는다. 값·조건·사진 소유권이 맞지 않거나 input_revision과 projected_revision이 다르면 과거 메타데이터로 새 값을 설명하지 않고 기존 입력 근거로 돌아간다. 과거 snapshot/DB 행은 재작성하지 않는다.
 
 하루 전체 시간·연간 일수·일회성, 노출 0, 직접 모름/NO, 모든 조건 행 기록 여부도 입력한 값 시트에서 구별한다. AI 제안 DTO와 TaskInput의 바깥 구조는 서로 다르다. DB→분석→출력의 공통 TaskInput 필드와 target→destination→값/단위/조건→Excel cell 매핑의 일치로 보존성을 검증하며, schema_version 문자열만 같다고 통과시키지 않는다. 원문/응답/단계별 실제 DB/선택 snapshot/셀 기록을 갖춘 10회 시험과 수정 후 검증은 별도 증거로 보존한다.
 
@@ -97,7 +97,7 @@ AUD-01/02/03/05/06/07/08의 회귀 기준은 `tests/test_intake_persistence.py`,
 
 ### 실제 사진의 AI 관찰 (2026-10-23)
 
-사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `backend.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
 

@@ -2,8 +2,8 @@
 import re
 import threading
 
-from ergo.engine.task_defaults import task_input
-from ergo.service import application
+from backend.engine.task_defaults import task_input
+from backend.service import application
 
 # Words a reader of the workbook must never meet: stored codes, field paths, internal names.
 CODE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z_]+\.[a-z0-9_.-]+\b|MoveNet|기술태그|스키마|None|null|UNKNOWN')

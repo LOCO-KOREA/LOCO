@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ergo.db import open_db, storage
-from ergo.engine.task_defaults import task_input
+from backend.db import open_db, storage
+from backend.engine.task_defaults import task_input
 
 
 class StorageTests(unittest.TestCase):

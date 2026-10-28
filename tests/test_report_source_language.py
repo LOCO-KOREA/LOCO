@@ -2,8 +2,8 @@
 import copy
 import unittest
 
-from ergo.intake.contract import SESSION_KEY
-from ergo.report.input_trace import InputTrace
+from backend.intake.contract import SESSION_KEY
+from backend.report.input_trace import InputTrace
 
 
 class SourceLanguage(unittest.TestCase):

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from openpyxl import load_workbook
-from ergo.service.application import create_service
+from backend.service.application import create_service
 
 
 class ReviewConclusionExport(unittest.TestCase):

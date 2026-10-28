@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests import test_adaptive_intake as fixtures
-from ergo.intake import source_coverage
-from ergo.service.application import create_service
+from backend.intake import source_coverage
+from backend.service.application import create_service
 
 FIXTURES=Path(__file__).parent/'fixtures'
 BILATERAL=json.loads((FIXTURES/'intake-recorded-bilateral-omission-20261023.json').read_text(encoding='utf-8'))
@@ -49,7 +49,7 @@ class SourceCoverage(unittest.TestCase):
             self.assertTrue(any(item['target']=='manual.RIGHT.coupling' and item['reason']=='EMPTY_VALUE' for item in payload['previous_decisions']))
             self.assertEqual(payload['source_photo_scope']['views'][0]['photo_id'],self.get()['task']['capture']['slots'][0]['photo_id'])
             return dict(answers=[answer('manual.RIGHT.coupling','GOOD','양손 손잡이는 잡기 좋아요.')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=BILATERAL['case']['statement']))
         self.assertEqual([payload['phase'] for payload in payloads],['EXTRACT_AND_PLAN','FOLLOWUP'])
         self.assertEqual(first,before)
@@ -72,7 +72,7 @@ class SourceCoverage(unittest.TestCase):
             if '모든 들기 조건' in payload['text']:
                 return dict(answers=[answer('complete.lift','YES','이 20kg 조건이 모든 들기 조건입니다.')],questions=[]),None
             return dict(answers=[],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=COMPLETENESS['case']['statement']))
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=COMPLETENESS['case']['followup']))
         self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP','EXTRACT_AND_PLAN','FOLLOWUP'])
@@ -81,7 +81,7 @@ class SourceCoverage(unittest.TestCase):
 
     def test_reads_structured_only_and_nonplanning_saves_never_call_the_provider(self):
         self.enable()
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=AssertionError('no automatic AI')) as provider:
+        with patch('backend.gpt.client.adaptive_intake',side_effect=AssertionError('no automatic AI')) as provider:
             self.get();self.get()
             self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[dict(target='daily_work_min',value=480)]))
             self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='미리 저장한 설명',plan=False))
@@ -93,7 +93,7 @@ class SourceCoverage(unittest.TestCase):
             phases.append(payload['phase'])
             if payload['phase']=='EXTRACT_AND_PLAN':return None,'API_ERROR'
             return dict(answers=[answer('daily_work_min',480,'하루 전체 8시간')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 전체 8시간'))
         self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP'])
         self.assertEqual(state['task']['conditions']['daily_work_min'],480)
@@ -108,7 +108,7 @@ class SourceCoverage(unittest.TestCase):
                 return dict(answers=[answer('daily_work_min',480,'하루 8시간')],questions=[]),None
             self.assertEqual(next(item['value'] for item in payload['known'] if item['target']=='daily_work_min'),420)
             return dict(answers=[answer('annual_work_days',220,'연 220일')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             worker=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='하루 8시간 연 220일'))))
             worker.start()
             try:
@@ -141,7 +141,7 @@ class SourceCoverage(unittest.TestCase):
             self.assertEqual(payload['source_photo_scope']['views'][0]['photo_id'],old)
             self.assertEqual(payload['current_photo_scope']['views'][0]['photo_id'],replacement)
             return dict(answers=[answer('manual.RIGHT.coupling','GOOD','양손 손잡이는 잡기 좋아요.'),answer('annual_work_days',220,'연 220일')],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             worker=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='양손 손잡이는 잡기 좋아요. 연 220일 일해요.'))))
             worker.start()
             try:
@@ -159,7 +159,7 @@ class SourceCoverage(unittest.TestCase):
         def provider(payload,*args):
             phases.append(payload['phase'])
             return dict(answers=[answer('manual.LEFT.coupling','GOOD','왼손 손잡이는 잡기 좋아요.')] if payload['phase']=='FOLLOWUP' else [],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text='왼손 손잡이는 잡기 좋아요.'))
         self.assertEqual(phases,['EXTRACT_AND_PLAN','FOLLOWUP'])
         self.assertTrue(any(item['target']=='manual.LEFT.coupling' and item['value']=='GOOD' for item in state['facts']))

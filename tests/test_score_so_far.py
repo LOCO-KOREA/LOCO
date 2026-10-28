@@ -4,11 +4,11 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from ergo.engine import quick_assess
-from ergo.engine.reba_scoring import NO_BURDEN, calculate_reba
-from ergo.engine.task_defaults import ARM, COMMON, task_input
-from ergo.gpt import client, payload
-from ergo.intake import contract, facts
+from backend.engine import quick_assess
+from backend.engine.reba_scoring import NO_BURDEN, calculate_reba
+from backend.engine.task_defaults import ARM, COMMON, task_input
+from backend.gpt import client, payload
+from backend.intake import contract, facts
 import test_adaptive_intake as fixtures
 from test_photo_fact_ownership import observation, preview
 
@@ -206,7 +206,7 @@ class ScoreSoFarBeforePhotoConfirmation(unittest.TestCase):
         self.assertIsNone(so_far_of(unconfirmed_task([shaky, *BASE[1:]])))
 
     def test_the_excel_sentence_names_what_was_borrowed_and_assumed(self):
-        from ergo.report.plain import _reba_text
+        from backend.report.plain import _reba_text
         base = dict(total=3, risk='LOW', assumed=['a'] * 25)
         text = lambda extra: _reba_text(dict(reba=dict(summary=dict(full_max=None, available_max=None, score_so_far=dict(base, **extra)))))
         self.assertEqual(text({}), '현재 3점 (낮음)\n확인 전 25항목은 부담 없음으로 가정')
@@ -239,7 +239,7 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         photo.write_bytes(b'synthetic photo RIGHT')
         identity = self.ctx.store('create_photo', self.identity, dict(file_path=str(photo), file_name=photo.name,
             width_px=1, height_px=1, consent='UNKNOWN', notes=[]))
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=preview(BASE, dict(RIGHT=identity)))
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=preview(BASE, dict(RIGHT=identity)))
         inference.start(); self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(RIGHT=identity)))
         self.turn([dict(target='context', value='YES', condition='default'), dict(target='load', value='UNLOADED', condition='default')])
@@ -277,7 +277,7 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         photo = Path(self.temp.name) / 'RIGHT.fixture'
         photo.write_bytes(b'synthetic photo RIGHT')
         identity = self.ctx.store('create_photo', self.identity, dict(file_path=str(photo), file_name=photo.name, width_px=1, height_px=1, consent='UNKNOWN', notes=[]))
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=preview(READ, dict(RIGHT=identity)))
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=preview(READ, dict(RIGHT=identity)))
         inference.start(); self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=dict(RIGHT=identity)))
         analysis = self.finish_analysis()
@@ -311,7 +311,7 @@ class ScoreSoFarInOutputs(unittest.TestCase):
         settings.pop('gpt_key_present',None)
         settings.update(gpt_enabled=True,gpt_model='fixture')
         self.ctx.dispatch('update_settings',dict(settings=settings))
-        with patch('ergo.gpt.client.generate',return_value=(None,'NO_API_KEY')):
+        with patch('backend.gpt.client.generate',return_value=(None,'NO_API_KEY')):
             generated=self.ctx.dispatch('generate_ai_text',dict(analysis_id=identity))
         self.ctx.dispatch('apply_ai_text',dict(analysis_id=identity,text_id=generated['text']['text_id'],use_edited=False))
         after=self.ctx.dispatch('get_analysis',dict(analysis_id=identity))

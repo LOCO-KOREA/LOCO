@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from openpyxl import load_workbook
 from live_output_audit import read, write, json_equal, audit_source, audit_preview
-from ergo.intake.contract import fields
+from backend.intake.contract import fields
 
 directory = Path(sys.argv[1]).resolve()
 receipt = read(directory/'receipt.json')

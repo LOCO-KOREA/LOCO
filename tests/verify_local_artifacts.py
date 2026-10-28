@@ -7,13 +7,13 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ergo.report.labels import CRITERIA, criterion_name
+from backend.report.labels import CRITERIA, criterion_name
 
 MARK = {'APPLICABLE': '○', 'NOT_APPLICABLE': 'X', 'NEEDS_INPUT': '입력 필요', 'NEEDS_REVIEW': '검토 필요', 'EXCLUDED': '제외'}
 
 
 def _criterion_recorded(source, number):
-    from ergo.report.input_trace import InputTrace
+    from backend.report.input_trace import InputTrace
     trace = InputTrace(source)
     legal = source.get('legal') or {}
     criterion = next((item for item in legal.get('criteria', []) if item.get('criterion_no') == number), {})
@@ -130,7 +130,7 @@ def expected_sheets(snap):
         has_input |= any(conditions.get(field) not in (None, '', 'UNKNOWN') or field in fact_targets for field in input_fields)
         has_input |= any(isinstance(target, str) and target.startswith('work_type.') for target in fact_targets)
         legal = source.get('legal') or {}
-        from ergo.report.input_trace import InputTrace
+        from backend.report.input_trace import InputTrace
         trace = InputTrace(source)
         has_input |= any(trace.criterion_presence_recorded(item, item.get('criterion_no'))
                          or trace.lookup('complete', item.get('rows_complete'), criterion=item.get('criterion_no'))
@@ -158,7 +158,7 @@ def expected_sheets(snap):
     if snap.get('comparison_specs'):
         names.append('개선 전후 비교')
 
-    from ergo.intake.contract import SESSION_KEY
+    from backend.intake.contract import SESSION_KEY
     for source in sources:
         photos = (((source.get('conditions') or {}).get(SESSION_KEY) or {}).get('photo_vision') or {}).get('photos') or []
         owners = {slot.get('photo_id') for slot in (source.get('capture') or {}).get('slots', [])}
@@ -170,9 +170,9 @@ def expected_sheets(snap):
     return names
 
 def verify(directory, minimum_exports=5):
-    from ergo.report.form import FINAL
-    from ergo.report.labels import criterion_name
-    from ergo.report.plain import change_label, change_value
+    from backend.report.form import FINAL
+    from backend.report.labels import criterion_name
+    from backend.report.plain import change_label, change_value
     directory = Path(directory).resolve()
     db = sqlite3.connect('file:' + (directory/'loco.db').as_posix() + '?mode=ro', uri=True)
     db.row_factory = sqlite3.Row

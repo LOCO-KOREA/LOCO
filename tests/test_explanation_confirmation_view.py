@@ -7,8 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ergo.gpt import client,payload
-from ergo.service.application import create_service
+from backend.gpt import client,payload
+from backend.service.application import create_service
 
 
 def summary_fixture():
@@ -71,7 +71,7 @@ class ExplanationConfirmationView(unittest.TestCase):
 
     def test_generate_sends_only_the_model_view_and_preserves_original_summary(self):
         summary=summary_fixture();before=copy.deepcopy(summary)
-        with patch('ergo.gpt.client.create_response',return_value=response_fixture(summary)) as provider:
+        with patch('backend.gpt.client.create_response',return_value=response_fixture(summary)) as provider:
             content,reason=client.generate(summary,'fixture-model','fixture-key',dict(gpt_reasoning_effort='high'))
         self.assertIsNone(reason);self.assertIsNotNone(content)
         sent=json.loads(provider.call_args.kwargs['input'][1]['content'])
@@ -94,7 +94,7 @@ class ExplanationConfirmationView(unittest.TestCase):
             summary=payload.build_numeric_summary(analysis);before=copy.deepcopy(summary)
             settings=ctx.settings();settings.update(gpt_enabled=True,gpt_model='fixture-model')
             ctx.dispatch('update_settings',dict(settings=settings))
-            with patch.dict('os.environ',OPENAI_API_KEY='fixture-key'),patch('ergo.gpt.client.create_response',return_value=response_fixture(summary)):
+            with patch.dict('os.environ',OPENAI_API_KEY='fixture-key'),patch('backend.gpt.client.create_response',return_value=response_fixture(summary)):
                 created=ctx.dispatch('generate_ai_text',dict(analysis_id=analysis['analysis_id']))
             self.assertEqual(created['text']['result'],'GENERATED',created['text'].get('fallback_reason'))
             self.assertEqual(created['text']['input_summary'],before)

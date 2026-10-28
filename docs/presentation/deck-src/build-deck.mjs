@@ -325,7 +325,7 @@ const IMG = {
   const s = contentSlide('프로그램 개발 환경', '구성과 기술: 화면·서비스·계산·저장', `[말할 내용 · 약 1분 30초]
 - 구조는 한 줄입니다: Electron 화면 → preload → Python JSON Lines 서비스 → 기능 모듈 → SQLite. 화면은 계산하지 않고 Python 서비스에 요청만 합니다.
 - 화면: Electron 44.7(frontend/package.json), 프레임워크 없이 네이티브 ES module로 만들었습니다. 지금 보시는 '간편 흐름'은 frontend/quick-flow.js입니다.
-- 서비스: CPython 3.12. 실행 서비스는 ergo/service/json_lines.py 하나입니다(옛 가짜 서비스·별도 샘플 서버는 제거).
+- 서비스: CPython 3.12. 실행 서비스는 backend/service/json_lines.py 하나입니다(옛 가짜 서비스·별도 샘플 서버는 제거).
 - 계산: 규칙 엔진이 11개 기준과 REBA를 각각 계산합니다. 높은 REBA를 곧바로 '법정 해당'으로, 낮은 REBA를 '해당 없음'으로 바꾸지 않고, 두 결과를 한 점수로 합치지도 않습니다.
 - 자세: MediaPipe Pose Landmarker Heavy(mediapipe 1.1.1)가 기본이고 관절 33점을 냅니다. Full 모델과 예전 MoveNet Lightning(17점)은 설정에서 고를 수 있습니다.
 - AI: OpenAI 호환 API. 모델은 gpt-6-luna, 추론 강도는 high입니다(기본값. 2026-10-26에 소유자 지시로 xhigh에서 낮춤). 환경변수 OPENAI_API_KEY로 키를 주며 키는 화면(renderer)·SQLite·패키지에 저장하지 않습니다. OPENAI_BASE_URL로 호환 서버를 지정할 수도 있습니다.
