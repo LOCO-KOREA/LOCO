@@ -65,7 +65,6 @@
 | :---: | :---: | :---: |
 | <img src="./docs/images/photo-input.png" alt="사진 등록 및 작업 설명 입력 화면" width="300"> | <img src="./docs/images/reba-result.png" alt="관절·각도 및 REBA 점수 확인 화면" width="300"> | <img src="./docs/images/excel-preview.png" alt="Excel 미리보기 화면" width="300"> |
 | 1단계 · 사진 등록과 작업 설명 | 사진 위 관절·각도와 REBA 점수 | 6단계 · Excel 미리보기 |
-| `docs/images/photo-input.png` | `docs/images/reba-result.png` | `docs/images/excel-preview.png` |
 
 ### 사용 순서
 
