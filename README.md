@@ -25,11 +25,8 @@
   <a href="#11-참고-자료">관련 문서</a>
 </p>
 
-<!-- 이미지 준비 후 아래 안내를 docs/images/overview.png 이미지로 교체합니다. -->
 <p align="center">
-  <strong>📷 대표 화면 이미지 위치</strong><br>
-  작업 사진과 REBA 점수·색상바가 함께 보이는 4단계 결과 화면<br>
-  <code>docs/images/overview.png</code>
+  <img src="./docs/images/overview.png" alt="LOCO 작업 사진 분석 및 REBA 결과 화면" width="700">
 </p>
 
 ---
@@ -64,10 +61,9 @@
 
 ### 화면 예시
 
-<!-- 이미지 준비 후 각 칸의 안내를 해당 경로의 이미지로 교체합니다. -->
 | ① 사진·작업 설명 입력 | ② 자세·점수 확인 | ③ Excel 출력 |
 | :---: | :---: | :---: |
-| 📷 이미지 추가 예정 | 📷 이미지 추가 예정 | 📷 이미지 추가 예정 |
+| <img src="./docs/images/photo-input.png" alt="사진 등록 및 작업 설명 입력 화면" width="300"> | <img src="./docs/images/reba-result.png" alt="관절·각도 및 REBA 점수 확인 화면" width="300"> | <img src="./docs/images/excel-preview.png" alt="Excel 미리보기 화면" width="300"> |
 | 1단계 · 사진 등록과 작업 설명 | 사진 위 관절·각도와 REBA 점수 | 6단계 · Excel 미리보기 |
 | `docs/images/photo-input.png` | `docs/images/reba-result.png` | `docs/images/excel-preview.png` |
 
