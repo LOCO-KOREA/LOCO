@@ -2,7 +2,7 @@
 
 이 문서는 이전 자료 해석용이다. 새 작업·새 계산은 2.0만 생성한다. 0.3 가짜 서비스, 이전 샘플 서버와 입력 API는 제거했다.
 
-`LegacyTaskV13`은 기존 `TASK.input_json` 원문이다. `schema_version:'1.3'`, `task_kind:'BOX_LIFT'`, 당시 작업명·조건·법령 입력·15슬롯 capture·수동값과 알 수 없는 추가 키를 보존한다. DB 열의 ID·revision·시각과 원문을 구분한다. `ergo/legacy/v13.py`는 기존 중량·시간·조건을 메모리의 일반 작업 편집 DTO로 변환하고 `legacy_input`에 원문 전체를 보존한다. 사진의 기존 회차/순간은 과거 표시명이며 새 하중 근거가 아니다.
+`LegacyTaskV13`은 기존 `TASK.input_json` 원문이다. `schema_version:'1.3'`, `task_kind:'BOX_LIFT'`, 당시 작업명·조건·법령 입력·15슬롯 capture·수동값과 알 수 없는 추가 키를 보존한다. DB 열의 ID·revision·시각과 원문을 구분한다. `backend/legacy/v13.py`는 기존 중량·시간·조건을 메모리의 일반 작업 편집 DTO로 변환하고 `legacy_input`에 원문 전체를 보존한다. 사진의 기존 회차/순간은 과거 표시명이며 새 하중 근거가 아니다.
 
 `LegacyAnalysisV13`은 `ANALYSIS`의 ID·task_id·input_revision·status·시각과 `snapshot_json/result_json`이다. snapshot의 1.3 입력·설정·모델/규칙과 기존 pose·tags·reba·judgment·조사자 결론·AI를 당시 의미로 읽는다. 새 기준으로 재계산하거나 snapshot을 다시 쓰지 않는다. 당시 module_states가 없으면 표시용 상태만 메모리에서 파생한다.
 

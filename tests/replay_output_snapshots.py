@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from openpyxl import load_workbook
-from ergo.report.workbook import render
+from backend.report.workbook import render
 from tests.live_output_audit import audit_source
 
 def main(campaign,destination):

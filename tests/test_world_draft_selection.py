@@ -3,11 +3,11 @@ import copy
 import unittest
 from unittest.mock import patch
 
-from ergo.engine import quick_assess
-from ergo.engine.angle_selection import selected_angle
-from ergo.engine.reba_scoring import calculate_reba,candidates,project_score_continuity
-from ergo.engine.task_defaults import task_input,default_settings
-from ergo.intake import contract,facts,photo_facts
+from backend.engine import quick_assess
+from backend.engine.angle_selection import selected_angle
+from backend.engine.reba_scoring import calculate_reba,candidates,project_score_continuity
+from backend.engine.task_defaults import task_input,default_settings
+from backend.intake import contract,facts,photo_facts
 from test_photo_fact_ownership import preview
 
 
@@ -24,7 +24,7 @@ def pose():
 class WorldDraftSelection(unittest.TestCase):
     def measured_task(self,answers=()):
         raw=pose()
-        with patch('ergo.engine.quick_assess.joint_angles',return_value=raw['angles']):
+        with patch('backend.engine.quick_assess.joint_angles',return_value=raw['angles']):
             _,measured=quick_assess.side_measure([],800,800,default_settings()['analysis'],'LEFT','SCREEN_RIGHT',world_angles=raw['world_angles'])
         views=dict(LEFT=101);data=preview(measured,views)
         saved=facts.apply_answers({},[dict(target='context',value='YES'),dict(target='load',value='UNLOADED'),*answers])

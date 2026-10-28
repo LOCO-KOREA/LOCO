@@ -1,5 +1,13 @@
 # LOCO 2.0 구현·검증 대조표
 
+## 2026-10-28 소스 패키지 경로 통일
+
+- `ergo/`를 `backend/`로 이동하고 import·동적 provider·Electron 개발 진입점·PyInstaller 리소스·현재 문서·시험 경로를 변경했다. 이동한 추적 파일 94개를 이전 소스와 비교해 패키지 이름 치환 외의 변경이 없음을 확인했다. 기존 DB·snapshot·메서드 계약은 변경하지 않았다. 아래 과거 검증 기록과 `verification/`의 해시는 당시 상태를 보존한다.
+- 실제 수행: Python 기존 시험 698건 중 689건 통과·8건 건너뜀·PDF 시험 모듈 1개 import 실패(`pdfplumber` 미설치). 추가 경로 회귀 시험 2건 통과(외부 작업 폴더에서 파일 진입점/모듈 진입점으로 SQLite 저장·Excel 출력·오류 후 후속 요청, 빌드 명령의 provider/리소스 경로). 프런트 시험 스크립트 41개·프런트 build 검사·실제 Python/SQLite를 연결한 main/preload 통합 5건·서비스 계약 51개 대조 통과.
+- 1차 검증의 범위 제한: Electron 창·clipboard·shell은 통합 시험의 mock이며 실제 GUI 검증이 아니다. 당시 PyInstaller가 없어 EXE 빌드는 미수행이었으며, 아래 추가 검증에서 보완했다.
+- 추가 배포 검증: PyInstaller 6.22.3 설치 후 `scripts/build_windows.py`로 `dist/LOCO-2.0-windows-x64-20261028T054352066836Z` 생성에 성공했다. 빌드 기준은 `2a393b37`과 미커밋 소스 변경이며, manifest의 backend 소스 94개·모델·프런트 파일 해시가 현재 소스/배포본과 일치했다. Heavy·Full·MoveNet 각각 실제 frozen service 검사 7건, 총 21건 통과(격리 DB·직접 입력 계산·CPU 추론·AI 비활성/키 없는 대체 설명·Excel/미리보기 일치·재시작 보존·손상 모델 거부). 실제 LOCO.exe를 숨김 실행한 설정 있음/없음 2건도 통과했다. 모든 배포 실행 검사는 시스템 Python/Node를 PATH에서 제외하고 새 임시 DB를 사용했다. 테스트 후 `loco.env`가 빈 배포 템플릿과 같은지도 확인했다. 로그·검사 영수증 사본은 `.local/backend-rename/`에 보관한다.
+- 최종 범위 제한: 모델 추론 입력은 합성 흰 이미지이며 사람 자세 정확도 검증이 아니다. 실제 Electron 실행·연결은 자동화로 확인했으나 전체 화면 수동 조작, 실제 외부 AI 호출·깨끗한 별도 PC 검증은 수행하지 않았다. 새 경로의 로컬 빌드·실행 범위만 제한적으로 수용하며 전체 배포 수용은 NOT ACCEPTED다. PDF 시험의 `pdfplumber` 누락도 별도 미해결 환경 제약이다.
+
 검증 당시 기준: feat/loco-2.0-oct23, HEAD a4213eb와 당시 미커밋 변경. 검증일 2026-10-16(Asia/Seoul). **로컬 검증 통과 / 전체 수용 NOT ACCEPTED**다. 검증한 실행 소스 90개의 해시는 [소스 manifest](verification/2026-10-16-source-manifest.json)의 source_sha256에 기록한다. 게시 전 v13.py의 빈 EOF 행과 actions.js의 끝 공백만 정리했으며, 공백 정규화 후 원문 동일성을 확인했다. publication_formatting_changes와 publication_source_sha256에 변경 전후 해시를 기록하고 정리 후 Python·프론트 시험을 다시 통과했다. Electron/포터블 영수증은 공백 정리 전 실행 기록이다. 외부 계정·별도 PC·실사용 자료·현장 성과를 로컬 합성 실행으로 대체하지 않는다.
 
 ## 정본 요구사항 대조

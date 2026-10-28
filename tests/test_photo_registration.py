@@ -6,8 +6,8 @@ import threading
 import unittest
 from contextlib import closing
 from unittest.mock import patch
-from ergo import photo_identity
-from ergo.intake import contract
+from backend import photo_identity
+from backend.intake import contract
 from tests import test_photo_vision as fixtures
 
 
@@ -38,7 +38,7 @@ class PhotoRegistration(unittest.TestCase):
             payloads.append(copy.deepcopy(payload))
             return dict(answers=[dict(target='annual_work_days',condition='default',number=220,text=None,quote='연 220일'),
                 dict(target='manual.COMMON.trunk_twisted',condition='default',number=None,text='YES',quote='몸통을 비틀어요.')],questions=[]),None
-        with patch('ergo.vision.client.observe',side_effect=vision),patch('ergo.gpt.client.adaptive_intake',side_effect=text):
+        with patch('backend.vision.client.observe',side_effect=vision),patch('backend.gpt.client.adaptive_intake',side_effect=text):
             worker=threading.Thread(target=lambda:results.append(self.turn('이 사진에서는 몸통을 비틀어요. 연 220일 작업해요.')));worker.start()
             try:
                 self.assertTrue(entered.wait(5));self.ctx.dispatch('delete_photo',dict(photo_id=photo['photo_id']))
@@ -69,7 +69,7 @@ class PhotoRegistration(unittest.TestCase):
             session['photo_vision']['owners']={}
             db.execute('UPDATE TASK SET input_json=? WHERE task_id=?',(json.dumps(task,ensure_ascii=False),self.identity));db.commit()
             before=db.execute('SELECT metadata_json FROM PHOTO').fetchone()[0]
-        with patch('ergo.vision.client.observe',side_effect=AssertionError('legacy read must not call AI')):
+        with patch('backend.vision.client.observe',side_effect=AssertionError('legacy read must not call AI')):
             state=self.get()
             item=next(item for item in state['facts'] if item['target']=='manual.COMMON.trunk_twisted' and not item.get('alias_of'))
             self.assertEqual((item['source'],item['value']),('USER','YES'))

@@ -11,7 +11,7 @@ def sha(value):return hashlib.sha256(value).hexdigest()
 def main(root,output,campaigns):
     if output.exists():raise ValueError('Fresh independent output required')
     output.mkdir(parents=True);head=git(root,'rev-parse','HEAD').decode().strip()
-    names=git(root,'ls-files','-z','--cached','ergo','frontend').decode().split('\0');names=[name for name in names if name]
+    names=git(root,'ls-files','-z','--cached','backend','frontend').decode().split('\0');names=[name for name in names if name]
     blobs={name:git(root,'show',head+':'+name) for name in names};tracked={name:sha(value) for name,value in blobs.items()};disk={name:sha((root/name).read_bytes()) for name in names}
     manifests=[];checks=[]
     def check(name,expected,actual):checks.append(dict(name=name,expected=expected,actual=actual,pass_=expected==actual))
@@ -24,7 +24,7 @@ def main(root,output,campaigns):
         check(campaign.name+' every recorded runtime file hash equals current disk',{}, {name:dict(recorded=value,disk=sha((root/name).read_bytes()) if (root/name).is_file() else None) for name,value in files.items() if not (root/name).is_file() or sha((root/name).read_bytes())!=value})
         manifests.append(dict(campaign=str(campaign),recorded_baseline=manifest['baseline'],raw_manifest_sha256=sha(raw),application_file_count=len(files),application_hash=sha(json.dumps(files,sort_keys=True,separators=(',',':')).encode()),files=files))
     if len(manifests)>1:check('all campaigns used byte-identical complete application file maps',True,all(item['files']==manifests[0]['files'] for item in manifests[1:]))
-    result=dict(final_head=head,scope='all tracked ergo/frontend bytes; runtime dependencies/models and tests are separate evidence',raw_git_disk_differences=raw_mismatches,checks=checks,defects=[row for row in checks if not row['pass_']],campaigns=manifests)
+    result=dict(final_head=head,scope='all tracked backend/frontend bytes; runtime dependencies/models and tests are separate evidence',raw_git_disk_differences=raw_mismatches,checks=checks,defects=[row for row in checks if not row['pass_']],campaigns=manifests)
     (output/'application-source-audit.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(dict(head=head,files=len(names),checks=len(checks),defects=len(result['defects']),application_hash=manifests[0]['application_hash'])))
     if result['defects']:raise SystemExit(1)

@@ -3,8 +3,8 @@ import copy
 import json
 import unittest
 
-from ergo.intake import contract, facts
-from ergo.intake.input_links import synchronize
+from backend.intake import contract, facts
+from backend.intake.input_links import synchronize
 
 
 MASS='card.lift.load_mass_kg'

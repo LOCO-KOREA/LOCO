@@ -9,9 +9,9 @@ from pathlib import Path
 from unittest.mock import patch
 from openpyxl import load_workbook
 
-from ergo.intake import contract, facts
-from ergo.intake.grounding import number_proof
-from ergo.service.application import create_service
+from backend.intake import contract, facts
+from backend.intake.grounding import number_proof
+from backend.service.application import create_service
 from tests import test_adaptive_intake as fixtures
 from tests.test_intake_grounding import calculation
 
@@ -81,7 +81,7 @@ class DurableExplicitTotal(unittest.TestCase):
         settings=self.ctx.dispatch('get_settings',{});settings.update(gpt_enabled=True,gpt_model='recorded-provider')
         self.ctx.dispatch('update_settings',dict(settings=settings))
         def provider(payload,*args):return copy.deepcopy(RECORDED['responses'][payload['phase']]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=RECORDED['statement']))
         self.assertEqual(state['task']['conditions']['daily_work_min'],300)
         self.assertNotIn('daily_work_min',{question['target'] for question in state['questions']})
@@ -111,7 +111,7 @@ class DurableExplicitTotal(unittest.TestCase):
         self.assertTrue(any(cell.endswith('AI: 하루 전체 실제 작업시간은 5시간입니다.') for cell in cells))
         self.assertTrue(any(isinstance(cell,str) and cell.startswith('300 분/일') for cell in cells))
         self.ctx.dispatch('intake_turn',dict(task_id=self.identity,answers=[dict(target='daily_work_min',value=420)],plan=False))
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.identity,text=RECORDED['statement']))
         self.assertEqual(state['task']['conditions']['daily_work_min'],420)
         self.assertEqual(self.ctx.require('analysis',analysis['analysis_id'])['snapshot'],snapshot)

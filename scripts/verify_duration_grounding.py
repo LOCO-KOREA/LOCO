@@ -19,9 +19,9 @@ import time
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from ergo import ai_config
-from ergo.gpt import client as ai_client
-from ergo.service.application import create_service
+from backend import ai_config
+from backend.gpt import client as ai_client
+from backend.service.application import create_service
 from openpyxl import load_workbook
 
 CASES=(

@@ -11,8 +11,8 @@ import sys
 import threading
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from openpyxl import load_workbook
-from ergo.intake import contract,photo_facts
-from ergo.service.application import create_service
+from backend.intake import contract,photo_facts
+from backend.service.application import create_service
 
 def rows(path,table):
     with sqlite3.connect('file:'+path.as_posix()+'?mode=ro',uri=True) as db:return db.execute('SELECT * FROM '+table).fetchall()

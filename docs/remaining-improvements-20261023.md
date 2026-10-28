@@ -45,7 +45,7 @@ main의 프론트 디자인과 구성을 유지했다. 헤더·사진 탭·사�
 
 ### 보존한 진행 상태와 완료 기준
 
-- 별도 브랜치 `fix/intake-response-latency-20261023`, 폴더 `work/LOCO-intake-speed-20261023`에 병렬 실행 시제품을 보존했다. `ergo/service/intake.py` 수정과 새 `ergo/intake/execution.py`는 미커밋이며 **이번 병합에 넣지 않았다**.
+- 별도 브랜치 `fix/intake-response-latency-20261023`, 폴더 `work/LOCO-intake-speed-20261023`에 병렬 실행 시제품을 보존했다. `backend/service/intake.py` 수정과 새 `backend/intake/execution.py`는 미커밋이며 **이번 병합에 넣지 않았다**.
 - 회귀 준비 커밋 `15d21a7`의 이벤트 기반 병렬/소유권 시험 5개는 시제품에서 통과했다. 전체 회귀·실호출·성능 개선 검증은 미완료다. 기존 사진 시험 1개는 첫 요청에 새 사진 관찰이 이미 들어 있다는 직렬 실행 기대와 충돌하므로 새 단계 계약을 검토해야 한다. 초기 집중 실행의 별도 잘못된 시험 모듈명 오류는 제품 결함과 구분한다.
 - 스키마 압축은 설계만 완료했다. 압축 JSON 사본에서 89개 분기를 12개로 묶으면 32,848→9,242자로 줄일 수 있었다. 실제 구현·동치 검증·품질 검증은 아직 없다.
 - 준비된 독립 검증 브랜치 `test/intake-latency-e2e-20261023`, 폴더 `work/LOCO-speed-e2e-20261023`, 테스트 전용 HEAD `f77c256`을 보존했다. 새 앱 실행/실호출은 0회다.
@@ -61,9 +61,9 @@ main의 프론트 디자인과 구성을 유지했다. 헤더·사진 탭·사�
 
 화면의 1차 점수와 최종 분석이 서로 다른 경로다.
 
-- `ergo/engine/quick_assess.py`의 `provisional()`은 미확인 항목을 `NO_BURDEN`으로 가정하고 촬영 상황도 확인된 것으로 가정해 1차 점수를 만든다.
+- `backend/engine/quick_assess.py`의 `provisional()`은 미확인 항목을 `NO_BURDEN`으로 가정하고 촬영 상황도 확인된 것으로 가정해 1차 점수를 만든다.
 - 간편 화면 `finish()`는 저장된 작업으로 최종 분석을 시작하며 `preview.score`를 전달하지 않는다. 1차 점수는 최종 snapshot에 별도 보존되지 않아 이번 DB 조회로 사용자가 본 정확한 1차 수치까지 대조할 수는 없었다.
-- `ergo/gpt/payload.py`는 최종 `pose.valid_count`, `reba.complete_count/available_max/full_max`만 AI에 보낸다. AI는 앞서 보여 준 1차 점수와 가정 내용을 알 수 없다.
+- `backend/gpt/payload.py`는 최종 `pose.valid_count`, `reba.complete_count/available_max/full_max`만 AI에 보낸다. AI는 앞서 보여 준 1차 점수와 가정 내용을 알 수 없다.
 - 사용자 대표 사진은 측면 촬영 여부/한 사람/전신/평소 작업 확인값이 미확인이었고, 최종 REBA 입력 29항목이 비어 있었다. 사진에 관절이 검출돼도 촬영 상황 미확인으로 최종 유효 판정에서 제외될 수 있다. ‘유효 0’은 곧 ‘사진에서 사람이나 자세를 못 찾음’이 아니다.
 - 화면에는 ‘1차 REBA 점수’와 가정 안내가 있지만, 큰 점수를 본 사용자에게 최종 AI 설명과의 연결이 충분하지 않았다. 최종 점수 화면 자체가 1차 점수를 대신 표시하는 구조는 아니다.
 

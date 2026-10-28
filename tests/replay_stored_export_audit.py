@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from openpyxl import load_workbook
-from ergo.intake.contract import public_contract
+from backend.intake.contract import public_contract
 from tests.live_output_audit import audit_source,audit_preview,json_equal,user_text
 
 def read(path):return json.loads(path.read_text(encoding='utf-8'))

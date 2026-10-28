@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from ergo.pose_contract import MODELS,DEFAULT_MODEL
+from backend.pose_contract import MODELS,DEFAULT_MODEL
 
 
 def set_executable_icon(executable, icon):
@@ -61,13 +61,13 @@ def main():
     subprocess.run([
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--name', 'loco-service',
         '--paths', str(ROOT), '--collect-all', 'ai_edge_litert', '--collect-all', 'mediapipe',
-        '--hidden-import', 'ergo.pose.providers.mediapipe', '--hidden-import', 'ergo.pose.providers.movenet',
-        '--add-data', str(ROOT / 'ergo' / 'db' / 'schema_v1.sql') + ';ergo/db',
+        '--hidden-import', 'backend.pose.providers.mediapipe', '--hidden-import', 'backend.pose.providers.movenet',
+        '--add-data', str(ROOT / 'backend' / 'db' / 'schema_v1.sql') + ';backend/db',
         '--add-data', str(ROOT / 'frontend' / 'user-language.json') + ';.',
-        '--add-data', str(ROOT / 'ergo' / 'report' / 'templates') + ';ergo/report/templates',
-        '--add-data', str(ROOT / 'ergo' / 'report' / 'assets') + ';ergo/report/assets',
+        '--add-data', str(ROOT / 'backend' / 'report' / 'templates') + ';backend/report/templates',
+        '--add-data', str(ROOT / 'backend' / 'report' / 'assets') + ';backend/report/assets',
         '--distpath', str(work / 'backend'), '--workpath', str(work / 'freeze'),
-        '--specpath', str(work), str(ROOT / 'ergo' / 'service' / 'json_lines.py'),
+        '--specpath', str(work), str(ROOT / 'backend' / 'service' / 'json_lines.py'),
     ], cwd=ROOT, check=True)
     output_root.mkdir(parents=True, exist_ok=True)
     output = output_root / ('LOCO-2.0-windows-x64-' + stamp)
@@ -91,7 +91,7 @@ def main():
                     default_db=r'%LOCALAPPDATA%\LOCO\loco_demo.db',
                     external_validation=['real GPT account', 'clean separate Windows PC', 'user legacy DB', 'field study'])
     manifest['source_sha256']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
-                               for base in ('ergo','frontend') for p in (ROOT/base).rglob('*')
+                               for base in ('backend','frontend') for p in (ROOT/base).rglob('*')
                                if p.is_file() and not any(part in ('node_modules','.local','__pycache__') for part in p.parts)
                                and p.suffix in ('.py','.js','.cjs','.html','.css','.sql','.json','.svg','.png','.ico','.pdf','.ttf','.txt')}
     manifest['source_sha256']['docs/ui/loco-guide.js']=hashlib.sha256((ROOT/'docs/ui/loco-guide.js').read_bytes()).hexdigest()

@@ -7,12 +7,12 @@ import threading
 import unittest
 from unittest.mock import patch
 from PIL import Image
-from ergo.engine import quick_assess
-from ergo.engine.task_defaults import task_input
-from ergo.intake import contract,facts,planner,photo_facts
-from ergo.report.input_trace import InputTrace
-from ergo.report.plain import _manual_rows
-from ergo.service.application import create_service
+from backend.engine import quick_assess
+from backend.engine.task_defaults import task_input
+from backend.intake import contract,facts,planner,photo_facts
+from backend.report.input_trace import InputTrace
+from backend.report.plain import _manual_rows
+from backend.service.application import create_service
 
 def observation(view,scope,field,value,angle):
     return dict(view=view,scope=scope,field=field,value=value,low_confidence=False,boundary_review=False,angles=[dict(side=scope,angle_code='TRUNK_TILT_VERT',value_deg=angle)])
@@ -111,7 +111,7 @@ class PhotoServiceOwnership(unittest.TestCase):
             file=self.directory/(name+'.png');Image.new('RGB',(10,10),'white').save(file);files.append(str(file))
         imported=self.ctx.dispatch('import_photos',dict(task_id=self.task['task_id'],file_paths=files))['added'];self.views=dict(zip(('LEFT','RIGHT'),[row['photo_id'] for row in imported]))
         self.data=preview([observation('LEFT','COMMON','trunk_base',3,35),observation('RIGHT','COMMON','trunk_base',3,50)],self.views)
-        self.inference=patch('ergo.service.intake.handle_quick_preview',return_value=self.data);self.inference.start();self.addCleanup(self.inference.stop)
+        self.inference=patch('backend.service.intake.handle_quick_preview',return_value=self.data);self.inference.start();self.addCleanup(self.inference.stop)
         self.state=self.ctx.dispatch('intake_session',dict(task_id=self.task['task_id'],views=self.views))
         self.state=self.turn([dict(target='context',value='YES')])
 
@@ -122,7 +122,7 @@ class PhotoServiceOwnership(unittest.TestCase):
         settings=self.ctx.dispatch('get_settings',{});settings.pop('gpt_key_present',None);settings.update(gpt_enabled=True,gpt_model='fixture');self.ctx.dispatch('update_settings',dict(settings=settings))
         def delayed(*args,**kwargs):
             started.set();release.wait();return dict(answers=[dict(target='manual.COMMON.trunk_base',condition=condition,number=None,text='4',quote='이 사진은 몸통이 크게 굽었어요.')],questions=[]),None
-        with patch('ergo.vision.client.observe',return_value=(None,'NO_API_KEY')), patch('ergo.gpt.client.adaptive_intake',side_effect=delayed):
+        with patch('backend.vision.client.observe',return_value=(None,'NO_API_KEY')), patch('backend.gpt.client.adaptive_intake',side_effect=delayed):
             thread=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text='이 사진은 몸통이 크게 굽었어요.'))));thread.start();self.assertTrue(started.wait(3))
             saved=self.turn([dict(target='manual.COMMON.trunk_base',condition=condition,value=None)])
             release.set();thread.join(5);self.assertFalse(thread.is_alive())

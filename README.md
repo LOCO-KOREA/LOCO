@@ -274,15 +274,15 @@ Electron 화면 → preload/main → Python 서비스 → 분석·저장·출력
 | 경로 | 내용 |
 |---|---|
 | `frontend/` | Electron 앱과 화면 코드 |
-| `ergo/service/` | 화면 요청 처리와 기능 연결 |
-| `ergo/pose/` | MediaPipe·MoveNet 추론 |
-| `ergo/engine/` | 관절 각도, REBA, 11개 기준 계산 |
-| `ergo/intake/`, `ergo/vision/`, `ergo/gpt/` | 작업 설명 정리, 사진 관찰, 결과 설명 |
-| `ergo/db/`, `ergo/report/` | SQLite 저장과 보고서 출력 |
+| `backend/service/` | 화면 요청 처리와 기능 연결 |
+| `backend/pose/` | MediaPipe·MoveNet 추론 |
+| `backend/engine/` | 관절 각도, REBA, 11개 기준 계산 |
+| `backend/intake/`, `backend/vision/`, `backend/gpt/` | 작업 설명 정리, 사진 관찰, 결과 설명 |
+| `backend/db/`, `backend/report/` | SQLite 저장과 보고서 출력 |
 | `tests/`, `scripts/` | 검증 코드, 모델 다운로드, 패키지 빌드 |
 | `docs/` | 설계 문서, 검증 기록, 발표 자료 |
 
-- <strong>서비스 진입점:</strong> `ergo/service/json_lines.py`
+- <strong>서비스 진입점:</strong> `backend/service/json_lines.py`
 - <strong>계산 위치:</strong> Python 기능 모듈
 - <strong>SQLite 테이블:</strong> `SURVEY` · `TASK` · `PHOTO` · `ANALYSIS` · `APP_SETTINGS` · `EXPORT_LOG`
 

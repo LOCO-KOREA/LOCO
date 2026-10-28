@@ -3,8 +3,8 @@ import copy
 import json
 import unittest
 
-from ergo.engine.reba_scoring import calculate_reba, project_score_continuity
-from ergo.gpt import client, payload
+from backend.engine.reba_scoring import calculate_reba, project_score_continuity
+from backend.gpt import client, payload
 
 
 def source_analysis(manual=()):

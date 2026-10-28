@@ -36,7 +36,7 @@ def run(directory: Path, runtime: str, reference_root: Path):
     def git(*args):
         return subprocess.check_output(["git", *args], cwd=root)
 
-    tracked = git("ls-files", "ergo", "frontend").decode().splitlines()
+    tracked = git("ls-files", "backend", "frontend").decode().splitlines()
     current = {name: digest((root / name).read_bytes()) for name in tracked}
     check("all tracked application files match start manifest", current == manifest, files=len(current))
     reference_raw, reference_newlines, reference_mismatch = [], [], []

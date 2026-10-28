@@ -5,8 +5,8 @@ import tempfile
 import unittest
 
 from openpyxl import Workbook,load_workbook
-from ergo.report.plain import _inputs,_manual_rows
-from ergo.report.renderer import _write_sheet
+from backend.report.plain import _inputs,_manual_rows
+from backend.report.renderer import _write_sheet
 
 
 def source():

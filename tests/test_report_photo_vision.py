@@ -2,9 +2,9 @@
 import copy
 import unittest
 
-from ergo.intake.contract import SESSION_KEY
-from ergo.report.photo_vision import observation_rows, observation_sheet
-from ergo.report.plain import _context, note
+from backend.intake.contract import SESSION_KEY
+from backend.report.photo_vision import observation_rows, observation_sheet
+from backend.report.plain import _context, note
 
 
 def source(value='허리를 앞으로 굽힌 모습', owner=11):

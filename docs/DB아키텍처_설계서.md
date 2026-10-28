@@ -6,7 +6,7 @@
 
 ## 1. 구조와 구현 경계
 
-로컬 정리 기준: 실행 진입점은 공통 JSON Lines 서비스 하나다. 낡은 가짜 서비스·별도 샘플 서버·프론트 저장 adapter·DB 계산 뷰 검사기는 제거한다. 기존 1.3 입력의 읽기 변환은 `ergo/legacy/v13.py`에 격리한다. 물리 여섯 테이블과 기존 JSON·분석·출력 snapshot을 변경하거나 일괄 변환하지 않는다. 배포 패키지는 실제 화면·공통 서비스·모델만 포함한다.
+로컬 정리 기준: 실행 진입점은 공통 JSON Lines 서비스 하나다. 낡은 가짜 서비스·별도 샘플 서버·프론트 저장 adapter·DB 계산 뷰 검사기는 제거한다. 기존 1.3 입력의 읽기 변환은 `backend/legacy/v13.py`에 격리한다. 물리 여섯 테이블과 기존 JSON·분석·출력 snapshot을 변경하거나 일괄 변환하지 않는다. 배포 패키지는 실제 화면·공통 서비스·모델만 포함한다.
 
 Electron renderer → preload → main → Python Application Service → task_input/capture/pose/tags/reba/burden/explanation/report → storage → SQLite다. 기능 모듈은 계산·출력을 담당하고 서비스가 순서를 조정한다. SQLite는 근거·snapshot·결과를 저장하며 계산 규칙을 실행하지 않는다.
 
@@ -20,7 +20,7 @@ N02의 DB 위치 표시는 Electron 시작 시 결정한 절대경로를 Python�
 
 | 항목 | 기준 main e7b0cf1 | 현재 2.0 브랜치 |
 |---|---|---|
-| 통합 시작 | 별도 `survey_service.py` adapter와 공통 서비스가 공존 | run-integrated.ps1과 Electron 기본 경로가 `ergo/service/json_lines.py` 사용 |
+| 통합 시작 | 별도 `survey_service.py` adapter와 공통 서비스가 공존 | run-integrated.ps1과 Electron 기본 경로가 `backend/service/json_lines.py` 사용 |
 | 업무 조정 | 상자 작업과 고정 사진의 1.3 흐름 | 일반 작업·11개 기준·가변 사진·revision·분석 범위 |
 | 저장 경로 | 프론트 adapter 전용 DB 기본 경로 | 통합 스크립트: frontend/.local/loco_frontend.db; 직접/포터블: %LOCALAPPDATA%/LOCO/loco_demo.db; 명시 경로로 변경 가능 |
 | 모델 | 모델 설치·활성 추론 확인 없음 | 공식 Lightning float16 v4 다운로드·SHA-256 검증·CPU 추론 스모크 확인 |
@@ -130,7 +130,7 @@ Windows 포터블 디렉터리는 Electron·PyInstaller로 묶은 Python 서비�
 
 동일 JSON의 `last_ai`에 마지막 실제 요청의 상태·모델·사유·시각·지연·응답 ID를 보관한다. 키/인증정보는 저장하지 않는다. 정보 추출을 저장한 뒤 질문 계획을 재요청할 때도 네트워크 대기 동안 DB 잠금을 잡지 않는다.
 
-AI 입력 정리·후속 질문·설명·사진 관찰은 공통 설정 계약(ergo/ai_config.py, API 계약서 §6)과 같은 프로세스의 OpenAI client/HTTP 연결 풀을 공유한다. 모델·추론 강도·토큰 한도는 변수이며, 설정 화면은 서버 필드 정의로 렌더링한다. 앱은 AI 요청 한 번을 120초까지만 기다리고 답이 없으면 같은 요청을 다시 보낸다(처음 포함 최대 3번). 시간 초과가 아닌 오류는 다시 보내지 않는다. 구버전 timeout 값은 무시하며, APP_SETTINGS의 기존 JSON·테이블·이전 분석 snapshot 형식은 변경하지 않는다.
+AI 입력 정리·후속 질문·설명·사진 관찰은 공통 설정 계약(backend/ai_config.py, API 계약서 §6)과 같은 프로세스의 OpenAI client/HTTP 연결 풀을 공유한다. 모델·추론 강도·토큰 한도는 변수이며, 설정 화면은 서버 필드 정의로 렌더링한다. 앱은 AI 요청 한 번을 120초까지만 기다리고 답이 없으면 같은 요청을 다시 보낸다(처음 포함 최대 3번). 시간 초과가 아닌 오류는 다시 보내지 않는다. 구버전 timeout 값은 무시하며, APP_SETTINGS의 기존 JSON·테이블·이전 분석 snapshot 형식은 변경하지 않는다.
 
 ## MediaPipe 자세 엔진 개정 (2026-10-22)
 
@@ -144,7 +144,7 @@ PDF 이력은 같은 저장 트랜잭션에서 대상 조사 존재·created_at�
 
 ### 하루 시간 합산 정정 (2026-10-22)
 
-2026-10-23: 숫자·복합 단위·AI 피연산자 근거 검증은 순수 `ergo/intake/grounding.py`에 둔다. GPT는 원문에 대응하는 작업시간을 선택하고 서비스는 검증된 값만 기존 TASK JSON으로 투영한다. DB에서 수식을 실행하거나 새 저장 테이블/물리 migration을 만들지 않는다. 저장·revision·USER 우선권·분석 snapshot 경계는 유지한다.
+2026-10-23: 숫자·복합 단위·AI 피연산자 근거 검증은 순수 `backend/intake/grounding.py`에 둔다. GPT는 원문에 대응하는 작업시간을 선택하고 서비스는 검증된 값만 기존 TASK JSON으로 투영한다. DB에서 수식을 실행하거나 새 저장 테이블/물리 migration을 만들지 않는다. 저장·revision·USER 우선권·분석 snapshot 경계는 유지한다.
 
 하루 시간 합산의 계산 근거는 기존 intake_session.facts의 calculation JSON에 저장한다. conditions.daily_work_min에도 같은 값을 투영하고 이전 분석/출력 행을 재작성하지 않는다. 자세한 근거 검증과 예외는 [적응형 추가 확인 계약](adaptive-intake.md)의 작업별 시간 합산 절을 따른다.
 
@@ -166,7 +166,7 @@ FOLLOWUP도 제안을 검증해 같은 기존 TASK JSON에 반영하며 재계�
 
 ## 실제 원문 인용과 반 시간 경계 정정 (2026-10-23)
 
-원문 인용 연결과 반 시간의 언어 경계 검증은 ergo/intake/grounding.py의 공통 정책이며 DB 연산이 아니다. 숫자는 AI가 실제 인용한 문장에 있는 값/단위로 검증하고, 저장 근거에 포함된 중간 문장의 다른 숫자를 새 근거로 허용하지 않는다. 새 테이블·trigger·migration과 만료 정책을 추가하지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
+원문 인용 연결과 반 시간의 언어 경계 검증은 backend/intake/grounding.py의 공통 정책이며 DB 연산이 아니다. 숫자는 AI가 실제 인용한 문장에 있는 값/단위로 검증하고, 저장 근거에 포함된 중간 문장의 다른 숫자를 새 근거로 허용하지 않는다. 새 테이블·trigger·migration과 만료 정책을 추가하지 않는다. 자세한 허용/거절 경계는 [추가 확인 계약](adaptive-intake.md#원문-문장-인용과-반-시간-경계-2026-10-23)을 따른다.
 
 ## 명시적 모름 표현 보존 정정 (2026-10-23)
 
@@ -202,7 +202,7 @@ FOLLOWUP도 제안을 검증해 같은 기존 TASK JSON에 반영하며 재계�
 
 ### 실제 사진의 AI 관찰 (2026-10-23)
 
-사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `backend.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
 

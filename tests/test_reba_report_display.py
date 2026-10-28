@@ -1,6 +1,6 @@
 import unittest
-from ergo.report.form import _reba_tables
-from ergo.report.plain import _posture, _reba_text
+from backend.report.form import _reba_tables
+from backend.report.plain import _posture, _reba_text
 
 
 class RebaReportDisplay(unittest.TestCase):

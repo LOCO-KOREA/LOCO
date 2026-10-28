@@ -2,9 +2,9 @@
 import copy
 import unittest
 
-from ergo.gpt.payload import _posture_results
-from ergo.report.plain import _measurement_text,_posture,_estimated_rows
-from ergo.intake.photo_facts import estimated_photo_inputs
+from backend.gpt.payload import _posture_results
+from backend.report.plain import _measurement_text,_posture,_estimated_rows
+from backend.intake.photo_facts import estimated_photo_inputs
 
 
 def analysis():

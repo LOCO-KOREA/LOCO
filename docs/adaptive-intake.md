@@ -4,15 +4,15 @@
 
 ## 공통 계약과 모듈
 
-`ergo/intake/contract.py`의 `VERSION`, `METHODS`, `POLICY`, 필드 catalogue가 기준이다. 항목·단위·선택지는 기존 질문 정의와 조건 행 매핑에서 조립한다. 프론트는 `intake_contract`를 한 번 조회하고 반환된 메서드 이름·저장 키·필드·정책으로 화면과 요청을 구성한다. 필드 경로나 AI 질문 문구를 프론트에서 새로 판정하지 않는다.
+`backend/intake/contract.py`의 `VERSION`, `METHODS`, `POLICY`, 필드 catalogue가 기준이다. 항목·단위·선택지는 기존 질문 정의와 조건 행 매핑에서 조립한다. 프론트는 `intake_contract`를 한 번 조회하고 반환된 메서드 이름·저장 키·필드·정책으로 화면과 요청을 구성한다. 필드 경로나 AI 질문 문구를 프론트에서 새로 판정하지 않는다.
 
 | 모듈 | 책임 |
 |---|---|
-| `ergo/intake/contract.py` | 공통 변수, 대상 필드, 조건 행 연결, strict 응답 schema |
-| `ergo/intake/facts.py` | 값·단위·근거 검증, 사용자 우선 병합, 기존 TaskInput으로 투영 |
-| `ergo/intake/planner.py` | 실제 11개 규칙/REBA의 누락 항목과 후보 연결, 중복·해결된 항목 제외 |
-| `ergo/gpt/intake.py` | 현재 값·누락 후보·현재 질문을 받아 자연어 추출과 추가 질문 선택 |
-| `ergo/service/intake.py` | 사진 추론, 회차 저장, revision 충돌, 서비스 조정 |
+| `backend/intake/contract.py` | 공통 변수, 대상 필드, 조건 행 연결, strict 응답 schema |
+| `backend/intake/facts.py` | 값·단위·근거 검증, 사용자 우선 병합, 기존 TaskInput으로 투영 |
+| `backend/intake/planner.py` | 실제 11개 규칙/REBA의 누락 항목과 후보 연결, 중복·해결된 항목 제외 |
+| `backend/gpt/intake.py` | 현재 값·누락 후보·현재 질문을 받아 자연어 추출과 추가 질문 선택 |
+| `backend/service/intake.py` | 사진 추론, 회차 저장, revision 충돌, 서비스 조정 |
 | `frontend/intake/client.js` | 계약 조회, 입력 자동 저장, 응답 순서·화면 수명 관리 |
 | `frontend/intake/view.js`, `intake.css` | 저장된 정보/수정, 추가 질문, 자연어 답변 화면 |
 | `frontend/intake/dialog.js` | 자동으로 열리는 대화 팝업, 질문 하나, 선택 우선·직접 설명·닫기·현재 결과 |
@@ -58,7 +58,7 @@ AI 응답은 `answers:[{target,condition,number,text,quote}], questions:[{target
 
 ## 공통 AI 설정
 
-ergo/ai_config.py는 공급자 클라이언트·DB와 독립적인 설정 계약이다. get_settings의 gpt_contract.fields/defaults가 두 설정 화면과 모든 AI 요청에 공통으로 쓰인다. 입력 정리·후속 질문·설명/기존 한 줄 입력에 별도 모델·토큰 상수를 두지 않는다. LOCO_AI_MODEL, LOCO_AI_REASONING_EFFORT, LOCO_AI_MAX_OUTPUT_TOKENS가 초기값을 지정하며 APP_SETTINGS JSON의 명시값이 우선한다. 앱은 AI 요청에 임의 대기 제한을 두지 않고 한 번 보낸 요청의 응답을 기다린다(2026-10-27 사용자 지시). 같은 입력을 자동으로 재송신하지 않으며 SDK timeout=None/max_retries=0을 공통 적용한다. 외부 오류와 불완전 응답은 원인을 표시하고 자동 재송신하지 않는다. 구버전 LOCO_AI_TIMEOUT_SECONDS 환경변수와 APP_SETTINGS의 gpt_timeout_seconds 값은 읽더라도 요청 정책에 사용하지 않으며 새 설정 계약·화면에는 노출하지 않는다. 같은 Python 프로세스의 GPT 텍스트·적응형 입력·사진 관찰은 키와 provider endpoint별 OpenAI client/HTTP 연결 풀을 공유한다. 현재 기본 조합은 gpt-6-luna / high다. 2026-10-26 소유자 지시로 xhigh에서 낮췄다(실측: 한 번 정리가 xhigh에서 113~170초). 이미 저장된 설정은 그대로 우선한다. 추론 미지원 모델은 추론 강도를 빈 값(전송 안 함)으로 설정할 수 있고 자동 모델 대체는 하지 않는다. 키는 기존 OPENAI_API_KEY 환경에서만 읽는다. 설정 변경은 이전 연결 상태를 미요청으로 바꾸며 다음 요청의 실제 응답이 와야 내부 연결 성공 상태를 갱신한다.
+backend/ai_config.py는 공급자 클라이언트·DB와 독립적인 설정 계약이다. get_settings의 gpt_contract.fields/defaults가 두 설정 화면과 모든 AI 요청에 공통으로 쓰인다. 입력 정리·후속 질문·설명/기존 한 줄 입력에 별도 모델·토큰 상수를 두지 않는다. LOCO_AI_MODEL, LOCO_AI_REASONING_EFFORT, LOCO_AI_MAX_OUTPUT_TOKENS가 초기값을 지정하며 APP_SETTINGS JSON의 명시값이 우선한다. 앱은 AI 요청에 임의 대기 제한을 두지 않고 한 번 보낸 요청의 응답을 기다린다(2026-10-27 사용자 지시). 같은 입력을 자동으로 재송신하지 않으며 SDK timeout=None/max_retries=0을 공통 적용한다. 외부 오류와 불완전 응답은 원인을 표시하고 자동 재송신하지 않는다. 구버전 LOCO_AI_TIMEOUT_SECONDS 환경변수와 APP_SETTINGS의 gpt_timeout_seconds 값은 읽더라도 요청 정책에 사용하지 않으며 새 설정 계약·화면에는 노출하지 않는다. 같은 Python 프로세스의 GPT 텍스트·적응형 입력·사진 관찰은 키와 provider endpoint별 OpenAI client/HTTP 연결 풀을 공유한다. 현재 기본 조합은 gpt-6-luna / high다. 2026-10-26 소유자 지시로 xhigh에서 낮췄다(실측: 한 번 정리가 xhigh에서 113~170초). 이미 저장된 설정은 그대로 우선한다. 추론 미지원 모델은 추론 강도를 빈 값(전송 안 함)으로 설정할 수 있고 자동 모델 대체는 하지 않는다. 키는 기존 OPENAI_API_KEY 환경에서만 읽는다. 설정 변경은 이전 연결 상태를 미요청으로 바꾸며 다음 요청의 실제 응답이 와야 내부 연결 성공 상태를 갱신한다.
 
 추가 확인 팝업에는 가로 진행 막대·퍼센트·확인한/전체/남은 항목 수를 함께 표시한다. 답변에 따라 항목 수가 달라질 수 있음을 안내하고, 이전 서비스처럼 progress가 없거나 잘못된 응답에서는 임의 퍼센트를 만들지 않고 확인 가능한 남은 항목 수만 보여 준다. 제목·하단 이동 버튼과 스크롤 본문을 분리하고, 답변창은 글자 16px·최소 높이 120px로 표시한다.
 
@@ -174,7 +174,7 @@ AI가 `text=UNKNOWN`을 제안하면 공통 `grounding.unknown_evidence`가 실�
 
 ### 실제 사진의 AI 관찰 (2026-10-23)
 
-사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `ergo.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
+사용자가 사진 분석을 요청하는 기존 intake_turn 계획 실행에서 등록된 현재 크롭 사진을 실제 Luna 이미지 입력으로 보낸다. 계약은 `backend.vision.contract`, 서비스는 `service.photo_vision`이며 모델·추론 설정은 기존 ai_config를 공유한다. 사진별 동작·몸통·목·무릎·좌우 팔·좌우 손목·잡은 모습 9개 관찰과 보이지 않거나 모호한 이유를 보존한다. MediaPipe의 수치 각도와 구분한다. `conditions.intake_session.photo_vision` 및 동일 응답 경로에 사진별 원본/전송 JPEG SHA, task/photo 소유권, signature, raw_response, 연결·진단을 저장하고 base64/EXIF를 DB에 넣지 않는다. 여섯 테이블과 과거 snapshot은 유지한다.
 
 등록 이미지/view/소유권·모델/추론/프롬프트·이미지 정책으로 캐시하며 읽기·재시작·직접 선택 답변·plan=false에는 이미지 API를 호출하지 않는다. 변경된 사진의 최초 요청은 사진별 병렬 실행하며 지연 응답을 시간으로 폐기하지 않는다. 다른 사진이나 삭제·교체된 작업에 이전 결과를 적용하지 않는다. 불확실/안 보임은 NO가 아니다. 허용된 분명한 boolean 자세와 4개 작업 특징의 YES만 별도 검증 경로로 source=VISION에 반영할 수 있다. USER(직접 모름 포함), 텍스트 AI, SAVED, 유효한 POSE를 우선한다. 사진에서 무게·힘·시간·횟수·정밀 각도·법정/의학 판정을 만들지 않는다. 상세는 [photo-vision.md](photo-vision.md)를 따른다.
 

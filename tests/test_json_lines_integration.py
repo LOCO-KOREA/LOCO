@@ -13,9 +13,9 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.engine.task_defaults import task_input
-from ergo.service import json_lines
-from ergo.service.application import create_service
+from backend.engine.task_defaults import task_input
+from backend.service import json_lines
+from backend.service.application import create_service
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,7 +49,7 @@ class JsonLinesIntegration(unittest.TestCase):
 
             with patch.object(json_lines, "dispatch", service.dispatch), \
                     patch.object(json_lines, "prepare_dispatch", service.prepare_dispatch), \
-                    patch("ergo.gpt.client.generate", side_effect=delayed_generate), \
+                    patch("backend.gpt.client.generate", side_effect=delayed_generate), \
                     patch.object(json_lines.threading, "Thread", side_effect=track_thread), \
                     patch("sys.stdout", output):
                 try:
@@ -78,7 +78,7 @@ class JsonLinesIntegration(unittest.TestCase):
             folder = Path(temporary)
             env = dict(os.environ, LOCO_DB_PATH=str(folder / "loco.db"), PYTHONIOENCODING="utf-8")
             service = subprocess.Popen(
-                [sys.executable, "-u", "-m", "ergo.service.json_lines"],
+                [sys.executable, "-u", "-m", "backend.service.json_lines"],
                 cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, text=True, encoding="utf-8",
             )

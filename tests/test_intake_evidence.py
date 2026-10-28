@@ -12,10 +12,10 @@ from openpyxl import load_workbook
 from PIL import Image
 
 from tests import test_adaptive_intake as fixtures
-from ergo.intake import contract, facts, history
-from ergo.intake.grounding import evidence_quote, number_proof
-from ergo.report.input_trace import InputTrace
-from ergo.service.application import create_service
+from backend.intake import contract, facts, history
+from backend.intake.grounding import evidence_quote, number_proof
+from backend.report.input_trace import InputTrace
+from backend.service.application import create_service
 
 RECORDED=json.loads((Path(__file__).parent/'fixtures'/'intake-recorded-grounding-20261023.json').read_text(encoding='utf-8'))
 ABSENT=RECORDED['08-zero-and-absent']

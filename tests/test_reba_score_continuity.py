@@ -2,10 +2,10 @@
 import copy
 import unittest
 
-from ergo.engine.reba_scoring import NO_BURDEN, calculate_reba, project_current_score, project_score_continuity
-from ergo.engine.task_defaults import ARM, COMMON
-from ergo.gpt import payload
-from ergo.gpt.client import fallback_text
+from backend.engine.reba_scoring import NO_BURDEN, calculate_reba, project_current_score, project_score_continuity
+from backend.engine.task_defaults import ARM, COMMON
+from backend.gpt import payload
+from backend.gpt.client import fallback_text
 
 
 PHOTO_ROWS = [

@@ -2,9 +2,9 @@
 import copy
 import unittest
 from unittest.mock import patch
-from ergo.service import photo_vision
-from ergo.service import intake
-from ergo.vision import contract
+from backend.service import photo_vision
+from backend.service import intake
+from backend.vision import contract
 import test_intake_model_relocation as relocation
 
 
@@ -18,7 +18,7 @@ class PhotoVisionRefreshOrder(unittest.TestCase):
         return dict(facts={},views={},photo_vision=dict(version=contract.VERSION,photos=copy.deepcopy(records),history=copy.deepcopy(list(history)),catalogue=contract.public_contract()['catalogue']))
 
     def refresh(self,session,identities):
-        with patch('ergo.service.photo_vision._descriptors',return_value=[dict(signature='signature-'+str(i)) for i in identities]):
+        with patch('backend.service.photo_vision._descriptors',return_value=[dict(signature='signature-'+str(i)) for i in identities]):
             return photo_vision.refresh({},session,{})
 
     def test_identical_records_keep_completion_order_not_descriptor_order(self):

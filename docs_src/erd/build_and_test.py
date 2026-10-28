@@ -4,7 +4,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[2]
 db=sqlite3.connect(':memory:')
 try:
-    db.executescript((root/'ergo/db/schema_v1.sql').read_text(encoding='utf-8'))
+    db.executescript((root/'backend/db/schema_v1.sql').read_text(encoding='utf-8'))
     tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
     assert tables=={'SURVEY','TASK','PHOTO','ANALYSIS','APP_SETTINGS','EXPORT_LOG'},tables
     assert db.execute("SELECT count(*) FROM sqlite_master WHERE type IN ('view','trigger')").fetchone()[0]==0

@@ -19,9 +19,9 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from PIL import Image
-from ergo.pose_contract import MEDIAPIPE_NAMES
-from ergo.service.application import create_service
-from ergo.intake import contract, planner
+from backend.pose_contract import MEDIAPIPE_NAMES
+from backend.service.application import create_service
+from backend.intake import contract, planner
 
 
 def synthetic():
@@ -82,7 +82,7 @@ def run(directory,real_photo):
         if 'OPENAI' in name and ('KEY' in name or name=='OPENAI_BASE_URL'):os.environ.pop(name)
     image=directory/'synthetic-input.png';Image.new('RGB',(800,800),'white').save(image)
     receipt=dict(kind='synthetic provider landmarks; actual service APIs/SQLite/MediaPipe-contract/analysis/Excel; no AI calls',checks=[])
-    with patch('ergo.pose.providers.mediapipe.infer',side_effect=lambda *args:copy.deepcopy(synthetic())):
+    with patch('backend.pose.providers.mediapipe.infer',side_effect=lambda *args:copy.deepcopy(synthetic())):
         ctx,survey,task,photo,state=make_service(directory/'synthetic',image,'LEFT')
         target='manual.LEFT.wrist_base';saved=state['task']['conditions'][contract.SESSION_KEY]['facts'];wrist=saved[contract.key(target)]
         assert wrist['value']==2 and wrist['state']=='KNOWN' and wrist['source']=='POSE',wrist
@@ -119,7 +119,7 @@ def run(directory,real_photo):
         receipt['synthetic'].update(workbook=str(workbook),analysis_id=analysis['analysis_id'],excel_rows=matched,other_unknowns_remain_incomplete=analysis['reba']['status']=='INCOMPLETE')
         receipt['checks'].append('synthetic provider only -> wrist2 -> existing AUTO_ACCEPTED DB field -> no flexion re-question -> real pose/REBA analysis -> actual Excel cells; direct edit and immutable snapshot preserved')
     occluded=synthetic();point=next(point for point in occluded['points'] if point['name']=='left_index');point.update(confidence=.2,visibility=.2)
-    with patch('ergo.pose.providers.mediapipe.infer',side_effect=lambda *args:copy.deepcopy(occluded)):
+    with patch('backend.pose.providers.mediapipe.infer',side_effect=lambda *args:copy.deepcopy(occluded)):
         ctx,survey,task,photo,state=make_service(directory/'synthetic-low-quality',image,'LEFT')
         item=next(row for row in state['facts'] if row['target']=='manual.LEFT.wrist_base')
         assert item['state']=='UNKNOWN' and item['measurement_diagnostic']=='WRIST_POINTS_LOW_CONFIDENCE'

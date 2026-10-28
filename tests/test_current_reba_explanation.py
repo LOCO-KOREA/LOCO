@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ergo.gpt import client,payload
+from backend.gpt import client,payload
 from test_v2_gpt import summary_fixture,content_fixture
 
 

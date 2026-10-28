@@ -4,8 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ergo.gpt import client, payload
-from ergo.service import analysis_records
+from backend.gpt import client, payload
+from backend.service import analysis_records
 
 
 def summary_fixture():

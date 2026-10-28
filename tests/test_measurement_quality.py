@@ -1,8 +1,8 @@
 import copy
 import math
 import unittest
-from ergo.engine.measurement_quality import from_analysis, from_points
-from ergo.pose_contract import COCO_NAMES, MEDIAPIPE_NAMES
+from backend.engine.measurement_quality import from_analysis, from_points
+from backend.pose_contract import COCO_NAMES, MEDIAPIPE_NAMES
 
 
 def points(names=MEDIAPIPE_NAMES, confidence=0.9):

@@ -7,7 +7,7 @@ import unittest
 import test_adaptive_intake as fixtures
 from test_photo_fact_ownership import observation, preview
 import test_score_so_far as score_fixtures
-from ergo.gpt.payload import build_numeric_summary
+from backend.gpt.payload import build_numeric_summary
 
 
 TEXT=('사진은 한 사람의 전신이 나온 평소의 같은 작업입니다. 상자 1개당 20kg을 옮깁니다. '
@@ -25,7 +25,7 @@ class InputLinkageService(unittest.TestCase):
             width_px=1,height_px=1,consent='UNKNOWN',notes=[]))
         views=dict(RIGHT=identity)
         rows=[observation('RIGHT','COMMON','trunk_base',3,40),observation('RIGHT','RIGHT','upper_arm_base',3,60)]
-        inference=patch('ergo.service.intake.handle_quick_preview',return_value=preview(rows,views))
+        inference=patch('backend.service.intake.handle_quick_preview',return_value=preview(rows,views))
         inference.start();self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session',dict(task_id=self.identity,views=views))
         self.turn([fixtures.answer('context','YES'),fixtures.answer('load','MEASURED')],plan=False)
@@ -70,8 +70,8 @@ class InputLinkageService(unittest.TestCase):
 
     def test_a_photo_specific_weight_is_not_replaced_by_the_shared_work_weight(self):
         from test_input_linkage import session
-        from ergo.intake import facts,input_links
-        from ergo.engine.task_defaults import task_input
+        from backend.intake import facts,input_links
+        from backend.engine.task_defaults import task_input
         source=session()
         prior=facts.project(task_input({}),source['facts'],source['views'],dict(views={}))
         specific=next(slot for slot in prior['capture']['slots'] if slot['photo_id']==10)

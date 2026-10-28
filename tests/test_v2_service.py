@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ergo.db import storage
-from ergo.engine.task_defaults import default_settings, evidence, task_input
+from backend.db import storage
+from backend.engine.task_defaults import default_settings, evidence, task_input
 from tests.fixtures.v13 import EXPOSURES, capture as legacy_capture
-from ergo.service import application
+from backend.service import application
 
 
 class AppCase(unittest.TestCase):

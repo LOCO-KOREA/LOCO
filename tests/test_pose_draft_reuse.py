@@ -3,10 +3,10 @@ import copy
 import unittest
 from unittest.mock import patch
 
-from ergo.engine import quick_assess
-from ergo.engine.reba_scoring import calculate_reba, candidates
-from ergo.engine.task_defaults import default_settings, task_input
-from ergo.intake import contract, facts, photo_facts, planner
+from backend.engine import quick_assess
+from backend.engine.reba_scoring import calculate_reba, candidates
+from backend.engine.task_defaults import default_settings, task_input
+from backend.intake import contract, facts, photo_facts, planner
 from test_photo_fact_ownership import observation, preview
 
 
@@ -69,7 +69,7 @@ class PoseDraftReuse(unittest.TestCase):
         for value,expected in [(10,1),(20,1),(30,2),(-10,'2_EXTENSION')]:
             rows=[dict(side='LEFT',angle_code='NECK_FLEX_TRUNK_PROXY',value_deg=value,min_confidence=.95),
                   dict(side='RIGHT',angle_code='NECK_FLEX_TRUNK_PROXY',value_deg=60,min_confidence=.99)]
-            with self.subTest(value=value),patch('ergo.engine.quick_assess.joint_angles',return_value=rows):
+            with self.subTest(value=value),patch('backend.engine.quick_assess.joint_angles',return_value=rows):
                 _,measurements=quick_assess.side_measure([],800,800,settings,'LEFT','SCREEN_RIGHT')
                 reading=next(m for m in measurements if m['field']=='neck_base')
                 self.assertEqual(reading['value'],expected)

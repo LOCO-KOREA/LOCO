@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.engine.task_defaults import task_input
-from ergo.service import application
+from backend.engine.task_defaults import task_input
+from backend.service import application
 
 
 class V2Acceptance(unittest.TestCase):

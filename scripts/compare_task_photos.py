@@ -8,11 +8,11 @@ from contextlib import closing
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from ergo.pose import engine
-from ergo import pose_contract
-from ergo.engine import quick_assess
-from ergo.engine.joint_angles import angles
-from ergo.engine.images import read_image
+from backend.pose import engine
+from backend import pose_contract
+from backend.engine import quick_assess
+from backend.engine.joint_angles import angles
+from backend.engine.images import read_image
 
 
 def main():

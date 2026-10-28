@@ -2,10 +2,10 @@
 import copy
 import unittest
 
-from ergo.engine import reba_scoring as reba
-from ergo.engine.task_defaults import COMMON, ARM
-from ergo.gpt import payload
-from ergo.report.plain import _posture
+from backend.engine import reba_scoring as reba
+from backend.engine.task_defaults import COMMON, ARM
+from backend.gpt import payload
+from backend.report.plain import _posture
 from tests import test_reba_score_continuity as fixtures
 
 

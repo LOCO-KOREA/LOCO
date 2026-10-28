@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from ergo.report.form import CHECK_RULE, _next_input_text, _support_overview
-from ergo.report.labels import CRITERION_RULE
-from ergo.service import application
-from ergo.engine.task_defaults import task_input
+from backend.report.form import CHECK_RULE, _next_input_text, _support_overview
+from backend.report.labels import CRITERION_RULE
+from backend.service import application
+from backend.engine.task_defaults import task_input
 from tests.report_helpers import lifting_input, make_survey, run_analysis, update_survey
 
 LAW_TEXT = Path(__file__).parent / 'fixtures' / '고시_제2020-12호_본문.txt'

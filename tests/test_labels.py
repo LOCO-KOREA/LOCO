@@ -1,6 +1,6 @@
 import unittest
 
-from ergo.report.labels import input_label
+from backend.report.labels import input_label
 
 
 class ReportInputLabels(unittest.TestCase):

@@ -3,8 +3,8 @@ import copy
 import unittest
 from unittest.mock import patch
 
-from ergo.engine import reba_scoring as reba
-from ergo.engine.task_defaults import COMMON, ARM
+from backend.engine import reba_scoring as reba
+from backend.engine.task_defaults import COMMON, ARM
 from tests import test_reba_score_continuity as fixtures
 
 

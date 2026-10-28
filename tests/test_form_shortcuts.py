@@ -3,9 +3,9 @@ import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from ergo.engine.task_defaults import task_input
-from ergo.intake import contract, facts, planner
-from ergo.report.plain import _manual_rows
+from backend.engine.task_defaults import task_input
+from backend.intake import contract, facts, planner
+from backend.report.plain import _manual_rows
 import test_adaptive_intake as fixtures
 from test_photo_fact_ownership import observation, preview
 
@@ -194,7 +194,7 @@ class ThroughTheService(unittest.TestCase):
         data = preview(SIDE_ROWS, dict(RIGHT=ids['RIGHT']))
         data['views']['FRONT'] = dict(photo_id=ids['FRONT'], engine=dict(provider='mediapipe'), guess=dict(orientation='FRONT', camera_side='FRONT'),
                                       measured=[], front_measurements=[front_row()], signals={})
-        inference = patch('ergo.service.intake.handle_quick_preview', return_value=data)
+        inference = patch('backend.service.intake.handle_quick_preview', return_value=data)
         inference.start()
         self.addCleanup(inference.stop)
         self.ctx.dispatch('intake_session', dict(task_id=self.identity, views=ids))
@@ -208,7 +208,7 @@ class ThroughTheService(unittest.TestCase):
         setting.update(gpt_enabled=True, gpt_model='fixture')
         self.ctx.dispatch('update_settings', dict(settings=setting))
         asked = [dict(target='manual.COMMON.shock_force', condition=f"photo:{ids['RIGHT']}")]
-        with patch('ergo.gpt.client.adaptive_intake', return_value=(dict(answers=[], questions=[]), None)) as call:
+        with patch('backend.gpt.client.adaptive_intake', return_value=(dict(answers=[], questions=[]), None)) as call:
             self.ctx.dispatch('intake_turn', dict(task_id=self.identity, text='하루 4시간 일해요.', answers=[], focus=asked))
         sent = [item.args[0] for item in call.call_args_list]
         self.assertGreaterEqual(len(sent), 1, 'the text turn reached the (patched) model')

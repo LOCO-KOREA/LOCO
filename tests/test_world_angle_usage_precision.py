@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 
 from openpyxl import Workbook,load_workbook
-from ergo.gpt.payload import build_numeric_summary,_posture_results
-from ergo.report.plain import _posture
-from ergo.report.renderer import _write_sheet
+from backend.gpt.payload import build_numeric_summary,_posture_results
+from backend.report.plain import _posture
+from backend.report.renderer import _write_sheet
 
 
 def recorded_knee():

@@ -3,8 +3,8 @@ import copy
 import json
 import unittest
 
-from ergo.engine.task_defaults import task_input
-from ergo.gpt import client, payload
+from backend.engine.task_defaults import task_input
+from backend.gpt import client, payload
 
 
 def analysis():
@@ -90,7 +90,7 @@ class AiAllInputPropagation(unittest.TestCase):
         self.assertIn('하루 총 작업시간: 60분',text)
 
     def test_every_work_numeric_and_enum_catalogue_destination_has_a_summary_consumer(self):
-        from ergo.intake.contract import fields,LIFT_FIELDS
+        from backend.intake.contract import fields,LIFT_FIELDS
         source=analysis();snapshot=source['snapshot'];expected=set()
         for field in fields():
             destination=field['destination'];kind=destination['type']

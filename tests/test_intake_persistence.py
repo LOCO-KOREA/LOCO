@@ -6,8 +6,8 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from ergo.intake import contract
-from ergo.service.application import create_service
+from backend.intake import contract
+from backend.service.application import create_service
 
 
 def proposal(value,quote,*,unknown=False):
@@ -26,7 +26,7 @@ class IntakePersistence(unittest.TestCase):
 
     def turn(self,text='',answers=(),raw=(),**kw):
         response=dict(answers=list(raw),questions=[],_connection=dict(model='controlled-provider',response_id='extract-id'))
-        with patch('ergo.gpt.client.adaptive_intake',return_value=(response,None)):
+        with patch('backend.gpt.client.adaptive_intake',return_value=(response,None)):
             return self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text=text,answers=list(answers),**kw))
 
     def test_old_unknown_never_clears_a_later_confirmed_value(self):
@@ -57,7 +57,7 @@ class IntakePersistence(unittest.TestCase):
         def provider(payload,*args):
             payloads.append(copy.deepcopy(payload))
             return dict(answers=[proposal(480,original)],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             result=self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text=''))
         self.assertTrue(any(original in payload['prior_user_text'] for payload in payloads))
         self.assertEqual(result['task']['conditions']['daily_work_min'],480)
@@ -71,7 +71,7 @@ class IntakePersistence(unittest.TestCase):
         payloads=[]
         def provider(payload,*args):
             payloads.append(copy.deepcopy(payload));return dict(answers=[proposal(480,original)],questions=[]),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             result=self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text=''))
         self.assertTrue(any(original in payload['prior_user_text'] for payload in payloads))
         self.assertEqual(result['task']['conditions']['daily_work_min'],480)
@@ -80,7 +80,7 @@ class IntakePersistence(unittest.TestCase):
         source='작업 이름은 조립이고 하루 전체 8시간 일해요'
         self.turn(source,raw=[dict(target='task_name',condition='default',number=None,text='조립',quote='작업 이름은 조립')])
         for i in range(12):self.turn('이후 설명 '+str(i)+'가'*2300)
-        from ergo.intake.history import context
+        from backend.intake.history import context
         session=self.ctx.require('task',self.task['task_id'])['conditions'][contract.SESSION_KEY]
         selected=context(session)
         self.assertIn(source,selected['texts'])
@@ -108,7 +108,7 @@ class IntakePersistence(unittest.TestCase):
             nonlocal count;count+=1
             return dict(answers=[proposal(480,'하루 2시간')] if count==1 else [],questions=[],
                         _connection=dict(model='controlled-provider',response_id=payload['phase'])),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             first=self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text='하루 2시간'))
         turn=first['history'][-1]
         self.assertEqual([request['phase'] for request in turn['requests']],['EXTRACT_AND_PLAN','FOLLOWUP'])
@@ -125,7 +125,7 @@ class IntakePersistence(unittest.TestCase):
             entered.set();release.wait(10)
             return dict(answers=[proposal(480,'하루 8시간'),dict(target='annual_work_days',condition='default',
                 number=220,text=None,quote='연 220일')],questions=[],_connection=dict(response_id='late-id')),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             thread=threading.Thread(target=lambda:result.append(self.ctx.dispatch('intake_turn',dict(
                 task_id=self.task['task_id'],text='하루 8시간 연 220일 일해요'))))
             thread.start();self.assertTrue(entered.wait(5))
@@ -147,7 +147,7 @@ class IntakePersistence(unittest.TestCase):
         def provider(payload,*args):
             return dict(answers=[proposal(480,'하루 2시간')],questions=[],
                 _connection=dict(response_id=payload['phase'])),None
-        with patch('ergo.gpt.client.adaptive_intake',side_effect=provider):
+        with patch('backend.gpt.client.adaptive_intake',side_effect=provider):
             state=self.ctx.dispatch('intake_turn',dict(task_id=self.task['task_id'],text='하루 2시간'))
         turn=state['history'][-1]
         self.assertEqual(turn['decisions'][-1]['request_index'],1)
@@ -155,7 +155,7 @@ class IntakePersistence(unittest.TestCase):
         self.assertEqual(state['diagnostics'][0]['reason'],'UNIT_OR_NUMBER_NOT_GROUNDED')
 
     def test_reconciliation_keeps_the_original_bare_reply_context(self):
-        from ergo.intake import facts
+        from backend.intake import facts
         field=next(f for f in contract.fields() if f['target']=='daily_work_min')
         result,dropped=facts.merge_model({},[proposal(420,'420')],'420',focus=[dict(field,condition='default')],reconcile=True)
         self.assertFalse(dropped)

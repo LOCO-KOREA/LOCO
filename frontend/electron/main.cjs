@@ -12,7 +12,7 @@ let window,worker,databaseLocation,terminalError,sequence=0;
 const pending=new Map();
 function disconnect(error){terminalError=error;for(const request of pending.values())request.reject(error);pending.clear();}
 function startWorker(){
- const entry=join(__dirname,'..','..','ergo','service','json_lines.py');
+ const entry=join(__dirname,'..','..','backend','service','json_lines.py');
  const localPython=join(__dirname,'..','..','.venv','Scripts','python.exe');
  const binary=app.isPackaged?join(process.resourcesPath,'backend','loco-service','loco-service.exe'):process.env.LOCO_PYTHON||(existsSync(localPython)?localPython:'python');
  const args=app.isPackaged?[]:['-u',resolve(entry)];
