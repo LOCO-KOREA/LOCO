@@ -77,7 +77,7 @@ def main():
     resources = output / 'resources'
     app = resources / 'app'
     frontend = app / 'frontend'
-    shutil.copytree(ROOT / 'frontend', frontend, ignore=shutil.ignore_patterns('node_modules', '.local', 'package-lock.json'))
+    shutil.copytree(ROOT / 'frontend', frontend, ignore=shutil.ignore_patterns('node_modules', '.local', 'package-lock.json', 'loco.env', '.env', '.env.*'))
     (app / 'package.json').write_text(json.dumps(dict(name='loco', version='2.0.0', main='frontend/electron/main.cjs')), encoding='utf-8')
     guide = app / 'docs' / 'ui'; guide.mkdir(parents=True)
     shutil.copy2(ROOT / 'docs' / 'ui' / 'loco-guide.js', guide)
@@ -98,11 +98,15 @@ def main():
     manifest['contract_version']='2.0'
     manifest['electron']=json.loads((ROOT/'frontend/node_modules/electron/package.json').read_text(encoding='utf-8'))['version']
     (output / 'build-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
+    shutil.copy2(ROOT / 'scripts' / 'portable' / 'loco.env.example', output / 'loco.env')
     (output / '실행안내.txt').write_text(
         'LOCO 2.0 Windows x64 포터블\n\n폴더 전체를 유지한 채 LOCO.exe를 실행하세요. Python/Node 설치가 필요하지 않습니다.\n'
         'DB 기본 경로: %LOCALAPPDATA%\\LOCO\\loco_demo.db\n사진은 원본 경로로 연결되므로 원본 파일을 보존하세요.\n'
-        'GPT를 사용하려면 앱 실행 환경에 OPENAI_API_KEY를 설정하고 설정 화면에서 모델과 사용 여부를 확인하세요.\n'
-        '키는 패키지에 포함되지 않습니다. 설정이 없으면 로컬 대체 설명을 사용합니다.\n'
+        'AI 사용: LOCO.exe 옆 loco.env를 메모장으로 열고 OPENAI_API_KEY= 뒤에 본인 키를 입력·저장한 뒤 앱을 다시 실행하세요.\n'
+        'OpenAI 호환 서버는 OPENAI_BASE_URL= 뒤에 API 주소도 입력하세요. 키·주소는 비워서 배포됩니다.\n'
+        'Windows 환경 변수가 있으면 loco.env보다 우선합니다. 모델·추론 강도는 신규 DB 초기값이며 저장된 설정이 우선합니다.\n'
+        'MediaPipe Heavy·Full과 MoveNet 모델을 포함합니다. 기본 자세 모델은 MediaPipe Heavy입니다.\n'
+        '개인 키를 입력한 loco.env는 다른 사람에게 전달하지 마세요. 설정이 없으면 로컬 대체 설명을 사용합니다.\n'
         '이 빌드는 개발 PC 검증용이며 별도 PC/현장/실제 GPT 계정 검증 상태는 검증 보고서를 따릅니다.\n', encoding='utf-8')
     print(str(output), flush=True)
     (ROOT / '.local').mkdir(exist_ok=True)

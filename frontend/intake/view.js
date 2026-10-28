@@ -15,5 +15,5 @@ export function renderSummary(intake) {
 }
 export function renderQuestions(intake, busy) {
   const state = intake.state; if (!state) return '';
-  return `<section class="panel intake-followup"><h2>AI가 작업 정보를 정리했어요</h2>${connectionStatus(intake,busy)}<p>설명과 사진에서 파악한 정보는 저장했어요. 부족한 부분만 팝업에서 물어볼게요.</p><div class="quick-nav"><button type="button" class="intake-back" data-quick="workspace-back" ${busy || intake.saving ? 'disabled' : ''}>뒤로 가기</button><button type="button" class="primary" data-quick="questions" ${busy ? 'disabled' : ''}>${state.questions.length ? 'AI 추가 질문 열기' : '정리한 내용 확인'}</button><button type="button" data-quick="next" ${busy ? 'disabled' : ''}>현재 정보로 결과 보기</button></div></section>`;
+  return `<section class="panel intake-followup"><h2>AI가 작업 정보를 정리했어요</h2>${connectionStatus(intake,busy)}<p>설명과 사진에서 파악한 정보는 저장했어요. 부족한 부분만 팝업에서 물어볼게요.</p><div class="quick-nav"><button type="button" class="intake-back" data-quick="workspace-back" ${busy || intake.saving ? 'disabled' : ''}>← 뒤로 가기</button><button type="button" data-quick="questions" ${busy ? 'disabled' : ''}>${state.questions.length ? 'AI 추가 질문 열기' : '정리한 내용 확인'}</button><button type="button" class="primary" data-quick="next" ${busy ? 'disabled' : ''}>현재 정보로 결과 보기</button></div></section>`;
 }

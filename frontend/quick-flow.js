@@ -1,4 +1,5 @@
 import {userText} from './user-language.js';
+import {mountStickyPhotoLayout} from './quick-sticky-layout.js';
 import {selectPhotoCrop} from './photo-crop.js';
 import {photoAngleScene, renderPhotoAngles, renderPhotoSkeleton} from './photo-angle-overlay.js';
 import {captureWorkspace, loadWorkspace, readWorkspaceDraft, writeWorkspaceDraft, WORKSPACE_STEPS, clearWorkspaceDraftForSurvey, workspaceTargetAvailable, missingWorkspaceRecord, workspaceScopeMatches, workspaceMatchesDraft, workspaceDraftDiffers, draftsShareOwner} from './quick-workspace-draft.js';
@@ -156,6 +157,7 @@ export class QuickFlow {
   constructor({host, toolbar, api, notify, onError, onOpenDetail, onScreenChange}) {
     Object.assign(this, {host, api, notify, onError, onOpenDetail, onScreenChange});
     this.toolbar = toolbar;
+    this.updateStickyPhotoLayout = mountStickyPhotoLayout(host);
     toolbar?.addEventListener('click', event => this.click(event));
     this.drafts=localDrafts();
     this.intake = new AdaptiveIntake({api, notify,drafts:this.drafts, changed: () => { if (document.activeElement?.dataset.intakeValue) { const status = this.host.querySelector('.intake-save'); if (status) status.textContent = this.intake.saveStatus(); this.keepDraft(); } else this.render(); }});
@@ -735,7 +737,7 @@ export class QuickFlow {
     const counts = item.counts || {};
     return `<section class="panel quick-check ${lines.length ? 'has-gaps' : 'clean'}"><h3>Excel 만들기 전 확인</h3>
       <p class="quick-note">입력 필요 기준 <b>${counts.needs_input_count ?? 0}</b>개 · 검토 필요 <b>${counts.needs_review_count ?? 0}</b>개 · 조사자 결론 <b>${conclusions}</b>/11개</p>
-      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? `<p class="quick-note">${this.intake?.state ? '답을 고치면 입력 창에서 "저장하고 결과 보기"를 다시 눌러야 반영돼요.' : '답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.'}</p>` : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "개선 후 사진으로 다시 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
+      ${lines.length ? `<ul class="quick-check-list">${lines.join('')}</ul>${canJump ? `<p class="quick-note">${this.intake?.state ? '답을 고치면 입력 창에서 "저장하고 결과 보기"를 다시 눌러야 반영돼요.' : '답을 고치면 마지막 묶음에서 "최종 결과 계산"을 다시 눌러야 반영돼요.'}</p>` : '<p class="quick-note">다시 연 결과라 질문으로 바로 돌아갈 수 없어요. "재분석 후 비교"에서 이전 답을 불러와 고칠 수 있어요.</p>'}`
       : '<p class="quick-ok">빠진 항목이 없어요. 그대로 Excel로 저장해도 돼요.</p>'}</section>`;
   }
 
@@ -1312,6 +1314,8 @@ export class QuickFlow {
 
   // ================= views
   render() {
+    const stepChanged = this.renderedStep !== this.step;
+    this.renderedStep = this.step;
     const criteriaPanel=this.host.querySelector?.('#quick-criteria-review');
     if(!this.skipCriteriaReviewCapture&&criteriaPanel)this.criteriaReviewOpen=criteriaPanel.open;
     this.skipCriteriaReviewCapture=false;
@@ -1332,7 +1336,7 @@ export class QuickFlow {
       }
     }
     const index = STEPS.findIndex(([id]) => id === this.step);
-    const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol></div>`;
+    const bar = this.step === 'home' ? '' : `<div class="quick-bar"><ol class="quick-steps">${STEPS.map(([id, label], i) => `<li class="${i < index ? 'done' : i === index ? 'current' : ''}">${i + 1}. ${label}</li>`).join('')}</ol><button type="button" class="quick-bar-back" data-quick="workspace-back" ${this.busy || this.photoOperation || this.intake?.saving ? 'disabled' : ''}>← 뒤로 가기</button></div>`;
     const body = {home: () => this.viewHome(), start: () => this.viewStart(), provisional: () => this.viewProvisional(), questions: () => this.viewQuestions(), result: () => this.viewResult(), review: () => this.viewReview(), excel: () => this.viewExcel()}[this.step]();
     this.intake.busyElapsedSeconds=this.busy&&this.busyStartedAt!=null?Math.floor((Date.now()-this.busyStartedAt)/1000):0;
     const busy = typeof this.busy === 'string' && this.busy && !this.intake.dialogOpen ? renderActivity(this.busy,this.intake.busyElapsedSeconds) : '';
@@ -1341,6 +1345,8 @@ export class QuickFlow {
     if(this.revealPhotoRows&&this.intake.dialogOpen)this.openPhotoRows();
     mountPoseSettings(this.host,this.settings);
     this.keepDraft();
+    if (stepChanged) globalThis.window?.scrollTo?.({top: 0, left: 0, behavior: 'instant'});
+    this.updateStickyPhotoLayout?.();
   }
 
   quickDrafts(){
@@ -1464,7 +1470,7 @@ export class QuickFlow {
       <div class="quick-slots">${VIEWS.map(slot).join('')}</div>
       <section class="panel quick-title-field"><label for="quick-analysis-title">분석 제목 <small>선택</small></label><input id="quick-analysis-title" type="text" data-quick-title value="${esc(this.analysisTitle ?? this.survey?.title ?? '')}" placeholder="예: 포장 공정 상자 운반 작업" ${this.busy ? 'disabled' : ''}></section>
       <section class="panel intake-start"><h3>작업 설명 <small>선택</small></h3><p class="quick-note">알고 있는 작업 내용만 적어 주세요. 이미 사진이나 설명에서 파악한 내용은 다시 묻지 않아요.</p><textarea data-quick-intake rows="3" ${this.intake?.contract ? `maxlength="${this.intake.contract.policy.text_limit}"` : ''} aria-label="작업 설명" placeholder="예: 20kg 상자를 하루 30번 선반으로 옮겨요.">${esc(this.intakeText)}</textarea><details class="quick-intake-example"><summary>질문을 줄이는 설명 예시</summary><p class="quick-note">가능하면 하루 작업시간, 물건 무게와 횟수, 반복·충격·자세 유지 여부도 적어 주세요. 모르면 비워도 돼요.</p></details></section>
-      <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '자동 정리 보기' : '사진·작업 설명 정리'}</button></div>`;
+      <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">← 뒤로 가기</button><button class="primary" data-quick="analyze" ${(count || this.intakeText.trim()) && !this.busy ? '' : 'disabled'}>${this.preview && !this.stale ? '다음 페이지' : '사진·작업 설명 정리'}</button></div>`;
   }
 
   pointsFor(view) {
@@ -1508,28 +1514,27 @@ export class QuickFlow {
   viewProvisional() {
     const pv = this.preview, s = pv.score;
     const side = m => m.scope === 'COMMON' ? '' : m.scope === 'LEFT' ? '왼쪽 ' : '오른쪽 ';
-    const measured = pv.measured.map(m => `<li><strong>${esc(m.label)}</strong> ${m.angles.map(a => `${a.value_deg}°`).join(' / ')} → ${esc(side(m))}${esc(VALUE_KO[m.value] || m.value + '단계')} <small>${esc(VIEW_LABEL[m.view])}</small>${m.boundary_review ? ' <em>경계값</em>' : ''}</li>`).join('');
-    const spatial=Object.entries(pv.views || {}).flatMap(([view,pose])=>(pose.world_angles || []).filter(a=>a.value_deg!=null).map(a=>`<li>${esc(VIEW_LABEL[view])} · ${a.side==='LEFT'?'왼쪽':'오른쪽'} ${esc(a.label)} ${a.value_deg.toFixed(1)}°</li>`)).join('');
-    const front = pv.front.map(f => `<li><strong>${esc(f.label)}</strong> ${f.value_deg}° ${f.suggested ? '→ <em>있음으로 제안</em>' : '→ 거의 없음'}</li>`).join('');
+    const table = (headers, rows) => `<div class="quick-measurement-table-wrap"><table class="quick-measurement-table"><thead><tr>${headers.map(label=>`<th scope="col">${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    const measured = pv.measured.map(m => `<tr><th scope="row">${esc(m.label)}</th><td class="quick-angle-value">${esc(m.angles.map(a => `${a.value_deg}°`).join(' / '))}</td><td>${esc(side(m))}${esc(VALUE_KO[m.value] || m.value + '단계')}${m.boundary_review ? '<span class="quick-boundary-badge">경계값</span>' : ''}</td><td>${esc(VIEW_LABEL[m.view])}</td></tr>`).join('');
+    const spatial=Object.entries(pv.views || {}).flatMap(([view,pose])=>(pose.world_angles || []).filter(a=>a.value_deg!=null).map(a=>`<tr><td>${esc(VIEW_LABEL[view])}</td><th scope="row">${a.side==='LEFT'?'왼쪽':'오른쪽'} ${esc(a.label)}</th><td class="quick-angle-value">${esc(a.value_deg.toFixed(1))}°</td></tr>`)).join('');
+    const front = pv.front.map(f => `<tr><th scope="row">${esc(f.label)}</th><td class="quick-angle-value">${esc(f.value_deg)}°</td><td>${f.suggested ? '<span class="quick-boundary-badge">있음으로 제안</span>' : '거의 없음'}</td></tr>`).join('');
     return `<div class="quick-columns">${this.photoStrip()}
-      <section class="panel quick-score">
+      <div class="quick-provisional-content"><section class="panel quick-score">
         <h2>REBA 현재 점수 <small>사진 기준 · 입력 전</small></h2>
         ${s ? `<div class="quick-big"><strong class="${rebaScoreClass(s.total)}">${s.total}</strong><span>점 · ${esc(RISK[s.risk] || s.risk)}</span></div>
           ${renderRebaScale(s.total, {label: '현재 '})}
           <p class="quick-note">${esc(plainText(s.assumption))}</p>
           ${s.kind === 'ASSUMED_REFERENCE' ? '<p class="quick-warn">이 점수는 자세 측정값이 아니라 비교를 위한 기준값이에요.</p>' : ''}` : '<p class="quick-note">사진 측정 결과를 받지 못했어요. 사진을 다시 확인한 뒤 필요한 입력을 이어가세요.</p>'}
         <div class="quick-provisional-evidence">
-          ${pv.measurement_quality ? `<h3>사진 전체 측정</h3>${renderMeasurementQuality(pv.measurement_quality)}` : ''}
-          <section class="quick-review-technical">
-            <h3>사진에서 측정한 값</h3><ul class="quick-measured">${measured || '<li>측면 사진에서 측정한 값이 없어요.</li>'}</ul>
-            ${front ? `<h3>정면·후면 사진 제안</h3><ul class="quick-measured">${front}</ul>` : ''}
-            ${spatial ? `<h3>3D 추정 각도</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. 유효한 팔꿈치·무릎 값은 현재 점수 초안에 사용하며, 실제 반영 여부는 결과 설명에서 확인할 수 있어요.</p><ul>${spatial}</ul>` : ''}
+          ${pv.measurement_quality ? `<section class="quick-measurement-section"><h3>사진 전체 측정</h3>${renderMeasurementQuality(pv.measurement_quality)}</section>` : ''}
+          <section class="quick-measurement-section"><h3>사진에서 측정한 값</h3>${measured ? table(['측정 항목','각도','분류','사진'],measured) : '<p class="quick-note">측면 사진에서 측정한 값이 없어요.</p>'}</section>
+          ${front ? `<section class="quick-measurement-section"><h3>정면·후면 사진 제안</h3>${table(['측정 항목','각도','관찰 제안'],front)}</section>` : ''}
+          ${spatial ? `<section class="quick-measurement-section"><h3>3D 추정 각도</h3><p class="quick-note">사진 한 장에서 추정한 분절각이에요. 유효한 팔꿈치·무릎 값은 현재 점수 초안에 사용하며, 실제 반영 여부는 결과 설명에서 확인할 수 있어요.</p>${table(['사진','측정 항목','추정 각도'],spatial)}</section>` : ''}
             ${pv.diagnostics.map(d => `<p class="quick-warn">${esc(d.message)}</p>`).join('')}
-          </section>
-          ${this.intake?.state ? `<div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>` : ''}
-        </div>${this.intakePanel()}
-        <div class="quick-nav"><button class="quick-back" data-quick="photos" ${this.busy ? 'disabled' : ''}>뒤로 가기</button><button class="primary" data-quick="next" ${this.busy ? 'disabled' : ''}>현재 점수로 결과 보기</button><button type="button" data-quick="questions" ${this.busy ? 'disabled' : ''}>점수 보완 (선택)</button></div>
-      </section></div>`;
+        </div></section>
+        ${this.intake?.state ? `<section class="panel quick-provisional-observations"><div ${this.busy ? 'inert' : ''}>${this.intake.summary()}</div>${this.intakePanel()}</section>` : this.intakePanel()}
+        <div class="quick-nav"><button class="quick-back" data-quick="photos" ${this.busy ? 'disabled' : ''}>← 뒤로 가기</button><button type="button" data-quick="questions" ${this.busy ? 'disabled' : ''}>점수 보완 (선택)</button><button class="primary" data-quick="next" ${this.busy ? 'disabled' : ''}>현재 점수로 결과 보기</button></div>
+      </div></div>`;
   }
 
   aiTag(q, item) {
@@ -1629,7 +1634,7 @@ export class QuickFlow {
     return Array.isArray(this.intake?.state?.form_fields) ? '<div class="quick-nav left"><button type="button" data-quick="questions" data-reveal-photo="1">입력 수정하기</button></div>' : '';
   }
 
-  rebaPanel({compact = false} = {}) {
+  rebaPanel({compact = false, summaryOnly = false} = {}) {
     const r = this.result || {}, reba = r.reba || {}, summary = reba.summary || {}, slots = reba.slots || [];
     const current = summary.current_score || null;
     const slotNo = current?.slot_no ?? summary.score_so_far?.slot_no ?? slots[0]?.slot_no;
@@ -1638,7 +1643,7 @@ export class QuickFlow {
     const owned=owner?.photo_id!=null?candidates.filter(item=>item.photo_id===owner.photo_id):candidates;
     const slot=owned.length===1?owned[0]:!owned.length&&candidates.length===1&&candidates[0].photo_id==null?candidates[0]:null;
     const score = current || (slot?.total != null ? {...slot, kind: 'CONFIRMED'} : slot?.score_so_far ? {...slot.score_so_far, kind: slot.score_so_far.kind || 'WITH_ASSUMPTIONS'} : summary.score_so_far ? {...summary.score_so_far, kind: summary.score_so_far.kind || 'WITH_ASSUMPTIONS'} : null);
-    if (!score || !Number.isFinite(score.total)) return `${compact ? '' : '<h2>REBA 현재 점수</h2>'}<p class="quick-note">아직 점수를 계산할 수 없어요.</p>${compact ? '' : this.postureAction()}`;
+    if (!score || !Number.isFinite(score.total)) return `${compact ? '' : '<h2>REBA 현재 점수</h2>'}<p class="quick-note">아직 점수를 계산할 수 없어요.</p>${compact || summaryOnly ? '' : this.postureAction()}`;
 
     const quality = (r.measurement_quality?.slots || []).find(item => item.slot_no === (score.slot_no ?? slot?.slot_no));
     const storedAssumedCount=Array.isArray(score.assumed)?score.assumed.length:Number.isInteger(score.assumed_count)?score.assumed_count:null;
@@ -1682,17 +1687,18 @@ export class QuickFlow {
     const componentDetails=componentRows.some(row=>row.slice(1).some(value=>Number.isFinite(value)))
       ? `<h4>${components&&score.kind==='WITH_ASSUMPTIONS'?'가정을 포함한 현재 점수의 좌우 구성':'저장된 좌우 구성점수'}</h4><table class="quick-table"><thead><tr><th>항목</th><th>왼쪽</th><th>오른쪽</th></tr></thead><tbody>${componentRows.map(row=>`<tr>${row.map((value,index)=>`<td>${index===0?esc(value):Number.isFinite(value)?value:'기록 없음'}</td>`).join('')}</tr>`).join('')}</tbody></table>`
       : '<p class="quick-note" data-reba-components-missing>Group A/B·하중·활동 등 좌우 구성점수의 세부값은 이 결과에 저장되어 있지 않아요. 현재 총점과 가정 내역을 확인해 주세요.</p>';
-    const technical = `${compact ? '<section class="quick-review-score-details">' : `<details id="quick-score-calculation" class="quick-review-technical"${this.scoreDetailsOpen?' open':''}><summary>점수 계산과 가정 자세히 보기</summary>`}
+    const technical = `<details id="quick-score-calculation" class="quick-review-technical"${this.scoreDetailsOpen?' open':''}><summary>${compact ? '점수 설명 보기' : '점수 계산과 가정 자세히 보기'}</summary>
       <p class="quick-note" data-reba-score-basis>현재 REBA ${score.total}점(${esc(riskText(score.risk))}) · ${esc(statusNote)}</p>
       ${assumption ? `<p class="quick-note">${esc(assumption)}</p>` : ''}${photoAssumption ? `<p class="quick-note">${esc(photoAssumption)}</p>` : ''}
-      ${assumedDetails}${!assumed.length&&assumedCount>0?'<p class="quick-note">이 결과는 가정 개수만 저장되어 있어 항목별 목록은 제공되지 않아요.</p>':''}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${componentDetails}${firstPassNote}${compact ? '</section>' : '</details>'}`;
+      ${assumedDetails}${!assumed.length&&assumedCount>0?'<p class="quick-note">이 결과는 가정 개수만 저장되어 있어 항목별 목록은 제공되지 않아요.</p>':''}${missingDetails}${sideNote ? `<p class="quick-note">${esc(sideNote)}</p>` : ''}${componentDetails}${firstPassNote}</details>`;
     const heading = compact ? '' : '<h2>REBA 현재 점수</h2>';
     const scoreValue = compact
-      ? `<div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>`
+      ? `<div class="quick-score-status ${String(score.kind || 'WITH_ASSUMPTIONS').toLowerCase()}">${esc(score.kind === 'WITH_ASSUMPTIONS' && assumedCount != null ? `미확인 항목 ${assumedCount}개를 가정한 점수` : status)}</div><div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>`
       : `<div class="quick-score-status ${String(score.kind || 'WITH_ASSUMPTIONS').toLowerCase()}">${esc(status)}</div><div class="quick-big"><strong class="${rebaScoreClass(score.total)}">${score.total}</strong><span>점 · ${esc(riskText(score.risk))}</span></div>${quality ? renderMeasurementQuality(quality) : ''}`;
     const fullBand = renderRebaScale(score.total, {label: score.kind === 'CONFIRMED' ? '' : '확인 전 현재 '});
+    if (summaryOnly) return `${heading}${scoreValue}${fullBand}`;
     const needsRefinement = score.kind !== 'CONFIRMED' || missing.length > 0 || Number.isInteger(summary.total_slot_count) && summary.total_slot_count > (summary.complete_count || 0);
-    return `${heading}${scoreValue}${fullBand}<p class="quick-note">${esc(statusNote)}</p>${compact && quality ? renderMeasurementQuality(quality,{compact:true}) : ''}${technical}${compact || !needsRefinement ? '' : this.postureAction()}`;
+    return `${heading}${scoreValue}${fullBand}${compact ? '' : `<p class="quick-note">${esc(statusNote)}</p>`}${compact && quality ? renderMeasurementQuality(quality,{compact:true}) : ''}${technical}${compact || !needsRefinement ? '' : this.postureAction()}`;
   }
 
   criteriaRows(editable) {
@@ -1750,11 +1756,8 @@ export class QuickFlow {
 
   viewResult() {
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel quick-score">${this.rebaPanel()}
-        ${this.resultSummary()}
-        <details class="quick-review-technical"><summary>법정 기준 초안 보기</summary><p class="quick-note">입력값으로 계산한 초안이에요. 최종 해당 여부는 조사자가 검토해 정해요.</p>${this.criteriaRows(false)}</details>
-        <details class="quick-review-technical"><summary>사진에서 파악한 작업 정보 보기</summary>${this.photoVisionPanel()}</details>
-        <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">뒤로 가기</button><button data-quick="preview">Excel 미리보기</button><button class="primary" data-quick="review">결과 설명 확인</button></div></section>
+      <div><section class="panel quick-score">${this.rebaPanel({summaryOnly: true})}</section>
+        <div class="quick-nav"><button class="quick-back" data-quick="workspace-back">← 뒤로 가기</button><button data-quick="preview">Excel 미리보기</button><button class="primary" data-quick="review">결과 설명 확인</button></div>
         ${this.comparePanel()}</div></div>`;
   }
 
@@ -1815,9 +1818,7 @@ export class QuickFlow {
       reviewHistory ? '<b>현재 분석의 검토 표시는 없어요.</b> 이전 검토 기록은 남아 있어요.' :
       '현재 분석은 아직 검토 표시가 없어요.';
     return `<div class="quick-columns">${this.photoStrip()}
-      <div><section class="panel quick-review-intro"><h3>5단계 · 결과 설명</h3>
-        <p class="quick-note">점수와 설명을 확인하고, 필요한 문장을 고쳐 확정해요. 확정한 결과 설명은 현재 분석의 Excel에 반영돼요.</p></section>
-      <section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}<button type="button" data-quick="questions" data-reveal-photo="1">자세 분석값 수정</button></section>
+      <div><section class="panel quick-review-score"><h3>REBA 현재 점수</h3>${this.rebaPanel({compact: true})}<button type="button" data-quick="questions" data-reveal-photo="1">자세 분석값 수정</button></section>
       ${this.aiPanel()}
       <details class="panel quick-review-more"><summary>사진 관찰·자세 측정·REBA 상세 보기</summary>${this.photoVisionPanel(true)}${renderPostureReview(this.result)}</details>
       <details id="quick-criteria-review" tabindex="-1" class="panel quick-review-more"${this.criteriaReviewOpen?' open':''}><summary>호별 AI 제안과 검토 선택 (11개)</summary>
@@ -1828,20 +1829,16 @@ export class QuickFlow {
         <label>메모<input type="text" data-rev="note" value="${esc(this.review.note)}" placeholder="메모 (선택)"></label></div>
         <div class="quick-nav left"><button data-quick="reviewed" ${this.result?.currentness === 'CURRENT' && Number.isInteger(this.result?.analysis_id) ? '' : 'disabled'}>검토 완료로 표시</button>${reviewed ? '<button data-quick="unreview">검토 표시 해제</button>' : ''}</div>
         ${this.result?.currentness === 'CURRENT' ? '' : '<p class="quick-note">최신 분석과 일치할 때 검토 완료로 표시할 수 있어요.</p>'}</details>
-      <section class="panel"><div class="quick-nav"><button class="quick-back" data-quick="result">뒤로 가기</button><button class="primary" data-quick="preview">Excel 미리보기</button></div></section></div></div>`;
+      <div class="quick-nav"><button class="quick-back" data-quick="result">← 뒤로 가기</button><button class="primary" data-quick="preview">Excel 미리보기</button></div></div></div>`;
   }
 
   // Excel uses the saved review conclusions; input corrections belong to the earlier steps.
   viewExcel() {
     return `<div class="quick-excel-page">
       <section class="panel quick-excel"><h3>Excel 미리보기</h3>${this.excelPreviewPanel()}</section>
-      <section class="panel"><h3>Excel로 저장</h3>
-        <p class="quick-note">위 미리보기와 같은 내용이 파일로 저장돼요.${this.comparison ? ' 개선 전후 비교도 함께 들어가요.' : ''}</p>
         ${this.exported ? `<p class="quick-ok">저장한 파일: ${esc(this.exported.file_path)}</p>` : ''}
-        <div class="quick-nav left"><button class="primary" data-quick="excel">Excel로 저장</button></div></section>
-      <section class="panel"><h3>그다음</h3>
-        <div class="quick-nav left"><button data-quick="workspace-back">뒤로 가기</button><button data-quick="improve">개선 후 사진으로 다시 비교</button>
-          <button class="quick-advanced" data-quick="detail">고급 편집</button></div></section>${this.comparePanel()}</div>`;
+        <div class="quick-excel-options quick-nav"><button data-quick="improve">재분석 후 비교</button><button class="primary" data-quick="excel">Excel로 저장</button></div>
+       ${this.comparePanel()}</div>`;
   }
 
   excelPreviewPanel() {

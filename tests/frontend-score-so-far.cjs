@@ -64,7 +64,9 @@ const markers = html => [...html.matchAll(/<li\b([^>]*)>/g)]
   assert.match(primary, /미확인 항목 6개/,'the compact count comes from canonical current_score.assumed');
   assert.match(primary, /측정된 관절 26\/33개/,'quality matches the score slot, not another photo');
   assert.doesNotMatch(primary, /0\/33개/);
-  assert.match(primary, /실제 점수는 이 점수보다 높거나 낮을 수 있습니다/,'the review score caveat is visible without a toggle');
+  assert.doesNotMatch(primary, /실제 점수는 이 점수보다 높거나 낮을 수 있습니다/,'the review caveat stays inside the score explanation disclosure');
+  assert.match(compact, /실제 점수는 이 점수보다 높거나 낮을 수 있습니다/,'the full stored caveat remains available');
+  assert.match(primary, /quick-score-status with_assumptions/,'the assumption status remains visible as a badge');
   assert.doesNotMatch(compact, /\[object Object\]/,'structured first-pass notes never stringify as an object');
   assert.match(compact, /답변 전 사진 기준 가정/,'structured assumption text stays readable in details');
   assert.doesNotMatch(compact, /왼쪽 —점|오른쪽 —점/,'missing side totals are omitted instead of shown as dashes');

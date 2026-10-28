@@ -2,7 +2,8 @@ const {app,BrowserWindow,ipcMain,dialog,clipboard,shell}=require('electron');
 const {homedir}=require('node:os');
 const {resolveDatabaseLocation,createDatabaseLocationBridge}=require('./database-location.cjs');
 const {spawn}=require('node:child_process');
-const {join,resolve}=require('node:path');
+const {join,resolve,dirname}=require('node:path');
+const {loadPortableEnv}=require('./portable-env.cjs');
 const {createInterface}=require('node:readline');
 const {existsSync}=require('node:fs');
 const appIcon=join(__dirname,'..','assets',process.platform==='win32'?'app-icon.ico':'app-icon.png');
@@ -33,6 +34,8 @@ function callWorker(method,params={}){return new Promise((resolve,reject)=>{
  worker.stdin.write(JSON.stringify({request_id,method,params})+'\n','utf8',error=>{if(error){pending.delete(request_id);reject(error);}});
 });}
 app.whenReady().then(()=>{
+ try { loadPortableEnv({directory:app.isPackaged?dirname(process.execPath):resolve(__dirname,'../..')}); }
+ catch(error) { dialog.showErrorBox('LOCO 환경 설정',error.message);app.quit();return; }
  startWorker();
  ipcMain.handle('loco:call',(_event,method,params)=>callWorker(method,params));
  const database=createDatabaseLocationBridge({location:databaseLocation,call:callWorker,clipboard,shell});
